@@ -11,7 +11,7 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from cutting_world_model.provenance import git_revision
-from cutting_world_model.training import EpisodeWindows, CoupledWorldModel, evaluate
+from cutting_world_model.training import EpisodeWindows, CoupledWorldModel, evaluate, evaluate_episode_rollouts
 
 
 def main():
@@ -81,6 +81,7 @@ def main():
         (output / "status.json").write_text(json.dumps({"state": state if state == "completed" else "interrupted",
             "optimizer_steps": completed, "wall_seconds": time.monotonic() - started}, indent=2) + "\n")
     result = {"validation": evaluate(model, validation, device),
+              "validation_episode_rollouts": evaluate_episode_rollouts(model, validation, device),
               "training": evaluate(model, train, device), "optimizer_steps": completed,
               "wall_seconds": time.monotonic() - started,
               "peak_torch_gpu_mib": torch.cuda.max_memory_allocated() / 2**20}

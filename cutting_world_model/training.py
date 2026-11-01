@@ -132,3 +132,25 @@ def evaluate(model, dataset, device):
             "reward_rmse": (reward_error / transitions)**.5,
             "termination_brier": terminal_error / transitions,
             "physical_predictions": invalid, "window_transitions": transitions}
+
+
+@torch.no_grad()
+def evaluate_episode_rollouts(model, dataset, device):
+    reports = []
+    for path, (states, actions, rewards, terminated) in zip(dataset.paths, dataset.episodes):
+        predicted = torch.as_tensor(states[:1], device=device)
+        predictions = []
+        for action in actions:
+            predicted, _, _ = model(predicted, torch.as_tensor(action[None], device=device))
+            if not torch.isfinite(predicted).all():
+                raise FloatingPointError("Non-finite full-episode model rollout")
+            predictions.append(predicted[0].cpu().numpy())
+        predictions = np.asarray(predictions)
+        metrics = {}
+        for name, (begin, end) in dataset.layout.items():
+            error = predictions[:, begin:end].astype(np.float64) - states[1:, begin:end]
+            baseline = states[0, begin:end].astype(np.float64) - states[1:, begin:end]
+            metrics[name] = {"rmse": float(np.sqrt(np.mean(error**2))),
+                             "persistence_rmse": float(np.sqrt(np.mean(baseline**2)))}
+        reports.append({"episode": str(path), "steps": len(actions), "fields": metrics})
+    return reports

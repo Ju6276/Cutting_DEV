@@ -4,10 +4,10 @@ Learn cutting dynamics from DiSECt transitions using the dynamics MLP from
 [SuperMimic-Reproduced](https://github.com/CuboiLeo/SuperMimic-Reproduced),
 commit `ba6105349069bf040f1fdad60873d13138d505a2`.
 
-The first experiment records the public prism, full particle position/velocity,
-cutting-spring stiffness, knife pose/twist and knife force. The action is the
-six-dimensional prescribed knife twist. The current SliceIt SAC run continues
-in its original process and environment.
+The selected task keeps SliceIt's Gazebo robot, six compliance-control actions,
+24-D observations, reward and termination. DiSECt supplies the public prism's
+deformation, damage and contact forces. The original SAC remains the baseline.
+An earlier direct-knife collector is available for independent dynamics checks.
 
 ## Run on the 4090
 
