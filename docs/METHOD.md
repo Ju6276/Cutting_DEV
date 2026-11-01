@@ -9,6 +9,8 @@
 | Physical data source | SliceIt DiSECt `db7de0f`, public prism configuration | Use existing FEM, contact and spring damage formulas, Gazebo knife geometry and the previously aligned initial height. Physics dt is 1e-5 s and control dt is 0.05 s, matching the running SliceIt bridge and agent. |
 | Cut topology | DiSECt preinserts the cut plane and connects its sides with weakening springs | Keep that topology and include remaining spring stiffness in the state. Every dataset contains its connectivity and initial spring damping. |
 | Action interface | SliceIt SAC controls trajectory/compliance; DiSECt accepts knife pose/twist | First fit the knife–object dynamics using prescribed twist. Mapping the six SAC actions through the robot and controller is a subsequent adapter. |
+| Coupled data | SliceIt environment and public ROS bridge | A separate Gazebo/DiSECt instance executes the original six actions and records before/after states with the original reward and termination. Controller history and force history are recorded alongside the 24-D observation. The snapshot service adds recording only. |
+| State representation | SuperMimic uses simulator state and context | Record accessible physical and controller state. Internal Gazebo solver and C++ controller buffers are not exposed in this representation; held-out multistep prediction measures their effect. |
 | Geometry coverage | G1 has fixed robot dimensions | First use one fixed prism discretization. Additional geometry/material coverage requires corresponding data and a geometry-conditioned representation. |
 
 References: [SuperMimic paper](https://arxiv.org/pdf/2610.28480),

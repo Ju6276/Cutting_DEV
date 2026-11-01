@@ -33,5 +33,18 @@ The learned model has a separate `.venv` with PyTorch 2.4.1/CUDA 12.1 and NumPy
 1.23.5. Its source import reads only the upstream dynamics module; it does not
 install the G1 simulator or change SliceIt's dependencies.
 
+For the selected robot-and-compliance task, collect the original SliceIt
+actions, observations, rewards and terminal labels in an isolated instance:
+
+```bash
+.venv/bin/python scripts/run_coupled_collection.py \
+  --sliceit-root /dataHDD/dong/Projects/SliceIt \
+  --output runs/coupled_initial --episodes 3 --wall-seconds 900
+```
+
+This starts headless Gazebo and DiSECt on ROS 11322/Gazebo 11356, records full
+episodes under `data/`, and stops those processes at the end. `status.json`
+and `data/progress.json` show lifecycle and control-step progress.
+
 Methods and scope: [METHOD](docs/METHOD.md). Results: [RESULTS](docs/RESULTS.md).
 Next experiments: [PLAN](docs/PLAN.md).
