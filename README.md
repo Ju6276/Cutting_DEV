@@ -46,5 +46,19 @@ This starts headless Gazebo and DiSECt on ROS 11322/Gazebo 11356, records full
 episodes under `data/`, and stops those processes at the end. `status.json`
 and `data/progress.json` show lifecycle and control-step progress.
 
+Fit eight-step predictions, with a whole episode held out:
+
+```bash
+.venv/bin/python scripts/train_world_model.py \
+  --train runs/coupled_initial/data/episode_000.npz runs/coupled_initial/data/episode_001.npz \
+  --validation runs/coupled_initial/data/episode_002.npz \
+  --upstream-root /dataHDD/dong/Projects/SuperMimic-Reproduced \
+  --output runs/coupled_fit --updates 10 --wall-seconds 600
+```
+
+`report.json` compares physical-unit prediction errors with state persistence
+and reports reward error, termination probability error and invalid material
+predictions. `checkpoint.pt` contains network and optimizer state.
+
 Methods and scope: [METHOD](docs/METHOD.md). Results: [RESULTS](docs/RESULTS.md).
 Next experiments: [PLAN](docs/PLAN.md).

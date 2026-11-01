@@ -11,6 +11,9 @@
 | Action interface | SliceIt SAC controls trajectory/compliance; DiSECt accepts knife pose/twist | First fit the knife–object dynamics using prescribed twist. Mapping the six SAC actions through the robot and controller is a subsequent adapter. |
 | Coupled data | SliceIt environment and public ROS bridge | A separate Gazebo/DiSECt instance executes the original six actions and records before/after states with the original reward and termination. Controller history and force history are recorded alongside the 24-D observation. The snapshot service adds recording only. |
 | State representation | SuperMimic uses simulator state and context | Record accessible physical and controller state. Internal Gazebo solver and C++ controller buffers are not exposed in this representation; held-out multistep prediction measures their effect. |
+| World-model loss | SuperMimic Eq. 1, Table A.5 | Sum eight autoregressive state/reward squared errors and termination BCE. Adam lr 2e-4, batch 2048, ten batches per update, gradient norm clipping at 1 follow the source. State and reward normalization use training episodes only. |
+| Reward and termination heads | SuperMimic permits learned heads | Local SiLU MLPs with widths 256/128 fit original SliceIt reward and termination labels. Observations are a slice of the predicted state. Time-limit truncation is stored separately from task termination. |
+| Initial training budget | Local experiment schedule | Ten updates (100 optimizer steps), 600-second budget, two complete training episodes and one held-out episode. These are a first prediction experiment; the original paper's complete training schedule has 320000 iterations. |
 | Geometry coverage | G1 has fixed robot dimensions | First use one fixed prism discretization. Additional geometry/material coverage requires corresponding data and a geometry-conditioned representation. |
 
 References: [SuperMimic paper](https://arxiv.org/pdf/2610.28480),
