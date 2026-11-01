@@ -1,5 +1,13 @@
 # Experiment order
 
+The existing SAC baseline keeps its 24-dimensional observations. The new
+branch uses SuperMimic-style model-based actor–critic updates through imagined
+rollouts. Its world-model state and its policy observation are separate:
+the world model receives deformation and damage history, while the policy can
+use the same robot/sensor observations as SAC. The current implementation
+contains the state collector and dynamics adapter; policy/critic updates are
+the fourth experiment below.
+
 1. Record a full public-prism cut with particle velocity, damage history and
    knife pose. Verify state/action alignment and restart consistency at a
    partially damaged state. Record cost alongside the existing SAC throughput.

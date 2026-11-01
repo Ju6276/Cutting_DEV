@@ -46,6 +46,8 @@ def main():
     parser.add_argument("--sim-dt", type=float, default=1e-5)
     parser.add_argument("--actions", help="NPY array of six-dimensional knife twists, m/s and rad/s")
     args = parser.parse_args()
+    args.config = str(Path(args.config).resolve())
+    args.disect_root = str(Path(args.disect_root).resolve())
     output = Path(args.output).resolve()
     output.mkdir(parents=True, exist_ok=False)
     settings = load_settings(str(Path(args.config).resolve()))

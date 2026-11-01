@@ -25,6 +25,10 @@ Run the collector under `xvfb-run -a` if the installed Qt backend requires a dis
 stores T actions and T+1 states, plus unchanged physical configuration and mesh
 connectivity. `progress.json` records every control step.
 
+`scripts/check_state_restart.py --dataset <directory> --frame <index>` restarts
+one control interval from a recorded, partially damaged state and reports
+position, velocity and spring-stiffness differences.
+
 The learned model has a separate `.venv` with PyTorch 2.4.1/CUDA 12.1 and NumPy
 1.23.5. Its source import reads only the upstream dynamics module; it does not
 install the G1 simulator or change SliceIt's dependencies.
