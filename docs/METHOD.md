@@ -14,6 +14,8 @@
 | World-model loss | SuperMimic Eq. 1, Table A.5 | Sum eight autoregressive state/reward squared errors and termination BCE. Adam lr 2e-4, batch 2048, ten batches per update, gradient norm clipping at 1 follow the source. State and reward normalization use training episodes only. |
 | Reward and termination heads | SuperMimic permits learned heads | Local SiLU MLPs with widths 256/128 fit original SliceIt reward and termination labels. Observations are a slice of the predicted state. Time-limit truncation is stored separately from task termination. |
 | Initial training budget | Local experiment schedule | Ten updates (100 optimizer steps), 600-second budget, two complete training episodes and one held-out episode. These are a first prediction experiment; the original paper's complete training schedule has 320000 iterations. |
+| Policy objective | SuperMimic Eq. 2–3 | Implement 32-step differentiable returns with survival probabilities and terminal critic, plus GAE targets (gamma 0.99, lambda 0.95). Freeze model and critic weights during actor differentiation while retaining their derivatives with respect to state/action. |
+| Policy interface | SuperMimic uses goal encoders and observation history | The cutting policy takes SliceIt's existing 24-D observation and outputs its six bounded actions; the fixed-task goal is already expressed by the observation's target-pose error. Decoder widths follow the source (2048/1024/512/256); critic widths are 256/128. |
 | Geometry coverage | G1 has fixed robot dimensions | First use one fixed prism discretization. Additional geometry/material coverage requires corresponding data and a geometry-conditioned representation. |
 
 References: [SuperMimic paper](https://arxiv.org/pdf/2610.28480),
