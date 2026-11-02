@@ -131,6 +131,32 @@ exact atomic source samples used by the original observation call. The current
 model scales reuse joint/force scales, queue capacities and the existing 50 ms
 control period for timestamp ages.
 
+State accounting: particle position/velocity 7122, spring stiffness 304,
+robot/tool/force fields 49, native controller/filter/coupling packet 1453,
+derived history and episode constants 62. The complete dynamics/termination
+model has 45,124,125 parameters versus 8,815,111 with the pinned humanoid state.
+Flat particle ordering fixes the model input/output size to this material mesh.
+
+Source identities distinguish recorded state from independent prediction targets:
+controller tip pose follows FK of internal controller joints; force-history and
+current-force readouts follow the recorded wrench queue. Sensor/controller
+callbacks have separate sampling phases, so measured and internal joint states
+remain separate. The filter reprocesses its 200-sample window with carried IIR
+memory; replacing it with a two-state streaming filter changes the source update.
+
+The arm's coupling pose cache survives environment reset. Reset computes a new
+knife pose through the environment helper without updating that arm cache.
+The next arm coupling query refreshes it; the source's existing 1 m/s translation
+guard returns zero twist for a sufficiently large displacement. Consequently
+cache reconstruction must preserve reset/query timing and use `b_bot_knife_sim`
+FK, rather than replace every initialized cache with current robot FK.
+
+With one ROS environment, the unchanged 10 batches of 2048 eight-step windows
+and UTD 0.4 request 65,536 training transition slots per collected transition;
+at 4096 worlds the corresponding ratio is 16. Overlapping/repeated samples do
+not supply independent trajectories. This is a collection-regime difference
+despite matching the source batch and optimizer settings.
+
 The base environment and arm must agree with the configured step-control flag.
 Reset and cleanup use `/gazebo/pause_physics` and `/gazebo/unpause_physics`
 services in call order. Native snapshots are read after the observation while

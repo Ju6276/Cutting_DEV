@@ -284,3 +284,20 @@ all 77 pre-attachment history rows preserved and primary logging continues.
 `reward/episode_mean_20` reports the last 20 completed episodes. Original task
 terminal reward is +100 for success / -100 for force-limit failure; at 63
 completed episodes success return mean 85.047, failure mean -113.851.
+
+2026-11-02, WM `4809e8b`, frozen state reassessment on RTX 4090/CPU:
+`PYTHONPATH=. .venv/bin/python runs/state8990_reassessment.py`;
+report `runs/state8990_reassessment_20261102/state_reassessment.json`.
+80 replay rows supply 64 overlapping eight-step windows. Pre-update state loss
+8.63448: spring stiffness 50.71%, coupling pose 36.61%, filter history 5.66%,
+particle position/velocity 4.95%. Two reset-start windows contribute 99.29% of
+the coupling-pose loss. Particle coordinates occupy 79.22% of the state.
+
+Independent source/record audit, four episodes, report
+`runs/state_reassessment_20261102/coupling_cache_reset_correction.json`:
+nonreset coupling poses match explicit `b_bot_knife_sim` FK within 8e-16.
+The second and third long-run reset caches equal the preceding final cache
+bitwise, with reset-FK position differences 0.0622816 / 0.0628629 m. Reset uses
+a separate helper that leaves arm memory unchanged; the next arm query applies
+its existing velocity guard. First micro-query motion is absent from these
+records. Retain reset cache memory; unconditional FK replacement fails here.
