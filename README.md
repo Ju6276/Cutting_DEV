@@ -55,3 +55,9 @@ restart comparison: `scripts/check_state_restart.py`.
 
 [Methods and source mapping](docs/METHOD.md) · [Results](docs/RESULTS.md) ·
 [Plan](docs/PLAN.md) · [Source provenance](third_party/supermimic/README.md)
+
+For automatic evaluation after an already-running training job,
+`scripts/finish_online_run.py --training-run RUN --sliceit-root SLICEIT
+--output EVAL_RUN` waits for supervisor cleanup, then evaluates `data/last.pt`
+for five episodes with a one-hour budget. Failures are recorded in
+`EVAL_RUN.followup.json`.
