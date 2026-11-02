@@ -1,7 +1,7 @@
 # Training plan
 
 Target: SuperMimic-Reproduced's online learning algorithm on the existing
-SliceIt robot/compliance task, compared with the unchanged SAC baseline.
+SliceIt UR5e robot/compliance task, compared with the unchanged SAC baseline.
 
 1. **Task/data interfaces — checked.** A complete 41-step episode matches the
    original observations, rewards, force-limit decisions and termination labels.

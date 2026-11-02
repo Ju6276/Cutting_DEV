@@ -1,7 +1,7 @@
 # Cutting World Model
 
 Adapt [SuperMimic-Reproduced](https://github.com/CuboiLeo/SuperMimic-Reproduced)
-(`ba610534`) to SliceIt's Gazebo robot and DiSECt public prism. Keep SliceIt's
+(`ba610534`) to SliceIt's Gazebo UR5e robot and DiSECt public prism. Keep SliceIt's
 six actions, reward, force limits and termination rules; compare with its SAC.
 
 The trainer collects physical transitions, fits an eight-step world model and

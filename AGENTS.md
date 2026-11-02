@@ -1,7 +1,7 @@
 # CuttingWorldModel working rules
 
 - Migrate SuperMimic-Reproduced `ba610534` to the existing SliceIt Gazebo + DiSECt
-  robot/compliance task. Keep the original SAC baseline independent.
+  UR5e robot/compliance task. Keep the original SAC baseline independent.
 - Preserve source training objectives, update cadence, effective batch sizes,
   optimizer settings and network widths. Document task-specific interfaces and
   scale provenance in docs/METHOD.md before changing them.
