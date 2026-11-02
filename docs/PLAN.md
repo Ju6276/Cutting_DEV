@@ -20,8 +20,10 @@ with its unchanged SAC baseline.
    original task return and physical replay outcomes. Judge model performance
    over training, instead of modifying its structure after a tiny initial fit.
 
-Current work is item 1. The one-episode interface run has a 600-second wall cap,
-per-step progress and automatic child cleanup. It performs no policy updates.
+Item 1 passed the recorded-episode observation/reward/termination and replay
+alignment checks (41 transitions; RESULTS). Next is item 2. Interface collection
+has a 600-second wall cap, per-step progress and automatic child cleanup.
+It performs no policy updates.
 The original SAC continues independently. Physics collection and neural fitting
 are scheduled sequentially within this branch to limit GPU contention.
 

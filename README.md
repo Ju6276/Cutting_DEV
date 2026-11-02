@@ -16,9 +16,9 @@ On the 4090, from `/dataHDD/dong/Projects/CuttingWorldModel`:
 ```bash
 .venv/bin/python scripts/run_coupled_collection.py \
   --sliceit-root /dataHDD/dong/Projects/SliceIt \
-  --output runs/interface_source_policy --episodes 1 --wall-seconds 600
+  --output runs/interface_source_policy_aligned --episodes 1 --wall-seconds 600
 .venv/bin/python scripts/check_task_interface.py \
-  --dataset runs/interface_source_policy/data
+  --dataset runs/interface_source_policy_aligned/data
 ```
 
 The first command starts an isolated headless Gazebo/DiSECt instance on ROS
