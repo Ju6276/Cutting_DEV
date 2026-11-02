@@ -386,3 +386,15 @@ FK position error <=6.39e-16 m, observation error <=2.56e-14, reward error
 Post-integration joint positions differ from the preceding native hardware read
 by up to 5.42e-4 rad; METHOD records their one-tick sampling-phase difference.
 Full tests on 4090: 50 passed, 2 GPU integration checks skipped (2.64 s).
+
+2026-11-02, `9e763c6`, SliceIt `1420ade`, utilities `97ba329`, Gazebo `ef2face`:
+`python runs/sac_paused_snapshot_20261102/run.py` in SliceIt, 600 s budget,
+original SAC entry/configuration: 31 transitions, 30 actor/Q1/Q2/alpha updates,
+return 84.00210, task success=true, collision=false. First and subsequent reset
+pose/history errors 0; both snapshot intervals have start=end, with preceding
+topic caches 2/1 ms old. The earlier `3bc5024` reset check differed by 0.519 mm.
+Force observation/accumulator errors 0, TD arrays (1024,), weights/TD finite.
+DiSECt advanced 1.552 s in 776 calls, released 288/304 springs; next reset 0/304.
+Exit 0 in 112.75 s, no remaining processes or checkpoint files. Actions remain
+in the original random warmup (1000); its source trainer updates during warmup.
+Shared source tests: SliceIt 59 passed; CWM 50 passed, 2 skipped (2.67 s).

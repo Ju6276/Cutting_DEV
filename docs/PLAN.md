@@ -5,8 +5,10 @@
 - **1 — SAC + Gazebo + DiSECt**: stopped at 3257 steps / 3124 updates /
   133 episodes after waiting 1 s for a joint message newer than simulation time
   747.073. The failed run's checkpoint files are deleted; logs and replay remain
-  for diagnosis. StepControl now returns the post-integration joint snapshot;
-  complete-episode validation precedes a fresh baseline run.
+  for diagnosis. StepControl returns the post-integration joint snapshot and
+  synchronizes reset observations without advancing time. A complete 31-step
+  source SAC episode plus next reset passed: return 84.00210, 30 updates, reset
+  pose/history and force-read errors 0. No long training is running.
   W&B `064z1a85` retains physical step and episode rewards.
 - **2 — SuperMimic + Gazebo + DiSECt**: the active implementation is the
   `control_history_v2` predictor. Latest offline validation completed its 600 s
@@ -39,7 +41,9 @@ measured for the compact model.
 
 1. Keep v2 fixed while expanding complete-episode data with the existing source
    action/noise setup; retain whole held-out episodes including success and force
-   termination. Report terminal counts/probabilities and physical-unit errors.
+   termination. Use `synchronous_paused_joint_snapshot_v1` recordings; older
+   sampling revisions stay separate. Report terminal counts/probabilities and
+   physical-unit errors.
 2. Continue source world-model learning and compare 1/8/32-step prediction curves
    against persistence. Use training/held-out differences to separate fitting from
    coverage problems before another architecture or optimizer change.
