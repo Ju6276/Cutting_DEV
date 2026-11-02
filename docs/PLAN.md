@@ -4,8 +4,9 @@
 
 - **1 — SAC + Gazebo + DiSECt**: stopped at 3257 steps / 3124 updates /
   133 episodes after waiting 1 s for a joint message newer than simulation time
-  747.073. Final checkpoint/replay saved; supervisor cleaned up. Diagnose joint
-  publication and callback timing before resuming the original 100100-step job.
+  747.073. Checkpoint/replay moved to `quarantined_learner` and excluded from
+  training/evaluation; supervisor cleaned up. Diagnose joint publication and
+  callback timing, validate complete episodes, then start a fresh baseline run.
   W&B `064z1a85` retains physical step and episode rewards.
 - **2 — SuperMimic + Gazebo + DiSECt**: the active implementation is the
   `control_history_v2` predictor. Latest offline validation completed its 600 s
