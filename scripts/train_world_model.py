@@ -37,7 +37,14 @@ def main():
     torch.set_num_threads(2)
     device = "cuda"
     statistics = train.statistics()
-    model = CoupledWorldModel(args.upstream_root, *statistics).to(device)
+    records = [json.loads((path.parent / "manifest.json").read_text())
+               for path in train.paths + validation.paths]
+    task = records[0]
+    if any(record["environment"] != task["environment"] or record["controller"] != task["controller"]
+           for record in records[1:]):
+        raise ValueError("This fixed-task fit requires matching environment/controller configurations")
+    action_increment = np.asarray(task["controller"]["max_twist"]) * task["environment"]["robot_control_dt"]
+    model = CoupledWorldModel(args.upstream_root, *statistics, train.layout, action_increment).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=2e-4)
     manifest = {"git": git_revision(Path(__file__).resolve().parents[1]),
                 "upstream_git": git_revision(args.upstream_root), "arguments": vars(args),
@@ -46,6 +53,7 @@ def main():
                 "train_episodes": [str(path) for path in train.paths],
                 "validation_episodes": [str(path) for path in validation.paths],
                 "layout": train.layout, "parameters": sum(p.numel() for p in model.parameters())}
+    manifest["task"] = {"environment": task["environment"], "controller": task["controller"]}
     (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     started = time.monotonic()
     initial = evaluate(model, validation, device)

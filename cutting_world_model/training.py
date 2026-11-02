@@ -6,6 +6,7 @@ import torch
 from torch import nn
 
 from .dynamics import CuttingDynamics, pack_trajectory
+from .state_update import structured_update
 
 
 class EpisodeWindows:
@@ -54,15 +55,26 @@ class EpisodeWindows:
         state = np.concatenate([episode[0] for episode in self.episodes]).astype(np.float64)
         reward = np.concatenate([episode[2] for episode in self.episodes]).astype(np.float64)
         mean = state.mean(axis=0)
-        scale = state.std(axis=0)
-        scale[scale == 0] = 1
+        variance = state.var(axis=0)
+        scale = np.empty_like(mean)
+        for name, (begin, end) in self.layout.items():
+            groups = [(begin, end)]
+            if name in ("knife_pose", "ee_pose", "previous_ee_pose", "target_pose"):
+                groups = [(begin, begin + 3), (begin + 3, end)]
+            elif name in ("knife_velocity", "wrench_history", "previous_velocity", "previous_acceleration"):
+                groups = [(offset, min(offset + 3, end)) for offset in range(begin, end, 3)]
+            for start, stop in groups:
+                pooled_scale = float(np.sqrt(variance[start:stop].mean()))
+                scale[start:stop] = pooled_scale or 1.
         return mean.astype(np.float32), scale.astype(np.float32), float(reward.mean()), float(reward.std() or 1)
 
 
 class CoupledWorldModel(nn.Module):
-    def __init__(self, upstream_root, mean, scale, reward_mean, reward_scale):
+    def __init__(self, upstream_root, mean, scale, reward_mean, reward_scale, layout, action_increment):
         super().__init__()
         self.transition = CuttingDynamics(upstream_root, mean, scale)
+        self.layout = layout
+        self.register_buffer("action_increment", torch.as_tensor(action_increment, dtype=torch.float32))
         size = len(mean)
         self.reward_head = nn.Sequential(nn.Linear(size + 6, 256), nn.SiLU(),
                                          nn.Linear(256, 128), nn.SiLU(), nn.Linear(128, 1))
@@ -75,7 +87,8 @@ class CoupledWorldModel(nn.Module):
         return (state - self.transition.mean) / self.transition.scale
 
     def forward(self, state, action):
-        next_state = self.transition(state, action)
+        proposal = self.transition(state, action)
+        next_state = structured_update(state, proposal, action, self.layout, self.action_increment)
         reward_normalized = self.reward_head(torch.cat((self.normalize(state), action), dim=-1)).squeeze(-1)
         terminal_logits = self.termination_head(self.normalize(next_state)).squeeze(-1)
         reward = reward_normalized * self.reward_scale + self.reward_mean
