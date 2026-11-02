@@ -59,3 +59,6 @@ inside a cut for checking material/contact continuation across environments.
 until the original task terminates or its 500-action budget expires.
 `--actions-file PATH.npz` reads a separate recorded `actions` array, retaining
 the same initial robot/material state and controller formulas.
+`--scene-motion` follows the exported DiSECt constant-velocity reference for
+its configured duration, using the captured controller defaults. It exercises
+robot/material coupling independently of a learned policy.

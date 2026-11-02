@@ -12,7 +12,7 @@ import torch
 import warp as wp
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from cutting_gpu_backend.controller.fdcc import ControllerConfig, FDCCController, SerialChain, SlicingActionMapper
+from cutting_gpu_backend.controller.fdcc import ControllerConfig, FDCCController, SerialChain, SlicingActionMapper, quat_apply
 from cutting_gpu_backend.coupling import SliceItCoupling
 from cutting_gpu_backend.disect import DiSECt
 from cutting_gpu_backend.robot import Robot
@@ -38,6 +38,7 @@ def main():
     parser.add_argument('--task', type=Path, default=Path('runs/source/task.json'))
     parser.add_argument('--episode', type=Path, default=Path('runs/source/episode_000.npz'))
     parser.add_argument('--actions-file', type=Path)
+    parser.add_argument('--scene-motion', action='store_true')
     parser.add_argument('--model', type=Path, default=Path('runs/model_coupled/robot.mjb'))
     parser.add_argument('--controller', type=Path, default=Path('runs/controller_source/controller_params.json'))
     parser.add_argument('--scene', type=Path, default=Path('runs/disect_source_v4/scene.pt'))
@@ -51,6 +52,10 @@ def main():
     task = json.loads(args.task.read_text())
     episode = np.load(args.episode)
     actions = np.load(args.actions_file)['actions'] if args.actions_file else episode['actions']
+    if args.scene_motion:
+        if args.actions_file or args.hold_last_action:
+            parser.error('--scene-motion is separate from recorded-action replay')
+        actions = np.zeros((task['environment']['steps_per_episode'], 6))
     if args.hold_last_action:
         remaining = max(0, task['environment']['steps_per_episode'] - len(actions))
         actions = np.concatenate((actions, np.repeat(actions[-1:], remaining, axis=0)))
@@ -97,6 +102,8 @@ def main():
     feedback = coupling.feedback(sim.state.knife_f[None].to(dtype),
                                  frames[cfg.sensor_ref_link], frames[chain.tip], raw)
     target = torch.as_tensor(episode['target_pose'][0], device=device, dtype=dtype)[None]
+    reference_start = frames[chain.tip].clone()
+    reference_velocity = quat_apply(coupling.base_from_disect[3:], sim.reference_linear_velocity.to(dtype))
     force_limits = torch.tensor(task['controller']['max_force_torque'], device=device, dtype=dtype)
     desired_wrench = torch.tensor(task['controller']['desired_force_torque'], device=device, dtype=dtype)[None]
     env = task['environment']
@@ -114,7 +121,12 @@ def main():
                 reason = 'wall_budget'
                 break
             action = torch.tensor(source_action, device=device, dtype=dtype)[None]
-            action_args = mapper(action, target, frames[chain.tip])
+            if args.scene_motion:
+                reference = reference_start.clone()
+                reference[:, :3] += reference_velocity * min(physics_time + env['agent_control_dt'], sim.reference_duration)
+                action_args = {'target_pose': reference}
+            else:
+                action_args = mapper(action, target, frames[chain.tip])
             for coupling_index in range(intervals):
                 collision = bool((feedback['observation_wrench'].abs() > force_limits).any())
                 if collision:

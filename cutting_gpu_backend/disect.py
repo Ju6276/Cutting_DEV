@@ -23,6 +23,8 @@ class DiSECt:
         self.rotation = scene['initial_rot'].clone()
         self.linear_velocity = scene['linear_velocity'].clone()
         self.angular_velocity = scene['angular_velocity'].clone()
+        self.reference_linear_velocity = self.linear_velocity.clone()
+        self.reference_duration = scene['settings']['sim_duration']
         self.dt = scene['settings']['sim_dt']
         self.spine_height = scene['spine_height']
         self.integrator = df.SemiImplicitIntegrator()
