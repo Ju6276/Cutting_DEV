@@ -107,7 +107,7 @@ class CoupledEnvironment:
                 'native_sampling': 'paused_after_step_control_before_terminal_shutdown',
                 'reset_observation': 'post_reset',
                 'step_control_active': step_control_active,
-                'step_interface_revision': 'synchronous_poststep_joint_snapshot_v1',
+                'step_interface_revision': 'synchronous_paused_joint_snapshot_v1',
                 'environment': self.environment, 'controller': self.controller,
                 'robot_xml': rospy.get_param('/robot_description'),
                 'robot_base': arm.base_link, 'robot_tip': arm.ee_link,

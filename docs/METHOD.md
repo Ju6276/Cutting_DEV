@@ -227,7 +227,10 @@ ROS hardware reads on WorldUpdateBegin, so the response shifts the sample phase
 by up to one physics tick. Requested tick counts and physical equations stay
 unchanged. Episode resets retain the source NO_RESET_SIM monotonic clock;
 recreating a world requires recreating its joint-state consumer.
-Metadata `step_interface_revision=synchronous_poststep_joint_snapshot_v1`
+Reset also requests an explicit `snapshot_only` pause/read, with zero elapsed
+simulation time, before constructing its first observation. This establishes
+the same authoritative joint-sample boundary before the first action.
+Metadata `step_interface_revision=synchronous_paused_joint_snapshot_v1`
 separates these recordings from earlier topic-sampled data. Dataset/checkpoint
 metadata equality rejects mixing the two sampling contracts.
 Source: [ROS joint-state controller](https://github.com/ros-controls/ros_controllers/blob/noetic-devel/joint_state_controller/src/joint_state_controller.cpp).

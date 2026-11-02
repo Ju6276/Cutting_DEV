@@ -373,3 +373,16 @@ checkpoint pointer from `quarantined_learner` (3 files, 3,728,288 bytes).
 The failing `env.step` raises before replay insertion (tf2rl `cb_trainer.py`
 lines 211/228); the final checkpoint is saved by the worker's exception cleanup.
 The timeout itself does not establish corruption of all earlier transitions.
+
+2026-11-02, `9d48c7b`, SliceIt `3bc5024`, utilities `7ca3977`, Gazebo `c93e50a`:
+`run_coupled_collection.py --sliceit-root /dataHDD/dong/Projects/SliceIt
+--output runs/poststep_joint_collection_20261102 --mode collect --episodes 3
+--wall-seconds 900`: exit 0 in 262.41 s including startup/cleanup. Initial
+SuperMimic policy plus source noise produced 45/44/43-step episodes, all ending
+at the source force limit; 132 transitions, 135 recorded frames.
+`check_state_interface.py`, `check_task_interface.py`, `check_native_state.py`:
+FK position error <=6.39e-16 m, observation error <=2.56e-14, reward error
+<=1.43e-14, termination/collision mismatches 0, wrench-queue read error 0.
+Post-integration joint positions differ from the preceding native hardware read
+by up to 5.42e-4 rad; METHOD records their one-tick sampling-phase difference.
+Full tests on 4090: 50 passed, 2 GPU integration checks skipped (2.64 s).
