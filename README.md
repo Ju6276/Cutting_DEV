@@ -60,5 +60,9 @@ until the original task terminates or its 500-action budget expires.
 `--actions-file PATH.npz` reads a separate recorded `actions` array, retaining
 the same initial robot/material state and controller formulas.
 `--scene-motion` follows the exported DiSECt constant-velocity reference for
-its configured duration, using the captured controller defaults. It exercises
+its configured duration, using the captured controller settings. It exercises
 robot/material coupling independently of a learned policy.
+
+Single-world reference result: original task goal reached in **2.0 s simulation /
+162.70 s wall time**, peak force **9.97 N**, **288/304** springs released.
+The complete backend test suite has **18 passing tests**.

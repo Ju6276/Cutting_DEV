@@ -45,7 +45,7 @@ the original 500-action episode limit or task termination; it is a controller
 exercise, with no policy training in this script.
 `--scene-motion` instead maps the public DiSECt velocity into the robot base
 frame and advances the end-effector reference for its configured 1.3 s, then
-holds it. The captured FDCC defaults supply all gains; the original task goal
+holds it. The captured FDCC settings supply all gains; the original task goal
 and force limits still determine termination. This is a prescribed-trajectory
 integration check, separate from recorded-action replay and policy evaluation.
 

@@ -44,3 +44,30 @@ disconnected. The tensor coupling connects that path directly.
 released, peak material force 7.6461 N. Stopped at the recorded sequence end;
 vertical target error 24.77 mm. Position-motor holding/yielding checks and
 the complete test suite: 18 passed in 1.32 s.
+
+2026-11-02, `a0165ab` (start manifest):
+`run_coupled.py --hold-last-action --wall-seconds 900 --output runs/coupled_endpoint`:
+untrained recorded actions followed by final-action hold. Budget ended after
+227 actions, 11.35 s simulation / 900.41 s wall time; goal failed at 2.91 mm
+vertical error, 280/304 springs released, peak force 7.6459 N.
+
+2026-11-02, `33449f8`:
+`run_coupled.py --actions-file runs/sac_latest_actions.npz --hold-last-action
+--wall-seconds 600 --output runs/coupled_sac_endpoint`:
+latest complete SAC replay episode (indices 4955–4979, recorded return 88.2375).
+Force-limit termination after 0.134 s simulation / 17.29 s wall time;
+peak material force 64.689 N, filtered force 53.240 N, 0 springs released.
+
+2026-11-02, `860b37a`:
+`run_coupled.py --scene-motion --wall-seconds 300 --output runs/coupled_reference`:
+public DiSECt reference velocity 0.05 m/s for 1.3 s, then hold; captured source
+FDCC settings. Original task goal reached after 40 actions / 2.0 s simulation,
+162.70 s wall time; final vertical error 1.496 mm, peak material force 9.9741 N,
+288/304 springs released. Removing the filtered material contribution at the
+same controller state changes internal joint velocity by up to 1.526e-4 rad/s.
+Other SAC/world-model training stayed active during the measurement.
+
+Gazebo wiring repair is committed in SliceIt `31852dc` (5 launch/relay checks
+passed). Training startup verifies the three-topic relay/filter/controller
+chain in CuttingWorldModel `7d34e27` (24 tests passed). Existing processes keep
+their startup wiring; new runs load the repair.
