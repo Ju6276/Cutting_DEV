@@ -16,4 +16,31 @@ All five runs: all states finite; clock advance 0.20000014 s; world-0 CPU MuJoCo
 
 Concurrent GPU users stayed active: old SAC's DiSECt PID 99620 (450 MiB), online DiSECt PID 851622 (450 MiB), online learned-model/policy PID 851964 (4314 MiB). Old SAC TensorFlow PID 99901 was also left running. Throughput is measured under this concurrent load.
 
-The completed experiment is robot-only batching at 1, 32, 256, 1024 and **4096 worlds**. At 4096 worlds, independent control phases produce a maximum terminal joint spread of 0.003754 rad. Full cutting world count is **0** in this backend. The next integration stage is the original Cartesian compliance controller and batched DiSECt material/knife coupling described in METHOD. Thousands of full cutting environments require that stage's measured resource curve.
+Robot-only batching completed at 1, 32, 256, 1024 and **4096 worlds**. At 4096 worlds, independent control phases produce a maximum terminal joint spread of 0.003754 rad. Complete cutting throughput is measured separately below.
+
+2026-11-02, controller `3c2ac45`, coupling `87390c0`, adjacent-body import `6b7a360`:
+42-frame CUDA/KDL controller comparison: command maximum error 1.69e-12 rad,
+internal velocity 3.51e-11 rad/s. Coupled importer excludes 14 adjacent-body
+pairs; initial robot contacts 0, mass 23.384 kg, FK error 5.66e-16 m.
+
+2026-11-02, remote parent `861abdf` (dirty headless-core/controller changes), source DiSECt `db7de0f`:
+`validate_disect.py --scene runs/disect_contact --output runs/disect_contact_check.json`:
+continue 200 steps at 10 µs from 0.65 s inside a cut (113 released springs).
+Position maximum/RMS error 7.45e-8/6.42e-9 m; velocity maximum/RMS
+5.13e-4/3.25e-5 m/s; spring-stiffness maximum error 1.22e-4;
+per-contact force maximum error 1.46e-5 N; knife pose/twist error 0.
+Headless continuation took 0.309 s with other training active.
+
+2026-11-02, live ROS wiring audit on masters 11321 and 11322:
+`/disect/wrench` has a publisher and zero subscribers; controller
+`ft_sensor_wrench` has a subscriber and zero publishers. The active filter
+has no second-input option, and the controller remap follows the gzserver
+launch. These runs collect robot-driven cuts with the material force path
+disconnected. The tensor coupling connects that path directly.
+
+2026-11-02, remote parent `861abdf` (dirty coupled-loop changes):
+`run_coupled.py --wall-seconds 600 --output runs/coupled_sensor_startup`:
+41 recorded actions, 2.05 s simulation, 165.64 s wall time, 160/304 springs
+released, peak material force 7.6461 N. Stopped at the recorded sequence end;
+vertical target error 24.77 mm. Position-motor holding/yielding checks and
+the complete test suite: 18 passed in 1.32 s.

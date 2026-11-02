@@ -21,4 +21,39 @@ The benchmark applies named motor torques to the six current robot joints. One c
 
 [Method and coupling work](docs/METHOD.md) · [Measured results](docs/RESULTS.md).
 
-RTX 4090: **4096 UR5e robot worlds** measured at **908,648 world-steps/s**, **3558 MiB** process memory after stepping, with existing training active. The original controller and DiSECt coupling are the next integration stage.
+RTX 4090: **4096 UR5e robot worlds** measured at **908,648 world-steps/s**, **3558 MiB** process memory after stepping, with existing training active. The single-world controller/material loop below measures complete cutting separately.
+
+## Single-world cutting loop
+
+The tensor FDCC controller, headless DiSECt core and MuJoCo Warp robot connect
+in `scripts/run_coupled.py`. It replays recorded SliceIt actions with 1 ms robot
+updates, 2 ms force/motion exchange and the original force/goal checks.
+
+Prepare the DiSECt model once in the existing SliceIt environment, from its
+`disect/` directory (Xvfb serves the source package's import-time Qt dependency):
+
+```bash
+xvfb-run -a python /dataHDD/dong/Projects/CuttingGpuBackend/scripts/export_disect_scene.py \
+  --disect-root . --config ../configs/public_prism.json \
+  --output /dataHDD/dong/Projects/CuttingGpuBackend/runs/disect_source --steps 200
+```
+
+Then use the new backend environment, without ROS or a display:
+
+```bash
+export TORCH_EXTENSIONS_DIR=/dataHDD/dong/.cache/torch_extensions_cutting_gpu
+export CUDA_HOME=/usr/local/cuda-12.9 TORCH_CUDA_ARCH_LIST=8.9 MAX_JOBS=2
+.venv/bin/python scripts/validate_disect.py --scene runs/disect_source --output runs/disect_check.json
+timeout 660 .venv/bin/python -u scripts/run_coupled.py \
+  --scene runs/disect_source/scene.pt --wall-seconds 600 --output runs/coupled_cut
+```
+
+The controller parameter snapshot is `runs/controller_source/controller_params.json`.
+Import the coupled robot with `prepare_robot.py --output runs/model_coupled`;
+this includes the source engine's adjacent-body collision exclusions.
+The runner writes per-action progress, particle trajectories and a report with
+the termination reason, released springs, force, runtime and force-feedback
+response. `export_disect_scene.py --warmup-steps 65000` prepares a reference from
+inside a cut for checking material/contact continuation across environments.
+`run_coupled.py --hold-last-action` continues with the final recorded action
+until the original task terminates or its 500-action budget expires.
