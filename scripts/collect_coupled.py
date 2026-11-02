@@ -38,8 +38,6 @@ def capture(env, observation, service):
         "previous_velocity": np.asarray(base.previous_velocity).copy(),
         "previous_acceleration": np.asarray(base.previous_acceleration).copy(),
         "target_pose": np.asarray(base.current_target_pose),
-        "success_counter": np.asarray([base.success_counter], dtype=np.float32),
-        "step_count": np.asarray([base.step_count], dtype=np.float32),
     })
     if any(not np.isfinite(value).all() for value in frame.values()):
         raise FloatingPointError("Non-finite coupled state")
@@ -91,7 +89,7 @@ def main():
     (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     started = time.monotonic()
     for episode in range(args.episodes):
-        observation = env.reset()
+        observation = recorder.reset(env.reset)
         history = [observation.copy() for _ in range(policy.history)]
         frames = [recorder.read(observation)]
         actions, clean_actions, rewards, terminated, truncated, infos = [], [], [], [], [], []

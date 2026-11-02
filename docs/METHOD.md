@@ -16,6 +16,7 @@ robot utilities `a14c856`; DiSECt `db7de0f`.
 | Termination | Learned probability head trained from simulator terminal labels | Task labels and hard formulas are connected; the cutting probability head is next |
 | Physical state | Simulator state read at the transition boundary | Gazebo joint/controller state plus DiSECt position, velocity and spring history, recorded during observation generation, before terminal controller shutdown |
 | Force history | Observation reads the sensor history | Record that exact sensor read, rather than rereading a moving queue after env.step |
+| Reset boundary | SliceIt reset reads its return observation before physically resetting the scene | Preserve that returned observation and its sensor sample; capture the initial physical state after reset. Subsequent snapshots occur during observation generation |
 | Geometry/material | Source humanoid task | SliceIt's public prism configuration and aligned initial knife pose; physical equations and task thresholds unchanged |
 | Reference library | Motion-tracking goals, reward targets and reset frames | SliceIt's fixed cutting target and original task reward replace the humanoid motion library |
 
