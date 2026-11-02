@@ -43,6 +43,8 @@ Then use the new backend environment, without ROS or a display:
 ```bash
 export TORCH_EXTENSIONS_DIR=/dataHDD/dong/.cache/torch_extensions_cutting_gpu
 export CUDA_HOME=/usr/local/cuda-12.9 TORCH_CUDA_ARCH_LIST=8.9 MAX_JOBS=2
+export PATH="$PWD/.venv/bin:$CUDA_HOME/bin:$PATH"
+export XDG_CACHE_HOME=/dataHDD/dong/.cache TMPDIR=/dataHDD/dong/tmp
 .venv/bin/python scripts/validate_disect.py --scene runs/disect_source --output runs/disect_check.json
 timeout 660 .venv/bin/python -u scripts/run_coupled.py \
   --scene runs/disect_source/scene.pt --wall-seconds 600 --output runs/coupled_cut
@@ -66,3 +68,27 @@ robot/material coupling independently of a learned policy.
 Single-world reference result: original task goal reached in **2.0 s simulation /
 162.70 s wall time**, peak force **9.97 N**, **288/304** springs released.
 The complete backend test suite has **18 passing tests**.
+
+## A6000 host
+
+`tamsgpu5` (`134.100.13.216`) is reachable through `tamsgpu9`. From a Mac
+with the existing 4090 SSH master:
+
+```bash
+ssh -o 'ProxyCommand=ssh -S /tmp/sliceit-live.sock dong@tamsgpu9 -W %h:%p' \
+  -o HostKeyAlias=tamsgpu5 dong@134.100.13.216
+```
+
+The backend is at `/dataHDD/dong/Projects/CuttingGpuBackend`, with its own
+`.venv`. Use the environment variables above with `CUDA_VISIBLE_DEVICES=1`
+and `TORCH_CUDA_ARCH_LIST=8.6`. Imported mesh assets live in
+`runs/mesh_assets`; the exported URDF paths point there. Run the same reference:
+
+```bash
+timeout 660 .venv/bin/python -u scripts/run_coupled.py \
+  --scene-motion --wall-seconds 600 --output runs/a6000_reference
+```
+
+The world-model source is at `/dataHDD/dong/Projects/CuttingWorldModel`.
+Next: connect its trainer to this backend, then batch independent material,
+controller and robot states and measure 16/32 complete cutting worlds.

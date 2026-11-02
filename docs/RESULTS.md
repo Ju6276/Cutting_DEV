@@ -71,3 +71,20 @@ Gazebo wiring repair is committed in SliceIt `31852dc` (5 launch/relay checks
 passed). Training startup verifies the three-topic relay/filter/controller
 chain in CuttingWorldModel `7d34e27` (24 tests passed). Existing processes keep
 their startup wiring; new runs load the repair.
+
+2026-11-02, `1069081`, tamsgpu5 GPU 1 (RTX A6000 48 GB, driver 610.43.02):
+Python 3.12.15, Torch 2.4.1+cu121, MuJoCo/MuJoCo Warp 3.16.0, Warp 1.18.0;
+CUDA 12.9 compilation for sm_86. `PYTHONPATH=. .venv/bin/python -m pytest tests -q`:
+18 passed in 2.48 s. `validate_disect.py --scene runs/disect_contact
+--output runs/a6000_setup/disect_check.json`: 200 material steps in 0.0917 s,
+position maximum/RMS error 7.08e-8/6.43e-9 m, velocity 4.41e-4/3.09e-5 m/s,
+spring-stiffness maximum error 2.44e-4, contact-force maximum error 1.27e-5 N,
+knife pose/twist error 0, 113 released springs.
+
+Same commit and GPU: `run_coupled.py --scene-motion --wall-seconds 600
+--output runs/a6000_reference`: goal reached after 40 actions / 2.0 s simulation;
+115.36 s wall time including first-use Warp compilation and initialization.
+Final vertical error 1.497 mm, peak material force 9.97446 N, 288/304 springs
+released, force-feedback velocity response 1.526e-4 rad/s. Sampled process
+memory during cutting: 451 MiB. Both GPUs otherwise idle during this run.
+Source material, controller settings and task termination thresholds unchanged.
