@@ -86,3 +86,20 @@ learning rates, effective batches and the 320000-step schedule. Environment coun
 changes the number of physical transitions collected per vector step. It does
 not change the eight-step world-model loss or 32-step actor BPTT horizon.
 `--max-hours` and `--max-iterations` bound execution without rescaling the schedule.
+
+The GPU state layout `coupled_recurrent_v1` has 8944 coordinates. It includes
+FDCC integration velocity/error/position-command history, cached tip pose, the
+200-sample filter window and IIR state, 25-sample sensor queue, MuJoCo warm start
+and previous coupling pose. Filter tare and controller compensation remain
+constant state coordinates. These values affect the next transition even when
+particle and joint states match. The existing residual MLP learns their dynamic
+updates; network hidden widths, loss and optimizer settings are unchanged.
+Checkpoints with the previous partial state layout have different dimensions.
+
+At a force-limit terminal boundary, inactive worlds retain their robot, material,
+controller and filter state while other worlds finish the 50 ms action. Masked
+writeback discards their candidate integration before finite-state checks.
+
+The pinned source logs with TensorBoard. The GPU entry additionally uses W&B
+online logging for phase timing, physical episode returns/success/collision,
+world-model losses, BPTT/critic metrics and checkpoint artifacts.

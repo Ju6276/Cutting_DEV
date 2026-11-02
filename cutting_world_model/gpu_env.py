@@ -12,6 +12,7 @@ class GPUEnvironment:
         self.worlds, self.device = worlds, self.physics.device
         self.metadata = dict(self.physics.task)
         self.metadata['physical_backend'] = 'mujoco_warp_disect'
+        self.metadata['state_layout'] = 'coupled_recurrent_v1'
         self.metadata['material_feedback'] = 'tensor_filter_controller'
         self.metadata['reset_observation'] = 'post_reset'
         self.environment = self.metadata['environment']
@@ -61,6 +62,18 @@ class GPUEnvironment:
                 frame[key][~mask] = self.current[key][~mask]
         self.current = frame
         return frame
+
+
+    @torch.no_grad()
+    def restore_frame(self, frame):
+        self.physics.restore_frame(frame)
+        self.previous_pose = frame['previous_ee_pose'].clone()
+        self.previous_velocity = frame['previous_velocity'].clone()
+        self.previous_acceleration = frame['previous_acceleration'].clone()
+        self.success_counter = frame['success_counter'][:, 0].clone()
+        self.step_count = frame['step_count'][:, 0].long().clone()
+        self.needs_reset.zero_()
+        self.current = {k: v.clone() for k, v in frame.items()}
 
     @torch.no_grad()
     def step(self, action, reference=False):

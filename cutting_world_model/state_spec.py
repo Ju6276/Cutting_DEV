@@ -14,9 +14,23 @@ class CuttingStateSpec(nn.Module):
     history_fields = ('motion_command', 'previous_ee_pose', 'previous_velocity',
                       'previous_acceleration', 'observation', 'success_counter')
 
+    recurrent_fields = ('controller_q', 'controller_velocity', 'controller_previous_error',
+                        'controller_previous_position_command', 'controller_cached_tip_pose',
+                        'filter_history', 'filter_zi', 'wrench_queue', 'robot_warmstart',
+                        'coupling_previous_pose', 'coupling_initialized')
+    recurrent_constants = ('controller_tare_compensation', 'filter_offset')
+    pose_fields = ('knife_pose', 'controller_cached_tip_pose', 'coupling_previous_pose')
+
+    @classmethod
+    def fields_for(cls, metadata):
+        recurrent = metadata.get('state_layout') == 'coupled_recurrent_v1'
+        return (cls.physical_fields + (cls.recurrent_fields if recurrent else ()),
+                cls.history_fields + (cls.recurrent_constants if recurrent else ()))
+
     def __init__(self, metadata):
         super().__init__()
         self.metadata = metadata
+        self.physical_fields, self.history_fields = self.fields_for(metadata)
         self.heads = SliceItHeads(metadata['environment'], metadata['controller'])
         self.dt = metadata['environment']['agent_control_dt']
         self.fk = SerialKinematics(metadata['robot_xml'], metadata['robot_base'],
@@ -47,9 +61,20 @@ class CuttingStateSpec(nn.Module):
             'wrench_history': (np.tile(force, self.heads.history),) * 3,
             'peak_wrench': (force,) * 3,
         }
+        for name in ('controller_q', 'controller_previous_position_command'):
+            source[name] = source['joint_q']
+        source['controller_velocity'] = source['joint_qd']
+        for name in ('controller_previous_error', 'filter_history', 'filter_zi', 'wrench_queue'):
+            if name in self.shapes:
+                scale = np.tile(force, int(np.prod(self.shapes[name])) // 6)
+                source[name] = (scale, scale, scale)
+        source['robot_warmstart'] = (1., 1., 1.)
+        source['coupling_initialized'] = (1., 1., 1.)
+        source['controller_cached_tip_pose'] = source['knife_pose']
+        source['coupling_previous_pose'] = source['knife_pose']
         for name in self.physical_fields:
             width = self.layout[name].stop - self.layout[name].start
-            delta_width = 6 if name == 'knife_pose' else width
+            delta_width = 6 if name in self.pose_fields else width
             ins, err, out = source[name]
             scales_in.extend(np.broadcast_to(ins, (width,)).tolist())
             scales_error.extend(np.broadcast_to(err, (delta_width,)).tolist())
@@ -62,6 +87,7 @@ class CuttingStateSpec(nn.Module):
             'previous_acceleration': [1.] * 6, 'observation': [1.] * 24,
             'success_counter': [metadata['environment']['successes_threshold'] + 1.],
         }
+        history_scale.update(controller_tare_compensation=force.tolist(), filter_offset=force.tolist())
         for name in self.history_fields:
             scales_in.extend(history_scale[name])
         self.delta_dim = delta_offset
@@ -76,8 +102,9 @@ class CuttingStateSpec(nn.Module):
     @classmethod
     def metadata_from_frame(cls, task, frame):
         result = dict(task)
+        physical, history = cls.fields_for(task)
         result['state_shapes'] = {key: list(np.asarray(frame[key]).shape)
-                                  for key in cls.physical_fields + cls.history_fields}
+                                  for key in physical + history}
         result['spring_reference_ke'] = np.asarray(frame['spring_reference_ke']).tolist()
         return result
 
@@ -106,7 +133,7 @@ class CuttingStateSpec(nn.Module):
         fields = {name: self.field(state, name) for name in self.physical_fields + self.history_fields}
         d = delta * self.out_scale
         for name in self.physical_fields:
-            if name == 'knife_pose':
+            if name in self.pose_fields:
                 continue
             fields[name] = fields[name] + d[..., self.delta_slices[name]].reshape_as(fields[name])
         fields['particle_q'] = fields['particle_q'] + self.dt * fields['particle_qd']
@@ -117,6 +144,14 @@ class CuttingStateSpec(nn.Module):
         pos = pose[..., :3] + self.dt * twist[..., :3] + correction[..., :3]
         rotation = quat_mul(pose[..., 3:], quat_exp(self.dt * twist[..., 3:] + correction[..., 3:]))
         fields['knife_pose'] = torch.cat((pos, torch.nn.functional.normalize(rotation, dim=-1)), -1)
+        for name in self.pose_fields[1:]:
+            if name not in fields:
+                continue
+            old_pose = self.field(state, name)
+            correction = d[..., self.delta_slices[name]]
+            rotation = quat_mul(old_pose[..., 3:], quat_exp(correction[..., 3:]))
+            fields[name] = torch.cat((old_pose[..., :3] + correction[..., :3],
+                                      torch.nn.functional.normalize(rotation, dim=-1)), -1)
         return fields
 
     def derive(self, old, fields, action, goal):
@@ -143,7 +178,7 @@ class CuttingStateSpec(nn.Module):
         errors = []
         for name in self.physical_fields:
             a, b = self.field(pred, name), self.field(true, name)
-            err = pose_difference(a, b) if name == 'knife_pose' else a - b
+            err = pose_difference(a, b) if name in self.pose_fields else a - b
             errors.append(err.reshape(*pred.shape[:-1], -1))
         return torch.cat(errors, -1) / self.err_scale
 

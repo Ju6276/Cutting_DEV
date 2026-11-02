@@ -1,0 +1,2 @@
+-r ../CuttingGpuBackend/requirements.txt
+wandb==0.31.0

@@ -20,7 +20,8 @@ actor learning batch.
 ## Run on the A6000
 
 The ROS-free GPU entry uses `/dataHDD/dong/Projects/CuttingGpuBackend` and the
-same learning modules as the Gazebo entry. Prepare exported assets as described
+same learning modules as the Gazebo entry. Install `requirements-gpu.txt` in its
+Python 3.12 environment. Prepare exported assets as described
 in that backend's README. From `/dataHDD/dong/Projects/CuttingWorldModel`:
 
 ```bash
@@ -30,9 +31,17 @@ export TORCH_EXTENSIONS_DIR=/dataHDD/dong/.cache/torch_extensions_cutting_gpu
 export XDG_CACHE_HOME=/dataHDD/dong/.cache TMPDIR=/dataHDD/dong/tmp MAX_JOBS=2
 export TORCHINDUCTOR_CACHE_DIR=/dataHDD/dong/.cache/torchinductor_cutting
 export TRITON_CACHE_DIR=/dataHDD/dong/.cache/triton_cutting
+export NETRC=/dataHDD/dong/.config/wandb/netrc
+export WANDB_CONFIG_DIR=/dataHDD/dong/.config/wandb
+export WANDB_CACHE_DIR=/dataHDD/dong/.cache/wandb
+export WANDB_DATA_DIR=/dataHDD/dong/.cache/wandb-data
 .venv/bin/python scripts/train_gpu.py --backend-root ../CuttingGpuBackend \
   --worlds 16 --max-hours 6 --output runs/gpu_training
 ```
+
+Online W&B is enabled by default (`--wandb-project sliceit-supermimic`);
+`wandb.json` records the run URL. The existing authenticated account supplies the
+entity, or set `--wandb-entity`. Final checkpoints are uploaded as model artifacts.
 
 `--max-iterations` bounds a smoke run without changing the learning-rate
 schedule. `--resume RUN/last.pt` restores learner/optimizer state and refills

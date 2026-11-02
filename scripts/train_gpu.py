@@ -18,6 +18,7 @@ from cutting_world_model.policy import SliceItPolicy, SliceItCritic
 from cutting_world_model.provenance import git_revision
 from cutting_world_model.state_spec import CuttingStateSpec
 from cutting_world_model.trainer import OnlineLearner
+from cutting_world_model.tracking import ExperimentTracker
 from cutting_world_model.world_model import CuttingWorldModel
 from third_party.supermimic.schedule import cosine_lr
 from train_coupled import write_json, append_json
@@ -33,6 +34,9 @@ def main():
     parser.add_argument('--max-iterations', type=int)
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--resume', type=Path)
+    parser.add_argument('--wandb-project', default='sliceit-supermimic')
+    parser.add_argument('--wandb-entity')
+    parser.add_argument('--wandb-mode', choices=('online', 'offline', 'disabled'), default='online')
     args = parser.parse_args()
     sys.path.insert(0, str(args.backend_root.resolve()))
     from cutting_world_model.gpu_env import GPUEnvironment
@@ -70,13 +74,16 @@ def main():
     episodes = torch.zeros_like(lengths)
     revisions = {'world_model': git_revision(Path(__file__).resolve().parents[1]),
                  'backend': git_revision(args.backend_root)}
-    write_json(output / 'manifest.json', {
+    manifest = {
         'git': revisions, 'command': sys.argv,
         'arguments': {k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()},
         'world_model': asdict(learner.wcfg), 'policy': asdict(learner.pcfg),
         'schedule': asdict(schedule.config), 'endpoint': 'wall budget or iteration budget',
         'timeout': 'SIGTERM saves last.pt and progress.json',
-    })
+        'state_dim': spec.state_dim, 'delta_dim': spec.delta_dim,
+    }
+    write_json(output / 'manifest.json', manifest)
+    tracker = ExperimentTracker(output, manifest, args.wandb_project, args.wandb_entity, args.wandb_mode)
     stop_requested = False
 
     def stop(signum, context):
@@ -125,6 +132,12 @@ def main():
                 returns += reward
                 lengths += 1
             ended = terminated | truncated
+            metrics = {'iteration': schedule.iteration + 1, 'physics/reward_mean': float(reward.mean())}
+            if ended.any():
+                metrics.update({'episode/return_mean': float(returns[ended].mean()),
+                                'episode/length_mean': float(lengths[ended].float().mean()),
+                                'episode/success_rate': float(info['success'][ended].float().mean()),
+                                'episode/collision_rate': float(info['collision'][ended].float().mean())})
             for e in ended.nonzero().flatten().tolist():
                 append_json(output / 'episodes.jsonl', {
                     'env': e, 'episode': int(episodes[e]), 'iteration': schedule.iteration + 1,
@@ -151,6 +164,9 @@ def main():
                 tick = time.monotonic()
                 policy_metrics = learner.improve_policy(replay.buffer)
                 timing['policy'] += time.monotonic() - tick
+                metrics.update({'wm/' + k: v for k, v in wm_metrics.items()})
+                metrics.update({'policy/' + k: v for k, v in policy_metrics.items()})
+                metrics['lr'] = lr
                 append_json(output / 'updates.jsonl', {
                     'iteration': schedule.iteration, 'update': learner.updates, 'lr': lr,
                     'world_model': wm_metrics, 'policy': policy_metrics, 'timing': dict(timing),
@@ -159,6 +175,12 @@ def main():
             progress(iteration=schedule.iteration, updates=learner.updates,
                      transitions=schedule.iteration * args.worlds, episodes=int(episodes.sum()),
                      replay_rows=replay.buffer.size, timing=dict(timing))
+            metrics.update({'updates': learner.updates, 'physics/transitions': schedule.iteration * args.worlds,
+                            'episodes': int(episodes.sum()), 'replay/rows': replay.buffer.size,
+                            'gpu/torch_peak_mib': torch.cuda.max_memory_allocated() / 2**20,
+                            'wall_seconds': time.monotonic() - started})
+            metrics.update({'time/' + k: v for k, v in timing.items()})
+            tracker.log(metrics)
             append_json(output / 'steps.jsonl', dict(status))
             print(json.dumps(status), flush=True)
             if schedule.iteration % schedule.config.checkpoint_interval == 0:
@@ -171,6 +193,7 @@ def main():
     finally:
         checkpoint('last.pt')
         progress(iteration=schedule.iteration, updates=learner.updates)
+        tracker.finish(output / 'last.pt', status)
 
 
 if __name__ == '__main__':
