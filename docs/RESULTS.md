@@ -341,3 +341,28 @@ State RMSE 14.6728 -> 0.08983, FK 225.79 -> 11.55 mm, peak-force RMSE
 1854.35 -> 8.924 N. This isolates a derivative-feedback amplification route.
 Recorded future measurements enter this intervention; the deployable v2 instead
 excludes derived observations from dynamics input while retaining analytic heads.
+
+2026-11-02, `ed91239`, same episode split, source hyperparameters and 600 s budget:
+repeat `scripts/check_control_model.py` above with output
+`runs/control_history_v2_fit_20261102`. Dynamics input now selects 480 physical/
+command-history coordinates; rollout state remains 860, outputs 36, parameters
+9,484,133. 50 tests passed, 2 optional GPU integration tests skipped.
+32 complete groups / 324 Adam steps in 600.603 s; checkpoint saved, no policy updates.
+
+Held-out 1/8/32-step normalized RMSE 0.03059 / 0.04076 / 0.12302.
+At 32 steps, v1 -> v2: FK translation 225.90 -> 15.69 mm, peak-force RMSE
+1854.89 -> 8.968 N, return RMSE 1692.30 -> 25.705, collision false positives
+13 -> 0. The sole collision remains missed. Training-episode 32-step RMSE is
+0.0780 / 0.0612 / 0.0840. At matched update 20, held-out RMSE is 69.012 ->
+0.13744. Explosive feedback is removed on this dataset. The initial constant-
+velocity/force-persistence prior has 32-step FK 9.91 mm and peak-force 7.83 N;
+v2 task-relevant errors still exceed those prior values despite lower composite
+state error (prior 0.21873). Held-out 8-step state RMSE worsens from v1 0.03493
+to v2 0.04076. More whole-episode data and physical evaluation remain next.
+
+Independent final-model BPTT, `runs/control_history_v2_fit_20261102/check_trained_bptt.py`:
+central FD at 1e-3 / 1e-4 / 1e-5 gives H8 relative errors
+6.64e-5 / 6.60e-7 / 6.69e-9 and H32 3.14e-7 / 3.09e-9 / 2.92e-9;
+all branch fingerprints unchanged. H32 action-gradient norm 4465.86 -> 7.70.
+[W&B v2](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/8j3k5uuo)
+contains all 32 updates and final measurements; server status finished.
