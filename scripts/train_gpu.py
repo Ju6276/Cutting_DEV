@@ -139,6 +139,8 @@ def main():
                 lengths[ended] = 0
                 episodes[ended] += 1
             updates = schedule.after_environment_step()
+            progress(iteration=schedule.iteration, transitions=schedule.iteration * args.worlds,
+                     episodes=int(episodes.sum()), replay_rows=replay.buffer.size)
             for _ in range(updates):
                 lr = cosine_lr(schedule.iteration, schedule.config.total_iterations,
                                learner.wcfg.lr, schedule.config.lr_final_ratio, schedule.config.lr_decay_fraction)

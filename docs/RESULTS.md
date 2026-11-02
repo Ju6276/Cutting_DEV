@@ -54,3 +54,44 @@ completed; model/actor gradient norms 43.9297 / 0.003292; peak allocated GPU
 memory 2577.35 MiB. First model/actor+critic updates took 61.88 / 54.71 s,
 including compilation. These are execution measurements before online learning.
 `python -m pytest tests -q`: 20 passed in 1.83 s.
+
+
+2026-11-02, world-model `f656efc`, backend `d81579e`, RTX A6000 GPU 1:
+`benchmark_gpu_env.py --backend-root ../CuttingGpuBackend --worlds N
+--wall-seconds 600 --output runs/gpu_cut_N`. Same public material and reference
+trajectory; every episode reaches the original goal after 40 actions / 2 s,
+with 288/304 springs released. Full task includes robot, material, compliance,
+force filtering, observation, reward and termination.
+
+| Worlds | Successful cuts | Stepping time (s) | World-steps/s | Setup (s) |
+|---:|---:|---:|---:|---:|
+| 1 | 1/1 | 66.91 | 0.598 | 2.64 |
+| 2 | 2/2 | 67.48 | 1.186 | 2.69 |
+| 16 | 16/16 | 80.26 | 7.974 | 2.70 |
+| 32 | 32/32 | 88.06 | 14.536 | 2.71 |
+
+16/32 manifests record clean commits above. The 1-world manifest records
+parents `7d34e27`/`403a143` with dirty changes; the 2-world manifest records
+`f656efc`/`d81579e` with dirty index state. The 32-world peak force range is
+9.97376–9.97683 N; sampled process memory 453 MiB. Aggregate throughput is
+24.3 times the one-world run. Torch allocation peak alone is 30.04 MiB.
+These are prescribed-reference episodes; learned-policy episodes are logged
+by the training run below.
+
+GPU test suites on A6000: backend 19 passed (2.35 s), world model 26 passed
+(10.58 s). On 4090 with the Python 3.12 backend environment: backend 19 passed
+(26.82 s including kernel rebuild), world model 26 passed (22.66 s). Checks
+cover independent knife trajectories, material/reset isolation, per-world
+force termination, replay boundaries and existing source learning formulas.
+
+
+2026-11-02, `f656efc` / backend `d81579e`, A6000 GPU 1:
+`train_gpu.py --backend-root ../CuttingGpuBackend --worlds 32 --max-iterations 42
+--max-hours 1 --output runs/gpu_train_check`: 1344 physical transitions and one
+complete learning update in 205.20 s. Physics 92.84 s, world model 57.86 s,
+actor/critic 49.55 s; Torch peak allocation 3490.60 MiB. Source settings retained:
+40 vector-step warmup, ten 2048-sample eight-step model batches, 4096-sample
+32-step BPTT, five critic epochs. Model loss 19.7608, actor gradient norm
+6.686e-4; finite gradients throughout. `last.pt` is 541 MiB; completed physical
+training episodes at this endpoint: 0. Reference-task success counts above
+are separate from the learned policy.

@@ -28,6 +28,8 @@ export CUDA_VISIBLE_DEVICES=1 CUDA_HOME=/usr/local/cuda-12.9 TORCH_CUDA_ARCH_LIS
 export PATH="$PWD/.venv/bin:$CUDA_HOME/bin:$PATH"
 export TORCH_EXTENSIONS_DIR=/dataHDD/dong/.cache/torch_extensions_cutting_gpu
 export XDG_CACHE_HOME=/dataHDD/dong/.cache TMPDIR=/dataHDD/dong/tmp MAX_JOBS=2
+export TORCHINDUCTOR_CACHE_DIR=/dataHDD/dong/.cache/torchinductor_cutting
+export TRITON_CACHE_DIR=/dataHDD/dong/.cache/triton_cutting
 .venv/bin/python scripts/train_gpu.py --backend-root ../CuttingGpuBackend \
   --worlds 16 --max-hours 6 --output runs/gpu_training
 ```
@@ -81,7 +83,9 @@ Then run `scripts/check_task_interface.py --dataset RUN/data` and
 `scripts/check_state_interface.py --dataset RUN/data` to compare recorded
 observations, rewards, terminal labels, URDF kinematics and controller history.
 
-Tests: `PYTHONPATH=. .venv/bin/python -m pytest tests -q`.
+Tests: `PYTHONPATH=. .venv/bin/python -m pytest tests -q`. GPU integration
+checks additionally use `CUTTING_BACKEND_ROOT=/dataHDD/dong/Projects/CuttingGpuBackend`
+and the Python 3.12 GPU environment above.
 Independent object recording: `scripts/collect_disect.py`;
 restart comparison: `scripts/check_state_restart.py`.
 
