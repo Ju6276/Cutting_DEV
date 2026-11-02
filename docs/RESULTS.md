@@ -398,3 +398,24 @@ DiSECt advanced 1.552 s in 776 calls, released 288/304 springs; next reset 0/304
 Exit 0 in 112.75 s, no remaining processes or checkpoint files. Actions remain
 in the original random warmup (1000); its source trainer updates during warmup.
 Shared source tests: SliceIt 59 passed; CWM 50 passed, 2 skipped (2.67 s).
+
+2026-11-03, source `7359378`, SliceIt `11fc054`, utilities `97ba329`:
+run 1 starts fresh with `python runs/sac_long_20261103/supervisor.py --output
+runs/sac_long_20261103` in SliceIt: source endpoint 100100 steps / existing
+259200-second execution budget. Startup: 62 physical steps, 60 optimizer updates.
+[W&B xqmkhjbc](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/xqmkhjbc)
+receives physical step/episode rewards and success rate.
+
+Same revisions, run 2: `python runs/control_history_online_20261103_bootstrap/supervisor.py
+--sliceit-root /dataHDD/dong/Projects/SliceIt --output runs/control_history_online_20261103
+--mode train --model-state control-history --max-hours 6 --wall-seconds 21900
+--microbatch 64`. Fresh connected learning, no resumed checkpoint; source
+320000-iteration endpoint, 40-step warmup, UTD 0.4, batches 2048/4096 and horizons
+8/32 unchanged. Six hours is the execution budget, with 300 s for startup/cleanup.
+At iteration 49, three complete world-model/BPTT/critic update groups have run.
+First group at iteration 42: world-model loss 0.707695, policy gradient norm
+8.20e-5, critic loss 27820.3, finite updates. First physical episode: 44 steps,
+return -122.90303, source force-limit termination, 278 released springs.
+[W&B 9lptr72s](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/9lptr72s)
+server history contains real rewards, episode return and model/policy/critic
+updates. JSON-to-W&B run wrappers change logging only. Both trainings continue.
