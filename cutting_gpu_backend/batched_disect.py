@@ -102,16 +102,40 @@ class BatchedDiSECt(DiSECt):
         for name, initial in self.initial_motion.items():
             getattr(self, name)[mask] = initial[mask]
 
-    @torch.no_grad()
-    def set_motion(self, twist, pose=None):
-        self.linear_velocity.copy_(twist[:, :3])
-        self.angular_velocity.copy_(twist[:, 3:])
-        if pose is not None:
-            self.position.copy_(pose[:, :3])
-            self.rotation.copy_(pose[:, 3:])
+
+    def capture_rows(self, mask):
+        state = {k: self.state_field(k)[mask].clone() for k, v in vars(self.state).items()
+                 if isinstance(v, torch.Tensor)}
+        contact = {k: getattr(self.model, k).reshape(self.worlds, -1)[mask].clone()
+                   for k in self.initial_contact}
+        motion = {k: getattr(self, k)[mask].clone() for k in self.initial_motion}
+        return state, contact, motion
 
     @torch.no_grad()
-    def advance(self, duration):
+    def restore_rows(self, mask, saved):
+        state, contact, motion = saved
+        for k, value in state.items():
+            self.state_field(k)[mask] = value
+        for k, value in contact.items():
+            getattr(self.model, k).reshape(self.worlds, -1)[mask] = value
+        for k, value in motion.items():
+            getattr(self, k)[mask] = value
+
+    @torch.no_grad()
+    def set_motion(self, twist, pose=None, active=None):
+        if active is None:
+            active = slice(None)
+        self.linear_velocity[active] = twist[active, :3]
+        self.angular_velocity[active] = twist[active, 3:]
+        if pose is not None:
+            self.position[active] = pose[active, :3]
+            self.rotation[active] = pose[active, 3:]
+
+    @torch.no_grad()
+    def advance(self, duration, active=None):
+        paused = None
+        if active is not None and not bool(active.all()):
+            paused = self.capture_rows(~active)
         count = round(duration / self.dt)
         if abs(count * self.dt - duration) > 1e-12:
             raise ValueError('Coupling duration must contain whole DiSECt substeps')
@@ -130,6 +154,8 @@ class BatchedDiSECt(DiSECt):
             qd[:, 3:6] = self.angular_velocity
             self.state = self.integrator.forward(self.model, self.state, self.dt, update_mass_matrix=False)
         self.steps += count
+        if paused is not None:
+            self.restore_rows(~active, paused)
         if not torch.isfinite(self.state.particle_q).all() or not torch.isfinite(self.state.cut_spring_ke).all():
             raise FloatingPointError('Nonfinite DiSECt material state')
         return torch.linalg.vector_norm(self.state_field('knife_f'), dim=-1).sum(-1)

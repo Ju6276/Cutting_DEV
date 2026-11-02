@@ -1,4 +1,5 @@
 """Batched UR5e, source FDCC and DiSECt transitions at the SliceIt control periods."""
+import copy
 import json
 from pathlib import Path
 
@@ -52,6 +53,7 @@ class CuttingBatch:
         self.reference_start = self.frames[self.chain.tip].clone()
         self.force_limits = torch.tensor(task['controller']['max_force_torque'], device=self.device, dtype=self.dtype)
         self.desired_wrench = torch.tensor(task['controller']['desired_force_torque'], device=self.device, dtype=self.dtype)[None].expand(worlds, -1)
+        self.coupling.previous_pose_base = knife.clone()
         self.motion_initialized = torch.zeros(worlds, device=self.device, dtype=torch.bool)
         self.sim_time = torch.zeros(worlds, device=self.device, dtype=self.dtype)
         self.peak = torch.zeros_like(self.desired_wrench)
@@ -61,6 +63,7 @@ class CuttingBatch:
         self._initial_filter = {k: getattr(self.coupling.wrench_filter, k).clone() for k in ('history', 'zi', 'offset')}
         self._initial_feedback = {k: v.clone() for k, v in self.feedback.items()}
         self._initial_queue = self.wrench_queue.clone()
+        self._initial_previous_knife = knife.clone()
         self.spring_reference = self.material.state_field('cut_spring_ke').clone()
 
     def _feedback(self, raw):
@@ -82,13 +85,14 @@ class CuttingBatch:
         self.wrench_queue[mask] = self._initial_queue[mask]
         self.mapper.added_motion_command[mask] = 0
         self.motion_initialized[mask] = False
+        self.coupling.previous_pose_base[mask] = self._initial_previous_knife[mask]
         self.sim_time[mask] = 0
         self.peak[mask] = 0
         self.frames = self.chain(self.robot.q.to(self.dtype), mass_matrix=False)[0]
         return self.frame()
 
     def frame(self):
-        return {
+        frame = {
             'particle_q': self.material.state_field('particle_q').clone(),
             'particle_qd': self.material.state_field('particle_qd').clone(),
             'cut_spring_ke': self.material.state_field('cut_spring_ke').clone(),
@@ -102,6 +106,88 @@ class CuttingBatch:
             'motion_command': self.mapper.added_motion_command.clone(),
             'target_pose': self.target.clone(),
         }
+        for name in ('q', 'velocity', 'previous_error', 'previous_position_command', 'cached_tip_pose', 'tare_compensation'):
+            frame['controller_' + name] = getattr(self.controller, name).clone()
+        for name in ('history', 'zi', 'offset'):
+            frame['filter_' + name] = getattr(self.coupling.wrench_filter, name).clone()
+        frame['wrench_queue'] = self.wrench_queue.clone()
+        frame['robot_warmstart'] = wp.to_torch(self.robot.data.qacc_warmstart).clone()
+        frame['coupling_previous_pose'] = self.coupling.previous_pose_base.clone()
+        frame['coupling_initialized'] = self.motion_initialized[:, None].float().clone()
+        frame['robot_time'] = wp.to_torch(self.robot.data.time)[:, None].clone()
+        frame['sim_time'] = self.sim_time[:, None].clone()
+        return frame
+
+
+
+
+    @torch.no_grad()
+    def restore_frame(self, frame):
+        for name in ('particle_q', 'particle_qd', 'cut_spring_ke'):
+            self.material.state_field(name).copy_(frame[name])
+        self.material.position.copy_(frame['knife_pose'][:, :3])
+        self.material.rotation.copy_(frame['knife_pose'][:, 3:])
+        self.material.set_motion(frame['knife_velocity'])
+        self.robot.q.copy_(frame['joint_q'])
+        self.robot.qd.copy_(frame['joint_qd'])
+        wp.to_torch(self.robot.data.qacc_warmstart).copy_(frame['robot_warmstart'])
+        wp.to_torch(self.robot.data.time).copy_(frame['robot_time'][:, 0])
+        for name in ('q', 'velocity', 'previous_error', 'previous_position_command', 'cached_tip_pose', 'tare_compensation'):
+            getattr(self.controller, name).copy_(frame['controller_' + name])
+        for name in ('history', 'zi', 'offset'):
+            getattr(self.coupling.wrench_filter, name).copy_(frame['filter_' + name])
+        self.wrench_queue.copy_(frame['wrench_queue'])
+        self.coupling.previous_pose_base.copy_(frame['coupling_previous_pose'])
+        self.motion_initialized.copy_(frame['coupling_initialized'][:, 0].bool())
+        self.mapper.added_motion_command.copy_(frame['motion_command'])
+        self.sim_time.copy_(frame['sim_time'][:, 0])
+        self.peak.copy_(frame['peak_wrench'])
+        self.frames = self.chain(self.robot.q.to(self.dtype), mass_matrix=False)[0]
+        self.feedback['sensor_wrench'] = self.wrench_queue[:, -1].clone()
+        from .coupling import source_wrench_transform
+        self.feedback['observation_wrench'] = source_wrench_transform(
+            self.feedback['sensor_wrench'], self.frames[self.chain.tip])
+
+    def controller_command(self, arguments, active):
+        if bool(active.all()):
+            command = self.controller.update(self.robot.q.to(self.dtype),
+                sensor_wrench=self.feedback['sensor_wrench'], target_wrench=self.desired_wrench, **arguments)
+            return self.controller.enforce_position_limits(command, .001)
+        selected = copy.copy(self.controller)
+        names = [k for k, v in vars(self.controller).items() if isinstance(v, torch.Tensor)]
+        for k in names:
+            setattr(selected, k, getattr(self.controller, k)[active].clone())
+        args = {k: v[active] if isinstance(v, torch.Tensor) and v.ndim and v.shape[0] == self.worlds else v
+                for k, v in arguments.items()}
+        command = selected.update(self.robot.q[active].to(self.dtype),
+            sensor_wrench=self.feedback['sensor_wrench'][active], target_wrench=self.desired_wrench[active], **args)
+        command = selected.enforce_position_limits(command, .001)
+        result = self.robot.q.clone()
+        result[active] = command.to(result.dtype)
+        for k in names:
+            getattr(self.controller, k)[active] = getattr(selected, k)
+        return result
+
+    def capture_recurrence(self, mask):
+        return (
+            {k: v[mask].clone() for k, v in vars(self.controller).items() if isinstance(v, torch.Tensor)},
+            {k: getattr(self.coupling.wrench_filter, k)[mask].clone() for k in ('history', 'zi', 'offset')},
+            {k: v[mask].clone() for k, v in self.feedback.items()},
+            self.wrench_queue[mask].clone(), self.coupling.previous_pose_base[mask].clone(),
+            self.motion_initialized[mask].clone(),
+        )
+
+    def restore_recurrence(self, mask, saved):
+        controller, filt, feedback, queue, pose, initialized = saved
+        for k, value in controller.items():
+            getattr(self.controller, k)[mask] = value
+        for k, value in filt.items():
+            getattr(self.coupling.wrench_filter, k)[mask] = value
+        for k, value in feedback.items():
+            self.feedback[k][mask] = value
+        self.wrench_queue[mask] = queue
+        self.coupling.previous_pose_base[mask] = pose
+        self.motion_initialized[mask] = initialized
 
     @torch.no_grad()
     def step(self, action, reference=False):
@@ -135,23 +221,26 @@ class CuttingBatch:
                 collision |= newly_done
             if collision.all():
                 break
+            active = ~collision
+            paused = self.capture_recurrence(collision) if collision.any() else None
             for _ in range(2):
-                command = self.controller.update(self.robot.q.to(self.dtype),
-                    sensor_wrench=self.feedback['sensor_wrench'], target_wrench=self.desired_wrench, **args)
-                self.robot.step(self.controller.enforce_position_limits(command, .001))
+                command = self.controller_command(args, active)
+                self.robot.step(command, active=active)
             self.frames = self.chain(self.robot.q.to(self.dtype), mass_matrix=False)[0]
             knife = self.knife_chain(self.robot.q.to(self.dtype), mass_matrix=False)[0]['b_bot_knife_sim']
             motion = self.coupling.motion(knife)
             twist = torch.cat((motion['linear_velocity'], motion['angular_velocity']), -1)
             twist[~self.motion_initialized] = 0
             self.motion_initialized[:] = True
-            self.material.set_motion(twist.float())
-            self.material.advance(.002)
+            self.material.set_motion(twist.float(), active=active)
+            self.material.advance(.002, active=active)
             raw = -self.robot.sensor_wrench(self.config.sensor_ref_link).to(self.dtype)
             self.feedback = self._feedback(raw)
             self.wrench_queue = torch.cat((self.wrench_queue[:, 1:], self.feedback['sensor_wrench'][:, None]), 1)
             peak_force = torch.where(collision, peak_force, torch.maximum(peak_force, self.feedback['force_magnitude'].float()))
-            self.sim_time += (~collision) * .002
+            self.sim_time += active * .002
+            if paused is not None:
+                self.restore_recurrence(collision, paused)
         frame = self.frame()
         if terminal is not None:
             for k in frame:

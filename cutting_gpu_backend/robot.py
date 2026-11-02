@@ -62,10 +62,17 @@ class Robot:
         return torch.cat((force, torque), -1)
 
     @torch.no_grad()
-    def step(self, position_command):
+    def step(self, position_command, active=None):
         # Source Gazebo uses SetPosition(..., preserveWorldVelocity=true).
         # Here the generalized joint velocity is retained across assignment.
+        paused = None
+        if active is not None and not bool(active.all()):
+            paused = {name: wp.to_torch(getattr(self.data, name))[~active].clone()
+                      for name in ('qpos', 'qvel', 'qacc_warmstart', 'time')}
         self.q.copy_(position_command)
         with wp.ScopedStream(self.stream):
             mjw.step(self.gpu_model, self.data)
+        if paused is not None:
+            for name, value in paused.items():
+                wp.to_torch(getattr(self.data, name))[~active] = value
         return self.q, self.qd

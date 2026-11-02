@@ -76,3 +76,11 @@ Each world stores its own controller integration state, filter window/zi/tare,
 stop captures that world's terminal state at the original exchange boundary;
 other worlds finish their control interval. Completed worlds reset before the
 next action. The source single-world runner remains the independent reference.
+
+Stopped worlds retain robot qpos/qvel/warm start/time, all material State tensors,
+controller recurrence and filter/queue history. Candidate packed integration is
+masked out before finite-state validation; healthy worlds retain their original
+control interval. `restore_frame` restores these causal inputs for restart checks.
+The source FP32 atomic force sums have accumulation-order variation: repeated
+5000-substep full-state restores measured particle-velocity RMS differences
+5.0–5.3e-5 m/s while robot/knife trajectories matched exactly.
