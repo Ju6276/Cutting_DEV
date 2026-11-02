@@ -1,6 +1,7 @@
 import copy
 
 import numpy as np
+import pytest
 import torch
 
 from cutting_world_model.control_state import ControlStateSpec
@@ -114,3 +115,52 @@ def test_compact_multistep_action_gradients_pass_through_history_and_heads():
     derivatives = torch.autograd.grad(rollout(actions).sum(), actions)[0]
     assert torch.isfinite(derivatives).all()
     assert derivatives[0].abs().sum() > 0
+
+
+def test_derivative_history_changes_reward_without_changing_physical_prediction():
+    torch.manual_seed(61)
+    metadata, frame = compact_fixture()
+    model = CuttingWorldModel(metadata, hidden=(12, 12)).double()
+    torch.nn.init.normal_(model.dynamics.mlp.net[-1].weight, std=1e-4)
+    spec = model.spec
+    state = spec.pack(frame, dtype=torch.float64)[None]
+    changed = state.clone()
+    frames = changed.reshape(1, spec.history_length, spec.base_dim)
+    frames[..., spec.layout['previous_velocity']] += .001
+    frames[..., spec.layout['previous_acceleration']] += .25
+    observation = spec.layout['observation']
+    frames[..., observation.start + 3:observation.start + 9] += .2
+    torch.testing.assert_close(spec.dynamics_features(changed), spec.dynamics_features(state))
+    goal = torch.tensor([[.06, 0., -.05, 0., 0., 0., 1.]], dtype=torch.float64)
+    action = torch.full((1, 6), .1, dtype=torch.float64)
+    baseline, baseline_reward, _ = model.step(state, action, goal)
+    alternate, alternate_reward, _ = model.step(changed, action, goal)
+    for field in spec.physical_fields:
+        torch.testing.assert_close(spec.field(alternate, field), spec.field(baseline, field),
+                                   atol=0, rtol=0)
+    assert (alternate_reward - baseline_reward).abs().item() > 1e-5
+    assert not torch.equal(spec.field(alternate, 'observation'), spec.field(baseline, 'observation'))
+
+
+def test_dynamics_inputs_retain_physical_motion_and_executed_action_history():
+    metadata, frame = compact_fixture()
+    spec = ControlStateSpec(metadata)
+    state = spec.pack(frame)[None]
+    features = spec.dynamics_features(state)
+    assert features.shape[-1] == 480
+    relevant = {field: spec.layout[field].start
+                for field in spec.physical_fields + ('motion_command',)}
+    relevant['executed_action'] = spec.layout['observation'].start + 9
+    for history_block in range(spec.history_length):
+        for field, position in relevant.items():
+            changed = state.clone()
+            changed[..., history_block * spec.base_dim + position] += .1
+            difference = spec.dynamics_features(changed) - features
+            assert torch.count_nonzero(difference).item() == 1, (history_block, field)
+
+
+def test_obsolete_compact_checkpoint_layout_is_rejected_explicitly():
+    metadata, _ = compact_fixture()
+    metadata['prediction_layout'] = 'control_history_v1'
+    with pytest.raises(ValueError, match='Unsupported prediction layout: control_history_v1'):
+        CuttingWorldModel(metadata, hidden=(12, 12))

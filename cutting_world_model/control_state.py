@@ -16,7 +16,7 @@ class ControlStateSpec(CuttingStateSpec):
     @classmethod
     def metadata_from_frame(cls, task, frame):
         result = dict(task)
-        result['prediction_layout'] = 'control_history_v1'
+        result['prediction_layout'] = 'control_history_v2'
         result['prediction_history'] = PolicyTrainerCfg().history
         physical, history = cls.fields_for(result)
         result['state_shapes'] = {key: list(np.asarray(frame[key]).shape)
@@ -25,8 +25,8 @@ class ControlStateSpec(CuttingStateSpec):
         return result
 
     def __init__(self, metadata):
-        if metadata.get('prediction_layout') != 'control_history_v1':
-            raise ValueError('Control predictor requires control_history_v1 metadata')
+        if metadata.get('prediction_layout') != 'control_history_v2':
+            raise ValueError('Control predictor requires control_history_v2 metadata')
         super().__init__(metadata)
         self.history_length = metadata['prediction_history']
         if self.history_length < 1:
@@ -39,6 +39,23 @@ class ControlStateSpec(CuttingStateSpec):
         self.history_fields = self.history_fields + ('control_history',)
         self.state_dim = self.base_dim * self.history_length
         self.in_scale = self.in_scale.repeat(self.history_length)
+        indices = []
+        for name in self.physical_fields + ('motion_command',):
+            indices.extend(range(self.layout[name].start, self.layout[name].stop))
+        # SliceIt observation: error, velocity, jerk, then the six executed actions.
+        action_start = self.layout['observation'].start + 3 * len(self.heads.dims)
+        if not self.heads.env['last_action_as_obs'] or not self.heads.env['jerkiness_as_obs']:
+            raise ValueError('Control history requires the source action/jerk observation layout')
+        indices.extend(range(action_start, action_start + 6))
+        self.register_buffer('dynamics_indices', torch.tensor(indices, dtype=torch.long))
+
+    @property
+    def dynamics_dim(self):
+        return self.history_length * len(self.dynamics_indices)
+
+    def dynamics_features(self, state):
+        frames = self.canonical(state).reshape(*state.shape[:-1], self.history_length, self.base_dim)
+        return frames.index_select(-1, self.dynamics_indices).flatten(-2)
 
     def _base(self, frame, device=None, dtype=torch.float32):
         values = np.concatenate([np.asarray(frame[name]).reshape(-1) for name in self.base_fields])

@@ -167,6 +167,7 @@ def main():
         'world_model': asdict(cfg), 'arguments': {key: str(value) if isinstance(value, Path) else
         [str(p) for p in value] if key in ('train', 'held_out') else value for key, value in vars(args).items()},
         'state_dim': model.spec.state_dim, 'predicted_dim': model.spec.delta_dim,
+        'dynamics_input_dim': model.spec.dynamics_dim,
         'parameters': sum(p.numel() for p in model.parameters()),
         'train_transitions': sum(len(ep['actions']) for ep in train),
         'held_out_transitions': sum(len(ep['actions']) for ep in held_out)})

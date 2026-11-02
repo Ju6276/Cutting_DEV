@@ -12,14 +12,17 @@ from .control_state import ControlStateSpec
 class CuttingWorldModel(nn.Module):
     def __init__(self, metadata, hidden=(2048, 2048, 2048)):
         super().__init__()
-        spec_class = ControlStateSpec if metadata.get('prediction_layout') == 'control_history_v1' else CuttingStateSpec
+        layout = metadata.get('prediction_layout')
+        if layout not in (None, 'control_history_v2'):
+            raise ValueError('Unsupported prediction layout: ' + str(layout))
+        spec_class = ControlStateSpec if layout == 'control_history_v2' else CuttingStateSpec
         self.spec = spec_class(metadata)
-        self.dynamics = DynamicsMLP(self.spec.state_dim, 6, 7, hidden, self.spec.delta_dim)
+        self.dynamics = DynamicsMLP(self.spec.dynamics_dim, 6, 7, hidden, self.spec.delta_dim)
         self.term_head = MLP(26, (64, 64), 1)
 
     def step(self, state, action, goal):
         executed = self.spec.execute(action)
-        delta = self.dynamics(self.spec.canonical(state), executed, goal)
+        delta = self.dynamics(self.spec.dynamics_features(state), executed, goal)
         fields = self.spec.integrate_physical(state, delta)
         next_state, reward, done = self.spec.derive(state, fields, executed, goal)
         feats = self.spec.terminal_features(next_state)

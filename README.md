@@ -74,7 +74,7 @@ All run data stays outside Git.
 
 `--model-state control-history` selects the 36-output robot/force candidate in
 `run_coupled_collection.py --mode train`. It uses 10 causal frames (860 state
-coordinates), while collection still records the full physical state. Existing
+coordinates; 480 selected dynamics inputs), while collection still records the full physical state. Existing
 native/GPU checkpoints use their original layout.
 
 `scripts/check_control_model.py --train EPISODE... --held-out EPISODE...

@@ -301,3 +301,43 @@ bitwise, with reset-FK position differences 0.0622816 / 0.0628629 m. Reset uses
 a separate helper that leaves arm memory unchanged; the next arm query applies
 its existing velocity guard. First micro-query motion is absent from these
 records. Retain reset cache memory; unconditional FK replacement fails here.
+
+2026-11-02, `aeacdd7`, RTX 4090 control-history candidate:
+`PYTHONPATH=. .venv/bin/python scripts/check_control_model.py --train
+runs/native_critic_long_20261102/data/episode_00000.npz
+runs/native_critic_long_20261102/data/episode_00001.npz
+runs/native_critic_long_20261102/data/episode_00002.npz --held-out
+runs/native_independent_final_20261102/data/episode_000.npz --output
+runs/control_history_fit_20261102 --updates 50 --max-seconds 600`.
+36 predicted coordinates, 860 state/history inputs, 10,262,373 parameters.
+137 training transitions / 45 held-out; physical-task equation check across all
+182 transitions: observation max error 3.11e-14, reward 1.60e-14, terminal mismatches 0.
+47 tests passed, 2 optional GPU integration tests skipped.
+
+Budget ended at 601 s: 32 complete update groups / 328 Adam steps, checkpoint saved.
+Held-out 8-step normalized RMSE 0.06461 -> 0.03493; FK translation RMSE 2.92 mm,
+peak-force RMSE 3.95 N; sole force-limit event missed. At 32 steps: normalized
+RMSE 14.68, FK translation 225.9 mm, peak-force RMSE 1854.9 N, 13 collision false
+positives. Training episodes also fail at 32 steps (RMSE 5.40 / 26.65 / 24.04).
+The 8-step fitting result does not transfer to the 32-step prediction horizon.
+[W&B curves and final measurements](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/84na9ay5).
+
+Independent frozen-checkpoint BPTT, `runs/control_history_fit_20261102/check_trained_bptt.py`:
+8/32-step survival-weighted discounted reward, float64, three central-difference
+steps (1e-3 / 1e-4 / 1e-5), action bounds and branch fingerprints unchanged.
+Directional gradient relative errors 1.75e-8 to 8.46e-7. Gradient calculation
+passes; 32-step dynamics prediction fails. No physical policy training started.
+
+Run 1 SAC stopped at 2026-11-02 19:53:24 CET: 3257 steps, 3124 updates,
+133 episodes. A completed two-tick step was followed by a 1 s wall-time timeout
+waiting for joint-state stamp > 747.073. Final checkpoint and replay saved;
+supervisor cleanup complete. This precedes the compact fit start by 34 min 33 s.
+
+Frozen v1 derivative-input intervention, same checkpoint and 14 held-out 32-step
+windows (`runs/control_history_fit_20261102/check_derivative_feedback.py`):
+replace only 180 derivative-history dynamics-input coordinates with aligned
+recorded values; all remaining inputs and propagated physical outputs unchanged.
+State RMSE 14.6728 -> 0.08983, FK 225.79 -> 11.55 mm, peak-force RMSE
+1854.35 -> 8.924 N. This isolates a derivative-feedback amplification route.
+Recorded future measurements enter this intervention; the deployable v2 instead
+excludes derived observations from dynamics input while retaining analytic heads.

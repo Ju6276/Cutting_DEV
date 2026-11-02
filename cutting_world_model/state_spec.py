@@ -158,6 +158,13 @@ class CuttingStateSpec(nn.Module):
     def canonical(self, state):
         return state / self.in_scale
 
+    @property
+    def dynamics_dim(self):
+        return self.state_dim
+
+    def dynamics_features(self, state):
+        return self.canonical(state)
+
     def execute(self, action):
         return torch.maximum(torch.minimum(action, self.action_high), self.action_low)
 

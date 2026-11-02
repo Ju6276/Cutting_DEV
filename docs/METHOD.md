@@ -34,13 +34,20 @@ Sources: [world model](https://github.com/CuboiLeo/SuperMimic-Reproduced/blob/ba
 
 ## Control-history candidate
 
-The user-approved control predictor (`prediction_layout=control_history_v1`)
+The user-approved control predictor (`prediction_layout=control_history_v2`)
 learns 36 next-state coordinates: robot joint position/velocity (12), the exact
 three-sample observed wrench history (18), and interval peak wrench (6).
 The original FK, observation, motion-command, derivative-history, success-counter,
 reward and terminal formulas advance the other 50 current-state coordinates.
 Nine previous 86-coordinate frames accompany the current frame, giving 860
-input-state coordinates. History length 10 matches the pinned policy history;
+rollout-state coordinates. Dynamics input selects 48 coordinates per frame:
+joints (12), observed/peak wrench (24), accumulated motion command (6) and
+previous executed action (6), for 480 total. Derived pose, velocity, acceleration,
+jerk, observation copies and success counter remain available to analytic heads
+and critic, but do not feed the dynamics MLP. This follows the pinned source's
+separation of physical dynamics state from analytic observation/reward features;
+the v1 frozen diagnostic identifies derivative-input feedback as an error amplifier.
+History length 10 matches the pinned policy history;
 reset repeats the actual initial frame, and each transition shifts only past
 frames. Particles, spring damage and native controller/filter packets remain in
 physical recordings but are absent from model inputs and prediction targets.
