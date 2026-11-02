@@ -109,3 +109,25 @@ State width 8944; original 1000-row replay costs 35,887,024 bytes per world
 W&B authenticated entity: `ju-dong6276-technical-university-of-munich`, project
 `sliceit-supermimic`. Reference scaling upload `3e6fvj66` contains the completed
 1/2/16/32/64/128-world results; 64/128 cuts passed in 105.59/147.72 s.
+
+
+2026-11-02, `4723b34` / backend `5279f77`, A6000 GPU 1:
+`benchmark_gpu_env.py --backend-root ../CuttingGpuBackend --worlds 1280
+--wall-seconds 1800 --output runs/gpu_cut_final_1280`: 1280/1280 reference
+cuts succeeded in 40 actions, zero force-limit failures, 288/304 released springs
+per world; stepping 1027.92 s.
+
+`train_gpu.py --worlds 1280 --max-hours 6 --resume
+runs/gpu_capacity_1280/last.pt --backend-root ../CuttingGpuBackend
+--output runs/gpu_supermimic_1280_20261102`: failed at cumulative vector step 84
+(two cumulative learning updates). MuJoCo Warp convex collision allocation
+failed for 59,310,080 bytes on the first physics step after a learning update;
+Torch peak 47,811.64 MiB. The 42-step capacity test ended at the learning update
+and omitted the return to physics. Capacity validation must cross that boundary.
+Physical per-step mean reward ranged from -0.53849 to -0.51134; completed
+episodes 0. Final learner/optimizer checkpoint saved (611 MiB).
+
+User-selected restart: 1024 worlds, same learning settings, `--resume
+runs/gpu_supermimic_1280_20261102/last.pt --max-hours 6`; output
+`runs/gpu_supermimic_1024_20261102`, W&B `i02x34rz`. First two resumed physical
+steps completed; sampled process memory 37,295 MiB.
