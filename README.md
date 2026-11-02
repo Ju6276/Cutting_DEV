@@ -13,8 +13,35 @@ The trainer collects physical transitions, fits an eight-step world model and
 updates the actor through 32-step imagined trajectories with a GAE critic.
 It uses the source effective batches (2048/4096), learning rates, update ratio,
 network widths and gradient clipping. Microbatches control memory use.
-Physical collection currently uses one Gazebo/DiSECt environment; 4096 is the
-actor learning batch size, not the number of parallel physics environments.
+The Gazebo entry collects one physical environment. The GPU entry batches
+complete cutting worlds; its environment count is separate from the 4096-sample
+actor learning batch.
+
+## Run on the A6000
+
+The ROS-free GPU entry uses `/dataHDD/dong/Projects/CuttingGpuBackend` and the
+same learning modules as the Gazebo entry. Prepare exported assets as described
+in that backend's README. From `/dataHDD/dong/Projects/CuttingWorldModel`:
+
+```bash
+export CUDA_VISIBLE_DEVICES=1 CUDA_HOME=/usr/local/cuda-12.9 TORCH_CUDA_ARCH_LIST=8.6
+export PATH="$PWD/.venv/bin:$CUDA_HOME/bin:$PATH"
+export TORCH_EXTENSIONS_DIR=/dataHDD/dong/.cache/torch_extensions_cutting_gpu
+export XDG_CACHE_HOME=/dataHDD/dong/.cache TMPDIR=/dataHDD/dong/tmp MAX_JOBS=2
+.venv/bin/python scripts/train_gpu.py --backend-root ../CuttingGpuBackend \
+  --worlds 16 --max-hours 6 --output runs/gpu_training
+```
+
+`--max-iterations` bounds a smoke run without changing the learning-rate
+schedule. `--resume RUN/last.pt` restores learner/optimizer state and refills
+replay with the source warmup. Each environment has independent episode rows,
+controller/filter history, material damage and selective reset. Logs are
+`progress.json`, `steps.jsonl`, `episodes.jsonl`, `updates.jsonl` and `last.pt`.
+
+For complete-task throughput, run `scripts/benchmark_gpu_env.py
+--backend-root ../CuttingGpuBackend --worlds 16 --output runs/gpu_cut_16`.
+It follows the public reference trajectory, evaluates the original task heads,
+and records each world's goal/force termination, spring release and runtime.
 
 ## Run on the 4090
 

@@ -1,0 +1,175 @@
+#!/usr/bin/env python3
+"""Online source SuperMimic updates with packed ROS-free cutting environments."""
+import argparse
+from dataclasses import asdict
+import json
+import os
+from pathlib import Path
+import signal
+import sys
+import time
+
+import torch
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from cutting_world_model.online_replay import BatchedOnlineReplay
+from cutting_world_model.online_schedule import OnlineSchedule
+from cutting_world_model.policy import SliceItPolicy, SliceItCritic
+from cutting_world_model.provenance import git_revision
+from cutting_world_model.state_spec import CuttingStateSpec
+from cutting_world_model.trainer import OnlineLearner
+from cutting_world_model.world_model import CuttingWorldModel
+from third_party.supermimic.schedule import cosine_lr
+from train_coupled import write_json, append_json
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--backend-root', type=Path, required=True)
+    parser.add_argument('--worlds', type=int, default=16)
+    parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--microbatch', type=int, default=64)
+    parser.add_argument('--max-hours', type=float, default=6.)
+    parser.add_argument('--max-iterations', type=int)
+    parser.add_argument('--seed', type=int, default=0)
+    parser.add_argument('--resume', type=Path)
+    args = parser.parse_args()
+    sys.path.insert(0, str(args.backend_root.resolve()))
+    from cutting_world_model.gpu_env import GPUEnvironment
+    output = args.output.resolve()
+    output.mkdir(parents=True, exist_ok=False)
+    torch.set_num_threads(2)
+    torch.manual_seed(args.seed)
+    device = 'cuda:0'
+    started = time.monotonic()
+    status = {'state': 'initializing', 'pid': os.getpid(), 'worlds': args.worlds}
+    write_json(output / 'progress.json', status)
+    env = GPUEnvironment(args.backend_root, args.worlds)
+    frame = env.current
+    one = {k: v[0].cpu().numpy() for k, v in frame.items()}
+    metadata = CuttingStateSpec.metadata_from_frame(env.metadata, one)
+    write_json(output / 'task.json', metadata)
+    wm = CuttingWorldModel(metadata).to(device)
+    spec = wm.spec
+    policy = SliceItPolicy().to(device)
+    critic = SliceItCritic(spec.state_dim).to(device)
+    learner = OnlineLearner(wm, policy, critic, args.microbatch)
+    schedule = OnlineSchedule()
+    if args.resume:
+        saved = torch.load(args.resume, map_location=device, weights_only=False)
+        if saved['metadata'] != metadata:
+            raise ValueError('Checkpoint and physical task metadata differ')
+        learner.restore(saved['learner'])
+        schedule = OnlineSchedule(start_iteration=saved['iteration'])
+        torch.set_rng_state(saved['torch_rng'].cpu())
+        torch.cuda.set_rng_state(saved['cuda_rng'].cpu())
+    replay = BatchedOnlineReplay(args.worlds, spec.state_dim, device)
+    history = frame['observation'].float()[None].repeat(policy.history, 1, 1)
+    returns = torch.zeros(args.worlds, device=device)
+    lengths = torch.zeros(args.worlds, device=device, dtype=torch.long)
+    episodes = torch.zeros_like(lengths)
+    revisions = {'world_model': git_revision(Path(__file__).resolve().parents[1]),
+                 'backend': git_revision(args.backend_root)}
+    write_json(output / 'manifest.json', {
+        'git': revisions, 'command': sys.argv,
+        'arguments': {k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()},
+        'world_model': asdict(learner.wcfg), 'policy': asdict(learner.pcfg),
+        'schedule': asdict(schedule.config), 'endpoint': 'wall budget or iteration budget',
+        'timeout': 'SIGTERM saves last.pt and progress.json',
+    })
+    stop_requested = False
+
+    def stop(signum, context):
+        nonlocal stop_requested
+        stop_requested = True
+
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+
+    def progress(**values):
+        status.update(values, wall_seconds=time.monotonic() - started)
+        write_json(output / 'progress.json', status)
+
+    learner.progress = progress
+
+    def checkpoint(name):
+        temp = output / (name + '.tmp')
+        torch.save({'learner': learner.checkpoint(), 'metadata': metadata,
+                    'iteration': schedule.iteration, 'torch_rng': torch.get_rng_state(),
+                    'cuda_rng': torch.cuda.get_rng_state(), 'git': revisions}, temp)
+        temp.replace(output / name)
+
+    limit = schedule.config.total_iterations
+    if args.max_iterations is not None:
+        limit = min(limit, schedule.iteration + args.max_iterations)
+    status['state'] = 'running'
+    timing = {'physics': 0., 'world_model': 0., 'policy': 0.}
+    try:
+        while schedule.iteration < limit:
+            if stop_requested or time.monotonic() - started >= args.max_hours * 3600:
+                status['state'] = 'interrupted' if stop_requested else 'budget_complete'
+                break
+            with torch.no_grad():
+                state = spec.assemble(frame).float()
+                goal = frame['target_pose'].float()
+                clean = policy(history, goal)
+                executed = spec.execute(clean + .1 * torch.randn_like(clean))
+            progress(phase='physics', iteration=schedule.iteration, updates=learner.updates)
+            tick = time.monotonic()
+            frame, reward, terminated, truncated, info = env.step(executed)
+            timing['physics'] += time.monotonic() - tick
+            with torch.no_grad():
+                next_state = spec.assemble(frame).float()
+                replay.add(state, clean, executed, goal, reward, next_state, terminated, truncated)
+                history = torch.cat((history[1:], frame['observation'].float()[None]), 0)
+                returns += reward
+                lengths += 1
+            ended = terminated | truncated
+            for e in ended.nonzero().flatten().tolist():
+                append_json(output / 'episodes.jsonl', {
+                    'env': e, 'episode': int(episodes[e]), 'iteration': schedule.iteration + 1,
+                    'return': float(returns[e]), 'steps': int(lengths[e]),
+                    'success': bool(info['success'][e]), 'collision': bool(info['collision'][e]),
+                    'truncated': bool(truncated[e]), 'released_springs': int(info['released_springs'][e]),
+                })
+            if ended.any():
+                frame = env.reset(ended)
+                history[:, ended] = frame['observation'][ended].float()[None]
+                returns[ended] = 0
+                lengths[ended] = 0
+                episodes[ended] += 1
+            updates = schedule.after_environment_step()
+            for _ in range(updates):
+                lr = cosine_lr(schedule.iteration, schedule.config.total_iterations,
+                               learner.wcfg.lr, schedule.config.lr_final_ratio, schedule.config.lr_decay_fraction)
+                learner.set_lr(lr)
+                tick = time.monotonic()
+                wm_metrics = learner.fit_world_model(replay.buffer)
+                timing['world_model'] += time.monotonic() - tick
+                tick = time.monotonic()
+                policy_metrics = learner.improve_policy(replay.buffer)
+                timing['policy'] += time.monotonic() - tick
+                append_json(output / 'updates.jsonl', {
+                    'iteration': schedule.iteration, 'update': learner.updates, 'lr': lr,
+                    'world_model': wm_metrics, 'policy': policy_metrics, 'timing': dict(timing),
+                    'peak_gpu_mib': torch.cuda.max_memory_allocated() / 2**20,
+                })
+            progress(iteration=schedule.iteration, updates=learner.updates,
+                     transitions=schedule.iteration * args.worlds, episodes=int(episodes.sum()),
+                     replay_rows=replay.buffer.size, timing=dict(timing))
+            append_json(output / 'steps.jsonl', dict(status))
+            print(json.dumps(status), flush=True)
+            if schedule.iteration % schedule.config.checkpoint_interval == 0:
+                checkpoint('checkpoint_%08d.pt' % schedule.iteration)
+        else:
+            status['state'] = 'completed'
+    except BaseException as error:
+        status.update(state='failed', error=repr(error))
+        raise
+    finally:
+        checkpoint('last.pt')
+        progress(iteration=schedule.iteration, updates=learner.updates)
+
+
+if __name__ == '__main__':
+    main()

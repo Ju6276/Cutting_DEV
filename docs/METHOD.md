@@ -6,7 +6,7 @@ robot utilities `a14c856`; DiSECt `db7de0f`.
 | Module | Source design | Cutting implementation |
 |---|---|---|
 | Replay | Episode-aware ring, 1000 rows/environment, clean/executed actions, terminal row | Original replay code with a recorded-episode importer; existing task configuration is fixed for this scene |
-| Schedule | Warmup 40 environment steps; UTD 0.4; one actor update per world-model update | Original defaults and update cadence; current physical sampler has one environment, source default has 4096/GPU |
+| Schedule | Warmup 40 environment steps; UTD 0.4; one actor update per world-model update | Original defaults and update cadence; ROS sampler has one environment; GPU sampler has configurable worlds; source default has 4096/GPU |
 | Objective | Survival-weighted 32-step return, terminal critic, GAE lambda 0.95 | Original objective and GAE functions; only their type-only import is changed |
 | Dynamics MLP | Three 2048-unit SiLU layers, zero final layer | Original source module with cutting StateSpec and connected trainer |
 | Policy | Goal encoder, 32-D latent, decoder; widths 2048/1024/512/256; decoder gain 0.01 | Same architecture with a 7-D target pose, ten frames of SliceIt's 24-D observation, and six task actions |
@@ -70,3 +70,19 @@ URDF FK returns the same quaternion sign convention as
 [KDL Rotation::GetQuaternion](https://github.com/orocos/orocos_kinematics_dynamics/blob/master/orocos_kdl/src/frames.cpp).
 SliceIt's angular finite difference uses the signed quaternion components, so
 matching the rotation alone is insufficient for matching its velocity history.
+
+## Batched GPU collection
+
+| Item | Existing source behavior | GPU collection |
+|---|---|---|
+| Physical backend | Gazebo/ROS robot and single DiSECt instance | MuJoCo Warp UR5e/FDCC plus packed DiSECt worlds; equations and source clocks retained, details in CuttingGpuBackend METHOD |
+| Replay and updates | 1000 rows/environment, 40 vector-step warmup, UTD 0.4 | Same capacity per world and cadence per vector step; asynchronous terminal rows and resets |
+| Reset observation | ROS task returns an observation sampled before physical reset | GPU task computes observation after restoring robot/material/controller state; derivative histories start from the restored pose and zero velocity/acceleration |
+| Wrench samples | Oldest three entries of a 25-entry sensor queue, appended at filter callbacks | Same queue ordering at the deterministic 500 Hz exchange; initialize queue from the reset sensor baseline |
+| Initial condition | ROS moves the arm to its start pose before resetting DiSECt | Restore the exported start and initialized controller/filter snapshot per world; shared public material configuration and prescribed cut topology |
+
+`train_gpu.py` reuses OnlineLearner, StateSpec, policy/critic networks, objectives,
+learning rates, effective batches and the 320000-step schedule. Environment count
+changes the number of physical transitions collected per vector step. It does
+not change the eight-step world-model loss or 32-step actor BPTT horizon.
+`--max-hours` and `--max-iterations` bound execution without rescaling the schedule.
