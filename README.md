@@ -1,64 +1,36 @@
 # Cutting World Model
 
-Learn cutting dynamics from DiSECt transitions using the dynamics MLP from
-[SuperMimic-Reproduced](https://github.com/CuboiLeo/SuperMimic-Reproduced),
-commit `ba6105349069bf040f1fdad60873d13138d505a2`.
+Migrate [SuperMimic-Reproduced](https://github.com/CuboiLeo/SuperMimic-Reproduced)
+(`ba610534`) to SliceIt's Gazebo robot and DiSECt public prism. Keep the six
+SliceIt actions, task rewards and termination conditions.
 
-The selected task keeps SliceIt's Gazebo robot, six compliance-control actions,
-24-D observations, reward and termination. DiSECt supplies the public prism's
-deformation, damage and contact forces. The original SAC remains the baseline.
-An earlier direct-knife collector is available for independent dynamics checks.
+Implemented: synchronized state recording, analytic SliceIt observation/reward
+functions, upstream replay and return/GAE equations, source update schedule,
+and the goal-encoder/decoder policy with cutting dimensions.
+Next: cutting StateSpec and the connected online world-model/policy trainer.
 
-## Run on the 4090
+## Check a complete robot episode
 
-DiSECt data collection uses the installed SliceIt physics environment:
-
-```bash
-source /dataHDD/dong/Projects/SliceIt/scripts/public_env.sh
-python /dataHDD/dong/Projects/CuttingWorldModel/scripts/collect_disect.py \
-  --config ../configs/public_prism.json --disect-root . \
-  --output /dataHDD/dong/Projects/CuttingWorldModel/runs/prism_straight
-```
-
-Run the collector under `xvfb-run -a` if the installed Qt backend requires a display.
-`--actions` accepts an NPY array of knife twists in m/s and rad/s. The dataset
-stores T actions and T+1 states, plus unchanged physical configuration and mesh
-connectivity. `progress.json` records every control step.
-
-`scripts/check_state_restart.py --dataset <directory> --frame <index>` restarts
-one control interval from a recorded, partially damaged state and reports
-position, velocity and spring-stiffness differences.
-
-The learned model has a separate `.venv` with PyTorch 2.4.1/CUDA 12.1 and NumPy
-1.23.5. Its source import reads only the upstream dynamics module; it does not
-install the G1 simulator or change SliceIt's dependencies.
-
-For the selected robot-and-compliance task, collect the original SliceIt
-actions, observations, rewards and terminal labels in an isolated instance:
+On the 4090, from `/dataHDD/dong/Projects/CuttingWorldModel`:
 
 ```bash
 .venv/bin/python scripts/run_coupled_collection.py \
   --sliceit-root /dataHDD/dong/Projects/SliceIt \
-  --output runs/coupled_initial --episodes 3 --wall-seconds 900
+  --output runs/interface_source_policy --episodes 1 --wall-seconds 600
+.venv/bin/python scripts/check_task_interface.py \
+  --dataset runs/interface_source_policy/data
 ```
 
-This starts headless Gazebo and DiSECt on ROS 11322/Gazebo 11356, records full
-episodes under `data/`, and stops those processes at the end. `status.json`
-and `data/progress.json` show lifecycle and control-step progress.
+The first command starts an isolated headless Gazebo/DiSECt instance on ROS
+11322/Gazebo 11356 and records one episode from the initialized policy with
+source action noise. It stops those child processes when complete or timed out.
+`status.json` and `data/progress.json` report progress. The second command checks
+analytic observations, rewards, termination and upstream replay-window alignment.
+The existing SAC uses its original ports, process and environment.
 
-Fit eight-step predictions, with a whole episode held out:
+Independent object-dynamics recording: `scripts/collect_disect.py`.
+State restart comparison: `scripts/check_state_restart.py`.
 
-```bash
-.venv/bin/python scripts/train_world_model.py \
-  --train runs/coupled_initial/data/episode_000.npz runs/coupled_initial/data/episode_001.npz \
-  --validation runs/coupled_initial/data/episode_002.npz \
-  --upstream-root /dataHDD/dong/Projects/SuperMimic-Reproduced \
-  --output runs/coupled_fit --updates 10 --wall-seconds 600
-```
-
-`report.json` compares physical-unit prediction errors with state persistence
-and reports reward error, termination probability error and invalid material
-predictions. `checkpoint.pt` contains network and optimizer state.
-
-Methods and scope: [METHOD](docs/METHOD.md). Results: [RESULTS](docs/RESULTS.md).
-Next experiments: [PLAN](docs/PLAN.md).
+Tests: `PYTHONPATH=. .venv/bin/python -m pytest tests -q`.
+Methods: [METHOD](docs/METHOD.md). Numbers: [RESULTS](docs/RESULTS.md).
+Next work: [PLAN](docs/PLAN.md). Source provenance: [third_party](third_party/supermimic/README.md).

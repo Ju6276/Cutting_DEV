@@ -1,34 +1,31 @@
-# Experiment order
+# Migration order
 
-The selected target is the original SliceIt robot and compliance-control task.
-Gazebo and DiSECt remain the data source. Preserve the six SliceIt actions,
-24-dimensional policy observation, reward, and termination conditions.
-The new learner replaces SAC with SuperMimic-style world-model policy updates.
+Target: the existing SliceIt robot/compliance task, Gazebo + DiSECt, compared
+with its unchanged SAC baseline.
 
-The existing SAC baseline keeps its 24-dimensional observations. The new
-branch uses SuperMimic-style model-based actor–critic updates through imagined
-rollouts. Its world-model state and its policy observation are separate:
-the world model receives deformation and damage history, while the policy can
-use the same robot/sensor observations as SAC. The current implementation
-contains the state collector and dynamics adapter; policy/critic updates are
-the fourth experiment below.
+1. **Task/data interfaces:** reuse original replay, schedule, objective and MLP;
+   translate SliceIt observation/reward/termination functions; verify on a whole
+   recorded episode. Use the original initialized policy architecture and noise
+   for new interface collection. Record actual sensor reads at observation time.
+2. **Cutting StateSpec:** separate physical state, task context and observation;
+   replace G1 FK/integration with the robot/object interfaces required by this
+   task. Derive observation and reward from predicted state using original task
+   formulas. Keep source loss reductions and explicit scaling provenance.
+3. **Online loop:** collect with the current policy, retain recent replay,
+   warm up, fit eight-step windows, then apply the original 32-step actor/critic
+   update and return to physical collection. Keep clean/executed actions and
+   termination/truncation separate. Use source hyperparameters; document necessary
+   task/hardware interface differences before running.
+4. **Learning curves:** report physical transitions, wall time, prediction errors,
+   original task return and physical replay outcomes. Judge model performance
+   over training, instead of modifying its structure after a tiny initial fit.
 
-1. Record coupled Gazebo/DiSECt transitions at env.step boundaries, including
-   particle state, damage, joint state, force history, previous velocities and
-   accelerations, accumulated controller command, observations and rewards.
-2. Collect distinct cutting trajectories; split whole trajectories into training
-   and validation sets. Fit 8-step windows with the upstream MLP. Compare force,
-   displacement and remaining spring stiffness against state persistence.
-   Report negative stiffness, stiffness increases and quaternion norm errors.
-3. Fit reward and terminal-probability heads on the original environment labels.
-   Validate predictions on held-out complete episodes before policy training.
-4. Reuse short imagined rollouts, frozen-model policy gradients and a terminal
-   critic. Replay resulting policies in Gazebo/DiSECt and compare against SAC
-   using total wall time including data collection and model training.
+Current work is item 1. The one-episode interface run has a 600-second wall cap,
+per-step progress and automatic child cleanup. It performs no policy updates.
+The original SAC continues independently. Physics collection and neural fitting
+are scheduled sequentially within this branch to limit GPU contention.
 
-The running SAC is the independent baseline. Coupled collection starts with
-three episodes using the original action-space warmup sampler, a 15-minute
-wall cap, and per-step progress output. The supervisor stops its own children
-on completion, failure or timeout. ROS 11322 and Gazebo 11356 are separate from
-the SAC baseline's 11321/11355. Collection and subsequent model fitting run
-sequentially to limit competition for the 4090.
+The source's 40-step warmup yields about 163840 transitions at 4096 environments.
+One Gazebo/DiSECt environment yields 40. The initial three-episode collection
+recorded 104 transitions in 495 s while SAC ran concurrently. Throughput and data
+requirements must be measured before allocating a long online-training run.

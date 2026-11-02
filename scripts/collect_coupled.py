@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import sys
 import time
+import torch
 
 import numpy as np
 import rospy
@@ -13,6 +14,8 @@ from std_srvs.srv import Trigger
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from cutting_world_model.provenance import git_revision
+from cutting_world_model.observation_recording import ObservationRecorder
+from cutting_world_model.policy import SliceItPolicy
 
 
 def capture(env, observation, service):
@@ -50,6 +53,7 @@ def main():
     parser.add_argument("--output", required=True)
     parser.add_argument("--episodes", type=int, default=3)
     parser.add_argument("--seed", type=int, default=123456)
+    parser.add_argument("--policy-seed", type=int, default=0)
     args = parser.parse_args(rospy.myargv()[1:])
     if os.environ.get("ROS_MASTER_URI") == "http://127.0.0.1:11321":
         raise RuntimeError("Use an isolated ROS master; 11321 belongs to the SAC baseline")
@@ -69,6 +73,10 @@ def main():
     env.observation_space.seed(args.seed)
     service = rospy.ServiceProxy("/world_model/snapshot", Trigger)
     service.wait_for_service(timeout=60)
+    recorder = ObservationRecorder(env.unwrapped, lambda obs: capture(env, obs, service))
+    torch.set_num_threads(2)
+    torch.manual_seed(args.policy_seed)
+    policy = SliceItPolicy().eval()
     root = Path(args.sliceit_root)
     manifest = {"git": git_revision(Path(__file__).resolve().parents[1]),
                 "sliceit_git": git_revision(root), "disect_git": git_revision(root / "disect"),
@@ -77,18 +85,27 @@ def main():
                 "ros_master": os.environ["ROS_MASTER_URI"],
                 "environment": rospy.get_param("ur3e_gym"),
                 "controller": rospy.get_param("ur3e_force_control"),
-                "behavior_policy": "original action_space.sample() warmup"}
+                "behavior_policy": "initial SuperMimic encoder/decoder, Gaussian action noise 0.1",
+                "policy_seed": args.policy_seed, "policy_updates": 0,
+                "action_bounds": [env.action_space.low.tolist(), env.action_space.high.tolist()]}
     (output / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     started = time.monotonic()
     for episode in range(args.episodes):
         observation = env.reset()
-        frames = [capture(env, observation, service)]
-        actions, rewards, terminated, truncated, infos = [], [], [], [], []
+        history = [observation.copy() for _ in range(policy.history)]
+        frames = [recorder.read(observation)]
+        actions, clean_actions, rewards, terminated, truncated, infos = [], [], [], [], [], []
         for step in range(max_steps):
-            action = env.action_space.sample()
+            with torch.no_grad():
+                clean = policy(torch.tensor(np.asarray(history), dtype=torch.float32)[:, None],
+                               torch.tensor(env.unwrapped.current_target_pose, dtype=torch.float32)[None])[0]
+                executed = clean + .1 * torch.randn_like(clean)
+            action = np.clip(executed.numpy(), env.action_space.low, env.action_space.high)
             observation, reward, done, info = env.step(action)
-            frames.append(capture(env, observation, service))
+            history = history[1:] + [observation.copy()]
+            frames.append(recorder.read(observation))
             actions.append(action)
+            clean_actions.append(clean.numpy())
             rewards.append(reward)
             is_truncated = bool(info.get("TimeLimit.truncated", False))
             terminated.append(bool(done and not is_truncated))
@@ -102,7 +119,7 @@ def main():
             if done:
                 break
         data = {key: np.asarray([frame[key] for frame in frames]) for key in frames[0]}
-        data.update(actions=np.asarray(actions), rewards=np.asarray(rewards),
+        data.update(actions=np.asarray(actions), clean_actions=np.asarray(clean_actions), rewards=np.asarray(rewards),
                     terminated=np.asarray(terminated), truncated=np.asarray(truncated))
         np.savez_compressed(output / ("episode_%03d.npz" % episode), **data)
         (output / ("episode_%03d.json" % episode)).write_text(json.dumps(infos, indent=2) + "\n")

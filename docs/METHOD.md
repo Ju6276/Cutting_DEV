@@ -1,25 +1,29 @@
-# Method and implementation choices
+# Source mapping
 
-| Component | Source | Cutting implementation and reason |
+Source revision: SuperMimic-Reproduced `ba610534`; SliceIt `4efdf37`;
+robot utilities `a14c856`; DiSECt `db7de0f`.
+
+| Module | Source design | Cutting implementation |
 |---|---|---|
-| Training method | SuperMimic, Figure 2, Eq. 1–3, Algorithm A.1 | Fit state-transition windows, then optimize a policy through a frozen model and return to physical simulation for new data. Policy updates follow prediction checks. |
-| Dynamics network | SuperMimic-Reproduced `ba610534`, `world_model/dynamics.py` | Import the original residual MLP with its three 2048-unit SiLU layers and zero final initialization. Inputs and outputs use the full cutting state instead of G1 features. |
-| State update | SuperMimic-Reproduced `StateSpec.integrate` combines learned increments and analytic integration | Predict particle/joint increments; compose pose rotations on unit quaternions. Copy task context, advance step count, accumulate SliceIt's motion command and copy the executed action into the observation using the original formulas. This prevents the fixed-goal drift observed in the first fit. |
-| Damage representation | DiSECt `eval_cut_springs`: k_new=max(0,k−contact×positive_extension×softness) | Learn the nonnegative stiffness decrement over one control interval; subtract it with the original zero lower bound. This encodes irreversibility in the learned model. DiSECt data generation keeps the original per-substep contact/extension formula. |
-| Normalization | SuperMimic-Reproduced uses scales by physical quantity | Fit feature means and pooled scales by quantity on training trajectories; pose position and quaternion groups are separate. A completely constant group uses scale 1. This avoids assigning different error weights to axes solely because one axis barely moved in the initial dataset. |
-| Physical data source | SliceIt DiSECt `db7de0f`, public prism configuration | Use existing FEM, contact and spring damage formulas, Gazebo knife geometry and the previously aligned initial height. Physics dt is 1e-5 s and control dt is 0.05 s, matching the running SliceIt bridge and agent. |
-| Cut topology | DiSECt preinserts the cut plane and connects its sides with weakening springs | Keep that topology and include remaining spring stiffness in the state. Every dataset contains its connectivity and initial spring damping. |
-| Action interface | SliceIt SAC controls trajectory/compliance; DiSECt accepts knife pose/twist | First fit the knife–object dynamics using prescribed twist. Mapping the six SAC actions through the robot and controller is a subsequent adapter. |
-| Coupled data | SliceIt environment and public ROS bridge | A separate Gazebo/DiSECt instance executes the original six actions and records before/after states with the original reward and termination. Controller history and force history are recorded alongside the 24-D observation. The snapshot service adds recording only. |
-| State representation | SuperMimic uses simulator state and context | Record accessible physical and controller state. Internal Gazebo solver and C++ controller buffers are not exposed in this representation; held-out multistep prediction measures their effect. |
-| World-model loss | SuperMimic Eq. 1, Table A.5 | Sum eight autoregressive state/reward squared errors and termination BCE. Adam lr 2e-4, batch 2048, ten batches per update, gradient norm clipping at 1 follow the source. State and reward normalization use training episodes only. |
-| Reward and termination heads | SuperMimic permits learned heads | Local SiLU MLPs with widths 256/128 fit original SliceIt reward and termination labels. Observations are a slice of the predicted state. Time-limit truncation is stored separately from task termination. |
-| Initial training budget | Local experiment schedule | Ten updates (100 optimizer steps), 600-second budget, two complete training episodes and one held-out episode. These are a first prediction experiment; the original paper's complete training schedule has 320000 iterations. |
-| Policy objective | SuperMimic Eq. 2–3 | Implement 32-step differentiable returns with survival probabilities and terminal critic, plus GAE targets (gamma 0.99, lambda 0.95). Freeze model and critic weights during actor differentiation while retaining their derivatives with respect to state/action. |
-| Policy interface | SuperMimic uses goal encoders and observation history | The cutting policy takes SliceIt's existing 24-D observation and outputs its six bounded actions; the fixed-task goal is already expressed by the observation's target-pose error. Decoder widths follow the source (2048/1024/512/256); critic widths are 256/128. |
-| Geometry coverage | G1 has fixed robot dimensions | First use one fixed prism discretization. Additional geometry/material coverage requires corresponding data and a geometry-conditioned representation. |
+| Replay | Episode-aware ring, 1000 rows/environment, clean/executed actions, terminal row | Original replay code with a recorded-episode importer; existing task configuration is fixed for this scene |
+| Schedule | Warmup 40 environment steps; UTD 0.4; one actor update per world-model update | Original defaults and update cadence; current physical sampler has one environment, source default has 4096/GPU |
+| Objective | Survival-weighted 32-step return, terminal critic, GAE lambda 0.95 | Original objective and GAE functions; only their type-only import is changed |
+| Dynamics MLP | Three 2048-unit SiLU layers, zero final layer | Original source module; cutting StateSpec and trainer integration are next |
+| Policy | Goal encoder, 32-D latent, decoder; widths 2048/1024/512/256; decoder gain 0.01 | Same architecture with a 7-D target pose, ten frames of SliceIt's 24-D observation, and six task actions |
+| Policy input scaling | G1 observations and reference motions use robot-specific scales | SliceIt observations retain their existing normalization; target pose uses its SI/quaternion representation |
+| Actions | Gaussian execution noise sigma 0.1 | Same noise; execution respects SliceIt's existing action-space bounds; both clean and executed actions are recorded. SliceIt's last-action observation contains the executed action |
+| Observation/reward | Analytic task functions, including robot FK | Torch translation of original SliceIt normalization, reward and termination formulas. No learned reward network |
+| Termination | Learned probability head trained from simulator terminal labels | Task labels and hard formulas are connected; the cutting probability head is next |
+| Physical state | Simulator state read at the transition boundary | Gazebo joint/controller state plus DiSECt position, velocity and spring history, recorded during observation generation, before terminal controller shutdown |
+| Force history | Observation reads the sensor history | Record that exact sensor read, rather than rereading a moving queue after env.step |
+| Geometry/material | Source humanoid task | SliceIt's public prism configuration and aligned initial knife pose; physical equations and task thresholds unchanged |
+| Reference library | Motion-tracking goals, reward targets and reset frames | SliceIt's fixed cutting target and original task reward replace the humanoid motion library |
 
-References: [SuperMimic paper](https://arxiv.org/pdf/2610.28480),
-[implementation](https://github.com/CuboiLeo/SuperMimic-Reproduced/tree/ba6105349069bf040f1fdad60873d13138d505a2),
-[DiSECt](https://github.com/NVlabs/DiSECt),
+The preceding offline full-packet predictor, learned reward head and added damage
+projection have been removed. Their implementations and experiment revisions
+remain in Git history. New architecture changes require a source mapping before
+implementation; a short fit is a data/interface check, not a model-selection result.
+
+Sources: [world model](https://github.com/CuboiLeo/SuperMimic-Reproduced/blob/ba6105349069bf040f1fdad60873d13138d505a2/src/supermimic/world_model/world_model.py),
+[training loop](https://github.com/CuboiLeo/SuperMimic-Reproduced/blob/ba6105349069bf040f1fdad60873d13138d505a2/src/supermimic/training/loop.py),
 [SliceIt](https://github.com/omron-sinicx/sliceit).

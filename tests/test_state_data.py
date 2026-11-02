@@ -1,6 +1,6 @@
 import numpy as np
 
-from cutting_world_model.dynamics import FIELDS, pack_trajectory
+from cutting_world_model.recordings import FIELDS, pack_trajectory
 
 
 def test_transition_alignment_and_history(tmp_path):
