@@ -88,3 +88,14 @@ Final vertical error 1.497 mm, peak material force 9.97446 N, 288/304 springs
 released, force-feedback velocity response 1.526e-4 rad/s. Sampled process
 memory during cutting: 451 MiB. Both GPUs otherwise idle during this run.
 Source material, controller settings and task termination thresholds unchanged.
+
+
+2026-11-02, backend `d81579e`, task/trainer `f656efc`, RTX A6000 GPU 1:
+`CuttingWorldModel/scripts/benchmark_gpu_env.py --backend-root ../CuttingGpuBackend
+--worlds 32 --wall-seconds 600 --output runs/gpu_cut_32`: 32/32 complete reference
+cuts reached the task goal, each with 288/304 springs released. 1280 world-actions
+in 88.06 s stepping (14.536 world-actions/s), 2.71 s setup, sampled process
+memory 453 MiB. Peak forces range 9.97376–9.97683 N. One-world stepping took
+66.91 s for 40 actions; aggregate 32-world throughput increased 24.3 times.
+Backend tests: 19 passed on both A6000 and 4090. Complete scaling table and
+learning runs are recorded in CuttingWorldModel/docs/RESULTS.md.
