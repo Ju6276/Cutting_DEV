@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import sys
+import signal
 import time
 import torch
 
@@ -31,8 +32,21 @@ def main():
     from cutting_world_model.coupled_env import CoupledEnvironment
     output = Path(args.output).resolve()
     output.mkdir(parents=True, exist_ok=False)
-    rospy.init_node("world_model_collector", anonymous=True)
+    rospy.init_node("world_model_collector", anonymous=True, disable_signals=True)
+
+    def interrupt(signum, frame):
+        raise InterruptedError("Collection interrupted")
+
+    signal.signal(signal.SIGTERM, interrupt)
+    signal.signal(signal.SIGINT, interrupt)
     coupled = CoupledEnvironment(args.config, args.seed)
+    try:
+        collect(args, coupled, output)
+    finally:
+        coupled.close()
+
+
+def collect(args, coupled, output):
     env = coupled.env
     max_steps = coupled.environment["steps_per_episode"]
     (output / "task.json").write_text(json.dumps(coupled.metadata, indent=2) + "\n")
@@ -90,6 +104,7 @@ def main():
         (output / ("episode_%03d.json" % episode)).write_text(json.dumps(infos, indent=2) + "\n")
     (output / "report.json").write_text(json.dumps({"episodes": args.episodes,
         "wall_seconds": time.monotonic() - started}, indent=2) + "\n")
+
 
 
 if __name__ == "__main__":

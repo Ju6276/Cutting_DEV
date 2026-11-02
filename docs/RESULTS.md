@@ -166,5 +166,78 @@ and a subsequent physics step; 173.88 s, Torch peak 3052.58 MiB, zero completed
 physical episodes. WM loss 20.15477; actor gradient norm .0014653;
 critic loss 85833.37. W&B run `1cxhqutb`. The bounded run exited normally.
 
-Outstanding: old Gazebo state omits native FDCC internal memory; the old critic's
-large-bootstrap failure still requires a separate causal investigation.
+
+2026-11-02, parent `9a0b677` + dirty native-state/lifecycle changes, RTX 4090:
+`CUTTING_BACKEND_ROOT=../CuttingGpuBackend PYTHONPATH=.
+../CuttingGpuBackend/.venv/bin/python -m pytest tests -q --disable-warnings`:
+43 passed in 28.14 s. Production FDCC regression
+`SliceIt/scripts/check_native_fdcc_state.py`: equal measured joints, internal
+velocity difference 0.5 produces command difference 0.01 and next velocity
+difference 0.45; equation error 8.67e-18, restored-state next-step error 0.
+
+2026-11-02, parent `9a0b677` + dirty diagnostics, A6000 GPU 1,
+`runs/critic_fresh_replay_20261102/run.py`: 30 source-configuration updates on
+44 recorded transitions in 923.84 s. Final objective -411.259 = discounted
+reward -189.055 + terminal bootstrap -222.205; terminal value mean -772.972,
+maximum absolute terminal value 1007.20. W&B `mtsr5tll`. This dataset predates
+native-state export. Historical positive value explosion remains unresolved.
+Frozen-weight probe: 18.18% of 32-step predicted states violate the workspace;
+mean learned termination probability on those states is 5.38e-5. No network,
+objective, training threshold or reward change was made from this probe.
+
+Counterfactual on 45 old physical trajectories changes only initial derivative
+history: maximum velocity 28.1167 -> 0.72597; acceleration 562.333 -> 14.5194.
+The old reset also advanced physics outside recorded control intervals; those
+unrecorded transitions cannot be reconstructed from the saved episodes.
+
+
+2026-11-02, native state candidate based on `9a0b677`, source controller
+`6d6fea2`, utilities `c5f28a2`, Gazebo `e2ac2c9`, RTX 4090:
+final read-only reset probe (three resets, immediate/0.25 s/1 s reads) shows
+zero clock, solver/filter, queue and particle-state changes while paused.
+Native source sensitivity and interval checks were reviewed independently.
+Live ordering checks: first-step pending parameter updates 45/45 -> 0/45;
+pre-step FK samples 5/5 -> 0/5. Final requested substeps all execute 2 ticks;
+four consecutive action intervals are exactly 50 ticks. The 500 Hz joint
+sample falls within each requested (start,end] interval.
+
+2026-11-02, WM parent `9a0b677` + native-state/lifecycle changes,
+SliceIt `3d0801d`, RTX 4090: final suite in the ROS-compatible environment
+43 passed / 2 optional GPU checks skipped (1.94 s); complete suite using
+`CUTTING_BACKEND_ROOT=../CuttingGpuBackend PYTHONPATH=.
+../CuttingGpuBackend/.venv/bin/python -m pytest tests -q`: 45 passed (29.12 s).
+The ROS environment has no Warp package; the GPU environment runs both backend
+checks. Constructor-failure cleanup is included in these checks.
+
+`runs/native_learning_capture.py` via the supervised training entry,
+`--max-iterations 45 --max-hours 0.3 --wall-seconds 1200`:
+45 physical steps, 2 source learning updates, return to physics/reset,
+224.69 s learner / 272.56 s supervisor, exit 0, peak Torch allocation 2909.25 MiB.
+World-model, policy and critic weights all changed and remained finite.
+Final objective -3.867958 = discounted reward -3.867126 + bootstrap -0.0008327;
+critic loss 20236.38 -> 73917.29. Physical episode: 44 steps, return -122.97679,
+force-limit termination, 278 springs released; the next episode executed one step.
+Online metrics: [W&B ugsu01gt](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/ugsu01gt).
+Independent review verified replay fields, actual parameter updates and exited
+process groups. Long training remains stopped for critic diagnosis.
+
+`run_coupled_collection.py --mode collect --episodes 1 --wall-seconds 600`
+in `runs/native_independent_final_20261102`: 45 transitions / 46 frames,
+114.30 s, exit 0. `check_native_state.py`, `check_task_interface.py` and
+`check_state_interface.py`: native FK error 8.88e-16 m, exact observation/queue
+reconstruction error 0; state-derived observation error 2.80e-14, reward error
+1.42e-14, termination/success/collision mismatches 0. Native solver, filter and
+material snapshot ages are 0; source joint/wrench observation ages reach 2 ms. The 2 ms joint age occurs
+only at reset; all 45 post-action joint samples match the native packet exactly.
+44 normal actions advance 50 ticks; the terminal action stops at 34 ticks on
+the source force limit.
+
+Frozen final weights on the independent episode (`runs/native_terminal_probe.py`):
+45 measured transitions have zero terminal-label mismatches. Teacher-forced
+one-step prediction misses the single force-limit event. In 32-step policy
+predictions, 33.75% of states are outside the workspace; their mean predicted
+termination probability is 0.10044. Terminal value mean -10.8955,
+maximum absolute value 11.5832, terminal bootstrap -0.0034576. Both source updates
+change 14 world-model, 20 policy and 6 critic tensors; all weights and gradients
+are finite. Next experiment compares growing physical replay against fixed-replay
+updates while recording the first value/target departure and rollout state.

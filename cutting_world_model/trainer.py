@@ -105,17 +105,38 @@ class OnlineLearner:
                     values = self.critic_values(ro.states.detach(), goal.expand(len(ro.states), -1, -1))
                     targets = gae_targets(ro.rewards.detach(), ro.dhat[1:].detach(), values,
                                           cfg.gamma, cfg.gae_lambda)
+                    discounted_reward = policy_objective(ro, None, cfg.gamma)
+                    bootstrap = discounted_reward.new_zeros(())
+                    if cfg.use_critic:
+                        bootstrap = ((cfg.gamma ** cfg.horizon) * ro.survival[-1] * terminal).mean()
+                    spec = self.wm.spec
+                    collision = (spec.field(ro.states[1:], 'peak_wrench') > spec.force_limits).any(-1)
+                    analytic_done, _, _, _ = spec.heads.termination(
+                        spec.field(ro.states[1:], 'observation'),
+                        spec.field(ro.states[:-1], 'success_counter'), collision)
                     if cfg.use_critic:
                         states = ro.states[:-1].detach().flatten(0, 1).cpu()
                         goals = goal[None].expand(cfg.horizon, -1, -1).flatten(0, 1).cpu()
                         critic_data.append((states, goals, targets.flatten().cpu()))
                     measures = {
                         'imag_objective': objective.detach(),
+                        'imag_return_discounted': discounted_reward,
+                        'imag_terminal_bootstrap': bootstrap,
                         'imag_reward_mean': ro.rewards.detach().mean(),
                         'imag_return_undisc': (ro.survival[:-1] * ro.rewards).detach().sum(0).mean(),
                         'imag_survival_H': ro.survival[-1].detach().mean(),
+                        'imag_dhat_mean': ro.dhat[1:].mean(),
+                        'imag_analytic_done_mean': analytic_done.float().mean(),
+                        'imag_terminal_brier': (ro.dhat[1:] - analytic_done.float()).square().mean(),
                         'action_abs_mean': ro.actions.detach().abs().mean(),
                     }
+                    if cfg.use_critic:
+                        measures.update(
+                            critic_value_mean=values.mean(),
+                            critic_target_mean=targets.mean(),
+                            critic_terminal_value_mean=values[-1].mean(),
+                            critic_target_abs_mean=targets.abs().mean(),
+                        )
                     for key, value in measures.items():
                         metrics[key] = metrics.get(key, 0.) + float(value) * weight
                 del ro, loss, terminal, objective

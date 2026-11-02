@@ -19,12 +19,29 @@ class CuttingStateSpec(nn.Module):
                         'filter_history', 'filter_zi', 'wrench_queue', 'robot_warmstart',
                         'coupling_previous_pose', 'coupling_initialized')
     recurrent_constants = ('controller_tare_compensation', 'filter_offset')
-    pose_fields = ('knife_pose', 'controller_cached_tip_pose', 'coupling_previous_pose')
+    native_recurrent_fields = (
+        'controller_measured_q', 'controller_measured_qd', 'controller_q', 'controller_velocity',
+        'controller_previous_error', 'controller_previous_position_command',
+        'controller_cached_tip_pose', 'controller_target_pose',
+        'controller_sensor_wrench', 'controller_target_wrench',
+        'filter_history', 'filter_zi', 'filter_history_count', 'filter_initialized',
+        'filter_added_wrench', 'filter_flags', 'filter_added_age', 'filter_raw_age',
+        'controller_sample_age', 'filter_sample_age',
+        'wrench_queue', 'wrench_queue_count', 'current_ft_value',
+        'coupling_previous_pose', 'coupling_initialized')
+    pose_fields = ('knife_pose', 'controller_cached_tip_pose', 'coupling_previous_pose',
+                   'controller_target_pose')
 
     @classmethod
     def fields_for(cls, metadata):
-        recurrent = metadata.get('state_layout') == 'coupled_recurrent_v1'
-        return (cls.physical_fields + (cls.recurrent_fields if recurrent else ()),
+        layout = metadata.get('state_layout')
+        if layout == 'native_ros_recurrent_v1':
+            recurrent = cls.native_recurrent_fields
+        elif layout == 'coupled_recurrent_v1':
+            recurrent = cls.recurrent_fields
+        else:
+            recurrent = ()
+        return (cls.physical_fields + recurrent,
                 cls.history_fields + (cls.recurrent_constants if recurrent else ()))
 
     def __init__(self, metadata):
@@ -61,10 +78,13 @@ class CuttingStateSpec(nn.Module):
             'wrench_history': (np.tile(force, self.heads.history),) * 3,
             'peak_wrench': (force,) * 3,
         }
-        for name in ('controller_q', 'controller_previous_position_command'):
+        for name in ('controller_q', 'controller_previous_position_command', 'controller_measured_q'):
             source[name] = source['joint_q']
         source['controller_velocity'] = source['joint_qd']
-        for name in ('controller_previous_error', 'filter_history', 'filter_zi', 'wrench_queue'):
+        source['controller_measured_qd'] = source['joint_qd']
+        for name in ('controller_previous_error', 'filter_history', 'filter_zi', 'wrench_queue',
+                     'controller_sensor_wrench', 'controller_target_wrench',
+                     'filter_added_wrench', 'current_ft_value'):
             if name in self.shapes:
                 scale = np.tile(force, int(np.prod(self.shapes[name])) // 6)
                 source[name] = (scale, scale, scale)
@@ -72,6 +92,15 @@ class CuttingStateSpec(nn.Module):
         source['coupling_initialized'] = (1., 1., 1.)
         source['controller_cached_tip_pose'] = source['knife_pose']
         source['coupling_previous_pose'] = source['knife_pose']
+        source['controller_target_pose'] = source['knife_pose']
+        for name in ('filter_initialized', 'filter_flags'):
+            source[name] = (1., 1., 1.)
+        for name, queue in (('filter_history_count', 'filter_history'),
+                            ('wrench_queue_count', 'wrench_queue')):
+            if queue in self.shapes:
+                source[name] = (float(self.shapes[queue][0]),) * 3
+        for name in ('filter_added_age', 'filter_raw_age', 'controller_sample_age', 'filter_sample_age'):
+            source[name] = (self.dt, self.dt, self.dt)
         for name in self.physical_fields:
             width = self.layout[name].stop - self.layout[name].start
             delta_width = 6 if name in self.pose_fields else width

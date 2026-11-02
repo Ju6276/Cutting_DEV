@@ -18,6 +18,7 @@ def main():
     parser.add_argument("--wall-seconds", type=int, default=900)
     parser.add_argument("--mode", choices=("collect", "train", "evaluate"), default="collect")
     parser.add_argument("--max-hours", type=float, default=6.)
+    parser.add_argument("--max-iterations", type=int)
     parser.add_argument("--microbatch", type=int, default=64)
     parser.add_argument("--resume")
     args = parser.parse_args()
@@ -95,6 +96,8 @@ def main():
         else:
             worker = ["python", "-u", str(root / "scripts/train_coupled.py"),
                       "--max-hours", str(args.max_hours), "--microbatch", str(args.microbatch)]
+            if args.max_iterations is not None:
+                worker += ["--max-iterations", str(args.max_iterations)]
             if args.resume:
                 worker += ["--resume", str(Path(args.resume).resolve())]
             if args.mode == "evaluate":
@@ -118,7 +121,6 @@ def main():
         for process in reversed(list(children.values())):
             if process.poll() is None:
                 os.killpg(process.pid, signal.SIGINT)
-        for process in children.values():
             try:
                 process.wait(timeout=20)
             except subprocess.TimeoutExpired:

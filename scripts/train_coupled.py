@@ -52,6 +52,7 @@ def main():
     parser.add_argument('--device', default='cuda:0')
     parser.add_argument('--microbatch', type=int, default=64)
     parser.add_argument('--max-hours', type=float, default=6.)
+    parser.add_argument('--max-iterations', type=int)
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--resume')
     parser.add_argument('--evaluate', action='store_true')
@@ -62,8 +63,23 @@ def main():
     torch.set_num_threads(2)
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
-    rospy.init_node('world_model_online', anonymous=True)
+    if args.evaluate and not args.resume:
+        parser.error('--evaluate requires --resume')
+    rospy.init_node('world_model_online', anonymous=True, disable_signals=True)
+
+    def interrupt_setup(signum, frame):
+        raise InterruptedError('Training setup interrupted')
+
+    signal.signal(signal.SIGTERM, interrupt_setup)
+    signal.signal(signal.SIGINT, interrupt_setup)
     env = CoupledEnvironment(args.config)
+    try:
+        run(args, env, output)
+    finally:
+        env.close()
+
+
+def run(args, env, output):
     frame = env.reset()
     metadata = CuttingStateSpec.metadata_from_frame(env.metadata, frame)
     write_json(output / 'task.json', metadata)
@@ -82,8 +98,6 @@ def main():
         torch.set_rng_state(saved['torch_rng'].cpu())
         if torch.cuda.is_available():
             torch.cuda.set_rng_state(saved['cuda_rng'].cpu())
-    if args.evaluate and not args.resume:
-        raise ValueError('--evaluate requires --resume')
     replay = OnlineReplay(spec.state_dim, args.device)
     start = time.monotonic()
     stop_requested = False
@@ -113,6 +127,8 @@ def main():
         temporary.replace(path)
 
     def learner_progress(**values):
+        if stop_requested:
+            raise InterruptedError('Training stop requested')
         status.update(values, wall_seconds=time.monotonic() - start)
         write_json(output / 'progress.json', status)
 
@@ -122,8 +138,12 @@ def main():
     history = [frame['observation'].copy() for _ in range(policy.history)]
     episode_start = time.monotonic()
     wm_seconds, policy_seconds, physics_seconds = 0., 0., 0.
+    executed_steps = 0
     try:
         while schedule.iteration < schedule.config.total_iterations:
+            if args.max_iterations is not None and executed_steps >= args.max_iterations:
+                status['state'] = 'completed'
+                break
             if stop_requested or time.monotonic() - start >= args.max_hours * 3600:
                 status['state'] = 'budget_complete' if not stop_requested else 'interrupted'
                 break
@@ -135,6 +155,7 @@ def main():
                 state = spec.pack(frame, args.device)
             tick = time.monotonic()
             next_frame, reward, terminated, truncated, info = env.step(executed.cpu().numpy())
+            executed_steps += 1
             physics_seconds += time.monotonic() - tick
             with torch.no_grad():
                 next_state = spec.pack(next_frame, args.device)
@@ -198,6 +219,8 @@ def main():
                 checkpoint_model('checkpoint_%08d.pt' % schedule.iteration)
         else:
             status['state'] = 'completed'
+    except InterruptedError:
+        status['state'] = 'interrupted'
     except BaseException as error:
         status.update(state='failed', error=repr(error))
         raise

@@ -50,3 +50,30 @@ def test_reset_cannot_reuse_previous_frame():
     old = env._get_obs()
     with pytest.raises(RuntimeError, match="Recorded state"):
         recorder.reset(lambda: old)
+
+
+def test_joint_and_full_force_queue_match_original_observation_reads():
+    samples = {'q': np.arange(6.), 'qd': np.ones(6), 'stamp': np.array(4.)}
+    sensor = {'queue': np.arange(150.).reshape(25, 6), 'current': np.ones(6),
+              'stamp': np.array(4.), 'capacity': np.array(25)}
+    joints = SimpleNamespace(get_joint_state=lambda: {k: np.array(v, copy=True) for k, v in samples.items()})
+    arm = SimpleNamespace(joint_traj_controller=joints,
+                          get_wrench_state=lambda: {k: np.array(v, copy=True) for k, v in sensor.items()})
+    arm.get_ee_wrench_hist = lambda count: arm.get_wrench_state()['queue'][:count]
+    env = SimpleNamespace(ur3e_arm=arm, success_counter=0, step_count=0,
+                          previous_ee_pose=np.array([0., 0., 0., 0., 0., 0., 1.]))
+    def observe():
+        state = joints.get_joint_state()
+        force = arm.get_ee_wrench_hist(3)
+        samples['q'][:] = 99
+        sensor['queue'][:] = 99
+        return np.r_[state['q'], force.ravel()]
+    env._get_obs = observe
+    recorder = ObservationRecorder(env, lambda obs: {'observation': obs.copy()})
+    observation = env._get_obs()
+    frame = recorder.read(observation)
+    np.testing.assert_array_equal(frame['joint_q'], np.arange(6.))
+    np.testing.assert_array_equal(frame['joint_qd'], np.ones(6))
+    np.testing.assert_array_equal(frame['wrench_queue'], np.arange(150.).reshape(25, 6))
+    np.testing.assert_array_equal(frame['wrench_history'], frame['wrench_queue'][:3])
+    assert frame['wrench_queue_count'][0] == 25

@@ -14,10 +14,10 @@ robot utilities `177cf21`; DiSECt `db7de0f`.
 | Actions | Gaussian execution noise sigma 0.1 | Same noise; execution respects SliceIt's existing action-space bounds; both clean and executed actions are recorded. SliceIt's last-action observation contains the executed action |
 | Observation/reward | Analytic task functions, including robot FK | Torch translation of corrected SliceIt normalization, reward and termination; decode component-major force history before averaging each component |
 | Termination | Learned probability head trained from simulator terminal labels | Connected cutting probability head with force, workspace, goal and counter features |
-| Physical state | Simulator state read at the transition boundary | ROS exports joint/material/observation history; native FDCC internal velocity is missing. GPU `coupled_recurrent_v1` includes controller/filter state. Snapshots are taken during observation generation, before terminal shutdown |
+| Physical state | Simulator state read at the transition boundary | ROS `native_ros_recurrent_v1` exports FDCC solver/PD/force/target state, hardware command, filter and sensor queues alongside joints/material. GPU `coupled_recurrent_v1` includes its controller/filter state. Observation snapshots precede terminal shutdown |
 | Force history | Observation reads the sensor history | Record that exact sensor read, rather than rereading a moving queue after env.step |
 | Material-force wiring | DiSECt reaction feeds the robot force sensor and compliance controller | Initial Gazebo runs have disconnected material-force and controller-input topics; new runs check the complete relay/filter/controller graph before collection |
-| Reset boundary | Corrected SliceIt reads observation after physical reset and restarts derivative history | Capture the initial state inside that observation call, including its exact force sample; use the same capture boundary for subsequent steps |
+| Reset boundary | The direct DiSECt environment inherited a false step-control flag; pause/unpause wrappers published asynchronous world-control requests | Load the existing step-control setting, use synchronous Gazebo pause/unpause services, then sample the post-reset observation. The original control timestep and task parameters are retained |
 | Robot asset | SliceIt UR5e robot; legacy task class UR3eDisectSlicingEnv-v1 | Keep the active XML (upper-arm mass 8.058 kg, COM x=-0.2125 m) for both SAC and the world-model task |
 | Geometry/material | Source humanoid task | SliceIt's public prism configuration and aligned initial knife pose; physical equations and task thresholds unchanged |
 | Reference library | Motion-tracking goals, reward targets and reset frames | SliceIt's fixed cutting target and original task reward replace the humanoid motion library |
@@ -118,3 +118,54 @@ Existing checkpoint metadata equality rejects resuming with the old reward
 interpretation. Earlier recorded datasets retain their original rewards; new
 interface parity checks use episodes collected with the corrected source.
 SAC's PER and TCN changes do not apply to the SuperMimic replay or policy.
+
+## Native ROS state and lifecycle
+
+The native ROS state has 8990 coordinates (8924 predicted increments). Read-only
+snapshot services export completed FDCC updates, the hardware-saturated command,
+200 filter samples, IIR memory, added-force freshness, the 25-sample wrench queue,
+and the knife-coupling previous pose. Internal solver velocity and measured
+joint velocity are separate fields. Joint and wrench observations retain the
+exact atomic source samples used by the original observation call. The current
+model scales reuse joint/force scales, queue capacities and the existing 50 ms
+control period for timestamp ages.
+
+The base environment and arm must agree with the configured step-control flag.
+Reset and cleanup use `/gazebo/pause_physics` and `/gazebo/unpause_physics`
+services in call order. Native snapshots are read after the observation while
+physics is paused, before terminal controller shutdown. ROS message delivery retains its source scheduling; snapshot records contain
+source timestamps and ages. In stepped mode, dynamic-reconfigure writes finish
+before advancing physics. The source launched concurrent writes, and recorded
+action-dependent gains were requested only after the first 2 ms had advanced.
+Continuous control retains asynchronous updates. Gain values, action mapping
+and control timesteps are unchanged.
+
+The source shutdown hook switches back to the trajectory controller on a Gazebo
+tick. Workers therefore unpause before closing, including setup failures and
+interruption. The launcher waits for the worker before stopping bridge/Gazebo.
+`--max-iterations` bounds executed environment steps; it does not rescale the
+learning schedule or alter batch sizes.
+
+Critic diagnostics split the existing objective into discounted rewards and
+terminal bootstrap, retain the source value/target means, and compare learned
+termination with the analytic task predicates along imagined trajectories.
+These measurements do not change the learned head, objective, gradients or
+optimizer updates. The old reset-history error and uncontrolled reset-time
+advancement corrupt the state-transition contract; they are repaired at the
+source environment boundary.
+
+The SliceIt Gazebo StepControl extension previously returned after publishing a
+WorldControl request. Five measured calls supplied the pre-step joint sample to
+DiSECt. Positive step requests now use Gazebo's native blocking `World::Step(n)`;
+zero steps retain unpause semantics. This changes request completion ordering,
+not the requested 2 ms interval or Gazebo/DiSECt equations.
+Source: [Gazebo 11.15.1 World::Step](https://github.com/gazebosim/gazebo/blob/gazebo11_11.15.1/gazebo/physics/World.cc#L807).
+
+StepControl responses also report authoritative start/end simulation times.
+Before computing the knife pose, the source joint subscriber waits for a sample
+strictly newer than the server start time. Its existing connection timeout
+bounds callback delivery in wall time; physics does not advance while waiting.
+Action duration and trajectory segment timing use accumulated server intervals
+in integer nanoseconds in stepped mode. The previous ROS-clock/float loop
+produced 52 ms actions for the configured 50 ms interval. Continuous control
+retains its original clock path and all trajectory/force predicates.

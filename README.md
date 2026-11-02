@@ -66,8 +66,8 @@ From `/dataHDD/dong/Projects/CuttingWorldModel`:
 
 This starts headless Gazebo/DiSECt on ROS 11322/Gazebo 11356. Complete episodes
 are written to `data/episode_*.npz`; metadata records the task interface revision.
-ROS collection currently exports joints, material and observation history;
-exporting native FDCC internal state remains necessary for ROS world-model training.
+ROS collection exports native FDCC, filter and complete wrench-queue memory
+alongside joints, material and observation history (8990 state coordinates).
 All run data stays outside Git.
 
 ## Interface checks
@@ -76,6 +76,9 @@ Run the supervisor with `--mode collect --episodes 1 --wall-seconds 600`.
 Then run `scripts/check_task_interface.py --dataset RUN/data` and
 `scripts/check_state_interface.py --dataset RUN/data` to compare recorded
 observations, rewards, terminal labels, URDF kinematics and controller history.
+`PYTHONPATH=. .venv/bin/python scripts/check_native_state.py RUN/data` checks
+native state packing, sample times and queue alignment. A bounded connected
+update uses `--mode train --max-iterations 43 --max-hours 0.2 --wall-seconds 900`.
 
 Tests: `PYTHONPATH=. .venv/bin/python -m pytest tests -q`. GPU integration
 checks additionally use `CUTTING_BACKEND_ROOT=/dataHDD/dong/Projects/CuttingGpuBackend`

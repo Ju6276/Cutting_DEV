@@ -1,20 +1,35 @@
 # Current plan
 
-Long training remains stopped. The active work is synchronizing the corrected
-SliceIt interfaces and checking them with independent reviewers and bounded runs.
+Long training remains stopped. Keep the source objectives, network widths,
+effective batches, learning rates, rewards and physical task unchanged.
 
-1. Decode force history consistently in the Torch reward; capture ROS reset
-   state at the returned observation's sampling point. Preserve SuperMimic's
-   replay, policy architecture, BPTT/GAE objectives and training settings.
-2. Verify new ROS episodes against corrected SliceIt, and run the GPU collector
-   through one complete learning update and the following physics step.
-3. Before ROS world-model training, export native FDCC/controller memory into
-   the state. Current GPU training already has the recurrent layout.
-4. Diagnose the old critic's large terminal bootstrap separately, with per-step
-   imagined states, values and targets. Passing interface checks establishes
-   data/formula alignment; learning quality requires physical policy evaluation.
+Completed source repairs:
 
-The old Gazebo runs had disconnected material-force topics. The corrected launch
-connects the relay, filter and controller. Old task-interface checkpoints and
-recorded rewards use the prior history interpretation; collect new data for the
-current interface revision.
+- Native ROS collection exports FDCC solver memory, filter history and the full
+  wrench queue: 8990 state coordinates. Equal measured joints with different
+  internal solver velocity produce different next commands in the native solver.
+- Reset leaves physics paused and captures post-reset observations. Configuration
+  writes complete before physics; knife FK uses a joint sample from the completed
+  step. Configured 50 ms actions execute 50 simulation ticks.
+- Workers unpause for the source controller shutdown, including constructor and
+  later setup failures. Independent agents reviewed these changes.
+
+Remaining work, in order:
+
+1. Connected check completed: 45 physical steps, two complete source learning
+   updates, return to physical simulation, checkpoint and normal cleanup. A separate
+   45-transition episode has zero terminal mismatches and reward error 1.42e-14.
+2. Diagnose the historical positive critic bootstrap explosion using captured
+   replay, weights, optimizer state and RNG. Split reward and terminal bootstrap;
+   compare measured, teacher-forced and autoregressive transitions. The 30-update
+   fixed-replay experiment has finite values but reaches |V|=1007.20 and has not
+   explained the historical positive explosion. Do not change the model from two
+   updates or a small dataset's prediction errors.
+3. Review the causal finding independently, repair a demonstrated error if found,
+   then run sustained learning and held-out physical policy evaluation. Report
+   task success separately from interface checks and finite learning updates.
+
+The ROS task uses `native_ros_recurrent_v1` and
+`synchronous_parameters_physics_and_joint_sample_v1`. Restart metadata rejects
+checkpoints from older state/timing interfaces. The A6000 MuJoCo backend retains
+its separate `coupled_recurrent_v1` layout; ROS timing fixes do not validate it.

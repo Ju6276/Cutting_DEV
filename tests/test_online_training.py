@@ -83,3 +83,46 @@ def test_streaming_replay_keeps_terminal_labels_and_context():
     window = buffer.sample_windows(32, 8)
     assert window.xi.shape == (32, 7)
     assert window.states.shape[0] == 9
+
+
+def test_policy_and_critic_microbatches_match_full_effective_batch():
+    from copy import deepcopy
+    from types import SimpleNamespace
+
+    torch.set_num_threads(2)
+    torch.manual_seed(19)
+    meta, frame = fixture()
+    wm = CuttingWorldModel(meta, hidden=(16, 16))
+    buffer = replay_fixture(wm, frame)
+    starts = buffer.sample_starts(5, 10)
+    fixed_buffer = SimpleNamespace(sample_starts=lambda *args: starts)
+
+    class TinyPolicy(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.net = MLP(24 + 7, (16,), 6, last_gain=.01)
+
+        def forward(self, history, goal):
+            return self.net(torch.cat((history[-1], goal), -1))
+
+    policy = TinyPolicy()
+    critic = SliceItCritic(wm.spec.state_dim)
+    config = PolicyTrainerCfg(compile=None, horizon=3, batch_size=5,
+                              critic_epochs=2, critic_minibatches=1)
+    full = OnlineLearner(wm, policy, critic, microbatch=5,
+                         wm_cfg=WMTrainerCfg(compile=None), policy_cfg=config)
+    split = OnlineLearner(deepcopy(wm), deepcopy(policy), deepcopy(critic), microbatch=2,
+                          wm_cfg=WMTrainerCfg(compile=None), policy_cfg=config)
+    torch.manual_seed(20)
+    full_metrics = full.improve_policy(fixed_buffer)
+    torch.manual_seed(20)
+    split_metrics = split.improve_policy(fixed_buffer)
+    for left, right in [(full.policy, split.policy), (full.critic, split.critic)]:
+        for expected, actual in zip(left.parameters(), right.parameters()):
+            torch.testing.assert_close(actual, expected, atol=2e-6, rtol=2e-5)
+    for key in full_metrics:
+        torch.testing.assert_close(torch.tensor(split_metrics[key]),
+                                   torch.tensor(full_metrics[key]), atol=2e-5, rtol=2e-5)
+    torch.testing.assert_close(torch.tensor(full_metrics['imag_objective']),
+                               torch.tensor(full_metrics['imag_return_discounted'] +
+                                            full_metrics['imag_terminal_bootstrap']))
