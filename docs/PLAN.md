@@ -1,33 +1,30 @@
-# Migration order
+# Training plan
 
-Target: the existing SliceIt robot/compliance task, Gazebo + DiSECt, compared
-with its unchanged SAC baseline.
+Target: SuperMimic-Reproduced's online learning algorithm on the existing
+SliceIt robot/compliance task, compared with the unchanged SAC baseline.
 
-1. **Task/data interfaces:** reuse original replay, schedule, objective and MLP;
-   translate SliceIt observation/reward/termination functions; verify on a whole
-   recorded episode. Use the original initialized policy architecture and noise
-   for new interface collection. Record actual sensor reads at observation time.
-2. **Cutting StateSpec:** separate physical state, task context and observation;
-   replace G1 FK/integration with the robot/object interfaces required by this
-   task. Derive observation and reward from predicted state using original task
-   formulas. Keep source loss reductions and explicit scaling provenance.
-3. **Online loop:** collect with the current policy, retain recent replay,
-   warm up, fit eight-step windows, then apply the original 32-step actor/critic
-   update and return to physical collection. Keep clean/executed actions and
-   termination/truncation separate. Use source hyperparameters; document necessary
-   task/hardware interface differences before running.
-4. **Learning curves:** report physical transitions, wall time, prediction errors,
-   original task return and physical replay outcomes. Judge model performance
-   over training, instead of modifying its structure after a tiny initial fit.
+1. **Task/data interfaces — checked.** A complete 41-step episode matches the
+   original observations, rewards, force-limit decisions and termination labels.
+2. **Cutting state and analytic heads — checked on recorded transitions.**
+   Vertex/joint/knife dynamics and contact signals are learned; URDF kinematics,
+   control accumulation and SliceIt observation/reward formulas are analytic.
+   Action derivatives and effective-batch gradient accumulation have unit checks.
+3. **Connected training — full-size update check passed.**
+   Original replay, 8-step prediction, 32-step BPTT, GAE, source batch sizes,
+   optimizers, clipping, learning-rate schedule and update ratio. One physical
+   environment; microbatches preserve effective batch size on the 4090.
+4. **Learning and physical evaluation.** First operational budget: six hours,
+   checkpoint on exit; source schedule remains 320000 steps. Inspect completed
+   updates, held-out physical returns, success, force-limit failures, released
+   springs and runtime. Resume from the checkpoint for further learning.
 
-Item 1 passed the recorded-episode observation/reward/termination and replay
-alignment checks (41 transitions; RESULTS). Next is item 2. Interface collection
-has a 600-second wall cap, per-step progress and automatic child cleanup.
-It performs no policy updates.
-The original SAC continues independently. Physics collection and neural fitting
-are scheduled sequentially within this branch to limit GPU contention.
+Short-term loss/reward fluctuations are expected. Small-run interface checks
+establish execution and equation consistency, not model quality. Architecture
+changes require sustained evidence, a specific cause and a source mapping.
+Do not change rewards, task thresholds or source optimization parameters to
+improve a short curve. Repair data/gradient/runtime bugs directly.
 
-The source's 40-step warmup yields about 163840 transitions at 4096 environments.
-One Gazebo/DiSECt environment yields 40. The initial three-episode collection
-recorded 104 transitions in 495 s while SAC ran concurrently. Throughput and data
-requirements must be measured before allocating a long online-training run.
+The initial collector measured 104 transitions in 495 s concurrently with SAC.
+Measure the connected learner's throughput before estimating time for a full
+320000-step schedule. Long-job progress, checkpoints and wall budgets are
+mandatory; no multi-day run is started without that measured estimate.

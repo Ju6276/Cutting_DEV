@@ -28,3 +28,43 @@ implementation; a short fit is a data/interface check, not a model-selection res
 Sources: [world model](https://github.com/CuboiLeo/SuperMimic-Reproduced/blob/ba6105349069bf040f1fdad60873d13138d505a2/src/supermimic/world_model/world_model.py),
 [training loop](https://github.com/CuboiLeo/SuperMimic-Reproduced/blob/ba6105349069bf040f1fdad60873d13138d505a2/src/supermimic/training/loop.py),
 [SliceIt](https://github.com/omron-sinicx/sliceit).
+
+## Connected trainer mapping
+
+The connected candidate keeps the source MLP, eight-step autoregressive loss
+(sum over state coordinates, mean over batch and time), learned terminal head,
+32-step survival-weighted actor objective and GAE critic updates. A 4090 uses
+microbatch gradient accumulation for the original effective batch sizes (2048
+world model, 4096 actor); optimizer steps and gradient clipping occur after
+accumulation. This changes storage/scheduling, not the loss or update ratio.
+
+The physical prediction state contains DiSECt vertex positions/velocities and
+spring stiffness, robot joints/velocities, bridge knife pose/twist, the three
+wrench samples used by SliceIt, and the componentwise peak wrench checked during
+the control interval. Robot end-effector pose is derived by differentiable URDF
+forward kinematics. Controller motion accumulation, finite-difference velocity,
+acceleration, jerk, observation, success counter and fixed target follow the
+existing SliceIt equations. Targets and derived observations are not learned
+outputs. Spring damping is static in this DiSECt integrator.
+
+Metric/velocity/joint error and output scales reuse source StateSpec values;
+spring stiffness uses its initial material stiffness, wrench uses the existing
+force/torque limits. No damage projection is applied. The terminal head uses
+normalized force-limit, workspace, goal and counter features in place of G1
+height/tilt. Reward retains SliceIt's discrete collision/success bonuses and
+continuous distance/force/jerk terms; gradients through the discrete bonus tests
+are piecewise, while learned termination supplies the source survival gradient.
+
+Only SliceIt's existing observation noise/randomization is used; humanoid sensor
+noise magnitudes do not apply to the cutting observations. The fixed target
+replaces reference-motion frames. Gazebo/ROS collection remains one environment.
+
+Training quality is assessed with learning curves and held-out physical episodes.
+Short-term loss/reward oscillation does not trigger architecture or threshold
+changes. Non-finite computations, broken data alignment and incorrect gradients
+are implementation failures to repair before interpreting training quality.
+
+URDF FK returns the same quaternion sign convention as
+[KDL Rotation::GetQuaternion](https://github.com/orocos/orocos_kinematics_dynamics/blob/master/orocos_kdl/src/frames.cpp).
+SliceIt's angular finite difference uses the signed quaternion components, so
+matching the rotation alone is insufficient for matching its velocity history.

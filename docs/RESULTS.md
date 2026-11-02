@@ -32,3 +32,20 @@ termination and success mismatches 0; success-counter error 0. Upstream replay:
 42 rows; eight-step window batch shape [9, 2048, 7535].
 `python -m pytest tests -q`: 12 passed in 0.74 s.
 Next: cutting StateSpec and connected online world-model/policy training.
+
+Cutting state interface, parent `5a75ca5` + connected-trainer changes:
+`run_coupled_collection.py --sliceit-root /dataHDD/dong/Projects/SliceIt
+--output runs/state_interface --episodes 1 --wall-seconds 600`:
+41 transitions, 191.89 s collector time; original force-limit termination.
+`check_state_interface.py --dataset runs/state_interface/data`:
+URDF FK position/rotation maxima 6.94e-16 m / 8.95e-16 rad;
+analytic observation/reward error 2.78e-14 / 6.94e-15;
+controller accumulation error 2.17e-19; collision/termination mismatches 0.
+
+Connected update check on the same 41 recorded transitions:
+`OnlineLearner.fit_world_model` (10 batches × 2048, horizon 8), then
+`OnlineLearner.improve_policy` (4096 starts, horizon 32, five critic epochs):
+completed; model/actor gradient norms 43.9297 / 0.003292; peak allocated GPU
+memory 2577.35 MiB. First model/actor+critic updates took 61.88 / 54.71 s,
+including compilation. These are execution measurements before online learning.
+`python -m pytest tests -q`: 20 passed in 1.83 s.

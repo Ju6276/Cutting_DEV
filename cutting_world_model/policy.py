@@ -24,3 +24,12 @@ class SliceItPolicy(nn.Module):
             begin += size
         latent = torch.tanh(self.encoder(target_pose))
         return self.decoder(torch.cat((latent, *parts), dim=-1))
+
+
+class SliceItCritic(nn.Module):
+    def __init__(self, state_dim):
+        super().__init__()
+        self.mlp = MLP(state_dim + 7 + 6, (256, 128), 1)
+
+    def forward(self, features, goal, error):
+        return self.mlp(torch.cat((features, goal, error), -1)).squeeze(-1)

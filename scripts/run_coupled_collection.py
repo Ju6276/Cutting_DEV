@@ -16,6 +16,10 @@ def main():
     parser.add_argument("--output", required=True)
     parser.add_argument("--episodes", type=int, default=3)
     parser.add_argument("--wall-seconds", type=int, default=900)
+    parser.add_argument("--mode", choices=("collect", "train", "evaluate"), default="collect")
+    parser.add_argument("--max-hours", type=float, default=6.)
+    parser.add_argument("--microbatch", type=int, default=64)
+    parser.add_argument("--resume")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     sliceit = Path(args.sliceit_root).resolve()
@@ -26,6 +30,8 @@ def main():
     started = time.monotonic()
     prefix = "source " + shlex.quote(str(sliceit / "scripts/public_env.sh")) + "; "
     overrides = {
+        "TORCHINDUCTOR_CACHE_DIR": "/dataHDD/dong/.cache/torchinductor",
+        "TRITON_CACHE_DIR": "/dataHDD/dong/.cache/triton",
         "ROS_MASTER_URI": "http://127.0.0.1:11322",
         "GAZEBO_MASTER_URI": "http://127.0.0.1:11356",
         "ROS_HOME": str(output / "ros_home"), "ROS_LOG_DIR": str(output / "ros_logs"),
@@ -43,7 +49,7 @@ def main():
         if time.monotonic() - started > args.wall_seconds:
             raise TimeoutError("Collection wall-time budget exhausted")
         for name, process in children.items():
-            if process.poll() is not None:
+            if name != "collector" and process.poll() is not None:
                 raise RuntimeError("%s exited: %s" % (name, process.returncode))
 
     def start(name, argv):
@@ -83,9 +89,19 @@ def main():
                          "--sliceit-root", str(sliceit), "--config", str(sliceit / "configs/public_prism.json"),
                          "--output", str(output / "bridge")])
         wait_service("/world_model/snapshot")
-        start("collector", ["python", "-u", str(root / "scripts/collect_coupled.py"),
-                            "--sliceit-root", str(sliceit), "--config", str(sliceit / "configs/public_prism_ros.yaml"),
-                            "--output", str(output / "data"), "--episodes", str(args.episodes)])
+        if args.mode == "collect":
+            worker = ["python", "-u", str(root / "scripts/collect_coupled.py"),
+                      "--episodes", str(args.episodes)]
+        else:
+            worker = ["python", "-u", str(root / "scripts/train_coupled.py"),
+                      "--max-hours", str(args.max_hours), "--microbatch", str(args.microbatch)]
+            if args.resume:
+                worker += ["--resume", str(Path(args.resume).resolve())]
+            if args.mode == "evaluate":
+                worker += ["--evaluate", "--eval-episodes", str(args.episodes)]
+        worker += ["--sliceit-root", str(sliceit), "--config", str(sliceit / "configs/public_prism_ros.yaml"),
+                   "--output", str(output / "data")]
+        start("collector", worker)
         status["state"] = "running"
         while children["collector"].poll() is None:
             check()

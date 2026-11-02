@@ -1,0 +1,163 @@
+"""SuperMimic world-model and BPTT/GAE updates with effective-batch accumulation."""
+# Adapted from SuperMimic-Reproduced ba610534; MIT, third_party/supermimic/LICENSE.
+from types import SimpleNamespace
+
+import torch
+from torch.nn import functional as F
+
+from third_party.supermimic.objective import policy_objective, gae_targets
+from third_party.supermimic.trainer_config import WMTrainerCfg, PolicyTrainerCfg
+from .task_heads import pose_error
+
+
+def chunks(n, size):
+    for start in range(0, n, size):
+        yield slice(start, min(start + size, n))
+
+
+def finite_gradient_norm(parameters, maximum):
+    return torch.nn.utils.clip_grad_norm_(parameters, maximum, error_if_nonfinite=True)
+
+
+class OnlineLearner:
+    def __init__(self, wm, policy, critic, microbatch=64, wm_cfg=None, policy_cfg=None):
+        self.wm, self.policy, self.critic = wm, policy, critic
+        self.microbatch = microbatch
+        self.wcfg, self.pcfg = wm_cfg or WMTrainerCfg(), policy_cfg or PolicyTrainerCfg()
+        self.wopt = torch.optim.Adam(wm.parameters(), lr=self.wcfg.lr, weight_decay=self.wcfg.weight_decay)
+        self.popt = torch.optim.Adam(policy.parameters(), lr=self.pcfg.lr, betas=self.pcfg.betas)
+        self.copt = torch.optim.Adam(critic.parameters(), lr=self.pcfg.critic_lr)
+        wm.enable_compile(self.wcfg.compile)
+        self.updates = 0
+        self.progress = lambda **values: None
+
+    def set_lr(self, lr):
+        for optimizer in (self.wopt, self.popt, self.copt):
+            for group in optimizer.param_groups:
+                group['lr'] = lr
+
+    def fit_world_model(self, buffer):
+        cfg = self.wcfg
+        aggregate = {}
+        for batch_index in range(cfg.batches_per_update):
+            self.progress(phase="world_model", minibatch=batch_index + 1, minibatches=cfg.batches_per_update)
+            batch = buffer.sample_windows(cfg.batch_size, cfg.window)
+            self.wopt.zero_grad(set_to_none=True)
+            for part in chunks(cfg.batch_size, self.microbatch):
+                weight = (part.stop - part.start) / cfg.batch_size
+                loss, metrics = self.wm.window_loss(batch.states[:, part], batch.a_exec[:, part],
+                                                   batch.xi[part], batch.done[:, part])
+                if not torch.isfinite(loss):
+                    raise FloatingPointError('Non-finite world-model loss')
+                (loss * weight).backward()
+                metrics['loss'] = loss.detach()
+                for key, value in metrics.items():
+                    aggregate[key] = aggregate.get(key, 0.) + value.detach() * weight / cfg.batches_per_update
+            gn = finite_gradient_norm(self.wm.parameters(), cfg.grad_clip)
+            self.wopt.step()
+            aggregate['grad_norm'] = aggregate.get('grad_norm', 0.) + gn.detach() / cfg.batches_per_update
+        return {key: float(value) for key, value in aggregate.items()}
+
+    def imagine(self, state, history_states, goal):
+        spec, cfg = self.wm.spec, self.pcfg
+        history = spec.field(history_states, 'observation')
+        survival = torch.ones(state.shape[0], device=state.device)
+        states, rewards, probabilities, survivals, actions = [state], [], [survival * 0], [survival], []
+        for _ in range(cfg.horizon):
+            action = self.policy(history, goal)
+            state, reward, logits = self.wm.predict(state, action, goal)
+            probability = logits.sigmoid()
+            survival = survival * (1 - probability)
+            history = torch.cat((history[1:], spec.field(state, 'observation')[None]), 0)
+            states.append(state)
+            rewards.append(reward)
+            probabilities.append(probability)
+            survivals.append(survival)
+            actions.append(action)
+        return SimpleNamespace(states=torch.stack(states), rewards=torch.stack(rewards),
+                               dhat=torch.stack(probabilities), survival=torch.stack(survivals),
+                               actions=torch.stack(actions))
+
+    def critic_values(self, states, goal):
+        error = pose_error(goal, self.wm.spec.field(states, 'previous_ee_pose'))
+        return self.critic(self.wm.spec.canonical(states), goal, error)
+
+    def improve_policy(self, buffer):
+        cfg = self.pcfg
+        starts = buffer.sample_starts(cfg.batch_size, cfg.history)
+        self.wm.requires_grad_(False)
+        self.critic.requires_grad_(False)
+        self.popt.zero_grad(set_to_none=True)
+        metrics, critic_data = {}, []
+        try:
+            for part in chunks(cfg.batch_size, self.microbatch):
+                self.progress(phase="policy", samples=part.start, batch_size=cfg.batch_size)
+                goal = starts.xi[part]
+                weight = (part.stop - part.start) / cfg.batch_size
+                ro = self.imagine(starts.state[part], starts.hist_states[:, part], goal)
+                terminal = self.critic_values(ro.states[-1], goal) if cfg.use_critic else None
+                objective = policy_objective(ro, terminal, cfg.gamma)
+                loss = -objective * weight / cfg.horizon
+                if not torch.isfinite(loss):
+                    raise FloatingPointError('Non-finite policy objective')
+                loss.backward()
+                with torch.no_grad():
+                    values = self.critic_values(ro.states.detach(), goal.expand(len(ro.states), -1, -1))
+                    targets = gae_targets(ro.rewards.detach(), ro.dhat[1:].detach(), values,
+                                          cfg.gamma, cfg.gae_lambda)
+                    if cfg.use_critic:
+                        states = ro.states[:-1].detach().flatten(0, 1).cpu()
+                        goals = goal[None].expand(cfg.horizon, -1, -1).flatten(0, 1).cpu()
+                        critic_data.append((states, goals, targets.flatten().cpu()))
+                    measures = {
+                        'imag_objective': objective.detach(),
+                        'imag_reward_mean': ro.rewards.detach().mean(),
+                        'imag_return_undisc': (ro.survival[:-1] * ro.rewards).detach().sum(0).mean(),
+                        'imag_survival_H': ro.survival[-1].detach().mean(),
+                        'action_abs_mean': ro.actions.detach().abs().mean(),
+                    }
+                    for key, value in measures.items():
+                        metrics[key] = metrics.get(key, 0.) + float(value) * weight
+                del ro, loss, terminal, objective
+            gn = finite_gradient_norm(self.policy.parameters(), cfg.grad_clip_norm)
+            torch.nn.utils.clip_grad_value_(self.policy.parameters(), cfg.grad_clip_value)
+            self.popt.step()
+            metrics['policy_grad_norm'] = float(gn)
+        finally:
+            self.wm.requires_grad_(True)
+            self.critic.requires_grad_(True)
+        if cfg.use_critic:
+            data = [torch.cat([item[i] for item in critic_data]) for i in range(3)]
+            device = next(self.critic.parameters()).device
+            n = len(data[2])
+            for epoch in range(cfg.critic_epochs):
+                self.progress(phase="critic", epoch=epoch + 1, epochs=cfg.critic_epochs)
+                permutation = torch.randperm(n)
+                for indices in permutation.tensor_split(cfg.critic_minibatches):
+                    self.copt.zero_grad(set_to_none=True)
+                    total_loss = 0.
+                    for part in chunks(len(indices), self.microbatch):
+                        idx = indices[part]
+                        states, goals, target = [value[idx].to(device) for value in data]
+                        value = self.critic_values(states, goals)
+                        loss = F.mse_loss(value, target)
+                        weight = len(idx) / len(indices)
+                        (loss * weight).backward()
+                        total_loss += float(loss.detach()) * weight
+                    finite_gradient_norm(self.critic.parameters(), cfg.critic_grad_clip)
+                    self.copt.step()
+                    metrics['critic_loss'] = total_loss
+        self.updates += 1
+        return metrics
+
+    def checkpoint(self):
+        return {'world_model': self.wm.state_dict(), 'policy': self.policy.state_dict(),
+                'critic': self.critic.state_dict(), 'wm_optimizer': self.wopt.state_dict(),
+                'policy_optimizer': self.popt.state_dict(), 'critic_optimizer': self.copt.state_dict(),
+                'updates': self.updates}
+
+    def restore(self, data):
+        for key, module in [('world_model', self.wm), ('policy', self.policy), ('critic', self.critic),
+                            ('wm_optimizer', self.wopt), ('policy_optimizer', self.popt), ('critic_optimizer', self.copt)]:
+            module.load_state_dict(data[key])
+        self.updates = data['updates']

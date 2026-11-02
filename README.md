@@ -1,36 +1,57 @@
 # Cutting World Model
 
-Migrate [SuperMimic-Reproduced](https://github.com/CuboiLeo/SuperMimic-Reproduced)
-(`ba610534`) to SliceIt's Gazebo robot and DiSECt public prism. Keep the six
-SliceIt actions, task rewards and termination conditions.
+Adapt [SuperMimic-Reproduced](https://github.com/CuboiLeo/SuperMimic-Reproduced)
+(`ba610534`) to SliceIt's Gazebo robot and DiSECt public prism. Keep SliceIt's
+six actions, reward, force limits and termination rules; compare with its SAC.
 
-Implemented: synchronized state recording, analytic SliceIt observation/reward
-functions, upstream replay and return/GAE equations, source update schedule,
-and the goal-encoder/decoder policy with cutting dimensions.
-Next: cutting StateSpec and the connected online world-model/policy trainer.
+The trainer collects physical transitions, fits an eight-step world model and
+updates the actor through 32-step imagined trajectories with a GAE critic.
+It uses the source effective batches (2048/4096), learning rates, update ratio,
+network widths and gradient clipping. Microbatches control memory use.
+Physical collection currently uses one Gazebo/DiSECt environment; 4096 is the
+actor learning batch size, not the number of parallel physics environments.
 
-## Check a complete robot episode
+## Run on the 4090
 
-On the 4090, from `/dataHDD/dong/Projects/CuttingWorldModel`:
+From `/dataHDD/dong/Projects/CuttingWorldModel`:
 
 ```bash
 .venv/bin/python scripts/run_coupled_collection.py \
   --sliceit-root /dataHDD/dong/Projects/SliceIt \
-  --output runs/interface_source_policy_aligned --episodes 1 --wall-seconds 600
-.venv/bin/python scripts/check_task_interface.py \
-  --dataset runs/interface_source_policy_aligned/data
+  --output runs/online_source --mode train --max-hours 6 --wall-seconds 22500
 ```
 
-The first command starts an isolated headless Gazebo/DiSECt instance on ROS
-11322/Gazebo 11356 and records one episode from the initialized policy with
-source action noise. It stops those child processes when complete or timed out.
-`status.json` and `data/progress.json` report progress. The second command checks
-analytic observations, rewards, termination and upstream replay-window alignment.
-The existing SAC uses its original ports, process and environment.
+This starts headless Gazebo/DiSECt on ROS 11322/Gazebo 11356; SAC keeps its own
+ports. The six-hour budget saves `data/last.pt`. The source learning-rate
+schedule remains 320000 training steps; the budget does not rescale it.
+Resume with `--resume /absolute/path/to/data/last.pt` and a new output directory.
+As in the source, resume refills replay during a 40-step warmup.
 
-Independent object-dynamics recording: `scripts/collect_disect.py`.
-State restart comparison: `scripts/check_state_restart.py`.
+`data/progress.json` reports the current physical step or learning phase.
+`data/steps.jsonl`, `episodes.jsonl` and `updates.jsonl` record physical rewards,
+success/collision, model losses, actor/critic metrics, timing and peak GPU memory.
+Completed physical episodes are stored as NPZ. `manifest.json` records versions
+and configuration. All runs stay outside Git.
+
+Evaluate a saved policy without action exploration:
+
+```bash
+.venv/bin/python scripts/run_coupled_collection.py \
+  --sliceit-root /dataHDD/dong/Projects/SliceIt \
+  --output runs/evaluation --mode evaluate --episodes 5 \
+  --resume /absolute/path/to/data/last.pt --max-hours 1 --wall-seconds 3900
+```
+
+## Interface checks
+
+Run the supervisor with `--mode collect --episodes 1 --wall-seconds 600`.
+Then run `scripts/check_task_interface.py --dataset RUN/data` and
+`scripts/check_state_interface.py --dataset RUN/data` to compare recorded
+observations, rewards, terminal labels, URDF kinematics and controller history.
 
 Tests: `PYTHONPATH=. .venv/bin/python -m pytest tests -q`.
-Methods: [METHOD](docs/METHOD.md). Numbers: [RESULTS](docs/RESULTS.md).
-Next work: [PLAN](docs/PLAN.md). Source provenance: [third_party](third_party/supermimic/README.md).
+Independent object recording: `scripts/collect_disect.py`;
+restart comparison: `scripts/check_state_restart.py`.
+
+[Methods and source mapping](docs/METHOD.md) · [Results](docs/RESULTS.md) ·
+[Plan](docs/PLAN.md) · [Source provenance](third_party/supermimic/README.md)

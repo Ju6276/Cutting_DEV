@@ -36,6 +36,7 @@ def main():
                 path = directory / ("%06d.npz" % self.snapshot_count)
                 self.snapshot_count += 1
                 frame = snapshot(self.sim)
+                frame["spring_reference_ke"] = self.initial_ke.copy()
                 frame["ros_time"] = np.array(rospy.get_time())
                 np.savez_compressed(path, **frame)
                 return TriggerResponse(True, json.dumps({"path": str(path), "episode": self.episode}))
