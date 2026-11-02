@@ -367,9 +367,9 @@ all branch fingerprints unchanged. H32 action-gradient norm 4465.86 -> 7.70.
 [W&B v2](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/8j3k5uuo)
 contains all 32 updates and final measurements; server status finished.
 
-2026-11-02, SAC run `sac_long_20261102`: checkpoint/replay directory moved from
-`learner` to `quarantined_learner`; `checkpoint_status.json` records the location
-and exclusion from training/evaluation pending synchronization diagnosis.
+2026-11-02, SAC run `sac_long_20261102`: deleted checkpoint data/index and
+checkpoint pointer from `quarantined_learner` (3 files, 3,728,288 bytes).
+`checkpoint_status.json` records `weights_deleted`; logs and replay remain.
 The failing `env.step` raises before replay insertion (tf2rl `cb_trainer.py`
 lines 211/228); the final checkpoint is saved by the worker's exception cleanup.
 The timeout itself does not establish corruption of all earlier transitions.

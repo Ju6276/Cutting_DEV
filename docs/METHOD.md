@@ -217,10 +217,21 @@ zero steps retain unpause semantics. This changes request completion ordering,
 not the requested 2 ms interval or Gazebo/DiSECt equations.
 Source: [Gazebo 11.15.1 World::Step](https://github.com/gazebosim/gazebo/blob/gazebo11_11.15.1/gazebo/physics/World.cc#L807).
 
-StepControl responses also report authoritative start/end simulation times.
-Before computing the knife pose, the source joint subscriber waits for a sample
-strictly newer than the server start time. Its existing connection timeout
-bounds callback delivery in wall time; physics does not advance while waiting.
+StepControl responses report authoritative start/end simulation times and the
+requested joints' position, velocity and effort after integration. The client
+installs this ordered snapshot atomically before computing knife FK, retaining
+the ROS hardware continuous angular branch and rejecting older/equal-time topic
+updates. The source joint-state publisher can skip a busy publication opportunity;
+with physics paused, waiting for that topic cannot guarantee a new sample.
+ROS hardware reads on WorldUpdateBegin, so the response shifts the sample phase
+by up to one physics tick. Requested tick counts and physical equations stay
+unchanged. Episode resets retain the source NO_RESET_SIM monotonic clock;
+recreating a world requires recreating its joint-state consumer.
+Metadata `step_interface_revision=synchronous_poststep_joint_snapshot_v1`
+separates these recordings from earlier topic-sampled data. Dataset/checkpoint
+metadata equality rejects mixing the two sampling contracts.
+Source: [ROS joint-state controller](https://github.com/ros-controls/ros_controllers/blob/noetic-devel/joint_state_controller/src/joint_state_controller.cpp).
+
 Action duration and trajectory segment timing use accumulated server intervals
 in integer nanoseconds in stepped mode. The previous ROS-clock/float loop
 produced 52 ms actions for the configured 50 ms interval. Continuous control
