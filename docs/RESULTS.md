@@ -241,3 +241,27 @@ maximum absolute value 11.5832, terminal bootstrap -0.0034576. Both source updat
 change 14 world-model, 20 policy and 6 critic tensors; all weights and gradients
 are finite. Next experiment compares growing physical replay against fixed-replay
 updates while recording the first value/target departure and rollout state.
+
+2026-11-02, WM `23db4c2`, run 2 `native_critic_long_20261102` on RTX 4090:
+first positive-bound event at update 16, objective 1.60520059e8 = discounted
+reward -284.757 + terminal bootstrap 1.60520349e8; maximum terminal value
+3.56389806e10. Retained before/after learner, replay, optimizer and RNG snapshots.
+Run stopped at a physical-step boundary after 176 steps / 54 updates (3401.51 s),
+with final checkpoint and automatic cleanup. Three completed physical episodes:
+returns -122.97779, -122.87392, 74.91947; one success, two force-limit terminations.
+Frozen replay audit: 80 valid input states, all finite; largest normalized
+feature 2.00997, maximum acceleration 1.88324, both reset derivative histories 0.
+
+Run 2 W&B repair: 176 physical `reward` rows and 3 `episode_return` rows
+backfilled after the training logger exited; server/local maximum error 0.
+All 54 world-model and 54 policy metric rows remain present. Run 1
+`064z1a85` logs `episode_return`; its first 27 server/local values match exactly.
+
+Frozen phase substitution on the same worst recorded update-16 start/history/goal
+(`runs/critic16_causal_20261102/phase_probe.json`, CPU, 1.75 s): pre-fit world
+model gives maximum normalized rollout state 2.29, terminal value -408,
+objective -174.91. Changing only the world model to post-fit weights gives
+4.23476e11, 3.56390e10 and 1.39892e10 respectively. Post-fit zero-action rollout
+still reaches 4.2757e11; pre-fit zero-action rollout remains at 2.29. The actor
+change affects the magnitude by under 1%; subsequent critic fitting amplifies
+the terminal value to 9.63e10. The initiating departure is world-model update 16.
