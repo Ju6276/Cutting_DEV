@@ -95,3 +95,17 @@ actor/critic 49.55 s; Torch peak allocation 3490.60 MiB. Source settings retaine
 6.686e-4; finite gradients throughout. `last.pt` is 541 MiB; completed physical
 training episodes at this endpoint: 0. Reference-task success counts above
 are separate from the learned policy.
+
+
+2026-11-02, world model `93f7efa`, backend `5279f77`: GPU recurrence/terminal
+review fixes. `CUTTING_BACKEND_ROOT=../CuttingGpuBackend PYTHONPATH=. python -m
+pytest tests -q`: A6000 backend 19 passed / 2.43 s and model 27 passed / 35.78 s;
+4090 backend 19 passed / 2.39 s and model 27 passed / 81.42 s. Checks include
+live stopped-world state, independent reset, controller-memory observability
+and exact next-command reconstruction from a restored contact state.
+State width 8944; original 1000-row replay costs 35,887,024 bytes per world
+(1280 worlds: 42.781 GiB; 4096 worlds: 136.898 GiB).
+
+W&B authenticated entity: `ju-dong6276-technical-university-of-munich`, project
+`sliceit-supermimic`. Reference scaling upload `3e6fvj66` contains the completed
+1/2/16/32/64/128-world results; 64/128 cuts passed in 105.59/147.72 s.
