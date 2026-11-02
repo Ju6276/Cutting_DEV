@@ -11,7 +11,6 @@ class ObservationRecorder:
         self.in_observation = False
         self.wrench = None
         self.frame = None
-        self.resetting = False
         environment._get_obs = self.observe
         environment.ur3e_arm.get_ee_wrench_hist = self.read_wrench
 
@@ -30,20 +29,14 @@ class ObservationRecorder:
             self.in_observation = False
         if self.wrench is None:
             raise RuntimeError("The selected SliceIt observation did not read force history")
-        if not self.resetting:
-            self.frame = self.snapshot(observation)
-            self.frame["wrench_history"] = self.wrench.copy()
+        self.frame = self.snapshot(observation)
+        self.frame["wrench_history"] = self.wrench.copy()
         return observation
 
     def reset(self, reset_environment):
-        # SliceIt reads the returned observation before resetting physical state.
-        self.resetting = True
-        try:
-            observation = reset_environment()
-        finally:
-            self.resetting = False
-        self.frame = self.snapshot(observation)
-        self.frame["wrench_history"] = self.wrench.copy()
+        self.frame = None
+        observation = reset_environment()
+        self.read(observation)
         return observation
 
     def read(self, observation):

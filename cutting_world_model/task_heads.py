@@ -3,6 +3,8 @@
 # MIT license: third_party/sliceit/LICENSE.
 import torch
 
+TASK_INTERFACE_REVISION = "sliceit-177cf21"
+
 
 def pose_error(target, current):
     desired, actual = target[..., 3:], current[..., 3:]
@@ -50,8 +52,9 @@ class SliceItHeads:
         distance = observation[..., 1].abs()
         jerk = torch.linalg.vector_norm(observation[..., dims * 2:dims * 3], dim=-1)
         limits = observation.new_tensor([self.force_limits[i] for i in self.dims])
-        # Preserve cost_utils.slicing's reshape, including its component ordering.
-        force = observation[..., -self.history * dims:].reshape(*observation.shape[:-1], -1, dims)
+        # Observations store each component across the history window.
+        force = observation[..., -self.history * dims:].reshape(*observation.shape[:-1], dims, self.history)
+        force = force.transpose(-1, -2)
         force = (force * limits).mean(dim=-2)
         norm_force = torch.linalg.vector_norm(force[..., :3], dim=-1)
         r_distance = -torch.tanh(5. * distance)

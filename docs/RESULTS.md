@@ -140,3 +140,31 @@ learning updates. Deleted experimental SAC/model checkpoints and W&B cache
 copies: 17 files, 6,024,901,743 bytes by file size. Deleted three W&B model
 artifacts (1,921,590,938 bytes); scalar histories, configurations and physical
 scene assets remain. No training or evaluation is queued.
+
+
+2026-11-02, parent `f8b372c` + dirty interface changes, task interface
+`sliceit-177cf21`; corrected SliceIt `4c65cf7`. Earlier parity records use the
+previous force-history decoding. Full suite on RTX 4090 with the Python 3.12
+backend environment and `CUTTING_BACKEND_ROOT=../CuttingGpuBackend`:
+`PYTHONPATH=. ../CuttingGpuBackend/.venv/bin/python -m pytest tests -q`:
+29 passed in 52.03 s. Two independent reviewers verified reset sampling,
+non-square history decoding, policy history, BPTT and GAE. Independent CPU
+reward/gradient errors: 5.55e-17 / 3.47e-18; actor finite-difference error 1.14e-10.
+
+`run_coupled_collection.py --sliceit-root ../SliceIt --mode collect --episodes 1
+--wall-seconds 600 --output runs/interface_sync_ros_20261102`, followed by
+`check_task_interface.py` and `check_state_interface.py` on `RUN/data`:
+44 physical transitions, force-limit termination, 109.20 s including cleanup.
+Reward parity error 1.11e-16, observation reconstruction error 0, terminal/success
+mismatches 0. URDF/state reconstruction: position error 8.05e-16 m,
+observation error 3.22e-14, reward error 1.42e-14. All ROS children exited.
+
+A6000 GPU 1, `train_gpu.py --backend-root ../CuttingGpuBackend --worlds 2
+--max-iterations 43 --max-hours 0.15 --output runs/interface_sync_20261102
+--wandb-mode online`: 43 vector steps, 86 transitions, one full learning update
+and a subsequent physics step; 173.88 s, Torch peak 3052.58 MiB, zero completed
+physical episodes. WM loss 20.15477; actor gradient norm .0014653;
+critic loss 85833.37. W&B run `1cxhqutb`. The bounded run exited normally.
+
+Outstanding: old Gazebo state omits native FDCC internal memory; the old critic's
+large-bootstrap failure still requires a separate causal investigation.

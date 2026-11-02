@@ -1,7 +1,7 @@
 # Source mapping
 
-Source revision: SuperMimic-Reproduced `ba610534`; SliceIt `4efdf37`;
-robot utilities `a14c856`; DiSECt `db7de0f`.
+Source revision: SuperMimic-Reproduced `ba610534`; SliceIt `4c65cf7`;
+robot utilities `177cf21`; DiSECt `db7de0f`.
 
 | Module | Source design | Cutting implementation |
 |---|---|---|
@@ -12,12 +12,12 @@ robot utilities `a14c856`; DiSECt `db7de0f`.
 | Policy | Goal encoder, 32-D latent, decoder; widths 2048/1024/512/256; decoder gain 0.01 | Same architecture with a 7-D target pose, ten frames of SliceIt's 24-D observation, and six task actions |
 | Policy input scaling | G1 observations and reference motions use robot-specific scales | SliceIt observations retain their existing normalization; target pose uses its SI/quaternion representation |
 | Actions | Gaussian execution noise sigma 0.1 | Same noise; execution respects SliceIt's existing action-space bounds; both clean and executed actions are recorded. SliceIt's last-action observation contains the executed action |
-| Observation/reward | Analytic task functions, including robot FK | Torch translation of original SliceIt normalization, reward and termination formulas. No learned reward network |
+| Observation/reward | Analytic task functions, including robot FK | Torch translation of corrected SliceIt normalization, reward and termination; decode component-major force history before averaging each component |
 | Termination | Learned probability head trained from simulator terminal labels | Connected cutting probability head with force, workspace, goal and counter features |
-| Physical state | Simulator state read at the transition boundary | Gazebo joint/controller state plus DiSECt position, velocity and spring history, recorded during observation generation, before terminal controller shutdown |
+| Physical state | Simulator state read at the transition boundary | ROS exports joint/material/observation history; native FDCC internal velocity is missing. GPU `coupled_recurrent_v1` includes controller/filter state. Snapshots are taken during observation generation, before terminal shutdown |
 | Force history | Observation reads the sensor history | Record that exact sensor read, rather than rereading a moving queue after env.step |
 | Material-force wiring | DiSECt reaction feeds the robot force sensor and compliance controller | Initial Gazebo runs have disconnected material-force and controller-input topics; new runs check the complete relay/filter/controller graph before collection |
-| Reset boundary | SliceIt reset reads its return observation before physically resetting the scene | Preserve that returned observation and its sensor sample; capture the initial physical state after reset. Subsequent snapshots occur during observation generation |
+| Reset boundary | Corrected SliceIt reads observation after physical reset and restarts derivative history | Capture the initial state inside that observation call, including its exact force sample; use the same capture boundary for subsequent steps |
 | Robot asset | SliceIt UR5e robot; legacy task class UR3eDisectSlicingEnv-v1 | Keep the active XML (upper-arm mass 8.058 kg, COM x=-0.2125 m) for both SAC and the world-model task |
 | Geometry/material | Source humanoid task | SliceIt's public prism configuration and aligned initial knife pose; physical equations and task thresholds unchanged |
 | Reference library | Motion-tracking goals, reward targets and reset frames | SliceIt's fixed cutting target and original task reward replace the humanoid motion library |
@@ -53,7 +53,9 @@ Metric/velocity/joint error and output scales reuse source StateSpec values;
 spring stiffness uses its initial material stiffness, wrench uses the existing
 force/torque limits. No damage projection is applied. The terminal head uses
 normalized force-limit, workspace, goal and counter features in place of G1
-height/tilt. Reward retains SliceIt's discrete collision/success bonuses and
+height/tilt. Force history is decoded as component-major in both the corrected NumPy source
+and the Torch reward. Existing component scales, averaging, reward weights and
+thresholds are retained. Reward retains SliceIt's discrete collision/success bonuses and
 continuous distance/force/jerk terms; gradients through the discrete bonus tests
 are piecewise, while learned termination supplies the source survival gradient.
 
@@ -77,7 +79,7 @@ matching the rotation alone is insufficient for matching its velocity history.
 |---|---|---|
 | Physical backend | Gazebo/ROS robot and single DiSECt instance | MuJoCo Warp UR5e/FDCC plus packed DiSECt worlds; equations and source clocks retained, details in CuttingGpuBackend METHOD |
 | Replay and updates | 1000 rows/environment, 40 vector-step warmup, UTD 0.4 | Same capacity per world and cadence per vector step; asynchronous terminal rows and resets |
-| Reset observation | ROS task returns an observation sampled before physical reset | GPU task computes observation after restoring robot/material/controller state; derivative histories start from the restored pose and zero velocity/acceleration |
+| Reset observation | Corrected ROS task returns an observation sampled after physical reset | GPU reset already uses the restored pose and zero derivative histories; the shared corrected reward head applies to physical steps and model imagination |
 | Wrench samples | Oldest three entries of a 25-entry sensor queue, appended at filter callbacks | Same queue ordering at the deterministic 500 Hz exchange; initialize queue from the reset sensor baseline |
 | Initial condition | ROS moves the arm to its start pose before resetting DiSECt | Restore the exported start and initialized controller/filter snapshot per world; shared public material configuration and prescribed cut topology |
 
@@ -110,3 +112,9 @@ The disconnected topics observed in our old running launch establish an
 integration failure for that run. They do not establish that every published
 launch combination or the authors' experiment had that failure.
 Source: https://arxiv.org/html/2404.02569v1#S3.SS2.SSS3
+
+ROS and GPU task metadata include `task_interface_revision=sliceit-177cf21`.
+Existing checkpoint metadata equality rejects resuming with the old reward
+interpretation. Earlier recorded datasets retain their original rewards; new
+interface parity checks use episodes collected with the corrected source.
+SAC's PER and TCN changes do not apply to the SuperMimic replay or policy.

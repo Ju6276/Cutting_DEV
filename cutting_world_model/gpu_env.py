@@ -3,7 +3,7 @@ import torch
 
 from cutting_gpu_backend.environment import CuttingBatch
 from .kinematics import SerialKinematics, observation_velocity
-from .task_heads import SliceItHeads, pose_error
+from .task_heads import SliceItHeads, pose_error, TASK_INTERFACE_REVISION
 
 
 class GPUEnvironment:
@@ -11,6 +11,7 @@ class GPUEnvironment:
         self.physics = CuttingBatch(backend_root, worlds)
         self.worlds, self.device = worlds, self.physics.device
         self.metadata = dict(self.physics.task)
+        self.metadata['task_interface_revision'] = TASK_INTERFACE_REVISION
         self.metadata['physical_backend'] = 'mujoco_warp_disect'
         self.metadata['state_layout'] = 'coupled_recurrent_v1'
         self.metadata['material_feedback'] = 'tensor_filter_controller'

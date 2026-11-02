@@ -6,6 +6,7 @@ import numpy as np
 
 from .observation_recording import ObservationRecorder
 from .feedback_wiring import verify_feedback_graph
+from .task_heads import TASK_INTERFACE_REVISION
 
 
 class ControlWrenchRecorder:
@@ -89,6 +90,8 @@ class CoupledEnvironment:
             lambda obs: capture(self.env, obs, self.service, self.peak))
         arm = self.env.unwrapped.ur3e_arm
         self.metadata = {
+            'task_interface_revision': TASK_INTERFACE_REVISION,
+            'reset_observation': 'post_reset',
             'environment': self.environment, 'controller': self.controller,
             'robot_xml': rospy.get_param('/robot_description'),
             'robot_base': arm.base_link, 'robot_tip': arm.ee_link,

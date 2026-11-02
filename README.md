@@ -4,10 +4,10 @@ Adapt [SuperMimic-Reproduced](https://github.com/CuboiLeo/SuperMimic-Reproduced)
 (`ba610534`) to SliceIt's Gazebo UR5e robot and DiSECt public prism. Keep SliceIt's
 six actions, reward, force limits and termination rules; compare with its SAC.
 
-The initial `online_source_20261102` run and concurrent SAC run have a
-disconnected DiSECt-to-controller force path in their Gazebo launch. Updated
-collection checks the relay, filter and controller subscriptions at startup;
-use the repaired SliceIt launch for subsequent runs (see METHOD).
+The task interfaces match corrected SliceIt `4c65cf7` / robot utilities
+`177cf21`: post-reset observations and component-major force-history decoding.
+ROS collection checks the material-force relay/filter/controller graph at startup.
+The GPU collector includes controller/filter recurrence for world-model training.
 
 The trainer collects physical transitions, fits an eight-step world model and
 updates the actor through 32-step imagined trajectories with a GAE critic.
@@ -54,36 +54,21 @@ For complete-task throughput, run `scripts/benchmark_gpu_env.py
 It follows the public reference trajectory, evaluates the original task heads,
 and records each world's goal/force termination, spring release and runtime.
 
-## Run on the 4090
+## Collect interface data on the 4090
 
 From `/dataHDD/dong/Projects/CuttingWorldModel`:
 
 ```bash
 .venv/bin/python scripts/run_coupled_collection.py \
   --sliceit-root /dataHDD/dong/Projects/SliceIt \
-  --output runs/online_source --mode train --max-hours 6 --wall-seconds 22500
+  --output runs/interface_collection --mode collect --episodes 1 --wall-seconds 600
 ```
 
-This starts headless Gazebo/DiSECt on ROS 11322/Gazebo 11356; SAC keeps its own
-ports. The six-hour budget saves `data/last.pt`. The source learning-rate
-schedule remains 320000 training steps; the budget does not rescale it.
-Resume with `--resume /absolute/path/to/data/last.pt` and a new output directory.
-As in the source, resume refills replay during a 40-step warmup.
-
-`data/progress.json` reports the current physical step or learning phase.
-`data/steps.jsonl`, `episodes.jsonl` and `updates.jsonl` record physical rewards,
-success/collision, model losses, actor/critic metrics, timing and peak GPU memory.
-Completed physical episodes are stored as NPZ. `manifest.json` records versions
-and configuration. All runs stay outside Git.
-
-Evaluate a saved policy without action exploration:
-
-```bash
-.venv/bin/python scripts/run_coupled_collection.py \
-  --sliceit-root /dataHDD/dong/Projects/SliceIt \
-  --output runs/evaluation --mode evaluate --episodes 5 \
-  --resume /absolute/path/to/data/last.pt --max-hours 1 --wall-seconds 3900
-```
+This starts headless Gazebo/DiSECt on ROS 11322/Gazebo 11356. Complete episodes
+are written to `data/episode_*.npz`; metadata records the task interface revision.
+ROS collection currently exports joints, material and observation history;
+exporting native FDCC internal state remains necessary for ROS world-model training.
+All run data stays outside Git.
 
 ## Interface checks
 
@@ -100,9 +85,3 @@ restart comparison: `scripts/check_state_restart.py`.
 
 [Methods and source mapping](docs/METHOD.md) · [Results](docs/RESULTS.md) ·
 [Plan](docs/PLAN.md) · [Source provenance](third_party/supermimic/README.md)
-
-For automatic evaluation after an already-running training job,
-`scripts/finish_online_run.py --training-run RUN --sliceit-root SLICEIT
---output EVAL_RUN` waits for supervisor cleanup, then evaluates `data/last.pt`
-for five episodes with a one-hour budget. Failures are recorded in
-`EVAL_RUN.followup.json`.
