@@ -1,7 +1,10 @@
 # Current plan
 
-Long training remains stopped. Keep the source objectives, network widths,
-effective batches, learning rates, rewards and physical task unchanged.
+SAC long training is authorized: original 100100-step endpoint, 72-hour wall
+budget, fresh weights and online W&B. SuperMimic runs a separate bounded critic
+diagnosis: 800 physical steps (about 304 updates), 6-hour learner budget and
+6.25-hour supervisor budget. Keep source objectives, network widths, effective
+batches, learning rates, rewards and physical task unchanged.
 
 Completed source repairs:
 
@@ -25,6 +28,9 @@ Remaining work, in order:
    fixed-replay experiment has finite values but reaches |V|=1007.20 and has not
    explained the historical positive explosion. Do not change the model from two
    updates or a small dataset's prediction errors.
+   The bounded run retains rolling pre-update replay/weights/optimizer/RNG,
+   milestones every 50 updates, and the first prediction exceeding the positive
+   discounted-return bound. The bound triggers evidence retention only.
 3. Review the causal finding independently, repair a demonstrated error if found,
    then run sustained learning and held-out physical policy evaluation. Report
    task success separately from interface checks and finite learning updates.

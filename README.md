@@ -4,8 +4,8 @@ Adapt [SuperMimic-Reproduced](https://github.com/CuboiLeo/SuperMimic-Reproduced)
 (`ba610534`) to SliceIt's Gazebo UR5e robot and DiSECt public prism. Keep SliceIt's
 six actions, reward, force limits and termination rules; compare with its SAC.
 
-The task interfaces match corrected SliceIt `4c65cf7` / robot utilities
-`177cf21`: post-reset observations and component-major force-history decoding.
+The ROS task uses corrected SliceIt `1477b0a` / robot utilities `c5f28a2`:
+post-reset observations, component-major force history and synchronized steps.
 ROS collection checks the material-force relay/filter/controller graph at startup.
 The GPU collector includes controller/filter recurrence for world-model training.
 
