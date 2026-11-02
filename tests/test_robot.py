@@ -7,6 +7,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 from rigid_inertia import combine_fixed_inertias
+from prepare_robot import adjacent_collision_pairs
 from ur5e_model import action_mapping, load_model, targets
 from validate_robot import validate
 
@@ -48,3 +49,48 @@ def test_fixed_body_combination_preserves_kinetic_energy():
     com_velocity = velocity + np.cross(omega, group['com'])
     combined = (group['mass'] * com_velocity @ com_velocity + omega @ np.array(group['inertia']) @ omega) / 2
     np.testing.assert_allclose(combined, original, rtol=1e-14)
+
+
+def test_adjacent_collisions_follow_fixed_body_groups():
+    robot = ET.fromstring('''<robot>
+      <link name="base"><collision/></link>
+      <link name="base_geometry"><collision/></link>
+      <link name="first"><collision/></link>
+      <link name="attachment"><collision/></link>
+      <link name="second"><collision/></link>
+      <joint type="fixed"><parent link="base"/><child link="base_geometry"/></joint>
+      <joint type="revolute"><parent link="base_geometry"/><child link="first"/></joint>
+      <joint type="fixed"><parent link="first"/><child link="attachment"/></joint>
+      <joint type="revolute"><parent link="attachment"/><child link="second"/></joint>
+      </robot>''')
+    pairs = {frozenset(pair) for pair in adjacent_collision_pairs(robot, 'base')}
+    expected = [('base', 'first'), ('base', 'attachment'),
+                ('base_geometry', 'first'), ('base_geometry', 'attachment'),
+                ('first', 'second'), ('attachment', 'second')]
+    assert pairs == {frozenset(pair) for pair in expected}
+    assert frozenset(('base', 'second')) not in pairs
+
+
+def test_source_adjacent_collision_exclusion():
+    urdf = Path('runs/model/robot.urdf')
+    robot = ET.parse(urdf).getroot()
+    spec = mujoco.MjSpec.from_file(str(urdf))
+    original = spec.compile()
+    for first, second in adjacent_collision_pairs(robot, 'b_bot_base_link'):
+        spec.add_exclude(bodyname1=first, bodyname2=second)
+    model = spec.compile()
+    recorded = np.load('runs/source/episode_000.npz')
+    contact_pairs = []
+    for candidate in (original, model):
+        data = mujoco.MjData(candidate)
+        data.qpos[:] = recorded['joint_q'][0]
+        mujoco.mj_forward(candidate, data)
+        contact_pairs.append({frozenset(candidate.body(int(candidate.geom_bodyid[g])).name
+                                       for g in contact.geom)
+                              for contact in data.contact})
+    adjacent = frozenset(('b_bot_base_link_inertia', 'b_bot_shoulder_link'))
+    assert adjacent in contact_pairs[0]
+    assert adjacent not in contact_pairs[1]
+    np.testing.assert_array_equal(model.body_mass, original.body_mass)
+    np.testing.assert_array_equal(model.body_inertia, original.body_inertia)
+    np.testing.assert_array_equal(model.geom_pos, original.geom_pos)
