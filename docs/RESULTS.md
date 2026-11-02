@@ -259,7 +259,7 @@ All 54 world-model and 54 policy metric rows remain present. Run 1
 
 Frozen phase substitution on the same worst recorded update-16 start/history/goal
 (`runs/critic16_causal_20261102/phase_probe.json`, CPU, 1.75 s): pre-fit world
-model gives maximum normalized rollout state 2.29, terminal value -408,
+model gives final-step maximum normalized state 2.29, terminal value -408,
 objective -174.91. Changing only the world model to post-fit weights gives
 4.23476e11, 3.56390e10 and 1.39892e10 respectively. Post-fit zero-action rollout
 still reaches 4.2757e11; pre-fit zero-action rollout remains at 2.29. The actor
