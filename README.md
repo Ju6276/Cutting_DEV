@@ -21,4 +21,4 @@ The benchmark applies named motor torques to the six current robot joints. One c
 
 [Method and coupling work](docs/METHOD.md) · [Measured results](docs/RESULTS.md).
 
-RTX 4090: 1/32 robot worlds measured at 545/15,090 world-steps/s, 518 MiB process memory after stepping, with existing training active. The original controller and DiSECt coupling are the next integration stage.
+RTX 4090: **4096 UR5e robot worlds** measured at **908,648 world-steps/s**, **3558 MiB** process memory after stepping, with existing training active. The original controller and DiSECt coupling are the next integration stage.
