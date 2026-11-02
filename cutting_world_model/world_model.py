@@ -6,12 +6,14 @@ from torch.nn import functional as F
 
 from third_party.supermimic.dynamics import DynamicsMLP, MLP
 from .state_spec import CuttingStateSpec
+from .control_state import ControlStateSpec
 
 
 class CuttingWorldModel(nn.Module):
     def __init__(self, metadata, hidden=(2048, 2048, 2048)):
         super().__init__()
-        self.spec = CuttingStateSpec(metadata)
+        spec_class = ControlStateSpec if metadata.get('prediction_layout') == 'control_history_v1' else CuttingStateSpec
+        self.spec = spec_class(metadata)
         self.dynamics = DynamicsMLP(self.spec.state_dim, 6, 7, hidden, self.spec.delta_dim)
         self.term_head = MLP(26, (64, 64), 1)
 

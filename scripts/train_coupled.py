@@ -20,6 +20,7 @@ from cutting_world_model.online_schedule import OnlineSchedule
 from cutting_world_model.policy import SliceItPolicy, SliceItCritic
 from cutting_world_model.provenance import git_revision
 from cutting_world_model.state_spec import CuttingStateSpec
+from cutting_world_model.control_state import ControlStateSpec
 from cutting_world_model.trainer import OnlineLearner
 from cutting_world_model.world_model import CuttingWorldModel
 from third_party.supermimic.schedule import cosine_lr
@@ -55,6 +56,7 @@ def main():
     parser.add_argument('--max-iterations', type=int)
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--resume')
+    parser.add_argument('--model-state', choices=('native', 'control-history'), default='native')
     parser.add_argument('--evaluate', action='store_true')
     parser.add_argument('--eval-episodes', type=int, default=5)
     args = parser.parse_args(rospy.myargv()[1:])
@@ -81,7 +83,8 @@ def main():
 
 def run(args, env, output):
     frame = env.reset()
-    metadata = CuttingStateSpec.metadata_from_frame(env.metadata, frame)
+    spec_class = ControlStateSpec if args.model_state == 'control-history' else CuttingStateSpec
+    metadata = spec_class.metadata_from_frame(env.metadata, frame)
     write_json(output / 'task.json', metadata)
     wm = CuttingWorldModel(metadata).to(args.device)
     spec = wm.spec
@@ -129,6 +132,8 @@ def run(args, env, output):
     def learner_progress(**values):
         if stop_requested:
             raise InterruptedError('Training stop requested')
+        if time.monotonic() - start >= args.max_hours * 3600:
+            raise TimeoutError('Training time budget reached')
         status.update(values, wall_seconds=time.monotonic() - start)
         write_json(output / 'progress.json', status)
 
@@ -136,6 +141,7 @@ def run(args, env, output):
     episode = 0
     frames, actions, clean_actions, rewards, terms, truncs = [frame], [], [], [], [], []
     history = [frame['observation'].copy() for _ in range(policy.history)]
+    state = spec.pack(frame, args.device)
     episode_start = time.monotonic()
     wm_seconds, policy_seconds, physics_seconds = 0., 0., 0.
     executed_steps = 0
@@ -152,13 +158,12 @@ def run(args, env, output):
                 obs_history = torch.as_tensor(np.asarray(history), dtype=torch.float32, device=args.device)[:, None]
                 clean = policy(obs_history, goal[None])[0]
                 executed = spec.execute(clean if args.evaluate else clean + .1 * torch.randn_like(clean))
-                state = spec.pack(frame, args.device)
             tick = time.monotonic()
             next_frame, reward, terminated, truncated, info = env.step(executed.cpu().numpy())
             executed_steps += 1
             physics_seconds += time.monotonic() - tick
             with torch.no_grad():
-                next_state = spec.pack(next_frame, args.device)
+                next_state = spec.pack_transition(next_frame, state)
             if not args.evaluate:
                 replay.add(state, clean, executed, goal, reward, next_state, terminated, truncated)
             frames.append(next_frame)
@@ -169,6 +174,7 @@ def run(args, env, output):
             truncs.append(truncated)
             history = history[1:] + [next_frame['observation'].copy()]
             frame = next_frame
+            state = next_state
             updates = schedule.after_environment_step() if not args.evaluate else 0
             status.update(iteration=schedule.iteration, episode=episode, episode_step=len(actions),
                           last_reward=reward, episode_return=float(sum(rewards)),
@@ -191,6 +197,7 @@ def run(args, env, output):
                     status['state'] = 'completed'
                     break
                 frame = env.reset()
+                state = spec.pack(frame, args.device)
                 history = [frame['observation'].copy() for _ in range(policy.history)]
                 frames, actions, clean_actions, rewards, terms, truncs = [frame], [], [], [], [], []
                 episode_start = time.monotonic()
@@ -219,6 +226,8 @@ def run(args, env, output):
                 checkpoint_model('checkpoint_%08d.pt' % schedule.iteration)
         else:
             status['state'] = 'completed'
+    except TimeoutError:
+        status['state'] = 'budget_complete'
     except InterruptedError:
         status['state'] = 'interrupted'
     except BaseException as error:

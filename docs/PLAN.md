@@ -44,21 +44,24 @@ Reassessment, 2026-11-02:
   cadence/batches transferred from 4096 worlds to one world preserve numerical
   settings but change data diversity and reuse substantially.
 
+Current candidate, approved by the user: control-history prediction. Network
+outputs are joint position/velocity, observed force history and interval peak
+force (36 coordinates). Ten causal frames give 860 state inputs; particles remain
+in physical recordings. Methods and state assumptions are in METHOD.
+
 Next work, in order:
 
-1. Specify one exact-identity transition candidate, retaining the recorded
-   packet, existing error terms, physical state, controller/filter memory and
-   training settings. Start with queue readouts and controller tip FK whose
-   identities hold at recorded boundaries. Preserve coupling pose memory until
-   a source-correct query gate exists: it survives reset, and its initialized
-   flag alone is insufficient for replacing it with current FK.
-2. Compare that candidate against saved update 16 with identical replay, RNG and
-   optimizer state. Evaluate common physical fields and 8/32-step state growth,
-   reward/terminal parity and policy gradients. Obtain an independent review.
-3. If that controlled comparison passes, evaluate held-out physical episodes and
-   sustained connected learning. If the same failure remains, reassess the
-   single-world data/update regime before adding another model change. Keep
-   graph models as a separate future candidate, not a simultaneous replacement.
+1. Validate causal packing, reset isolation, analytic task parity and multi-step
+   gradients with independent review. Keep original task and training settings.
+2. Fit on three complete recorded episodes and evaluate a separate complete
+   episode at 1/8/32 steps. Budget: 50 source world-model updates / 600 seconds,
+   progress each update/minibatch, atomic checkpoint on budget or failure.
+   Compare against the untrained constant-velocity/force-persistence prior;
+   report physical-unit errors, reset-start errors and missed force terminations.
+3. Use prediction results to decide the bounded connected learning experiment;
+   validate physical episode returns and bootstrap behavior independently. Finite
+   history sufficiency and generalization to new cut histories remain empirical
+   questions. No concurrent latent-model or optimizer change.
 
 The ROS task uses `native_ros_recurrent_v1` and
 `synchronous_parameters_physics_and_joint_sample_v1`. Restart metadata rejects

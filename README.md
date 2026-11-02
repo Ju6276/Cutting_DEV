@@ -70,6 +70,21 @@ ROS collection exports native FDCC, filter and complete wrench-queue memory
 alongside joints, material and observation history (8990 state coordinates).
 All run data stays outside Git.
 
+## Control-history prediction on the 4090
+
+`--model-state control-history` selects the 36-output robot/force candidate in
+`run_coupled_collection.py --mode train`. It uses 10 causal frames (860 state
+coordinates), while collection still records the full physical state. Existing
+native/GPU checkpoints use their original layout.
+
+`scripts/check_control_model.py --train EPISODE... --held-out EPISODE...
+--output runs/control_check` fits the source world-model update on complete
+recorded episodes and evaluates separate episodes at 1/8/32 steps. Each episode
+must have its source `task.json` in the same directory. Default budget: 50 updates,
+600 seconds, unchanged effective batch/optimizer; reports include task-equation
+parity, reset-start errors, force/torque errors, terminal counts and a checkpoint.
+The command trains the world model; connected policy evaluation follows separately.
+
 ## Interface checks
 
 Run the supervisor with `--mode collect --episodes 1 --wall-seconds 600`.

@@ -21,6 +21,7 @@ def main():
     parser.add_argument("--max-iterations", type=int)
     parser.add_argument("--microbatch", type=int, default=64)
     parser.add_argument("--resume")
+    parser.add_argument("--model-state", choices=("native", "control-history"), default="native")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     sliceit = Path(args.sliceit_root).resolve()
@@ -98,6 +99,7 @@ def main():
                       "--max-hours", str(args.max_hours), "--microbatch", str(args.microbatch)]
             if args.max_iterations is not None:
                 worker += ["--max-iterations", str(args.max_iterations)]
+            worker += ["--model-state", args.model_state]
             if args.resume:
                 worker += ["--resume", str(Path(args.resume).resolve())]
             if args.mode == "evaluate":

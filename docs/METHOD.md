@@ -32,6 +32,28 @@ Sources: [world model](https://github.com/CuboiLeo/SuperMimic-Reproduced/blob/ba
 [training loop](https://github.com/CuboiLeo/SuperMimic-Reproduced/blob/ba6105349069bf040f1fdad60873d13138d505a2/src/supermimic/training/loop.py),
 [SliceIt](https://github.com/omron-sinicx/sliceit).
 
+## Control-history candidate
+
+The user-approved control predictor (`prediction_layout=control_history_v1`)
+learns 36 next-state coordinates: robot joint position/velocity (12), the exact
+three-sample observed wrench history (18), and interval peak wrench (6).
+The original FK, observation, motion-command, derivative-history, success-counter,
+reward and terminal formulas advance the other 50 current-state coordinates.
+Nine previous 86-coordinate frames accompany the current frame, giving 860
+input-state coordinates. History length 10 matches the pinned policy history;
+reset repeats the actual initial frame, and each transition shifts only past
+frames. Particles, spring damage and native controller/filter packets remain in
+physical recordings but are absent from model inputs and prediction targets.
+
+This changes the state representation and supervised targets of the pinned
+SuperMimic residual MLP. Its widths, normalized squared-error form, terminal BCE,
+optimizer, effective batches, eight-step fitting and 32-step BPTT remain intact.
+Physical/task equations and policy observations are unchanged. The finite history
+approximates unobserved material and controller memory. Evaluation separates
+reset-first transitions, held-out full episodes, force-limit termination and
+8/32-step predictions; model gradients are checked independently of physical
+policy success. No learned latent state or recurrent network is added.
+
 ## Connected trainer mapping
 
 The connected candidate keeps the source MLP, eight-step autoregressive loss

@@ -63,8 +63,8 @@ class CuttingStateSpec(nn.Module):
         scales_in, scales_error, scales_output = [], [], []
         delta_offset = 0
         force = np.asarray(self.heads.force_limits)
-        spring = np.asarray(metadata['spring_reference_ke'])
-        if np.any(spring <= 0):
+        spring = np.asarray(metadata.get('spring_reference_ke', []))
+        if 'cut_spring_ke' in self.physical_fields and (not spring.size or np.any(spring <= 0)):
             raise ValueError('Reference spring stiffness must be positive')
         source = {
             'particle_q': (1., .05, .01), 'particle_qd': (1., .5, .3),
@@ -142,6 +142,9 @@ class CuttingStateSpec(nn.Module):
                   for key in self.physical_fields + self.history_fields]
         return torch.as_tensor(np.concatenate(arrays), dtype=torch.float32, device=device)
 
+    def pack_transition(self, frame, previous_state):
+        return self.pack(frame, previous_state.device)
+
     def field(self, state, name):
         value = state[..., self.layout[name]]
         if name == 'success_counter':
@@ -165,8 +168,11 @@ class CuttingStateSpec(nn.Module):
             if name in self.pose_fields:
                 continue
             fields[name] = fields[name] + d[..., self.delta_slices[name]].reshape_as(fields[name])
-        fields['particle_q'] = fields['particle_q'] + self.dt * fields['particle_qd']
+        if 'particle_q' in fields:
+            fields['particle_q'] = fields['particle_q'] + self.dt * fields['particle_qd']
         fields['joint_q'] = fields['joint_q'] + self.dt * fields['joint_qd']
+        if 'knife_pose' not in fields:
+            return fields
         pose = self.field(state, 'knife_pose')
         correction = d[..., self.delta_slices['knife_pose']]
         twist = fields['knife_velocity']
