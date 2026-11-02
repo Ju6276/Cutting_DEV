@@ -1,5 +1,10 @@
 # Training plan
 
+Status: stopped at the user's request on 2026-11-02. All cutting training,
+simulation and launch-monitor processes have exited. Checkpoints from this
+experimental series and their W&B model artifacts were deleted.
+The steps below describe the previous plan; no job is queued.
+
 Target: SuperMimic-Reproduced online learning on SliceIt's UR5e/FDCC and public
 DiSECt prism. Keep source objectives, effective batches, optimization schedule,
 rewards and termination thresholds.
@@ -10,11 +15,11 @@ rewards and termination thresholds.
 2. **Source learning loop — connected.** Original 8-step prediction, 32-step BPTT,
    GAE, 2048/4096 effective learning batches, 40-step warmup and UTD 0.4.
    The GPU state now includes controller/filter recurrence (8944 coordinates).
-3. **Training scale — 1024 worlds.** The 1280-world full reference cut passed,
+3. **Last training scale — 1024 worlds.** The 1280-world full reference cut passed,
    but training exhausted memory when switching from a learning update back to
-   MuJoCo collision processing. Resume the saved learner at the user-selected
-   1024 worlds, retaining original replay capacity and learning batches. Verify
-   repeated physics/learning transitions during training.
+   MuJoCo collision processing. The 1024-world restart reached cumulative vector step 115 before the requested
+   stop. Replay was still refilling; repeated post-update physics transitions
+   remain unchecked.
 4. **Learning and physical evaluation.** First operational budget: six hours,
    online W&B and checkpoint on exit; original learning-rate schedule remains
    320000 vector steps. Evaluate saved policies in the physical environment

@@ -103,3 +103,10 @@ writeback discards their candidate integration before finite-state checks.
 The pinned source logs with TensorBoard. The GPU entry additionally uses W&B
 online logging for phase timing, physical episode returns/success/collision,
 world-model losses, BPTT/critic metrics and checkpoint artifacts.
+
+SliceIt Section III-B3 and Figure 2 specify the bridge: robot knife position and
+velocity go to CutSim, and CutSim contact force goes to the compliance controller.
+The disconnected topics observed in our old running launch establish an
+integration failure for that run. They do not establish that every published
+launch combination or the authors' experiment had that failure.
+Source: https://arxiv.org/html/2404.02569v1#S3.SS2.SSS3

@@ -131,3 +131,12 @@ User-selected restart: 1024 worlds, same learning settings, `--resume
 runs/gpu_supermimic_1280_20261102/last.pt --max-hours 6`; output
 `runs/gpu_supermimic_1024_20261102`, W&B `i02x34rz`. First two resumed physical
 steps completed; sampled process memory 37,295 MiB.
+
+
+2026-11-02, user-requested stop and weight removal: SAC, single-environment and
+batched model training, simulators and launch monitors have exited on both hosts.
+The 1024-world run stopped at cumulative iteration 115 with two cumulative
+learning updates. Deleted experimental SAC/model checkpoints and W&B cache
+copies: 17 files, 6,024,901,743 bytes by file size. Deleted three W&B model
+artifacts (1,921,590,938 bytes); scalar histories, configurations and physical
+scene assets remain. No training or evaluation is queued.
