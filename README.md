@@ -57,3 +57,5 @@ response. `export_disect_scene.py --warmup-steps 65000` prepares a reference fro
 inside a cut for checking material/contact continuation across environments.
 `run_coupled.py --hold-last-action` continues with the final recorded action
 until the original task terminates or its 500-action budget expires.
+`--actions-file PATH.npz` reads a separate recorded `actions` array, retaining
+the same initial robot/material state and controller formulas.

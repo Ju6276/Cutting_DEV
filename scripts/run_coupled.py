@@ -37,6 +37,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--task', type=Path, default=Path('runs/source/task.json'))
     parser.add_argument('--episode', type=Path, default=Path('runs/source/episode_000.npz'))
+    parser.add_argument('--actions-file', type=Path)
     parser.add_argument('--model', type=Path, default=Path('runs/model_coupled/robot.mjb'))
     parser.add_argument('--controller', type=Path, default=Path('runs/controller_source/controller_params.json'))
     parser.add_argument('--scene', type=Path, default=Path('runs/disect_source_v4/scene.pt'))
@@ -45,16 +46,17 @@ def main():
     parser.add_argument('--wall-seconds', type=float, default=600.)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
+    revision = git_revision()
     args.output.mkdir(parents=True, exist_ok=False)
     task = json.loads(args.task.read_text())
     episode = np.load(args.episode)
-    actions = episode['actions']
+    actions = np.load(args.actions_file)['actions'] if args.actions_file else episode['actions']
     if args.hold_last_action:
         remaining = max(0, task['environment']['steps_per_episode'] - len(actions))
         actions = np.concatenate((actions, np.repeat(actions[-1:], remaining, axis=0)))
     actions = actions[:args.max_actions]
     write_json(args.output/'manifest.json', {
-        'git_revision': git_revision(), 'command': sys.argv,
+        'git_revision': revision, 'command': sys.argv,
         'config': {key: str(value) if isinstance(value, Path) else value for key, value in vars(args).items()},
         'actions': len(actions), 'robot_dt': .001, 'coupling_dt': .002,
         'agent_dt': task['environment']['agent_control_dt'],
@@ -162,7 +164,7 @@ def main():
             if collision or outside or (reached and successes > env['successes_threshold']):
                 reason = 'force_limit' if collision else ('workspace' if outside else 'goal')
                 break
-    write_json(args.output/'report.json', {'git_revision': git_revision(), 'reason': reason,
+    write_json(args.output/'report.json', {'git_revision': revision, 'reason': reason,
                'actions': len(records), 'sim_seconds': physics_time, 'wall_seconds': time.perf_counter()-start,
                'max_force': maximum_force, 'force_response_velocity_delta': force_response,
                'released_springs': int((sim.state.cut_spring_ke == 0).sum()),
