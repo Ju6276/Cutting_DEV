@@ -52,6 +52,7 @@ def main():
     (output / "initial_validation.json").write_text(json.dumps(initial, indent=2) + "\n")
     completed = 0
     state = "running"
+    error = None
     try:
         for update in range(args.updates):
             losses = []
@@ -73,20 +74,24 @@ def main():
                             "wall_seconds": time.monotonic() - started}
                 (output / "progress.json").write_text(json.dumps(progress, indent=2) + "\n")
             print(json.dumps(progress), flush=True)
+        result = {"validation": evaluate(model, validation, device),
+                  "validation_episode_rollouts": evaluate_episode_rollouts(model, validation, device),
+                  "training": evaluate(model, train, device), "optimizer_steps": completed,
+                  "wall_seconds": time.monotonic() - started,
+                  "peak_torch_gpu_mib": torch.cuda.max_memory_allocated() / 2**20}
+        (output / "report.json").write_text(json.dumps(result, indent=2) + "\n")
         state = "completed"
+        print(json.dumps(result), flush=True)
+    except BaseException as exception:
+        state = "failed"
+        error = str(exception)
+        raise
     finally:
         torch.save({"model": model.state_dict(), "optimizer": optimizer.state_dict(),
                     "layout": train.layout, "optimizer_steps": completed, "manifest": manifest},
                    output / "checkpoint.pt")
-        (output / "status.json").write_text(json.dumps({"state": state if state == "completed" else "interrupted",
+        (output / "status.json").write_text(json.dumps({"state": state, "error": error,
             "optimizer_steps": completed, "wall_seconds": time.monotonic() - started}, indent=2) + "\n")
-    result = {"validation": evaluate(model, validation, device),
-              "validation_episode_rollouts": evaluate_episode_rollouts(model, validation, device),
-              "training": evaluate(model, train, device), "optimizer_steps": completed,
-              "wall_seconds": time.monotonic() - started,
-              "peak_torch_gpu_mib": torch.cuda.max_memory_allocated() / 2**20}
-    (output / "report.json").write_text(json.dumps(result, indent=2) + "\n")
-    print(json.dumps(result), flush=True)
 
 
 if __name__ == "__main__":
