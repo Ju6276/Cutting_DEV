@@ -31,7 +31,6 @@ observation maximum absolute error 0; reward maximum absolute error 5.55e-17;
 termination and success mismatches 0; success-counter error 0. Upstream replay:
 42 rows; eight-step window batch shape [9, 2048, 7535].
 `python -m pytest tests -q`: 12 passed in 0.74 s.
-Next: cutting StateSpec and connected online world-model/policy training.
 
 Cutting state interface, parent `5a75ca5` + connected-trainer changes:
 `run_coupled_collection.py --sliceit-root /dataHDD/dong/Projects/SliceIt

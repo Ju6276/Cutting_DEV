@@ -17,6 +17,7 @@ robot utilities `a14c856`; DiSECt `db7de0f`.
 | Physical state | Simulator state read at the transition boundary | Gazebo joint/controller state plus DiSECt position, velocity and spring history, recorded during observation generation, before terminal controller shutdown |
 | Force history | Observation reads the sensor history | Record that exact sensor read, rather than rereading a moving queue after env.step |
 | Reset boundary | SliceIt reset reads its return observation before physically resetting the scene | Preserve that returned observation and its sensor sample; capture the initial physical state after reset. Subsequent snapshots occur during observation generation |
+| Robot asset | SliceIt task class UR3eDisectSlicingEnv-v1; active b_bot XML uses ur5e meshes/inertias | Keep the active XML (upper-arm mass 8.058 kg, COM x=-0.2125 m) for both SAC and the world-model task |
 | Geometry/material | Source humanoid task | SliceIt's public prism configuration and aligned initial knife pose; physical equations and task thresholds unchanged |
 | Reference library | Motion-tracking goals, reward targets and reset frames | SliceIt's fixed cutting target and original task reward replace the humanoid motion library |
 
