@@ -4,6 +4,11 @@ Adapt [SuperMimic-Reproduced](https://github.com/CuboiLeo/SuperMimic-Reproduced)
 (`ba610534`) to SliceIt's Gazebo UR5e robot and DiSECt public prism. Keep SliceIt's
 six actions, reward, force limits and termination rules; compare with its SAC.
 
+The initial `online_source_20261102` run and concurrent SAC run have a
+disconnected DiSECt-to-controller force path in their Gazebo launch. Updated
+collection checks the relay, filter and controller subscriptions at startup;
+use the repaired SliceIt launch for subsequent runs (see METHOD).
+
 The trainer collects physical transitions, fits an eight-step world model and
 updates the actor through 32-step imagined trajectories with a GAE critic.
 It uses the source effective batches (2048/4096), learning rates, update ratio,

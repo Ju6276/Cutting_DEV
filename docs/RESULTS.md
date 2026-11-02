@@ -2,6 +2,12 @@
 
 ## 2026-11-02
 
+ROS wiring audit, running `online_source_20261102` and SAC masters 11322/11321:
+DiSECt force-topic subscribers 0; controller force-input publishers 0.
+Recorded observations/rewards match that running environment, while its
+material-to-controller force feedback is disconnected. New collection verifies
+the complete relay/filter/controller path before recording transitions.
+
 Collector `9e7273d`, SuperMimic-Reproduced `ba610534`, DiSECt `db7de0f`.
 `collect_disect.py --config ../configs/public_prism.json --disect-root .
 --output /dataHDD/dong/Projects/CuttingWorldModel/runs/prism_straight`:

@@ -5,6 +5,7 @@ from pathlib import Path
 import numpy as np
 
 from .observation_recording import ObservationRecorder
+from .feedback_wiring import verify_feedback_graph
 
 
 class ControlWrenchRecorder:
@@ -81,6 +82,8 @@ class CoupledEnvironment:
         self.env.observation_space.seed(seed)
         self.service = rospy.ServiceProxy('/world_model/snapshot', Trigger)
         self.service.wait_for_service(timeout=60)
+        self.feedback_graph = verify_feedback_graph(rospy.get_master().getSystemState()[2],
+                                                    self.environment['namespace'])
         self.peak = ControlWrenchRecorder(self.env.unwrapped)
         self.recorder = ObservationRecorder(self.env.unwrapped,
             lambda obs: capture(self.env, obs, self.service, self.peak))
@@ -91,6 +94,7 @@ class CoupledEnvironment:
             'robot_base': arm.base_link, 'robot_tip': arm.ee_link,
             'joint_names': list(arm.joint_names),
             'action_bounds': [self.env.action_space.low.tolist(), self.env.action_space.high.tolist()],
+            'material_feedback': 'sensor_relay_filter_controller',
         }
 
     def reset(self):

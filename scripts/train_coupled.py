@@ -98,7 +98,8 @@ def main():
                 'sliceit_git': git_revision(args.sliceit_root), 'command': sys.argv,
                 'arguments': vars(args), 'world_model': asdict(learner.wcfg),
                 'policy': asdict(learner.pcfg), 'schedule': asdict(schedule.config),
-                'environment': env.environment, 'controller': env.controller}
+                'environment': env.environment, 'controller': env.controller,
+                'feedback_graph': env.feedback_graph}
     write_json(output / 'manifest.json', manifest)
     status = {'state': 'running', 'iteration': schedule.iteration, 'updates': learner.updates}
 
