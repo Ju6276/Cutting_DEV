@@ -4,7 +4,9 @@ Run numbers used in discussion and W&B:
 
 - **1 — SAC + Gazebo + DiSECt**: active fresh training, original 100100-step
   endpoint and 72-hour wall budget. W&B `064z1a85`; physical episode return is
-  `episode_return`. Per-step rewards are in `metrics.jsonl`.
+  `reward/episode`; `reward` / `reward/step` and `reward/episode_mean_20` are
+  streamed through an attached producer sharing the original W&B service.
+  All use `reward_iteration` as the physical-step axis; training is unchanged.
 - **2 — SuperMimic + Gazebo + DiSECt**: diagnostic run `3lvaf2vr` stopped cleanly
   after 176 physical steps and 54 updates. The first positive value anomaly was
   captured at update 16, so work now uses the saved states rather than waiting
@@ -39,7 +41,11 @@ Remaining work, in order:
    initiating update before changing the model or training settings. Frozen
    phase substitution localizes the first departure to world-model update 16:
    pre-fit rollout is stable; post-fit rollout diverges even with zero actions.
-   Trace this update and its recurrent state representation before choosing a fix.
+   Exact replay now isolates finite-step Adam overshoot: the tenth sampled-batch
+   full objective jumps 8.97483 -> 11097.31520, with final weights matching the
+   captured model bitwise. Keep the optimizer unchanged while reviewing data
+   coverage and state conditioning; any altered warmup, scaling or step acceptance
+   is a separate method change requiring a paired experiment.
 3. Review the causal finding independently, repair a demonstrated error if found,
    then run sustained learning and held-out physical policy evaluation. Report
    task success separately from interface checks and finite learning updates.

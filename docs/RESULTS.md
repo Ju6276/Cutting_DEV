@@ -265,3 +265,22 @@ objective -174.91. Changing only the world model to post-fit weights gives
 still reaches 4.2757e11; pre-fit zero-action rollout remains at 2.29. The actor
 change affects the magnitude by under 1%; subsequent critic fitting amplifies
 the terminal value to 9.63e10. The initiating departure is world-model update 16.
+
+2026-11-02, captured run 2 `23db4c2`, exact optimizer replay
+`runs/critic16_samebatch_trace_20261102/trace.json`: 66.93 s on RTX 4090,
+final model maximum weight difference 0 against the original post-update-16
+snapshot. The tenth Adam step, evaluated on the identical sampled 2048 windows
+including multiplicities and terminal BCE, changes loss 8.97483247 ->
+11097.31519559. Along the same parameter displacement, quarter/half steps yield
+8.45624199 / 9.31428881. Clipped gradient dot displacement -0.03820362.
+The error is finite-step overshoot of the actual objective; training settings
+and optimizer implementation remain unchanged. Independent review confirmed the
+same-batch evaluation and exact replay.
+
+Run 1 reward logging: attach a producer to existing W&B service/core and tail
+`metrics.jsonl`, with no learner restart or parameter change. Server checks:
+1751 `reward/step` rows, 63 `reward/episode` rows, maximum local/server error 0;
+all 77 pre-attachment history rows preserved and primary logging continues.
+`reward/episode_mean_20` reports the last 20 completed episodes. Original task
+terminal reward is +100 for success / -100 for force-limit failure; at 63
+completed episodes success return mean 85.047, failure mean -113.851.
