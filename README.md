@@ -90,5 +90,7 @@ timeout 660 .venv/bin/python -u scripts/run_coupled.py \
 ```
 
 The world-model source is at `/dataHDD/dong/Projects/CuttingWorldModel`.
-Next: connect its trainer to this backend, then batch independent material,
-controller and robot states and measure 16/32 complete cutting worlds.
+`CuttingBatch` batches independent material, controller and robot states.
+Its task/reward adapter and online training entry are `cutting_world_model/gpu_env.py`
+and `scripts/train_gpu.py` in that repository. `scripts/benchmark_gpu_env.py`
+measures complete reference cuts at the requested environment count.

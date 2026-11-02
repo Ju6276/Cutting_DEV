@@ -55,12 +55,24 @@ Sources: [Gazebo position hardware](https://github.com/ros-simulation/gazebo_ros
 
 [DiSECt](https://github.com/NVlabs/DiSECt) uses its bundled **DFlex** FEM and virtual-node cutting-spring implementation. Its `CuttingSim.simulation_step` imposes knife motion, then integrates material state; `model.knife_link_index` selects one knife, and `state.knife_f` holds per-contact force contributions. Isaac Lab and mjlab are robot-learning frameworks; switching to either does not port these material kernels or cutting state.
 
-The remaining implementation is concrete:
+`CuttingBatch` connects the controller, robot and material at the original
+control periods. The source single-world runner is the physical reference;
+CuttingWorldModel supplies batched observations, rewards, termination, replay
+and learning. Full-task scaling is measured with its `benchmark_gpu_env.py`.
+DiSECt's prescribed cut topology remains fixed within an episode.
 
-1. Complete the single-world task endpoint with the implemented source controller, 50 hardware updates and 25 material exchanges per agent action. Compare recorded command-to-joint/knife behavior and sensor response.
-2. Add an environment dimension or packed environment offsets to particles, tetrahedra, virtual nodes, cutting springs, contact force arrays, knife indices and material parameters. Replace singleton knife assumptions and global reductions with per-world operations. Reset only completed worlds.
-3. Extend the single-world knife motion and filtered reaction-wrench exchange to independent batches. Preserve the source control-feedback coupling; applying material force directly to the rigid-body equations is a separate behavior change.
-4. Keep current cut-surface/topology generation semantics per episode. DiSECt builds a cut surface from a prescribed trace before integration; arbitrary online topology generation requires explicit work beyond batching state arrays.
-5. Reproduce the existing observation history, force aggregation, reward, termination, randomization and reset. Measure complete environment-step throughput with its real FEM substeps, memory and training updates at 1/32 worlds before scaling.
+## Packed material worlds
 
-The robot benchmark measures rigid-body throughput. Thousands of complete cutting worlds require the material/controller/coupling implementation and a measured end-to-end resource curve. MuJoCo flex and Isaac deformables provide different material models; replacing DiSECt with either changes this task's physics.
+`BatchedDiSECt` copies the exported model into disjoint particle, tetrahedron,
+spring, joint and contact ranges. Index offsets select each world's own knife;
+particle/shape contact pairs are generated within a world. The original FEM,
+contact, damage and integration functions retain their formulas and 10 µs step.
+Shared topology and material configuration come from the public scene. Triangle
+self-collision pair batching is rejected explicitly when that source option is
+enabled; the exported scene has it disabled.
+
+Each world stores its own controller integration state, filter window/zi/tare,
+25-sample sensor queue, knife-motion history and reset snapshot. A force-limit
+stop captures that world's terminal state at the original exchange boundary;
+other worlds finish their control interval. Completed worlds reset before the
+next action. The source single-world runner remains the independent reference.

@@ -18,7 +18,7 @@ def configure_position_hardware(model):
 
 
 class Robot:
-    def __init__(self, model_path, q, qd):
+    def __init__(self, model_path, q, qd, worlds=1):
         wp.init()
         self.model = mujoco.MjModel.from_binary_path(str(model_path))
         configure_position_hardware(self.model)
@@ -29,10 +29,21 @@ class Robot:
         self.stream = wp.stream_from_torch(torch.cuda.current_stream())
         with wp.ScopedStream(self.stream):
             self.gpu_model = mjw.put_model(self.model)
-            self.data = mjw.put_data(self.model, data, nworld=1, nconmax=64, njmax=128)
+            self.data = mjw.put_data(self.model, data, nworld=worlds, nconmax=64, njmax=128)
             mjw.forward(self.gpu_model, self.data)
         self.q = wp.to_torch(self.data.qpos)
         self.qd = wp.to_torch(self.data.qvel)
+
+    def save_reset_state(self):
+        self.initial = {name: wp.to_torch(getattr(self.data, name)).clone()
+                        for name in ('qpos', 'qvel', 'qacc_warmstart', 'time')}
+
+    def reset(self, mask):
+        with wp.ScopedStream(self.stream):
+            mjw.reset_data(self.gpu_model, self.data, wp.from_torch(mask))
+            for name, value in self.initial.items():
+                wp.to_torch(getattr(self.data, name))[mask] = value[mask]
+            mjw.forward(self.gpu_model, self.data)
 
     def sensor_wrench(self, body_name):
         """MuJoCo native force/torque sensor at the named body's origin."""

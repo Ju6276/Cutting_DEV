@@ -1185,6 +1185,8 @@ def eval_spring_sdf_contacts(
         x: df.tensor(df.float3),                     # position of particles
         v: df.tensor(df.float3),
         knife_id: int,
+        springs_per_world: int,
+        links_per_world: int,
         knife_X_s: df.tensor(df.spatial_transform),
         knife_v_s: df.tensor(df.spatial_vector),
         knife_params: df.tensor(float),
@@ -1217,8 +1219,9 @@ def eval_spring_sdf_contacts(
     i = df.load(spring_indices, spring_no * 2 + 0)
     j = df.load(spring_indices, spring_no * 2 + 1)
 
-    knife_X = df.load(knife_X_s, knife_id)
-    knife_v = df.load(knife_v_s, knife_id)
+    world_knife = knife_id + (spring_no // springs_per_world) * links_per_world
+    knife_X = df.load(knife_X_s, world_knife)
+    knife_v = df.load(knife_v_s, world_knife)
 
     # transform points to shape space
     rigid_x = df.spatial_transform_get_translation(knife_X)
@@ -1597,6 +1600,7 @@ def eval_cut_springs(
 @df.kernel
 def eval_soft_contacts(
         num_particles: int,
+        num_shapes: int,
         particle_x: df.tensor(df.float3),
         particle_v: df.tensor(df.float3),
         body_X_sc: df.tensor(df.spatial_transform),
@@ -1617,8 +1621,9 @@ def eval_soft_contacts(
 
     tid = df.tid()
 
-    shape_index = tid // num_particles           # which shape
-    particle_index = tid % num_particles         # which particle
+    world = tid // (num_particles * num_shapes)
+    shape_index = world * num_shapes + (tid // num_particles) % num_shapes
+    particle_index = world * num_particles + tid % num_particles
     rigid_index = df.load(shape_body, shape_index)
 
     px = df.load(particle_x, particle_index)
@@ -3141,6 +3146,8 @@ class SemiImplicitIntegrator:
                                 state_in.particle_q,
                                 state_in.particle_qd,
                                 model.knife_link_index,
+                                getattr(model, "springs_per_world", model.cut_spring_count),
+                                getattr(model, "links_per_world", model.link_count),
                                 state_out.body_X_sc,
                                 state_out.body_v_s,
                                 model.knife_params,
@@ -3294,9 +3301,10 @@ class SemiImplicitIntegrator:
 
                     tape.launch(
                         func=eval_soft_contacts,
-                        dim=model.particle_count * model.shape_count,
+                        dim=model.particle_count * getattr(model, "shapes_per_world", model.shape_count),
                         inputs=[
-                            model.particle_count,
+                            getattr(model, "particles_per_world", model.particle_count),
+                            getattr(model, "shapes_per_world", model.shape_count),
                             state_in.particle_q,
                             state_in.particle_qd,
                             state_in.body_X_sc,
