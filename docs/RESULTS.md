@@ -484,3 +484,46 @@ The initial 1800-second-budget evaluation was stopped before completion and
 replaced by the same frozen policy with a 7200-second budget because another
 user’s GPU job reduced available throughput. No completed evaluation result
 was produced by that initial run.
+
+
+## 2026-11-03 — Source schedule and critic update equivalence
+
+Commits `1a2a88c`, `05d145a`, `1f71016`. Command on the 4090:
+`PYTHONPATH=. .venv/bin/python -m pytest tests -q`: **94 passed, 2 skipped** (3.18 s).
+The two skips require the separate GPU backend integration setup.
+Source schedule comparison through 320000 vector steps gives 127984 updates;
+1/1024/4096 worlds share first updates 42, 44, 47, 49 and 1000 replay rows/world.
+A batch of 8 versus microbatches 3/3/2 with four critic minibatches gives maximum
+critic parameter difference **4.604533e-4 before**, **7.45058e-9 after** the sample-order
+repair; actor difference is 2.32831e-10. This comparison checks update equivalence.
+
+## 2026-11-03 — Frozen terminal prediction audit
+
+Base commit `0663cc5`, learner repair `05d145a`. CPU command on the 4090:
+`PYTHONPATH=. .venv/bin/python runs/terminal_frozen_audit_20261103/probe.py`.
+The 18 saved episodes contain 735 transitions: task-equation terminal mismatches
+**0**, maximum reward difference **1.42e-14**. Checkpoint update 316 gives mean
+terminal probability **0.97769** on recorded terminal states, **0.30872** on one-step
+predicted states and **0.78210** on eight-step predicted states. At probability 0.5,
+missed recorded terminal labels are **0/18**, **14/18** and **3/18**, respectively.
+The frozen audit updates no network. Next: separate physical-state prediction
+error from terminal-head error on the same rollouts, then test their effect on
+critic targets before changing the learning method.
+
+## 2026-11-03 — Frozen SAC task evaluation
+
+Execution commit `4e13589`; command `scripts/run_sac_training.py --evaluate
+--ros-port 11323 --gazebo-port 11357 --wall-seconds 7200` with the frozen session-step
+20000 checkpoint in `SliceIt/runs/sac_frozen_eval_20261103_full/restore`.
+Ten deterministic physical episodes: **10/10 successes**, mean return **91.02107**,
+actor weights unchanged, optimizer updates **0**. Process exit **1**: the one-shot
+evaluator returned into the source training loop; the update guard stopped it.
+Commit `1f71016` dispatches evaluation directly and fixes the fallthrough;
+four dispatch/lifecycle tests pass. The original process record retains its failure.
+
+## 2026-11-03 — A6000 collection stopped
+
+Execution commit `4e13589`, `scripts/train_gpu.py --worlds 1024
+--max-iterations 176 --max-hours 2`, run `gpu_source_budget_check_20261103`.
+Interrupted at **122 vector steps**, **124928 transitions**, **0 learner updates**,
+**0 complete episodes**, **2579.09 s**. No GPU process remains from this run.

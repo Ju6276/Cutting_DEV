@@ -48,6 +48,8 @@ or resumed checkpoints.
    learning with a frozen policy and the original task metrics. Short numerical
    checks establish implementation behavior; completed physical episodes establish
    task outcomes.
-4. Complete frozen SAC evaluation cleanup independently of SuperMimic work.
+4. Frozen SAC evaluation completed ten episodes: 10 successes, mean return
+   91.02107, zero optimizer updates. The evaluation fallthrough is repaired;
+   dispatch/lifecycle tests cover normal exit and exceptions.
 
 Implementation differences are in METHOD; commands and numbers are in RESULTS.
