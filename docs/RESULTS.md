@@ -457,3 +457,25 @@ gradient norm 20.9793, critic loss 759.112, finite values. W&B servers report bo
 runs running; run 2 has reached iteration 177 and receives physical reward,
 model and policy/critic metrics.
 [W&B rzv5jrqm](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/rzv5jrqm).
+
+2026-11-03, `4e13589`: `PYTHONPATH=. .venv/bin/python -m pytest tests -q`:
+90 passed, 2 skipped on both RTX 4090 (3.12 s) and A6000 (3.07 s).
+`check_value_learning.py --checkpoint runs/control_history_resume_20261103/data/last.pt
+--episodes runs/control_history_resume_20261103/data --output
+runs/critic316_mc_probe_20261103/report.json`: 18 natural episodes / 735 transitions;
+observed discounted return mean -70.9657, critic mean -69359.2151, RMSE 70107.0458.
+The critic checkpoint remains stopped at update 316.
+
+2026-11-03, `4e13589`, A6000 GPU 1: `train_gpu.py --backend-root
+../CuttingGpuBackend --worlds 1024 --max-iterations 176 --max-hours 2
+--output runs/gpu_source_budget_check_20261103`: started fresh control_history_v2,
+source-equivalent 4096-transition schedule and 4096000-row replay. Endpoint is
+176 vector steps; timeout stops at a learner callback and saves last.pt.
+W&B `1t0hkx98`; first physical vector step completed in 20.23 s, GPU process
+allocation about 15 GiB. First learning update is due at vector step 168.
+
+2026-11-03, `4e13589`: `run_sac_training.py --sliceit-root ../SliceIt --output
+../SliceIt/runs/sac_frozen_eval_20261103 --evaluate --ros-port 11323
+--gazebo-port 11357 --wall-seconds 1800`: frozen copy of SAC session-step-20000
+checkpoint ckpt-5, original ten-episode deterministic evaluation; training remains
+on ROS 11321. Evaluation rejects optimizer calls and checks unchanged actor weights.
