@@ -7,19 +7,15 @@
   replay buffer. The source run endpoint remains 100100 environment steps with
   the existing 72-hour execution deadline.
   W&B [xofe4ps8](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/xofe4ps8).
-- **2 — SuperMimic + Gazebo + DiSECt**: resumed connected `control_history_v2`
-  training in `runs/control_history_resume_20261103`, restoring model, optimizer
-  and schedule/RNG from the previous run's iteration 133 / update 37 checkpoint.
-  The source resume path starts a new physical episode and refills replay with
-  40 transitions before resuming world-model and BPTT policy/critic updates,
-  at 0.4 update groups per environment step.
-  W&B [rzv5jrqm](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/rzv5jrqm).
-  The source endpoint is 320000 iterations; this execution has a six-hour budget
-  plus 300 seconds for startup/cleanup and saves `data/last.pt` at budget
-  completion, interruption or a caught failure.
-  The six-hour budget bounds runtime, rather than defining convergence.
-- Both runs share the RTX 4090, with separate ROS/Gazebo masters
-  (1: 11321/11355; 2: 11322/11356). MuJoCo remains a separate backend.
+- **2 — SuperMimic + Gazebo + DiSECt**: stopped at iteration 872/update 316
+  after critic divergence. Frozen episode return and bootstrap probes identify
+  value extrapolation, terminal-head errors and excessive single-world data reuse.
+- **3 — SuperMimic + MuJoCo Warp + DiSECt**: A6000 GPU 1 validation uses
+  control_history_v2 and the 4096-transition source schedule. The first 1024-world
+  update occurs at vector step 168; a 176-step/one-hour run crosses two updates
+  and resumes physics. Rewards, force limits and optimizer settings are unchanged.
+- Run 1 training stays on ROS 11321/Gazebo 11355. Frozen SAC evaluation uses
+  separate ROS 11323/Gazebo 11357 and the source ten-episode deterministic evaluator.
 
 ## Current implementation
 
@@ -41,15 +37,11 @@ or resumed checkpoints.
 
 ## Next work
 
-1. Continue the unchanged online loop, recording physical step/episode rewards,
-   success/collision outcomes, world-model losses and BPTT/critic metrics. A few
-   weak episodes or short-term oscillations do not trigger model or threshold changes.
-2. Inspect sustained prediction and physical-policy curves. Use separate complete
-   episodes for 1/8/32-step error and terminal prediction evaluation; these checks
-   explain learning behavior and do not impose an added training admission gate.
-3. Evaluate saved policies on complete physical cuts and compare with SAC under
-   the same task. Report actual task returns and success separately from imagined
-   returns. Diagnose concrete non-finite/state-alignment failures if they occur.
+1. Evaluate the frozen SAC checkpoint in a separate simulator, verifying zero
+   optimizer updates and unchanged actor weights.
+2. Run A6000 connected sampling, model/actor/critic updates and subsequent physics;
+   record real episode outcomes, terminal calibration and value diagnostics.
+3. Use measured returns, frozen-rollout decomposition and source-scale replay
+   accounting to assess the candidate before resuming long model-based training.
 
-Implementation differences and input scales are in METHOD; experiment commands,
-commits and numbers are in RESULTS. All remote runs stay under `/dataHDD/dong`.
+Implementation differences are in METHOD; commands and numbers are in RESULTS.

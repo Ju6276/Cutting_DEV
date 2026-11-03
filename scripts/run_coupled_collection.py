@@ -21,7 +21,7 @@ def main():
     parser.add_argument("--max-iterations", type=int)
     parser.add_argument("--microbatch", type=int, default=64)
     parser.add_argument("--resume")
-    parser.add_argument("--model-state", choices=("native", "control-history"), default="native")
+    parser.add_argument("--model-state", choices=("native", "control-history"), default="control-history")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     sliceit = Path(args.sliceit_root).resolve()

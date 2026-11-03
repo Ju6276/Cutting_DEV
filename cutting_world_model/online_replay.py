@@ -5,8 +5,8 @@ from third_party.supermimic.replay_buffer import ReplayBuffer
 
 
 class OnlineReplay:
-    def __init__(self, state_dim, device):
-        self.buffer = ReplayBuffer(1, 1000, state_dim, 6, 7, device)
+    def __init__(self, state_dim, device, capacity=1000):
+        self.buffer = ReplayBuffer(1, capacity, state_dim, 6, 7, device)
         self.device = device
         self.env_id = torch.tensor([0], device=device)
         self.frame = 0
@@ -33,8 +33,8 @@ class OnlineReplay:
 
 
 class BatchedOnlineReplay:
-    def __init__(self, worlds, state_dim, device):
-        self.buffer = ReplayBuffer(worlds, 1000, state_dim, 6, 7, device)
+    def __init__(self, worlds, state_dim, device, capacity=1000):
+        self.buffer = ReplayBuffer(worlds, capacity, state_dim, 6, 7, device)
         self.ids = torch.arange(worlds, device=device)
         self.frame = torch.zeros(worlds, dtype=torch.long, device=device)
         self.episode = torch.zeros_like(self.frame)

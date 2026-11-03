@@ -56,7 +56,7 @@ def main():
     parser.add_argument('--max-iterations', type=int)
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--resume')
-    parser.add_argument('--model-state', choices=('native', 'control-history'), default='native')
+    parser.add_argument('--model-state', choices=('native', 'control-history'), default='control-history')
     parser.add_argument('--evaluate', action='store_true')
     parser.add_argument('--eval-episodes', type=int, default=5)
     args = parser.parse_args(rospy.myargv()[1:])
@@ -91,17 +91,19 @@ def run(args, env, output):
     policy = SliceItPolicy().to(args.device)
     critic = SliceItCritic(spec.state_dim).to(args.device)
     learner = OnlineLearner(wm, policy, critic, args.microbatch)
-    schedule = OnlineSchedule()
+    schedule = OnlineSchedule(worlds=1)
     if args.resume:
         saved = torch.load(args.resume, map_location=args.device, weights_only=False)
         if saved['metadata'] != metadata:
             raise ValueError('Resume task/geometry differs from checkpoint')
         learner.restore(saved['learner'])
-        schedule = OnlineSchedule(start_iteration=saved['iteration'])
+        if not args.evaluate:
+            schedule = OnlineSchedule.resume(saved.get('schedule', {}), worlds=1)
         torch.set_rng_state(saved['torch_rng'].cpu())
         if torch.cuda.is_available():
             torch.cuda.set_rng_state(saved['cuda_rng'].cpu())
-    replay = OnlineReplay(spec.state_dim, args.device)
+    replay = (None if args.evaluate else
+              OnlineReplay(spec.state_dim, args.device, capacity=schedule.replay_capacity))
     start = time.monotonic()
     stop_requested = False
 
@@ -115,6 +117,7 @@ def run(args, env, output):
                 'sliceit_git': git_revision(args.sliceit_root), 'command': sys.argv,
                 'arguments': vars(args), 'world_model': asdict(learner.wcfg),
                 'policy': asdict(learner.pcfg), 'schedule': asdict(schedule.config),
+                'schedule_units': schedule.state_dict(),
                 'environment': env.environment, 'controller': env.controller,
                 'feedback_graph': env.feedback_graph}
     write_json(output / 'manifest.json', manifest)
@@ -124,7 +127,8 @@ def run(args, env, output):
         path = output / name
         temporary = path.with_suffix('.tmp')
         torch.save({'learner': learner.checkpoint(), 'metadata': metadata,
-                    'iteration': schedule.iteration, 'torch_rng': torch.get_rng_state(),
+                    'iteration': schedule.iteration, 'schedule': schedule.state_dict(),
+                    'torch_rng': torch.get_rng_state(),
                     'cuda_rng': torch.cuda.get_rng_state() if torch.cuda.is_available() else torch.get_rng_state(),
                     'git': git_revision(Path(__file__).resolve().parents[1])}, temporary)
         temporary.replace(path)
@@ -146,7 +150,7 @@ def run(args, env, output):
     wm_seconds, policy_seconds, physics_seconds = 0., 0., 0.
     executed_steps = 0
     try:
-        while schedule.iteration < schedule.config.total_iterations:
+        while schedule.source_iteration < schedule.config.total_iterations:
             if args.max_iterations is not None and executed_steps >= args.max_iterations:
                 status['state'] = 'completed'
                 break
@@ -176,7 +180,8 @@ def run(args, env, output):
             frame = next_frame
             state = next_state
             updates = schedule.after_environment_step() if not args.evaluate else 0
-            status.update(iteration=schedule.iteration, episode=episode, episode_step=len(actions),
+            status.update(iteration=schedule.iteration, source_iteration=schedule.source_iteration,
+                          transitions=schedule.transitions, episode=episode, episode_step=len(actions),
                           last_reward=reward, episode_return=float(sum(rewards)),
                           wall_seconds=time.monotonic() - start, phase='physics',
                           updates=learner.updates)
@@ -201,8 +206,8 @@ def run(args, env, output):
                 history = [frame['observation'].copy() for _ in range(policy.history)]
                 frames, actions, clean_actions, rewards, terms, truncs = [frame], [], [], [], [], []
                 episode_start = time.monotonic()
-            for _ in range(updates):
-                lr = cosine_lr(schedule.iteration, schedule.config.total_iterations,
+            for source_step in schedule.update_source_iterations if not args.evaluate else []:
+                lr = cosine_lr(source_step, schedule.config.total_iterations,
                                learner.wcfg.lr, schedule.config.lr_final_ratio, schedule.config.lr_decay_fraction)
                 learner.set_lr(lr)
                 status.update(phase='world_model', wall_seconds=time.monotonic() - start)
@@ -215,15 +220,16 @@ def run(args, env, output):
                 tick = time.monotonic()
                 pi_metrics = learner.improve_policy(replay.buffer)
                 policy_seconds += time.monotonic() - tick
-                record = {'iteration': schedule.iteration, 'update': learner.updates,
+                record = {'iteration': schedule.iteration, 'source_iteration': source_step,
+                          'transitions': schedule.transitions, 'update': learner.updates,
                           'world_model': wm_metrics, 'policy': pi_metrics, 'lr': lr,
                           'wall_seconds': time.monotonic() - start,
                           'timing': {'physics': physics_seconds, 'world_model': wm_seconds, 'policy': policy_seconds},
                           'peak_gpu_mib': torch.cuda.max_memory_allocated() / 2**20}
                 append_json(output / 'updates.jsonl', record)
                 print(json.dumps(record), flush=True)
-            if not args.evaluate and schedule.iteration % schedule.config.checkpoint_interval == 0:
-                checkpoint_model('checkpoint_%08d.pt' % schedule.iteration)
+            if not args.evaluate and schedule.checkpoint_due:
+                checkpoint_model('checkpoint_%08d.pt' % schedule.source_iteration)
         else:
             status['state'] = 'completed'
     except TimeoutError:
@@ -236,7 +242,8 @@ def run(args, env, output):
     finally:
         if not args.evaluate:
             checkpoint_model('last.pt')
-        status.update(iteration=schedule.iteration, updates=learner.updates,
+        status.update(iteration=schedule.iteration, source_iteration=schedule.source_iteration,
+                      transitions=schedule.transitions, updates=learner.updates,
                       wall_seconds=time.monotonic() - start)
         write_json(output / 'progress.json', status)
 

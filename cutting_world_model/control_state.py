@@ -76,6 +76,24 @@ class ControlStateSpec(CuttingStateSpec):
         history = self.shifted_history(previous_state)
         return torch.cat((base, history.flatten(-2)), -1)
 
+    def _base_batch(self, frame):
+        batch_shape = frame['joint_q'].shape[:-1]
+        return torch.cat([frame[name].reshape(*batch_shape, -1)
+                          for name in self.base_fields], -1)
+
+    def pack_batch(self, frame):
+        base = self._base_batch(frame)
+        return base.repeat(*([1] * (base.ndim - 1)), self.history_length)
+
+    def pack_batch_transition(self, frame, previous_state):
+        base = self._base_batch(frame).to(previous_state)
+        history = self.shifted_history(previous_state)
+        return torch.cat((base, history.flatten(-2)), -1)
+
+    def reset_batch_history(self, frame, previous_state, mask):
+        initial = self.pack_batch(frame).to(previous_state)
+        return torch.where(mask[..., None], initial, previous_state)
+
     def pack_episode(self, data, device=None, dtype=torch.float32):
         states = []
         for t in range(len(data['joint_q'])):

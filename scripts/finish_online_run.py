@@ -48,9 +48,15 @@ def main():
         checkpoint = training / 'data/last.pt'
         if not checkpoint.is_file():
             raise FileNotFoundError(checkpoint)
+        task = json.loads((training / 'data/task.json').read_text())
+        layout = task.get('prediction_layout')
+        if layout not in (None, 'control_history_v2'):
+            raise ValueError('Unsupported checkpoint prediction layout: ' + str(layout))
+        model_state = 'control-history' if layout == 'control_history_v2' else 'native'
         command = [sys.executable, str(Path(__file__).with_name('run_coupled_collection.py')),
                    '--sliceit-root', args.sliceit_root, '--output', str(output),
                    '--mode', 'evaluate', '--resume', str(checkpoint), '--episodes', str(args.episodes),
+                   '--model-state', model_state,
                    '--max-hours', str(args.evaluation_hours),
                    '--wall-seconds', str(round(args.evaluation_hours * 3600 + 300))]
         status('evaluating', command=command)

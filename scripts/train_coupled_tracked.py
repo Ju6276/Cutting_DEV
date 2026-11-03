@@ -51,12 +51,14 @@ def tracked_append(path, data):
     if tracker is None:
         raise RuntimeError('Training metrics arrived before tracker initialization')
     values = {'iteration': data['iteration']}
+    if 'source_iteration' in data:
+        values['learning/source_iteration'] = data['source_iteration']
     if path.name == 'steps.jsonl':
         values.update({'reward': data['last_reward'], 'reward/step': data['last_reward'],
                        'physics/reward_mean': data['last_reward'],
                        'reward/episode_running': data['episode_return'],
                        'physics/episode_step': data['episode_step'],
-                       'physics/transitions': data['iteration']})
+                       'physics/transitions': data['transitions']})
     elif path.name == 'episodes.jsonl':
         completed_episodes += 1
         successful_episodes += int(data['success'])
