@@ -1,3 +1,4 @@
+import pytest
 import torch
 
 from cutting_world_model.online_replay import OnlineReplay
@@ -85,7 +86,8 @@ def test_streaming_replay_keeps_terminal_labels_and_context():
     assert window.states.shape[0] == 9
 
 
-def test_policy_and_critic_microbatches_match_full_effective_batch():
+@pytest.mark.parametrize('critic_minibatches', [1, 4])
+def test_policy_and_critic_microbatches_match_full_effective_batch(critic_minibatches):
     from copy import deepcopy
     from types import SimpleNamespace
 
@@ -94,7 +96,7 @@ def test_policy_and_critic_microbatches_match_full_effective_batch():
     meta, frame = fixture()
     wm = CuttingWorldModel(meta, hidden=(16, 16))
     buffer = replay_fixture(wm, frame)
-    starts = buffer.sample_starts(5, 10)
+    starts = buffer.sample_starts(8, 10)
     fixed_buffer = SimpleNamespace(sample_starts=lambda *args: starts)
 
     class TinyPolicy(torch.nn.Module):
@@ -107,11 +109,11 @@ def test_policy_and_critic_microbatches_match_full_effective_batch():
 
     policy = TinyPolicy()
     critic = SliceItCritic(wm.spec.state_dim)
-    config = PolicyTrainerCfg(compile=None, horizon=3, batch_size=5,
-                              critic_epochs=2, critic_minibatches=1)
-    full = OnlineLearner(wm, policy, critic, microbatch=5,
+    config = PolicyTrainerCfg(compile=None, horizon=3, batch_size=8,
+                              critic_epochs=2, critic_minibatches=critic_minibatches)
+    full = OnlineLearner(wm, policy, critic, microbatch=8,
                          wm_cfg=WMTrainerCfg(compile=None), policy_cfg=config)
-    split = OnlineLearner(deepcopy(wm), deepcopy(policy), deepcopy(critic), microbatch=2,
+    split = OnlineLearner(deepcopy(wm), deepcopy(policy), deepcopy(critic), microbatch=3,
                           wm_cfg=WMTrainerCfg(compile=None), policy_cfg=config)
     torch.manual_seed(20)
     full_metrics = full.improve_policy(fixed_buffer)

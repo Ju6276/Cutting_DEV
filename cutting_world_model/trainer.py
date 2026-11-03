@@ -115,9 +115,9 @@ class OnlineLearner:
                         spec.field(ro.states[1:], 'observation'),
                         spec.field(ro.states[:-1], 'success_counter'), collision)
                     if cfg.use_critic:
-                        states = ro.states[:-1].detach().flatten(0, 1).cpu()
-                        goals = goal[None].expand(cfg.horizon, -1, -1).flatten(0, 1).cpu()
-                        critic_data.append((states, goals, targets.flatten().cpu()))
+                        states = ro.states[:-1].detach().cpu()
+                        goals = goal[None].expand(cfg.horizon, -1, -1).cpu()
+                        critic_data.append((states, goals, targets.cpu()))
                     measures = {
                         'imag_objective': objective.detach(),
                         'imag_return_discounted': discounted_reward,
@@ -148,12 +148,14 @@ class OnlineLearner:
             self.wm.requires_grad_(True)
             self.critic.requires_grad_(True)
         if cfg.use_critic:
-            data = [torch.cat([item[i] for item in critic_data]) for i in range(3)]
+            # Restore source (time, sample) order before shuffling critic minibatches.
+            data = [torch.cat([item[i] for item in critic_data], dim=1).flatten(0, 1)
+                    for i in range(3)]
             device = next(self.critic.parameters()).device
             n = len(data[2])
             for epoch in range(cfg.critic_epochs):
                 self.progress(phase="critic", epoch=epoch + 1, epochs=cfg.critic_epochs)
-                permutation = torch.randperm(n)
+                permutation = torch.randperm(n, device=device).cpu()
                 for indices in permutation.tensor_split(cfg.critic_minibatches):
                     self.copt.zero_grad(set_to_none=True)
                     total_loss = 0.
