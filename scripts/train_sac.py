@@ -126,7 +126,8 @@ if evaluating:
                      evaluation_return=float(result[0]), evaluation_success_rate=float(result[2]),
                      actor_unchanged=unchanged, optimizer_iterations=after)
         emit(dict(kind='evaluation', **state), upload=True)
-    Trainer.evaluate_policy_continuously = evaluate_once
+    # Upstream __call__ falls through to training when continuous evaluation returns.
+    Trainer.__call__ = evaluate_once
 original_detailed_log = Trainer._detailed_log
 def detailed_log(self, n_episode, total_steps, episode_steps, episode_return):
     result = original_detailed_log(self, n_episode, total_steps, episode_steps, episode_return)
