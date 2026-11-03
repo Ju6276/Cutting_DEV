@@ -107,14 +107,11 @@ Then run `scripts/check_task_interface.py --dataset RUN/data` and
 observations, rewards, terminal labels, URDF kinematics and controller history.
 `PYTHONPATH=. .venv/bin/python scripts/check_native_state.py RUN/data` checks
 native state packing, sample times and queue alignment. The learning schedule
-counts one source step per 4096 physical transitions: the first update needs
-172032 transitions (168 vector steps with 1024 worlds). A 43-step ROS run
-collects transitions and performs no learning update. GPU bounded learning uses
-`train_gpu.py --backend-root ../CuttingGpuBackend --worlds 1024
---max-iterations 176 --max-hours 1 --output runs/gpu_source_budget_check`.
-This performs two learning updates and returns to physical stepping after the
-first; it ends immediately after the second. Sustained value-learning stability
-is evaluated separately.
+counts completed vector steps, with source warmup 40 and UTD 0.4: first updates
+occur at steps 42, 44, 47 and 49 for any environment count. Replay holds 1000 rows
+per environment. Changing the world count changes the amount of newly collected
+data per update. Runs 2 and 3 are stopped while the critic divergence is investigated;
+current work and experiment results are in PLAN and RESULTS.
 
 Tests: `PYTHONPATH=. .venv/bin/python -m pytest tests -q`. GPU integration
 checks additionally use `CUTTING_BACKEND_ROOT=/dataHDD/dong/Projects/CuttingGpuBackend`

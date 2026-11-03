@@ -9,13 +9,12 @@
   W&B [xofe4ps8](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/xofe4ps8).
 - **2 — SuperMimic + Gazebo + DiSECt**: stopped at iteration 872/update 316
   after critic divergence. Frozen episode return and bootstrap probes identify
-  value extrapolation, terminal-head errors and excessive single-world data reuse.
-- **3 — SuperMimic + MuJoCo Warp + DiSECt**: A6000 GPU 1 validation uses
-  control_history_v2 and the 4096-transition source schedule. The first 1024-world
-  update occurs at vector step 168; the 176-step/two-hour run checks physical
-  stepping after update 1 (steps 169–176), then completes update 2. It ends before
-  physical stepping after update 2. Sustained critic stability needs a separate
-  continued-data experiment. Rewards, force limits and optimizer settings are unchanged.
+  large value bias and terminal-head errors. The relative causal contributions
+  remain to be established; single-world data reuse is a measured regime difference.
+- **3 — SuperMimic + MuJoCo Warp + DiSECt**: stopped at vector step 122,
+  124928 physical transitions, zero learner updates and zero completed episodes.
+  The transition-rescaled schedule is removed. The implementation now uses the
+  pinned source vector-step cadence and 1000 replay rows per environment.
 - Run 1 training stays on ROS 11321/Gazebo 11355. Frozen SAC evaluation uses
   separate ROS 11323/Gazebo 11357 and the source ten-episode deterministic evaluator.
 
@@ -39,11 +38,16 @@ or resumed checkpoints.
 
 ## Next work
 
-1. Evaluate the frozen SAC checkpoint in a separate simulator, verifying zero
-   optimizer updates and unchanged actor weights.
-2. Run A6000 connected sampling, model/actor/critic updates and subsequent physics;
-   record real episode outcomes, terminal calibration and value diagnostics.
-3. Use measured returns, frozen-rollout decomposition and source-scale replay
-   accounting to assess the candidate before resuming long model-based training.
+1. Restore the pinned vector-step schedule and audit a full learner update against
+   the source. Check losses, gradients, critic sample order and parameter updates
+   with identical inputs and weights. Keep the task reward, thresholds and optimizers.
+2. Use the saved failed episodes and checkpoints to separate model prediction,
+   terminal probability and critic bootstrap errors. Diagnose with frozen inputs;
+   make one repair only when the corresponding failure is reproduced.
+3. Check the repaired connected model in physical episodes, then evaluate sustained
+   learning with a frozen policy and the original task metrics. Short numerical
+   checks establish implementation behavior; completed physical episodes establish
+   task outcomes.
+4. Complete frozen SAC evaluation cleanup independently of SuperMimic work.
 
 Implementation differences are in METHOD; commands and numbers are in RESULTS.

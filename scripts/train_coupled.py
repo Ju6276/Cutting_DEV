@@ -150,7 +150,7 @@ def run(args, env, output):
     wm_seconds, policy_seconds, physics_seconds = 0., 0., 0.
     executed_steps = 0
     try:
-        while schedule.source_iteration < schedule.config.total_iterations:
+        while schedule.iteration < schedule.config.total_iterations:
             if args.max_iterations is not None and executed_steps >= args.max_iterations:
                 status['state'] = 'completed'
                 break
@@ -180,8 +180,8 @@ def run(args, env, output):
             frame = next_frame
             state = next_state
             updates = schedule.after_environment_step() if not args.evaluate else 0
-            status.update(iteration=schedule.iteration, source_iteration=schedule.source_iteration,
-                          transitions=schedule.transitions, episode=episode, episode_step=len(actions),
+            status.update(iteration=schedule.iteration, transitions=schedule.transitions,
+                          episode=episode, episode_step=len(actions),
                           last_reward=reward, episode_return=float(sum(rewards)),
                           wall_seconds=time.monotonic() - start, phase='physics',
                           updates=learner.updates)
@@ -206,8 +206,8 @@ def run(args, env, output):
                 history = [frame['observation'].copy() for _ in range(policy.history)]
                 frames, actions, clean_actions, rewards, terms, truncs = [frame], [], [], [], [], []
                 episode_start = time.monotonic()
-            for source_step in schedule.update_source_iterations if not args.evaluate else []:
-                lr = cosine_lr(source_step, schedule.config.total_iterations,
+            for update_step in schedule.update_iterations if not args.evaluate else []:
+                lr = cosine_lr(update_step, schedule.config.total_iterations,
                                learner.wcfg.lr, schedule.config.lr_final_ratio, schedule.config.lr_decay_fraction)
                 learner.set_lr(lr)
                 status.update(phase='world_model', wall_seconds=time.monotonic() - start)
@@ -220,7 +220,7 @@ def run(args, env, output):
                 tick = time.monotonic()
                 pi_metrics = learner.improve_policy(replay.buffer)
                 policy_seconds += time.monotonic() - tick
-                record = {'iteration': schedule.iteration, 'source_iteration': source_step,
+                record = {'iteration': schedule.iteration, 'update_iteration': update_step,
                           'transitions': schedule.transitions, 'update': learner.updates,
                           'world_model': wm_metrics, 'policy': pi_metrics, 'lr': lr,
                           'wall_seconds': time.monotonic() - start,
@@ -229,7 +229,7 @@ def run(args, env, output):
                 append_json(output / 'updates.jsonl', record)
                 print(json.dumps(record), flush=True)
             if not args.evaluate and schedule.checkpoint_due:
-                checkpoint_model('checkpoint_%08d.pt' % schedule.source_iteration)
+                checkpoint_model('checkpoint_%08d.pt' % schedule.iteration)
         else:
             status['state'] = 'completed'
     except TimeoutError:
@@ -242,8 +242,7 @@ def run(args, env, output):
     finally:
         if not args.evaluate:
             checkpoint_model('last.pt')
-        status.update(iteration=schedule.iteration, source_iteration=schedule.source_iteration,
-                      transitions=schedule.transitions, updates=learner.updates,
+        status.update(iteration=schedule.iteration, transitions=schedule.transitions, updates=learner.updates,
                       wall_seconds=time.monotonic() - start)
         write_json(output / 'progress.json', status)
 

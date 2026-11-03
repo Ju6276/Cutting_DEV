@@ -31,7 +31,7 @@ def tracked_write(path, data):
             algorithm='SuperMimic-Reproduced',
             model_state=data.get('arguments', {}).get('model_state'),
             execution_budget_hours=data.get('arguments', {}).get('max_hours'),
-            source_iteration_endpoint=data.get('schedule', {}).get('total_iterations')), job_type='training')
+            iteration_endpoint=data.get('schedule', {}).get('total_iterations')), job_type='training')
         print(json.dumps({'wandb': tracker.info}), flush=True)
     elif path.name == 'progress.json' and tracker is not None:
         last_status = dict(data)
@@ -51,8 +51,8 @@ def tracked_append(path, data):
     if tracker is None:
         raise RuntimeError('Training metrics arrived before tracker initialization')
     values = {'iteration': data['iteration']}
-    if 'source_iteration' in data:
-        values['learning/source_iteration'] = data['source_iteration']
+    if 'update_iteration' in data:
+        values['learning/update_iteration'] = data['update_iteration']
     if path.name == 'steps.jsonl':
         values.update({'reward': data['last_reward'], 'reward/step': data['last_reward'],
                        'physics/reward_mean': data['last_reward'],

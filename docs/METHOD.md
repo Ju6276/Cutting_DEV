@@ -5,8 +5,8 @@ robot utilities `177cf21`; DiSECt `db7de0f`.
 
 | Module | Source design | Cutting implementation |
 |---|---|---|
-| Replay | Episode-aware ring, 4096 environments × 1000 rows, clean/executed actions, terminal row | Original ring with the same aggregate row budget, divided among the active worlds; capacity per world is ceil(4096000/worlds). Physical-transition counts exclude extra terminal rows. |
-| Schedule | Warmup 40 vector steps with 4096 environments; UTD 0.4 per vector step | One schedule step represents 4096 collected physical transitions. Warmup, learning rate, update credit and training endpoint share this unit; physical vector steps are logged separately. The previous single-world entry counted one transition as one source vector step. |
+| Replay | Episode-aware ring, 4096 environments × 1000 rows, clean/executed actions, terminal row | Original ring with 1000 rows per environment. Physical-transition counts exclude extra terminal rows. |
+| Schedule | Warmup 40 vector steps with 4096 environments; UTD 0.4 per vector step | Original vector-step cadence for every environment count: warmup 40, UTD 0.4, first update at step 42. LR, checkpoints and endpoint use vector steps; transition counts are telemetry. The collection regime differs when fewer environments are active. |
 | Terminal-label storage | Pinned recorder writes termination on both the last transition row and final state row; sampler reads the next state row | Cutting recorder labels only the reached terminal state, so a window marks the actual terminating transition once |
 | Objective | Survival-weighted 32-step return, terminal critic, GAE lambda 0.95 | Original objective and GAE functions; only their type-only import is changed |
 | Dynamics MLP | Three 2048-unit SiLU layers, zero final layer | Original source module with cutting StateSpec and connected trainer |
@@ -109,19 +109,20 @@ matching the rotation alone is insufficient for matching its velocity history.
 | Item | Existing source behavior | GPU collection |
 |---|---|---|
 | Physical backend | Gazebo/ROS robot and single DiSECt instance | MuJoCo Warp UR5e/FDCC plus packed DiSECt worlds; equations and source clocks retained, details in CuttingGpuBackend METHOD |
-| Replay and updates | 4096 worlds × 1000 rows; one source step collects 4096 transitions; 40-step warmup, UTD 0.4 | Per-world capacity is `ceil(4096000/worlds)`; schedule advances per 4096 cumulative transitions; asynchronous terminal rows and resets |
+| Replay and updates | 4096 worlds × 1000 rows; one source step collects 4096 transitions; 40-step warmup, UTD 0.4 | 1000 rows per world; schedule advances once per completed vector step; asynchronous terminal rows and resets |
 | Reset observation | Corrected ROS task returns an observation sampled after physical reset | GPU reset already uses the restored pose and zero derivative histories; the shared corrected reward head applies to physical steps and model imagination |
 | Wrench samples | Oldest three entries of a 25-entry sensor queue, appended at filter callbacks | Same queue ordering at the deterministic 500 Hz exchange; initialize queue from the reset sensor baseline |
 | Initial condition | ROS moves the arm to its start pose before resetting DiSECt | Restore the exported start and initialized controller/filter snapshot per world; shared public material configuration and prescribed cut topology |
 
 `train_gpu.py` uses the same `control_history_v2` candidate as the ROS entry and
 reuses OnlineLearner, policy/critic networks, objectives,
-learning rates, effective batches and the 320000-source-step schedule. Environment count
+learning rates, effective batches and the 320000-vector-step schedule. Environment count
 changes the number of physical transitions collected per vector step. It does
 not change the eight-step world-model loss or 32-step actor BPTT horizon.
 `--max-hours` and `--max-iterations` bound wall time and physical vector steps.
-LR, checkpoint cadence and source endpoint use cumulative transitions divided
-by 4096. Checkpoints persist that schedule state and reject legacy schedule data.
+LR, checkpoint cadence and endpoint use vector steps. Checkpoints record
+`vector_steps_v1` and the environment count. Resume refills replay with the source
+warmup; checkpoints using transition-rescaled schedule units require conversion.
 
 The GPU physical snapshot layout `coupled_recurrent_v1` has 8944 coordinates. It includes
 FDCC integration velocity/error/position-command history, cached tip pose, the

@@ -118,8 +118,7 @@ def run(args, output, status, started):
     signal.signal(signal.SIGINT, stop)
 
     def progress(**values):
-        status.update(values, source_iteration=schedule.source_iteration,
-                      transitions=schedule.transitions, wall_seconds=time.monotonic() - started)
+        status.update(values, transitions=schedule.transitions, wall_seconds=time.monotonic() - started)
         write_json(output / 'progress.json', status)
 
     def learner_progress(**values):
@@ -145,7 +144,7 @@ def run(args, output, status, started):
     timing = {'physics': 0., 'world_model': 0., 'policy': 0.}
     error = None
     try:
-        while schedule.source_iteration < schedule.config.total_iterations:
+        while schedule.iteration < schedule.config.total_iterations:
             if physical_limit is not None and schedule.iteration >= physical_limit:
                 status['state'] = 'completed'
                 break
@@ -191,8 +190,8 @@ def run(args, output, status, started):
                 episodes[ended] += 1
             progress(iteration=schedule.iteration,
                      episodes=int(episodes.sum()), replay_rows=replay.buffer.size)
-            for source_step in schedule.update_source_iterations:
-                lr = cosine_lr(source_step, schedule.config.total_iterations,
+            for update_step in schedule.update_iterations:
+                lr = cosine_lr(update_step, schedule.config.total_iterations,
                                learner.wcfg.lr, schedule.config.lr_final_ratio, schedule.config.lr_decay_fraction)
                 learner.set_lr(lr)
                 tick = time.monotonic()
@@ -205,7 +204,7 @@ def run(args, output, status, started):
                 metrics.update({'policy/' + k: v for k, v in policy_metrics.items()})
                 metrics['lr'] = lr
                 append_json(output / 'updates.jsonl', {
-                    'iteration': schedule.iteration, 'source_iteration': source_step,
+                    'iteration': schedule.iteration, 'update_iteration': update_step,
                     'transitions': schedule.transitions, 'update': learner.updates, 'lr': lr,
                     'world_model': wm_metrics, 'policy': policy_metrics, 'timing': dict(timing),
                     'peak_gpu_mib': torch.cuda.max_memory_allocated() / 2**20,
@@ -213,7 +212,7 @@ def run(args, output, status, started):
             progress(iteration=schedule.iteration, updates=learner.updates,
                      episodes=int(episodes.sum()),
                      replay_rows=replay.buffer.size, timing=dict(timing))
-            metrics.update({'updates': learner.updates, 'source_iteration': schedule.source_iteration,
+            metrics.update({'updates': learner.updates,
                             'physics/transitions': schedule.transitions,
                             'episodes': int(episodes.sum()), 'replay/rows': replay.buffer.size,
                             'gpu/torch_peak_mib': torch.cuda.max_memory_allocated() / 2**20,
@@ -223,7 +222,7 @@ def run(args, output, status, started):
             append_json(output / 'steps.jsonl', dict(status))
             print(json.dumps(status), flush=True)
             if schedule.checkpoint_due:
-                checkpoint('checkpoint_%08d.pt' % schedule.source_iteration)
+                checkpoint('checkpoint_%08d.pt' % schedule.iteration)
         else:
             status['state'] = 'completed'
     except TimeoutError:
