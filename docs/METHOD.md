@@ -63,6 +63,33 @@ reset-first transitions, held-out full episodes, force-limit termination and
 8/32-step predictions; model gradients are checked independently of physical
 policy success. No learned latent state or recurrent network is added.
 
+## World-model-first training
+
+The user-selected startup stage follows ndm-gym `0171f5e`:
+[train.py](https://github.com/Frank-ZY-Dou/ndm-gym/blob/0171f5eadee50492d6ff30fa04b55e16cc11b61e/ndm_gym/train.py)
+uses 500 world-model-only iterations before policy/critic updates. Cutting uses
+`--wm-only-updates 500`: each completed iteration fits 10 batches of 2048
+eight-step windows. Updates 1–500 train the world model, including its learned
+termination head; update 501 also starts policy and critic training. The frozen
+initial policy plus the existing 0.1 action noise continues collecting data.
+The change addresses policy optimization through an insufficiently fitted
+predictor; its effect is measured by force/terminal errors and physical episodes.
+
+Cuboi's vector-step collection schedule remains warmup 40 and UTD 0.4, replay
+1000 rows per world, with the same loss, effective batches, learning rates,
+networks, reward and physical thresholds. NDM uses 64 initial collection steps
+and indexes its LR by learner iteration; those changes are not adopted. The
+500-update stage adds 5000 world-model optimizer steps before policy learning.
+At this cadence, WM-only finishes at vector step 1289 and the first joint update
+occurs at 1292. Environment count does not rescale either counter.
+
+Checkpoints store completed WM rounds, policy rounds, actual Adam step counts,
+stage length and training configuration. Resuming refills replay while retaining
+these counters. `--wm-only-updates 0` selects the original immediate joint-update
+behavior. Frozen evaluation loads model weights independently of training-stage
+metadata. Analytic soft termination and RunningNorm remain separate method
+choices; the candidate retains the Cuboi learned head and static input scales.
+
 ## Connected trainer mapping
 
 The connected candidate keeps the source MLP, eight-step autoregressive loss

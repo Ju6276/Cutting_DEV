@@ -15,6 +15,7 @@ import torch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from cutting_world_model.coupled_env import CoupledEnvironment
 from cutting_world_model.kinematics import pose_difference
+from cutting_world_model.lifecycle import finalize_training
 from cutting_world_model.online_replay import OnlineReplay
 from cutting_world_model.online_schedule import OnlineSchedule
 from cutting_world_model.policy import SliceItPolicy, SliceItCritic
@@ -37,6 +38,19 @@ def append_json(path, data):
         output.write(json.dumps(data) + '\n')
 
 
+def learning_status(learner):
+    return {'training_stage': learner.stage,
+            'wm_only_updates': learner.wm_only_updates,
+            'wm_updates': learner.wm_updates,
+            'policy_updates': learner.updates,
+            'optimizer_steps': learner.optimizer_steps}
+
+
+def finalize_coupled_run(save, record, status):
+    return finalize_training(save=save, record=record, finish=lambda: None,
+                             close=lambda: None, state=status)
+
+
 def save_episode(path, frames, actions, clean_actions, rewards, terminated, truncated):
     data = {key: np.asarray([frame[key] for frame in frames]) for key in frames[0]}
     data.update(actions=np.asarray(actions), clean_actions=np.asarray(clean_actions),
@@ -52,6 +66,8 @@ def main():
     parser.add_argument('--output', required=True)
     parser.add_argument('--device', default='cuda:0')
     parser.add_argument('--microbatch', type=int, default=64)
+    parser.add_argument('--wm-only-updates', type=int, default=500,
+                        help='Completed world-model rounds before policy/critic updates')
     parser.add_argument('--max-hours', type=float, default=6.)
     parser.add_argument('--max-iterations', type=int)
     parser.add_argument('--seed', type=int, default=0)
@@ -60,6 +76,8 @@ def main():
     parser.add_argument('--evaluate', action='store_true')
     parser.add_argument('--eval-episodes', type=int, default=5)
     args = parser.parse_args(rospy.myargv()[1:])
+    if args.wm_only_updates < 0:
+        parser.error("--wm-only-updates must be nonnegative")
     output = Path(args.output).resolve()
     output.mkdir(parents=True, exist_ok=False)
     torch.set_num_threads(2)
@@ -75,10 +93,40 @@ def main():
     signal.signal(signal.SIGTERM, interrupt_setup)
     signal.signal(signal.SIGINT, interrupt_setup)
     env = CoupledEnvironment(args.config)
+    started = time.monotonic()
+    primary_error = None
     try:
         run(args, env, output)
+    except BaseException as error:
+        primary_error = error
+        raise
     finally:
-        env.close()
+        close_error = None
+        try:
+            shutdown = env.close()
+        except BaseException as error:
+            close_error = error
+            shutdown = getattr(error, 'results', repr(error))
+        try:
+            path = output / 'progress.json'
+            status = (json.loads(path.read_text()) if path.exists() else
+                      {'state': 'completed', 'iteration': 0, 'updates': 0,
+                       'wall_seconds': time.monotonic() - started})
+            status['shutdown'] = shutdown
+            if primary_error is not None:
+                status['state'] = 'failed'
+                status.setdefault('error', repr(primary_error))
+            if close_error is not None:
+                status['state'] = 'failed'
+                status.setdefault('cleanup_errors', []).append(
+                    {'stage': 'close', 'error': repr(close_error)})
+            write_json(path, status)
+        except BaseException as error:
+            if primary_error is None and close_error is None:
+                raise
+            print('Final status write failed: ' + repr(error), file=sys.stderr)
+        if primary_error is None and close_error is not None:
+            raise close_error
 
 
 def run(args, env, output):
@@ -90,13 +138,18 @@ def run(args, env, output):
     spec = wm.spec
     policy = SliceItPolicy().to(args.device)
     critic = SliceItCritic(spec.state_dim).to(args.device)
-    learner = OnlineLearner(wm, policy, critic, args.microbatch)
+    learner = OnlineLearner(wm, policy, critic, args.microbatch,
+                            wm_only_updates=args.wm_only_updates)
     schedule = OnlineSchedule(worlds=1)
     if args.resume:
         saved = torch.load(args.resume, map_location=args.device, weights_only=False)
         if saved['metadata'] != metadata:
             raise ValueError('Resume task/geometry differs from checkpoint')
-        learner.restore(saved['learner'])
+        if args.evaluate:
+            for name, model in (('world_model', wm), ('policy', policy), ('critic', critic)):
+                model.load_state_dict(saved['learner'][name])
+        else:
+            learner.restore(saved['learner'])
         if not args.evaluate:
             schedule = OnlineSchedule.resume(saved.get('schedule', {}), worlds=1)
         torch.set_rng_state(saved['torch_rng'].cpu())
@@ -118,10 +171,12 @@ def run(args, env, output):
                 'arguments': vars(args), 'world_model': asdict(learner.wcfg),
                 'policy': asdict(learner.pcfg), 'schedule': asdict(schedule.config),
                 'schedule_units': schedule.state_dict(),
+                'training_stage': learning_status(learner),
                 'environment': env.environment, 'controller': env.controller,
                 'feedback_graph': env.feedback_graph}
     write_json(output / 'manifest.json', manifest)
-    status = {'state': 'running', 'iteration': schedule.iteration, 'updates': learner.updates}
+    status = {'state': 'running', 'iteration': schedule.iteration, 'updates': learner.updates,
+              **learning_status(learner)}
 
     def checkpoint_model(name):
         path = output / name
@@ -138,7 +193,8 @@ def run(args, env, output):
             raise InterruptedError('Training stop requested')
         if time.monotonic() - start >= args.max_hours * 3600:
             raise TimeoutError('Training time budget reached')
-        status.update(values, wall_seconds=time.monotonic() - start)
+        status.update(values, updates=learner.updates, **learning_status(learner),
+                      wall_seconds=time.monotonic() - start)
         write_json(output / 'progress.json', status)
 
     learner.progress = learner_progress
@@ -149,6 +205,7 @@ def run(args, env, output):
     episode_start = time.monotonic()
     wm_seconds, policy_seconds, physics_seconds = 0., 0., 0.
     executed_steps = 0
+    primary_error = None
     try:
         while schedule.iteration < schedule.config.total_iterations:
             if args.max_iterations is not None and executed_steps >= args.max_iterations:
@@ -179,12 +236,13 @@ def run(args, env, output):
             history = history[1:] + [next_frame['observation'].copy()]
             frame = next_frame
             state = next_state
-            updates = schedule.after_environment_step() if not args.evaluate else 0
+            if not args.evaluate:
+                schedule.after_environment_step()
             status.update(iteration=schedule.iteration, transitions=schedule.transitions,
                           episode=episode, episode_step=len(actions),
                           last_reward=reward, episode_return=float(sum(rewards)),
                           wall_seconds=time.monotonic() - start, phase='physics',
-                          updates=learner.updates)
+                          updates=learner.updates, **learning_status(learner))
             write_json(output / 'progress.json', status)
             append_json(output / 'steps.jsonl', dict(status))
             print(json.dumps(status), flush=True)
@@ -215,19 +273,26 @@ def run(args, env, output):
                 tick = time.monotonic()
                 wm_metrics = learner.fit_world_model(replay.buffer)
                 wm_seconds += time.monotonic() - tick
-                status.update(phase='policy', wall_seconds=time.monotonic() - start)
-                write_json(output / 'progress.json', status)
-                tick = time.monotonic()
-                pi_metrics = learner.improve_policy(replay.buffer)
-                policy_seconds += time.monotonic() - tick
+                pi_metrics = {}
+                if learner.should_update_policy:
+                    learner_progress(phase='policy')
+                    tick = time.monotonic()
+                    pi_metrics = learner.improve_policy(replay.buffer)
+                    policy_seconds += time.monotonic() - tick
+                learner_progress(phase='physics')
                 record = {'iteration': schedule.iteration, 'update_iteration': update_step,
                           'transitions': schedule.transitions, 'update': learner.updates,
+                          **learning_status(learner),
                           'world_model': wm_metrics, 'policy': pi_metrics, 'lr': lr,
                           'wall_seconds': time.monotonic() - start,
                           'timing': {'physics': physics_seconds, 'world_model': wm_seconds, 'policy': policy_seconds},
                           'peak_gpu_mib': torch.cuda.max_memory_allocated() / 2**20}
                 append_json(output / 'updates.jsonl', record)
                 print(json.dumps(record), flush=True)
+                if learner.wm_only_updates and learner.wm_updates == learner.wm_only_updates:
+                    checkpoint_model('wm_only_complete.pt')
+                elif learner.wm_only_updates and learner.updates == 1:
+                    checkpoint_model('first_joint_update.pt')
             if not args.evaluate and schedule.checkpoint_due:
                 checkpoint_model('checkpoint_%08d.pt' % schedule.iteration)
         else:
@@ -237,14 +302,22 @@ def run(args, env, output):
     except InterruptedError:
         status['state'] = 'interrupted'
     except BaseException as error:
+        primary_error = error
         status.update(state='failed', error=repr(error))
         raise
     finally:
-        if not args.evaluate:
-            checkpoint_model('last.pt')
-        status.update(iteration=schedule.iteration, transitions=schedule.transitions, updates=learner.updates,
-                      wall_seconds=time.monotonic() - start)
-        write_json(output / 'progress.json', status)
+        def record_final():
+            status.update(iteration=schedule.iteration, transitions=schedule.transitions,
+                          updates=learner.updates, **learning_status(learner),
+                          wall_seconds=time.monotonic() - start)
+            write_json(output / 'progress.json', status)
+
+        errors = finalize_coupled_run(
+            save=lambda: checkpoint_model('last.pt') if not args.evaluate else None,
+            record=record_final, status=status)
+        if errors and primary_error is None:
+            raise RuntimeError('Training finalization failed: ' + repr(errors))
+
 
 
 if __name__ == '__main__':

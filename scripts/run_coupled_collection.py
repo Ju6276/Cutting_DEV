@@ -20,9 +20,12 @@ def main():
     parser.add_argument("--max-hours", type=float, default=6.)
     parser.add_argument("--max-iterations", type=int)
     parser.add_argument("--microbatch", type=int, default=64)
+    parser.add_argument("--wm-only-updates", type=int, default=500)
     parser.add_argument("--resume")
     parser.add_argument("--model-state", choices=("native", "control-history"), default="control-history")
     args = parser.parse_args()
+    if args.wm_only_updates < 0:
+        parser.error("--wm-only-updates must be nonnegative")
     root = Path(__file__).resolve().parents[1]
     sliceit = Path(args.sliceit_root).resolve()
     output = Path(args.output).resolve()
@@ -97,7 +100,8 @@ def main():
         else:
             entry = 'train_coupled_tracked.py' if args.mode == 'train' else 'train_coupled.py'
             worker = ["python", "-u", str(root / 'scripts' / entry),
-                      "--max-hours", str(args.max_hours), "--microbatch", str(args.microbatch)]
+                      "--max-hours", str(args.max_hours), "--microbatch", str(args.microbatch),
+                      "--wm-only-updates", str(args.wm_only_updates)]
             if args.max_iterations is not None:
                 worker += ["--max-iterations", str(args.max_iterations)]
             worker += ["--model-state", args.model_state]

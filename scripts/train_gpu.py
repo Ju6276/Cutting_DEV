@@ -22,7 +22,7 @@ from cutting_world_model.trainer import OnlineLearner
 from cutting_world_model.tracking import ExperimentTracker
 from cutting_world_model.world_model import CuttingWorldModel
 from third_party.supermimic.schedule import cosine_lr
-from train_coupled import write_json, append_json
+from train_coupled import write_json, append_json, learning_status
 
 
 def finalize_gpu_run(checkpoint, progress, tracker, output, status, iteration, updates):
@@ -40,6 +40,8 @@ def main():
     parser.add_argument('--worlds', type=int, default=16)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--microbatch', type=int, default=64)
+    parser.add_argument('--wm-only-updates', type=int, default=500,
+                        help='Completed world-model rounds before policy/critic updates')
     parser.add_argument('--max-hours', type=float, default=6.)
     parser.add_argument('--max-iterations', type=int)
     parser.add_argument('--seed', type=int, default=0)
@@ -48,6 +50,8 @@ def main():
     parser.add_argument('--wandb-entity')
     parser.add_argument('--wandb-mode', choices=('online', 'offline', 'disabled'), default='online')
     args = parser.parse_args()
+    if args.wm_only_updates < 0:
+        parser.error("--wm-only-updates must be nonnegative")
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     started = time.monotonic()
@@ -78,7 +82,8 @@ def run(args, output, status, started):
     spec = wm.spec
     policy = SliceItPolicy().to(device)
     critic = SliceItCritic(spec.state_dim).to(device)
-    learner = OnlineLearner(wm, policy, critic, args.microbatch)
+    learner = OnlineLearner(wm, policy, critic, args.microbatch,
+                            wm_only_updates=args.wm_only_updates)
     schedule = OnlineSchedule(worlds=args.worlds)
     if args.resume:
         saved = torch.load(args.resume, map_location=device, weights_only=False)
@@ -101,7 +106,8 @@ def run(args, output, status, started):
         'git': revisions, 'command': sys.argv,
         'arguments': {k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()},
         'world_model': asdict(learner.wcfg), 'policy': asdict(learner.pcfg),
-        'schedule': asdict(schedule.config), 'endpoint': 'wall budget or iteration budget',
+        'schedule': asdict(schedule.config), 'training_stage': learning_status(learner),
+        'endpoint': 'wall budget or iteration budget',
         'timeout': 'SIGTERM saves last.pt and progress.json',
         'state_dim': spec.state_dim, 'delta_dim': spec.delta_dim,
         'replay_capacity_per_world': schedule.replay_capacity,
@@ -118,7 +124,8 @@ def run(args, output, status, started):
     signal.signal(signal.SIGINT, stop)
 
     def progress(**values):
-        status.update(values, transitions=schedule.transitions, wall_seconds=time.monotonic() - started)
+        status.update(values, **learning_status(learner), transitions=schedule.transitions,
+                      wall_seconds=time.monotonic() - started)
         write_json(output / 'progress.json', status)
 
     def learner_progress(**values):
@@ -197,27 +204,39 @@ def run(args, output, status, started):
                 tick = time.monotonic()
                 wm_metrics = learner.fit_world_model(replay.buffer)
                 timing['world_model'] += time.monotonic() - tick
-                tick = time.monotonic()
-                policy_metrics = learner.improve_policy(replay.buffer)
-                timing['policy'] += time.monotonic() - tick
+                policy_metrics = {}
+                if learner.should_update_policy:
+                    tick = time.monotonic()
+                    policy_metrics = learner.improve_policy(replay.buffer)
+                    timing['policy'] += time.monotonic() - tick
                 metrics.update({'wm/' + k: v for k, v in wm_metrics.items()})
                 metrics.update({'policy/' + k: v for k, v in policy_metrics.items()})
                 metrics['lr'] = lr
                 append_json(output / 'updates.jsonl', {
                     'iteration': schedule.iteration, 'update_iteration': update_step,
                     'transitions': schedule.transitions, 'update': learner.updates, 'lr': lr,
+                    **learning_status(learner),
                     'world_model': wm_metrics, 'policy': policy_metrics, 'timing': dict(timing),
                     'peak_gpu_mib': torch.cuda.max_memory_allocated() / 2**20,
                 })
+                if learner.wm_only_updates and learner.wm_updates == learner.wm_only_updates:
+                    checkpoint('wm_only_complete.pt')
+                elif learner.wm_only_updates and learner.updates == 1:
+                    checkpoint('first_joint_update.pt')
             progress(iteration=schedule.iteration, updates=learner.updates,
                      episodes=int(episodes.sum()),
                      replay_rows=replay.buffer.size, timing=dict(timing))
             metrics.update({'updates': learner.updates,
+                            'learning/wm_updates': learner.wm_updates,
+                            'learning/policy_updates': learner.updates,
+                            'learning/stage': learner.stage,
+                            'learning/wm_only_updates': learner.wm_only_updates,
                             'physics/transitions': schedule.transitions,
                             'episodes': int(episodes.sum()), 'replay/rows': replay.buffer.size,
                             'gpu/torch_peak_mib': torch.cuda.max_memory_allocated() / 2**20,
                             'wall_seconds': time.monotonic() - started})
             metrics.update({'time/' + k: v for k, v in timing.items()})
+            metrics.update({'optimizer/' + k + '_steps': v for k, v in learner.optimizer_steps.items()})
             tracker.log(metrics)
             append_json(output / 'steps.jsonl', dict(status))
             print(json.dumps(status), flush=True)

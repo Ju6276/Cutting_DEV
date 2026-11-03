@@ -11,6 +11,9 @@ The GPU collector includes controller/filter recurrence for world-model training
 
 The trainer collects physical transitions, fits an eight-step world model and
 updates the actor through 32-step imagined trajectories with a GAE critic.
+The first 500 completed world-model rounds train dynamics and termination only;
+policy and critic updates begin with round 501. This startup stage follows
+ndm-gym; `--wm-only-updates 0` selects the original immediate joint updates.
 It uses the source effective batches (2048/4096), learning rates, update ratio,
 network widths and gradient clipping. Microbatches control memory use.
 The Gazebo entry collects one physical environment. The GPU entry batches
@@ -36,18 +39,25 @@ export WANDB_CONFIG_DIR=/dataHDD/dong/.config/wandb
 export WANDB_CACHE_DIR=/dataHDD/dong/.cache/wandb
 export WANDB_DATA_DIR=/dataHDD/dong/.cache/wandb-data
 .venv/bin/python scripts/train_gpu.py --backend-root ../CuttingGpuBackend \
-  --worlds 16 --max-hours 6 --output runs/gpu_training
+  --worlds 1024 --wm-only-updates 500 --max-hours 24 --output runs/gpu_training
 ```
 
 Online W&B is enabled by default (`--wandb-project sliceit-supermimic`);
 `wandb.json` records the run URL. The existing authenticated account supplies the
-entity, or set `--wandb-entity`. Final checkpoints are uploaded as model artifacts.
+entity, or set `--wandb-entity`. Final checkpoints are uploaded as model artifacts. W&B records
+`learning/wm_updates`, `learning/policy_updates`, the training stage and actual
+optimizer steps separately; policy updates remain zero during model preparation.
 
 `--max-iterations` bounds a smoke run without changing the learning-rate
 schedule. `--resume RUN/last.pt` restores learner/optimizer state and refills
-replay with the source warmup. Each environment has independent episode rows,
+replay with the source warmup. Stage configuration and completed WM rounds are
+restored; changing the stage length on resume is rejected. Each environment has independent episode rows,
 controller/filter history, material damage and selective reset. Logs are
 `progress.json`, `steps.jsonl`, `episodes.jsonl`, `updates.jsonl` and `last.pt`.
+`wm_only_complete.pt` stores the 500-round boundary; `first_joint_update.pt`
+stores the first completed policy/critic update. At the measured 1024-world
+throughput, collection to this boundary alone takes about 7.5 hours; model fitting
+adds to that time.
 
 For complete-task throughput, run `scripts/benchmark_gpu_env.py
 --backend-root ../CuttingGpuBackend --worlds 16 --output runs/gpu_cut_16`.
@@ -111,7 +121,8 @@ counts completed vector steps, with source warmup 40 and UTD 0.4: first updates
 occur at steps 42, 44, 47 and 49 for any environment count. Replay holds 1000 rows
 per environment. Changing the world count changes the amount of newly collected
 data per update. Runs 2 and 3 are stopped while the critic divergence is investigated;
-current work and experiment results are in PLAN and RESULTS.
+current work and experiment results are in PLAN and RESULTS. The next candidate
+uses model preparation with fresh weights and the same physical task.
 
 Tests: `PYTHONPATH=. .venv/bin/python -m pytest tests -q`. GPU integration
 checks additionally use `CUTTING_BACKEND_ROOT=/dataHDD/dong/Projects/CuttingGpuBackend`

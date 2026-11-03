@@ -1,5 +1,6 @@
 """SuperMimic world-model and BPTT/GAE updates with effective-batch accumulation."""
 # Adapted from SuperMimic-Reproduced ba610534; MIT, third_party/supermimic/LICENSE.
+from dataclasses import asdict
 from types import SimpleNamespace
 
 import torch
@@ -19,8 +20,15 @@ def finite_gradient_norm(parameters, maximum):
     return torch.nn.utils.clip_grad_norm_(parameters, maximum, error_if_nonfinite=True)
 
 
+def optimizer_step_count(states):
+    return max((int(state['step']) for state in states.values() if 'step' in state), default=0)
+
+
 class OnlineLearner:
-    def __init__(self, wm, policy, critic, microbatch=64, wm_cfg=None, policy_cfg=None):
+    def __init__(self, wm, policy, critic, microbatch=64, wm_cfg=None, policy_cfg=None,
+                 wm_only_updates=500):
+        if type(wm_only_updates) is not int or wm_only_updates < 0:
+            raise ValueError('wm_only_updates must be a nonnegative integer')
         self.wm, self.policy, self.critic = wm, policy, critic
         self.microbatch = microbatch
         self.wcfg, self.pcfg = wm_cfg or WMTrainerCfg(), policy_cfg or PolicyTrainerCfg()
@@ -28,8 +36,24 @@ class OnlineLearner:
         self.popt = torch.optim.Adam(policy.parameters(), lr=self.pcfg.lr, betas=self.pcfg.betas)
         self.copt = torch.optim.Adam(critic.parameters(), lr=self.pcfg.critic_lr)
         wm.enable_compile(self.wcfg.compile)
+        self.wm_only_updates = wm_only_updates
+        self.wm_updates = 0
         self.updates = 0
         self.progress = lambda **values: None
+
+    @property
+    def should_update_policy(self):
+        return self.wm_only_updates == 0 or self.wm_updates > self.wm_only_updates
+
+    @property
+    def stage(self):
+        return 'joint' if self.should_update_policy else 'world_model_only'
+
+    @property
+    def optimizer_steps(self):
+        return {name: optimizer_step_count(optimizer.state)
+                for name, optimizer in (('world_model', self.wopt),
+                                        ('policy', self.popt), ('critic', self.copt))}
 
     def set_lr(self, lr):
         for optimizer in (self.wopt, self.popt, self.copt):
@@ -56,7 +80,9 @@ class OnlineLearner:
             gn = finite_gradient_norm(self.wm.parameters(), cfg.grad_clip)
             self.wopt.step()
             aggregate['grad_norm'] = aggregate.get('grad_norm', 0.) + gn.detach() / cfg.batches_per_update
-        return {key: float(value) for key, value in aggregate.items()}
+        metrics = {key: float(value) for key, value in aggregate.items()}
+        self.wm_updates += 1
+        return metrics
 
     def imagine(self, state, history_states, goal):
         spec, cfg = self.wm.spec, self.pcfg
@@ -83,6 +109,8 @@ class OnlineLearner:
         return self.critic(self.wm.spec.canonical(states), goal, error)
 
     def improve_policy(self, buffer):
+        if not self.should_update_policy:
+            raise RuntimeError('Policy updates require completion of the world-model-only stage')
         cfg = self.pcfg
         starts = buffer.sample_starts(cfg.batch_size, cfg.history)
         self.wm.requires_grad_(False)
@@ -177,10 +205,51 @@ class OnlineLearner:
         return {'world_model': self.wm.state_dict(), 'policy': self.policy.state_dict(),
                 'critic': self.critic.state_dict(), 'wm_optimizer': self.wopt.state_dict(),
                 'policy_optimizer': self.popt.state_dict(), 'critic_optimizer': self.copt.state_dict(),
-                'updates': self.updates}
+                'updates': self.updates,
+                'training_stage': {'wm_only_updates': self.wm_only_updates,
+                                   'wm_updates': self.wm_updates,
+                                   'optimizer_steps': self.optimizer_steps,
+                                   'world_model_config': asdict(self.wcfg),
+                                   'policy_config': asdict(self.pcfg)}}
 
     def restore(self, data):
+        stage = data.get('training_stage')
+        if not isinstance(stage, dict):
+            raise ValueError('Checkpoint lacks training-stage configuration and counts')
+        for name in ('wm_only_updates', 'wm_updates'):
+            if type(stage.get(name)) is not int or stage[name] < 0:
+                raise ValueError('Checkpoint ' + name + ' must be a nonnegative integer')
+        if stage['wm_only_updates'] != self.wm_only_updates:
+            raise ValueError('Checkpoint world-model-only configuration differs')
+        if (stage.get('world_model_config') != asdict(self.wcfg)
+                or stage.get('policy_config') != asdict(self.pcfg)):
+            raise ValueError('Checkpoint trainer configuration differs')
+        optimizer_steps = stage.get('optimizer_steps')
+        if not isinstance(optimizer_steps, dict):
+            raise ValueError('Checkpoint lacks optimizer step counts')
+        for name, key in (('world_model', 'wm_optimizer'), ('policy', 'policy_optimizer'),
+                          ('critic', 'critic_optimizer')):
+            count = optimizer_steps.get(name)
+            if (type(count) is not int or count < 0
+                    or count != optimizer_step_count(data[key]['state'])):
+                raise ValueError('Checkpoint optimizer step count differs: ' + name)
+        if type(data.get('updates')) is not int or data['updates'] < 0:
+            raise ValueError('Checkpoint policy updates must be a nonnegative integer')
+        if optimizer_steps['world_model'] < stage['wm_updates'] * self.wcfg.batches_per_update:
+            raise ValueError('Checkpoint completed world-model updates exceed optimizer steps')
+        if optimizer_steps['policy'] < data['updates']:
+            raise ValueError('Checkpoint completed policy updates exceed optimizer steps')
+        critic_steps = data['updates'] * self.pcfg.critic_epochs * self.pcfg.critic_minibatches
+        if self.pcfg.use_critic and optimizer_steps['critic'] < critic_steps:
+            raise ValueError('Checkpoint completed critic updates exceed optimizer steps')
+        if (self.wm_only_updates > 0 and data['updates'] > 0
+                and stage['wm_updates'] <= self.wm_only_updates):
+            raise ValueError('Checkpoint policy updates precede the joint training stage')
+        if (self.wm_only_updates > 0 and stage['wm_updates'] <= self.wm_only_updates
+                and (optimizer_steps['policy'] > 0 or optimizer_steps['critic'] > 0)):
+            raise ValueError('Checkpoint policy or critic optimizer steps precede the joint training stage')
         for key, module in [('world_model', self.wm), ('policy', self.policy), ('critic', self.critic),
                             ('wm_optimizer', self.wopt), ('policy_optimizer', self.popt), ('critic_optimizer', self.copt)]:
             module.load_state_dict(data[key])
+        self.wm_updates = stage['wm_updates']
         self.updates = data['updates']

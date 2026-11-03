@@ -42,7 +42,18 @@ def tracked_write(path, data):
         for name in ('minibatch', 'minibatches', 'samples', 'batch_size', 'epoch', 'epochs'):
             if name in data:
                 values['runtime/' + name] = data[name]
+        values.update(learning_metrics(data))
         tracker.log(values)
+
+
+def learning_metrics(data):
+    values = {}
+    for key in ('wm_updates', 'policy_updates', 'wm_only_updates', 'training_stage'):
+        if key in data:
+            values['learning/' + key] = data[key]
+    for key, value in data.get('optimizer_steps', {}).items():
+        values['optimizer/' + key + '_steps'] = value
+    return values
 
 
 def tracked_append(path, data):
@@ -75,6 +86,7 @@ def tracked_append(path, data):
                        'runtime/peak_gpu_mib': data['peak_gpu_mib']})
         for group in ('world_model', 'policy', 'timing'):
             values.update({group + '/' + key: value for key, value in data[group].items()})
+    values.update(learning_metrics(data))
     tracker.log(values)
 
 

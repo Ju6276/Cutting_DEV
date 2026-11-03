@@ -59,7 +59,7 @@ def test_connected_update_changes_weights_and_restores_gradient_flags():
 
     policy = TinyPolicy()
     critic = SliceItCritic(wm.spec.state_dim)
-    learner = OnlineLearner(wm, policy, critic, microbatch=2,
+    learner = OnlineLearner(wm, policy, critic, microbatch=2, wm_only_updates=0,
         wm_cfg=WMTrainerCfg(compile=None, window=3, batch_size=4, batches_per_update=1),
         policy_cfg=PolicyTrainerCfg(compile=None, horizon=3, batch_size=4, critic_epochs=1, critic_minibatches=2))
     before_wm = [p.detach().clone() for p in wm.parameters()]
@@ -111,9 +111,10 @@ def test_policy_and_critic_microbatches_match_full_effective_batch(critic_miniba
     critic = SliceItCritic(wm.spec.state_dim)
     config = PolicyTrainerCfg(compile=None, horizon=3, batch_size=8,
                               critic_epochs=2, critic_minibatches=critic_minibatches)
-    full = OnlineLearner(wm, policy, critic, microbatch=8,
+    full = OnlineLearner(wm, policy, critic, microbatch=8, wm_only_updates=0,
                          wm_cfg=WMTrainerCfg(compile=None), policy_cfg=config)
     split = OnlineLearner(deepcopy(wm), deepcopy(policy), deepcopy(critic), microbatch=3,
+                          wm_only_updates=0,
                           wm_cfg=WMTrainerCfg(compile=None), policy_cfg=config)
     torch.manual_seed(20)
     full_metrics = full.improve_policy(fixed_buffer)
