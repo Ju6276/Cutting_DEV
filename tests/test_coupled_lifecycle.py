@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from cutting_world_model.coupled_env import CoupledEnvironment
+from cutting_world_model.lifecycle import ShutdownError
 
 
 @pytest.mark.parametrize('failure', ['mode', 'snapshot_service'])
@@ -56,6 +57,55 @@ def test_close_allows_source_controller_shutdown_tick(stepped):
     coupled.env = SimpleNamespace(unwrapped=base, close=close)
     coupled.close()
     assert physics['closed']
+
+
+@pytest.mark.parametrize('fail_unpause, fail_close', [(True, False), (False, True), (True, True)])
+def test_close_attempts_both_operations_and_reports_failures(fail_unpause, fail_close):
+    events = []
+
+    def unpause():
+        events.append('unpause')
+        if fail_unpause:
+            raise RuntimeError('Gazebo unavailable')
+
+    def close():
+        events.append('close')
+        if fail_close:
+            raise RuntimeError('Controller shutdown failed')
+
+    base = SimpleNamespace(use_step_control=True,
+                           robot_connection=SimpleNamespace(unpause=unpause))
+    coupled = CoupledEnvironment.__new__(CoupledEnvironment)
+    coupled.env = SimpleNamespace(unwrapped=base, close=close)
+    with pytest.raises(ShutdownError) as captured:
+        coupled.close()
+    assert events == ['unpause', 'close']
+    results = captured.value.results
+    assert results['unpause']['state'] == ('error' if fail_unpause else 'ok')
+    assert results['close']['state'] == ('error' if fail_close else 'ok')
+
+
+def test_close_reaches_environment_close_when_unpause_blocks(monkeypatch):
+    import threading
+    from cutting_world_model import coupled_env
+    from cutting_world_model.lifecycle import close_environment
+
+    release = threading.Event()
+    closed = threading.Event()
+    base = SimpleNamespace(use_step_control=True,
+                           robot_connection=SimpleNamespace(unpause=release.wait))
+    coupled = CoupledEnvironment.__new__(CoupledEnvironment)
+    coupled.env = SimpleNamespace(unwrapped=base, close=closed.set)
+    monkeypatch.setattr(coupled_env, 'close_environment',
+                        lambda env: close_environment(env, timeout=.02))
+    try:
+        with pytest.raises(ShutdownError) as captured:
+            coupled.close()
+        assert captured.value.results['unpause']['state'] == 'timeout'
+        assert captured.value.results['close']['state'] == 'ok'
+        assert closed.is_set()
+    finally:
+        release.set()
 
 
 def test_training_setup_error_closes_constructed_environment(monkeypatch, tmp_path):

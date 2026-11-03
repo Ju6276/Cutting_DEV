@@ -87,6 +87,20 @@ The command trains the world model; connected policy evaluation follows separate
 
 ## Interface checks
 
+Tracked SAC uses `scripts/train_sac.py --sliceit-root SLICEIT --output RUN`
+followed by the original SAC arguments (`-e 3 --config CONFIG --logdir LOGDIR`).
+The run launcher supplies `RUN/run_config.json` and the SliceIt ROS environment.
+`scripts/run_sac_training.py --sliceit-root SLICEIT --output RUN` launches and
+supervises its Gazebo, DiSECt and tracked trainer, returning nonzero on failure.
+SAC's source `--model-dir` restores weights, optimizer state and replay; its
+session counters and warmup restart. Copy checkpoint/replay into the new run's
+restore directory because the source trainer writes replay back there.
+The entry saves checkpoint/replay, closes ROS with bounded remote calls, writes
+final status and finishes W&B independently. Coupled `--mode train` uses
+`scripts/train_coupled_tracked.py` for the same W&B finalization. `scripts/guard_training_exit.py
+--config RUN/guard_config.json` cleans up run-owned processes if the supervisor
+exits; process identity and the unique run environment are checked before signaling.
+
 Run the supervisor with `--mode collect --episodes 1 --wall-seconds 600`.
 Then run `scripts/check_task_interface.py --dataset RUN/data` and
 `scripts/check_state_interface.py --dataset RUN/data` to compare recorded

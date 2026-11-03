@@ -7,6 +7,7 @@ import numpy as np
 from .observation_recording import ObservationRecorder
 from .native_state import NativeStateRecorder, NATIVE_STATE_LAYOUT
 from .feedback_wiring import verify_feedback_graph
+from .lifecycle import close_environment
 from .task_heads import TASK_INTERFACE_REVISION
 
 
@@ -130,7 +131,4 @@ class CoupledEnvironment:
         return self.recorder.read(obs), float(reward), bool(done and not truncated), truncated, info
 
     def close(self):
-        # The source shutdown hook switches controllers on the next Gazebo tick.
-        if self.env.unwrapped.use_step_control:
-            self.env.unwrapped.robot_connection.unpause()
-        self.env.close()
+        return close_environment(self.env)

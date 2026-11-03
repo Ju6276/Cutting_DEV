@@ -95,7 +95,8 @@ def main():
             worker = ["python", "-u", str(root / "scripts/collect_coupled.py"),
                       "--episodes", str(args.episodes)]
         else:
-            worker = ["python", "-u", str(root / "scripts/train_coupled.py"),
+            entry = 'train_coupled_tracked.py' if args.mode == 'train' else 'train_coupled.py'
+            worker = ["python", "-u", str(root / 'scripts' / entry),
                       "--max-hours", str(args.max_hours), "--microbatch", str(args.microbatch)]
             if args.max_iterations is not None:
                 worker += ["--max-iterations", str(args.max_iterations)]
@@ -120,11 +121,11 @@ def main():
         status["state"] = "failed"
         status["error"] = str(error)
     finally:
-        for process in reversed(list(children.values())):
+        for name, process in reversed(list(children.items())):
             if process.poll() is None:
                 os.killpg(process.pid, signal.SIGINT)
             try:
-                process.wait(timeout=20)
+                process.wait(timeout=120 if name == 'collector' else 20)
             except subprocess.TimeoutExpired:
                 os.killpg(process.pid, signal.SIGKILL)
                 process.wait()
