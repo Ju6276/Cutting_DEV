@@ -11,10 +11,11 @@
   after critic divergence. Frozen episode return and bootstrap probes identify
   large value bias and terminal-head errors. The relative causal contributions
   remain to be established; single-world data reuse is a measured regime difference.
-- **3 — SuperMimic + MuJoCo Warp + DiSECt**: stopped at vector step 122,
-  124928 physical transitions, zero learner updates and zero completed episodes.
-  The transition-rescaled schedule is removed. The implementation now uses the
-  pinned source vector-step cadence and 1000 replay rows per environment.
+- **3 — SuperMimic + MuJoCo Warp + DiSECt**: `gpu_wm_first_20261103` runs
+  on A6000 GPU 1 with 1024 environments, fresh weights, 500 world-model-only
+  rounds and a 24-hour budget. The source vector-step schedule and 1000 replay
+  rows per environment are retained. Joint learning starts on WM round 501.
+  W&B [dm6e5jan](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/dm6e5jan).
 - Run 1 training stays on ROS 11321/Gazebo 11355. Frozen SAC evaluation uses
   separate ROS 11323/Gazebo 11357 and the source ten-episode deterministic evaluator.
 
@@ -40,15 +41,17 @@ or resumed checkpoints.
 
 1. Source vector-step cadence and critic sample ordering are restored. Full/split
    update comparison and independent review pass; the frozen SAC exit and optional
-   failure-priority reward branch are repaired.
+   failure-priority reward branch are repaired. WM-first phase counters, partial
+   optimizer progress, checkpoint compatibility and both levels of Gazebo
+   exception cleanup are implemented and checked.
 2. Isolate force prediction and terminal-head inconsistency before changing the
    learning method. On 735 recorded transitions, substituting measured force
    features reduces missed terminal labels from 14 to 3; the remaining error
    includes predicted pose/counter features and classifier consistency.
-3. Check the repaired connected model in physical episodes, then evaluate sustained
-   learning with a frozen policy and the original task metrics. Short numerical
-   checks establish implementation behavior; completed physical episodes establish
-   task outcomes.
+3. Run the WM-first candidate through 500 model rounds and joint learning. Compare
+   force/termination prediction and critic targets, then evaluate a frozen policy
+   in physical episodes with the original task metrics. Startup has passed a full
+   source-size WM update on recorded transitions; task learning is the running experiment.
 4. Frozen SAC evaluation completed ten episodes: 10 successes, mean return
    91.02107, zero optimizer updates. The evaluation fallthrough is repaired;
    dispatch/lifecycle tests cover normal exit and exceptions.
@@ -58,10 +61,9 @@ Implementation differences are in METHOD; commands and numbers are in RESULTS.
 ## External implementation evidence
 
 [ndm-gym](https://github.com/Frank-ZY-Dou/ndm-gym/tree/0171f5eadee50492d6ff30fa04b55e16cc11b61e)
-provides full-update equivalence checks and independent physical evaluation;
-both methods are applied here. Its training loop has 500 world-model-only
-iterations, its critic uses RunningNorm, and imagined termination is an analytic
-sigmoid around task thresholds. These algorithm changes are not in this cutting
-candidate. Compare them separately against the reproduced force/terminal failure;
-keep SliceIt's physical thresholds and reward fixed. Analytic termination alone
-cannot restore a force-limit event that the dynamics model failed to predict.
+provides full-update equivalence checks, independent physical evaluation and
+500 world-model-only iterations; all three are now applied here. Its RunningNorm
+critic and analytic soft termination are separate method choices. The current
+candidate keeps the Cuboi learned head and static scales. SliceIt physical
+thresholds and reward remain fixed. Analytic termination alone cannot restore
+a force-limit event that the dynamics model failed to predict.

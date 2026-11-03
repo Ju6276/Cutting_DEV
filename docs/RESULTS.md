@@ -548,3 +548,37 @@ this flag **False**. Command `PYTHONPATH=. .venv/bin/python -m pytest tests -q` 
 4090: **98 passed, 2 skipped**, 3.16 s. Independent replay of 735 transitions gives
 motion error **6.94e-18**, observation error **3.33e-14**, reward error **1.42e-14**,
 terminal mismatches **0**, and exact control history.
+
+
+## 2026-11-03 — World-model-first startup and execution
+
+Commit `9188c59`, 4090 command `PYTHONPATH=. .venv/bin/python -m pytest tests -q`:
+**125 passed, 2 skipped**, 5.13 s. Stage tests verify unchanged actor/critic weights
+and empty optimizer states during model preparation, the joint-stage boundary,
+partial updates and checkpoint restoration. Main/run cleanup tests preserve the
+original failure while recording save/close failures.
+
+A6000 command `CUTTING_BACKEND_ROOT=/dataHDD/dong/Projects/CuttingGpuBackend
+PYTHONPATH=. .venv/bin/python -m pytest tests/test_gpu_env.py -q`, commit `33f3e22`:
+**2 passed**, 34.69 s. Physical environment files are unchanged in `9188c59`.
+
+A6000 execution at `9188c59`:
+`PYTHONPATH=. .venv/bin/python runs/wm_stage_execution_20261103/probe.py`.
+735 recorded transitions; source configuration (10 batches × 2048 windows × 8
+steps), microbatch 64, CUDA compilation. **1 complete WM round / 10 WM Adam steps**,
+**0 policy / 0 critic steps**; actor/critic weights exactly unchanged; checkpoint
+restore passed. Elapsed **40.28 s**, peak PyTorch memory **451.10 MiB**. This is the
+source-size update and phase execution check.
+
+## 2026-11-03 — A6000 world-model-first run
+
+Execution commit `9188c59`, backend `5279f77`; command:
+`scripts/train_gpu.py --backend-root ../CuttingGpuBackend --worlds 1024
+--wm-only-updates 500 --max-hours 24 --output runs/gpu_wm_first_20261103`.
+Fresh weights, A6000 GPU 1; W&B `dm6e5jan`. Endpoint is the 24-hour wall budget or
+320000 vector steps. Internal stopping saves the checkpoint and finishes W&B;
+external timeout sends SIGINT at 24 h 15 min and SIGKILL after another 300 s.
+WM-only finishes at vector step 1289; first joint update is at 1292 for an
+uninterrupted run. Estimated collection to that boundary is about 7.5 h from
+measured physical throughput, plus model fitting. The run records separate WM,
+policy and optimizer counts and saves both phase-boundary checkpoints.
