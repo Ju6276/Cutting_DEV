@@ -475,7 +475,12 @@ W&B `1t0hkx98`; first physical vector step completed in 20.23 s, GPU process
 allocation about 15 GiB. First learning update is due at vector step 168.
 
 2026-11-03, `4e13589`: `run_sac_training.py --sliceit-root ../SliceIt --output
-../SliceIt/runs/sac_frozen_eval_20261103 --evaluate --ros-port 11323
---gazebo-port 11357 --wall-seconds 1800`: frozen copy of SAC session-step-20000
+../SliceIt/runs/sac_frozen_eval_20261103_full --evaluate --ros-port 11323
+--gazebo-port 11357 --wall-seconds 7200`: frozen copy of SAC session-step-20000
 checkpoint ckpt-5, original ten-episode deterministic evaluation; training remains
 on ROS 11321. Evaluation rejects optimizer calls and checks unchanged actor weights.
+
+The initial 1800-second-budget evaluation was stopped before completion and
+replaced by the same frozen policy with a 7200-second budget because another
+user’s GPU job reduced available throughput. No completed evaluation result
+was produced by that initial run.
