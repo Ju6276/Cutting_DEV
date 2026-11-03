@@ -1,3 +1,4 @@
+import pytest
 import torch
 
 from cutting_world_model.task_heads import SliceItHeads
@@ -58,3 +59,20 @@ def test_original_success_counter_keeps_nonconsecutive_hits():
     obs[0, 1] = 0
     done, success, _, count = head.termination(obs, count, false)
     assert done.item() and success.item() and count.item() == 11
+
+
+@pytest.mark.parametrize('collision', [False, True])
+@pytest.mark.parametrize('fail_on_reward', [False, True])
+def test_source_terminal_priority_controls_success_bonus(collision, fail_on_reward):
+    head = heads()
+    head.env['termination_on_negative_reward'] = fail_on_reward
+    obs = torch.zeros(1, 24)
+    colliding = torch.tensor([collision])
+    done, success, outside, count = head.termination(obs, torch.tensor([10.]), colliding)
+    expected_success = not collision and not fail_on_reward
+    assert done.item()
+    assert success.item() == expected_success
+    assert count.item() == 11
+    baseline = head.reward(obs, colliding, torch.tensor([False]), outside)
+    reward = head.reward(obs, colliding, success, outside)
+    torch.testing.assert_close(reward - baseline, torch.tensor([100. if expected_success else 0.]))

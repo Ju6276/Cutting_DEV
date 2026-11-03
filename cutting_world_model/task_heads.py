@@ -73,7 +73,8 @@ class SliceItHeads:
         error = (observation[..., :len(self.dims)] * observation.new_tensor(self.max_distance)).abs()
         position_reached = (error < error.new_tensor(self.env["goal_threshold"])).all(dim=-1)
         success_counter = success_counter + position_reached.to(success_counter.dtype)
-        goal_reached = position_reached & (success_counter > self.env["successes_threshold"])
+        goal_reached = (position_reached & (success_counter > self.env["successes_threshold"])
+                        & ~collision & (not self.env["termination_on_negative_reward"]))
         out_of_workspace = (error > error.new_tensor(self.env["workspace_limit"])).any(dim=-1)
         done = goal_reached | collision | out_of_workspace | self.env["termination_on_negative_reward"]
         return done, goal_reached, out_of_workspace, success_counter
