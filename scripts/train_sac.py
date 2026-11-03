@@ -27,7 +27,8 @@ from cutting_world_model.sidecar_tracking import SidecarTracker
 sys.argv = [str(ROOT / 'underlay_ws/src/ur_python_utilities/ur3e_rl/scripts/tf2rl_sac.py')] + source_arguments
 
 config = json.loads((OUT / 'run_config.json').read_text())
-tracker = SidecarTracker(OUT, config, job_type='sac-training')
+evaluating = '--evaluate' in source_arguments
+tracker = SidecarTracker(OUT, config, job_type='sac-evaluation' if evaluating else 'sac-training')
 (OUT / 'wandb_link.json').write_text(json.dumps(tracker.info, indent=2) + '\n')
 state = dict(state='running', steps=0, updates=0, episodes=0, episode_steps=0, episode_return=0.)
 started = time.monotonic()
@@ -73,6 +74,8 @@ def update(self, replay_buffer, *args, **kwargs):
 Trainer.update_policy = update
 original_train = SAC.train
 def train(self, *args, **kwargs):
+    if evaluating:
+        raise RuntimeError('SAC optimizer was called during frozen evaluation')
     result = original_train(self, *args, **kwargs)
     if not np.isfinite(np.asarray(result)).all():
         raise FloatingPointError('Non-finite SAC TD errors')
@@ -96,8 +99,34 @@ def step(self, action):
     emit(dict(kind='transition', reward=float(reward), done=bool(done),
               **{'reward/step': float(reward), 'physics/reward': float(reward)}))
     objects['last_info'] = info
+    if evaluating and done:
+        state['episodes'] += 1
+        emit(dict(kind='episode', episode=state['episodes'],
+                  episode_return=state['episode_return'], episode_steps=state['episode_steps'],
+                  success=bool(info.get('success', False)), collision=bool(info.get('collision', False)),
+                  **{'reward/episode': state['episode_return']}))
+        state['episode_steps'] = 0
+        state['episode_return'] = 0.
     return result
 RobotGazeboEnv.step = step
+if evaluating:
+    def evaluate_once(self):
+        before = [variable.numpy().copy() for variable in self._policy.actor.weights]
+        names = ('actor', 'qf1', 'qf2', 'alpha')
+        iterations = {name: int(getattr(self._policy, name + '_optimizer').iterations.numpy())
+                      for name in names}
+        result = self.evaluate_policy(total_steps=0)
+        unchanged = all(np.array_equal(old, variable.numpy())
+                        for old, variable in zip(before, self._policy.actor.weights))
+        after = {name: int(getattr(self._policy, name + '_optimizer').iterations.numpy())
+                 for name in names}
+        if not unchanged or iterations != after or state['updates']:
+            raise RuntimeError('Evaluation changed policy or optimizer state')
+        state.update(evaluation_episodes=self._test_episodes,
+                     evaluation_return=float(result[0]), evaluation_success_rate=float(result[2]),
+                     actor_unchanged=unchanged, optimizer_iterations=after)
+        emit(dict(kind='evaluation', **state), upload=True)
+    Trainer.evaluate_policy_continuously = evaluate_once
 original_detailed_log = Trainer._detailed_log
 def detailed_log(self, n_episode, total_steps, episode_steps, episode_return):
     result = original_detailed_log(self, n_episode, total_steps, episode_steps, episode_return)
@@ -130,6 +159,8 @@ except BaseException as error:
     raise
 finally:
     def save():
+        if evaluating:
+            return
         trainer = objects.get('trainer')
         if trainer is None:
             return

@@ -14,16 +14,20 @@ ORCHESTRATOR = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser()
 parser.add_argument("--output", required=True)
 parser.add_argument("--sliceit-root", required=True)
+parser.add_argument("--evaluate", action="store_true")
+parser.add_argument("--ros-port", type=int, default=11321)
+parser.add_argument("--gazebo-port", type=int, default=11355)
+parser.add_argument("--wall-seconds", type=float, default=259200)
 args = parser.parse_args()
 ROOT = Path(args.sliceit_root).resolve()
 output = Path(args.output).resolve()
 output.mkdir(parents=True, exist_ok=True)
 children = {}
 logs = []
-status = {"state": "starting", "pids": {}, "commands": {}, "wall_budget_seconds":259200}
+status = {"state": "starting", "pids": {}, "commands": {}, "wall_budget_seconds":args.wall_seconds}
 started = time.monotonic()
 import socket
-for port in (11321,11355):
+for port in (args.ros_port,args.gazebo_port):
     with socket.socket() as sock:
         sock.bind(("127.0.0.1",port))
 
@@ -37,7 +41,7 @@ def write_status():
 
 
 def shell(command):
-    return ["bash", "-lc", "source " + shlex.quote(str(ROOT / "scripts/public_env.sh")) + "; export SAC_RUN_OUTPUT=" + shlex.quote(str(output)) + " ROS_HOME=" + shlex.quote(str(output / "ros_home")) + " ROS_LOG_DIR=" + shlex.quote(str(output / "ros_logs")) + "; " + command]
+    return ["bash", "-lc", "source " + shlex.quote(str(ROOT / "scripts/public_env.sh")) + "; export SAC_RUN_OUTPUT=" + shlex.quote(str(output)) + " ROS_HOME=" + shlex.quote(str(output / "ros_home")) + " ROS_LOG_DIR=" + shlex.quote(str(output / "ros_logs")) + " ROS_MASTER_URI=http://127.0.0.1:" + str(args.ros_port) + " GAZEBO_MASTER_URI=http://127.0.0.1:" + str(args.gazebo_port) + "; " + command]
 
 
 def start(name, command):
@@ -98,7 +102,7 @@ try:
         raise InterruptedError("Supervisor stop requested")
     signal.signal(signal.SIGTERM, request_stop)
     signal.signal(signal.SIGINT, request_stop)
-    start("gazebo", "roslaunch -p 11321 o2ac_gazebo b_bot_gazebo.launch gui:=false")
+    start("gazebo", "roslaunch -p " + str(args.ros_port) + " o2ac_gazebo b_bot_gazebo.launch gui:=false")
     wait_service("/controller_manager/list_controllers")
     start("bridge", "xvfb-run -a python -u " + shlex.quote(str(ROOT / "scripts/public_ros_bridge.py"))
           + " --config " + shlex.quote(str(ROOT / "configs/public_prism.json"))
@@ -115,12 +119,16 @@ try:
                + " --logdir " + shlex.quote(str(output / "learner")))
     if config.get('resume'):
         command += " --model-dir " + shlex.quote(config['resume'])
+    if args.evaluate:
+        if not config.get('resume'):
+            raise ValueError('Evaluation requires a frozen checkpoint directory')
+        command += " --evaluate"
     start("sac", command)
     status["state"] = "running"
     write_status()
     while children["sac"].poll() is None:
-        if time.monotonic() - started > 259200:
-            status["stop_reason"] = "72-hour wall budget"
+        if time.monotonic() - started > args.wall_seconds:
+            status["stop_reason"] = "wall budget reached"
             os.kill(children["sac"].pid, signal.SIGINT)
             children["sac"].wait(timeout=120)
             break
