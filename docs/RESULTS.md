@@ -418,4 +418,42 @@ First group at iteration 42: world-model loss 0.707695, policy gradient norm
 return -122.90303, source force-limit termination, 278 released springs.
 [W&B 9lptr72s](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/9lptr72s)
 server history contains real rewards, episode return and model/policy/critic
-updates. JSON-to-W&B run wrappers change logging only. Both trainings continue.
+updates. JSON-to-W&B run wrappers change logging only. Both runs were interrupted
+for the shutdown repair below; their training checkpoints were retained.
+
+2026-11-03, `702b90c`, SliceIt `5b7d208`, utilities `ddc85ec`:
+`PYTHONPATH=. .venv/bin/python -m pytest tests -q`: CWM 74 passed, 2 skipped;
+SliceIt 68 passed. Two source SAC updates followed by SIGINT saved checkpoint
+and two replay rows, exited 0, and finished W&B in 55.151 s. Killing the owned
+Gazebo server after two updates saved both artifacts, retained the injected
+error, bounded unpause at 5 s, attempted close, and reported controller shutdown
+failure separately; worker/supervisor exited 1 in 50.055 s. W&B server states:
+[normal finished](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/m4tctkup),
+[disconnect failed](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/spvsmw6r).
+Both cases left zero processes. Six injected failures through the tracked coupled
+entry preserved checkpoint and final failed status and attempted W&B finish;
+longest case 5.002 s. Four diagnostic runs' checkpoint/replay files were removed
+(14,916,211 bytes); logs and reports remain in `runs/shutdown_fix_20261103`.
+
+Same source revisions: run 1 resumes through `scripts/run_sac_training.py
+--sliceit-root /dataHDD/dong/Projects/SliceIt --output
+/dataHDD/dong/Projects/SliceIt/runs/sac_resume_20261103`, with the saved TensorFlow
+checkpoint and replay. Original 100100-step / 72-hour endpoint retained;
+W&B server at 66 new physical steps / 64 updates: first complete episode
+return 84.18421 and success=true.
+[W&B xofe4ps8](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/xofe4ps8).
+
+Run 2 resumes with `python scripts/run_coupled_collection.py --sliceit-root
+/dataHDD/dong/Projects/SliceIt --output runs/control_history_resume_20261103
+--mode train --model-state control-history --resume
+runs/control_history_online_20261103/data/last.pt --max-hours 6
+--wall-seconds 21900 --microbatch 64`. Model/optimizer/schedule/RNG restored at
+iteration 133 / update 37; source replay starts empty and collects 40 new steps
+before updates. Both runs use `scripts/guard_training_exit.py` for owned-process
+cleanup after supervisor exit.
+At iteration 175 the first resumed world-model/BPTT/critic group completed,
+update 38, in 236.93 s from worker loop start: model loss 0.0112034, policy
+gradient norm 20.9793, critic loss 759.112, finite values. W&B servers report both
+runs running; run 2 has reached iteration 177 and receives physical reward,
+model and policy/critic metrics.
+[W&B rzv5jrqm](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/rzv5jrqm).

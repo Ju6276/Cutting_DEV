@@ -2,16 +2,21 @@
 
 ## Numbered runs
 
-- **1 — SAC + Gazebo + DiSECt**: fresh training in SliceIt
-  `runs/sac_long_20261103`, source endpoint 100100 environment steps and the
-  existing 72-hour execution deadline. W&B [xqmkhjbc](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/xqmkhjbc).
-- **2 — SuperMimic + Gazebo + DiSECt**: fresh connected `control_history_v2`
-  training in `runs/control_history_online_20261103`. The source loop collects
-  physical transitions, then alternates world-model and BPTT policy/critic
-  updates after 40 warmup steps, at 0.4 update groups per environment step.
-  W&B [9lptr72s](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/9lptr72s).
+- **1 — SAC + Gazebo + DiSECt**: resumed training in SliceIt
+  `runs/sac_resume_20261103`, loading the retained TensorFlow checkpoint and
+  replay buffer. The source run endpoint remains 100100 environment steps with
+  the existing 72-hour execution deadline.
+  W&B [xofe4ps8](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/xofe4ps8).
+- **2 — SuperMimic + Gazebo + DiSECt**: resumed connected `control_history_v2`
+  training in `runs/control_history_resume_20261103`, restoring model, optimizer
+  and schedule/RNG from the previous run's iteration 133 / update 37 checkpoint.
+  The source resume path starts a new physical episode and refills replay with
+  40 transitions before resuming world-model and BPTT policy/critic updates,
+  at 0.4 update groups per environment step.
+  W&B [rzv5jrqm](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/rzv5jrqm).
   The source endpoint is 320000 iterations; this execution has a six-hour budget
-  and saves `data/last.pt` at budget completion, interruption or a caught failure.
+  plus 300 seconds for startup/cleanup and saves `data/last.pt` at budget
+  completion, interruption or a caught failure.
   The six-hour budget bounds runtime, rather than defining convergence.
 - Both runs share the RTX 4090, with separate ROS/Gazebo masters
   (1: 11321/11355; 2: 11322/11356). MuJoCo remains a separate backend.
@@ -26,6 +31,8 @@ effective batches 2048/4096, eight-step model fitting, 32-step BPTT, learning ra
 update ratio and task thresholds are unchanged. Microbatch 64 controls storage.
 
 Both runs use the repaired post-step and zero-time reset joint snapshots.
+Shutdown independently saves artifacts, closes the environment within wall-time
+bounds and finishes W&B; a run-specific guard cleans up remaining child processes.
 The completed SAC task check had 31 transitions, 30 updates, return 84.00210,
 reset pose/history errors 0 and force-read errors 0. Old failed SAC checkpoint
 files were deleted; diagnostic logs and replay remain. New world-model metadata
