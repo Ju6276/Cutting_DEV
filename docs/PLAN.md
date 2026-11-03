@@ -12,8 +12,10 @@
   value extrapolation, terminal-head errors and excessive single-world data reuse.
 - **3 — SuperMimic + MuJoCo Warp + DiSECt**: A6000 GPU 1 validation uses
   control_history_v2 and the 4096-transition source schedule. The first 1024-world
-  update occurs at vector step 168; a 176-step/two-hour run crosses two updates
-  and resumes physics. Rewards, force limits and optimizer settings are unchanged.
+  update occurs at vector step 168; the 176-step/two-hour run checks physical
+  stepping after update 1 (steps 169–176), then completes update 2. It ends before
+  physical stepping after update 2. Sustained critic stability needs a separate
+  continued-data experiment. Rewards, force limits and optimizer settings are unchanged.
 - Run 1 training stays on ROS 11321/Gazebo 11355. Frozen SAC evaluation uses
   separate ROS 11323/Gazebo 11357 and the source ten-episode deterministic evaluator.
 

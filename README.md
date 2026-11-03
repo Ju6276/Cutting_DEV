@@ -112,7 +112,9 @@ counts one source step per 4096 physical transitions: the first update needs
 collects transitions and performs no learning update. GPU bounded learning uses
 `train_gpu.py --backend-root ../CuttingGpuBackend --worlds 1024
 --max-iterations 176 --max-hours 1 --output runs/gpu_source_budget_check`.
-This crosses two learning updates and returns to physical stepping after each.
+This performs two learning updates and returns to physical stepping after the
+first; it ends immediately after the second. Sustained value-learning stability
+is evaluated separately.
 
 Tests: `PYTHONPATH=. .venv/bin/python -m pytest tests -q`. GPU integration
 checks additionally use `CUTTING_BACKEND_ROOT=/dataHDD/dong/Projects/CuttingGpuBackend`
