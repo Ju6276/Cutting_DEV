@@ -38,12 +38,13 @@ or resumed checkpoints.
 
 ## Next work
 
-1. Restore the pinned vector-step schedule and audit a full learner update against
-   the source. Check losses, gradients, critic sample order and parameter updates
-   with identical inputs and weights. Keep the task reward, thresholds and optimizers.
-2. Use the saved failed episodes and checkpoints to separate model prediction,
-   terminal probability and critic bootstrap errors. Diagnose with frozen inputs;
-   make one repair only when the corresponding failure is reproduced.
+1. Source vector-step cadence and critic sample ordering are restored. Full/split
+   update comparison and independent review pass; the frozen SAC exit and optional
+   failure-priority reward branch are repaired.
+2. Isolate force prediction and terminal-head inconsistency before changing the
+   learning method. On 735 recorded transitions, substituting measured force
+   features reduces missed terminal labels from 14 to 3; the remaining error
+   includes predicted pose/counter features and classifier consistency.
 3. Check the repaired connected model in physical episodes, then evaluate sustained
    learning with a frozen policy and the original task metrics. Short numerical
    checks establish implementation behavior; completed physical episodes establish
@@ -53,3 +54,14 @@ or resumed checkpoints.
    dispatch/lifecycle tests cover normal exit and exceptions.
 
 Implementation differences are in METHOD; commands and numbers are in RESULTS.
+
+## External implementation evidence
+
+[ndm-gym](https://github.com/Frank-ZY-Dou/ndm-gym/tree/0171f5eadee50492d6ff30fa04b55e16cc11b61e)
+provides full-update equivalence checks and independent physical evaluation;
+both methods are applied here. Its training loop has 500 world-model-only
+iterations, its critic uses RunningNorm, and imagined termination is an analytic
+sigmoid around task thresholds. These algorithm changes are not in this cutting
+candidate. Compare them separately against the reproduced force/terminal failure;
+keep SliceIt's physical thresholds and reward fixed. Analytic termination alone
+cannot restore a force-limit event that the dynamics model failed to predict.

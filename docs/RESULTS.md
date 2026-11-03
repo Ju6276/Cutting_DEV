@@ -527,3 +527,24 @@ Execution commit `4e13589`, `scripts/train_gpu.py --worlds 1024
 --max-iterations 176 --max-hours 2`, run `gpu_source_budget_check_20261103`.
 Interrupted at **122 vector steps**, **124928 transitions**, **0 learner updates**,
 **0 complete episodes**, **2579.09 s**. No GPU process remains from this run.
+
+
+## 2026-11-03 — Terminal error components and failure precedence
+
+Frozen diagnostic commit `29858b4`, checkpoint update 316; command:
+`PYTHONPATH=. .venv/bin/python runs/terminal_components_20261103/probe.py`.
+Of 18 recorded terminal steps, **16** exceed the force limit; one-step predicted
+force exceeds it on **2** of those terminal steps. Replacing only the terminal
+head's force features with recorded values reduces missed terminal labels
+**14 → 3** and increases false positives **8 → 12** across 735 transitions.
+On the same predicted states, the analytic rule marks **8** terminals; the learned
+head misses **6** and adds **10** false positives. Both force prediction and head
+consistency contribute to terminal error.
+
+Commit `2493259` restores SliceIt's failure-before-success priority. With
+`termination_on_negative_reward=True`, the old model added **100** success reward;
+the repaired shared head matches the physical branch. The failed training run has
+this flag **False**. Command `PYTHONPATH=. .venv/bin/python -m pytest tests -q` on
+4090: **98 passed, 2 skipped**, 3.16 s. Independent replay of 735 transitions gives
+motion error **6.94e-18**, observation error **3.33e-14**, reward error **1.42e-14**,
+terminal mismatches **0**, and exact control history.
