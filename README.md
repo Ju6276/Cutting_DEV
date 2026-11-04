@@ -24,7 +24,8 @@ python3.12 -m venv .venv
 # After preparing the assets described in RUNNING:
 .venv/bin/python scripts/train_gpu.py --worlds 1024 --wm-only-updates 500 \
   --max-hours 24 --output runs/training
-.venv/bin/python scripts/evaluate_gpu.py --checkpoint runs/training/last.pt \
+.venv/bin/python scripts/evaluate_benchmark.py --method supermimic \
+  --checkpoint runs/training/last.pt \
   --output runs/evaluation
 ```
 
@@ -41,7 +42,7 @@ Short terminal replay is repaired: actual WM updates use **2433 collision
 terminal labels** from one/two-step failures. The next focus is accumulated
 WM joint/pose error, which predicts a workspace failure on successful cuts.
 
-[Results](docs/RESULTS.md) · [Current work](docs/PLAN.md) ·
+[Fixed benchmark](docs/BENCHMARK.md) · [Results](docs/RESULTS.md) · [Current work](docs/PLAN.md) ·
 [Methods and differences](docs/METHOD.md) · [Source versions](docs/SOURCES.md)
 
 The two original Git histories are retained. Third-party licenses are listed

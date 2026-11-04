@@ -81,7 +81,7 @@ They remain outside Git.
 ```bash
 .venv/bin/python scripts/train_gpu.py --worlds 1024 --wm-only-updates 500 \
   --max-hours 24 --output runs/training
-.venv/bin/python scripts/evaluate_gpu.py \
+.venv/bin/python scripts/evaluate_benchmark.py --method supermimic \
   --checkpoint runs/training/last.pt --output runs/evaluation
 ```
 
@@ -95,6 +95,7 @@ Physics and replay restart, then the original replay warmup runs.
 SIGUSR1 saves after the current iteration. Completion/SIGTERM writes
 `last.pt` and `progress.json`. Frozen evaluation performs zero optimizer updates.
 
+The shared fixed-environment evaluation commands are in [BENCHMARK](BENCHMARK.md).
 The currently open critic issue is described in [PLAN](PLAN.md).
 Checkpoints from before the absorbing-terminal repair are usable for frozen
 evaluation, while training requires the current terminal-rule metadata.

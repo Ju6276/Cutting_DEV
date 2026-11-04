@@ -7,6 +7,9 @@ source patches are listed in [SOURCES](SOURCES.md).
 | Module | Source design | Cutting implementation |
 |---|---|---|
 | Repository layout | Learning and physics maintained in separate local repositories | Both histories merged; physics resides in `backends/mujoco`, and SliceIt is restored from pinned revisions and patches. Entry points default to the bundled backend; cache and logger paths are configurable. Physics, learning objectives and task parameters are unchanged by this integration. |
+| Fixed comparison environment | SliceIt SAC uses Gazebo/ROS; run3 uses MuJoCo Warp | New comparisons use the existing UR5e + MuJoCo Warp + FDCC + DiSECt export for every method. The original tf2rl SAC/Trainer executes in Python 3.8 and exchanges observations/actions with a Python 3.12 physical worker. A YAML-backed parameter reader supplies the source SAC settings without starting ROS. Evaluation freezes an exact checkpoint, disables action noise and uses the same reset, reward, termination and six-action mapper. |
+| Fixed scene | Captured SliceIt task metadata includes Gazebo randomization flags | The benchmark restores one exported prism/material/robot state every episode. No object or initial-pose sampling occurs. Its configuration is checked against the prepared assets before evaluation; the three asset-content identifiers pin non-Git physical inputs, while Git records code revisions. |
+| SAC time-limit bootstrap | The pinned `cb_trainer.py` sets replay `done=False` at the maximum episode length even if that step also succeeds or collides | The new process installs a replay adapter that takes `done` from the physical `terminated` flag. A pure time truncation keeps bootstrap. The original buffer, PER, source training loop, saved format and batched replay restoration remain in place. The old Gazebo checkout is unchanged. |
 | Replay | Episode-aware ring, 4096 environments × 1000 rows, clean/executed actions, terminal row | Original ring with 1000 rows per environment. Physical-transition counts exclude extra terminal rows. |
 | Schedule | Warmup 40 vector steps with 4096 environments; UTD 0.4 per vector step | Original vector-step cadence for every environment count: warmup 40, UTD 0.4, first update at step 42. LR and step endpoint use vector steps; transition counts are telemetry. The collection regime differs when fewer environments are active. |
 | GPU checkpoint timing | Save every 4000 vector steps | User-requested SIGUSR1 saves at a completed iteration, plus stage boundaries and shutdown; periodic saves are disabled at the user's request. |
@@ -130,7 +133,7 @@ microbatch gradient accumulation for the original effective batch sizes (2048
 world model, 4096 actor); optimizer steps and gradient clipping occur after
 accumulation. This changes storage/scheduling, not the loss or update ratio.
 
-The physical prediction state contains DiSECt vertex positions/velocities and
+Physical recordings contain DiSECt vertex positions/velocities and
 spring stiffness, robot joints/velocities, bridge knife pose/twist, the three
 wrench samples used by SliceIt, and the componentwise peak wrench checked during
 the control interval. Robot end-effector pose is derived by differentiable URDF

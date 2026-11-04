@@ -39,28 +39,46 @@ files were deleted; diagnostic logs and replay remain. New world-model metadata
 uses `synchronous_paused_joint_snapshot_v1` and rejects incompatible recordings
 or resumed checkpoints.
 
-## Next work
+## Active work — fixed environment
 
-1. The shared run2/run3 learner applies the entering terminal reward once,
-   then freezes state and zeros later rewards/bootstrap. Same-checkpoint
-   imagination confirms this behavior.
-2. Short-sequence replay is repaired and exercised by real learning. Full H8
-   loss/gradients and mixed-length updates match their references; the new run
-   uses 2433 collision terminal labels from real one/two-step failures. Shared
-   code covers run2/run3; the completed physical validation uses run3.
-3. Resolve multi-step WM joint/pose error. On the same physical policy62 actions,
-   step15 one-step position error is below 0.31 mm per coordinate, but a rollout
-   from the initial state reaches roughly 24–26 mm error in x/z and falsely
-   crosses the workspace boundary. Audit joint integration, normalization and
-   history inputs against the source using the saved action/state records.
-   Preserve critic equations, reward, thresholds and optimizer settings; verify
-   the next repair with fixed-policy model rollouts and fresh complete physical
-   returns. Current complete-return MAE is 153.418925 after ten new updates.
-4. Run1's completed frozen SAC evaluation has ten successes, mean return
-   91.02107 and zero optimizer updates. Keep its training independent of run2/3
-   model and critic changes.
+1. **Frozen WM fit, A6000 GPU 0.** `runs/wm_frozen_fit_20261105` starts from
+   policy62/WM562. Freeze policy, critic and their optimizer state. Collect four
+   complete episodes in each of 32 environments using the existing 0.1 action
+   noise; groups 0–23 supply 96 training episodes and groups 24–31 supply 32
+   held-out episodes. The collected split has 93/96 training successes and three
+   workspace failures; all 32 held-out episodes succeed. Fit the WM for at most
+   100 rounds or 1500 seconds, using the existing H8 objective, effective batch
+   2048, ten batches per round and Adam state. The total hard budget is 2700
+   seconds. Compare H1/H8/full recorded-action error and first terminal event
+   at rounds 0/10/25/50/100; verify policy/critic tensors stay identical.
+   W&B [7jnyx9n4](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/7jnyx9n4).
+2. **One evaluation environment.** `public-prism-ur5e-v1` fixes the existing
+   UR5e + MuJoCo Warp + FDCC + DiSECt assets, reset and task. Constant control,
+   SAC and the current WM policy use `scripts/evaluate_benchmark.py`. The old
+   single-policy evaluator is replaced by this shared runner. Commands, metric
+   definitions and the fixed configuration are in [BENCHMARK](BENCHMARK.md).
+3. **Original SAC adapter.** Keep SliceIt's tf2rl implementation, Wave actor,
+   batch 1024, learning rate 0.01, auto-alpha, seed 123456, warmup 1000,
+   endpoint 100100 and checkpoint interval 5000. A local process bridge joins
+   its Python 3.8 learner to the Python 3.12 GPU environment. First validate
+   the transition/terminal/reset chain and frozen complete episodes; then train
+   SAC from scratch in this same environment for the algorithm comparison.
+4. **Critic diagnosis after model fit.** The last full-return MAE is 153.42.
+   The old WM predicts a workspace failure on a physically successful cut.
+   Check whether sustained fixed-data fitting corrects that error on both groups.
+   If both groups remain poor, inspect the loss/representation with the exact
+   failing trajectories; if only held-out predictions fail, examine data coverage.
+   Next compare a fresh critic to actual complete physical returns before joint
+   policy/critic updates. Preserve task rewards, thresholds and source optimizer
+   settings throughout.
+5. **Model-based comparison.** Connect DiSECt's knife trajectory optimizer to
+   the same robot/controller evaluation. Its free-knife optimization results
+   remain a separate experiment until that adapter executes the same task.
 
-Implementation differences are in METHOD; commands and numbers are in RESULTS.
+No new long training is launched during these bounded checks. Run1 keeps its
+existing Gazebo process, endpoint and wall budget. Current machine routes and
+local environment paths are in `runs/operations/MACHINES.md` on the Mac;
+connection details and credentials stay outside Git.
 
 ## External implementation evidence
 
