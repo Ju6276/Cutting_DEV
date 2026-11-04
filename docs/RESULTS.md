@@ -670,3 +670,18 @@ The fixed-target control isolates this feedback; it is not installed in training
 Next: audit horizon-state coverage and bootstrap evaluation against the source
 implementation before selecting a value-learning correction. These fixed-start
 critic-only rounds do not run online collection or policy updates.
+
+Follow-up commands on the same frozen data/code:
+`python /dataHDD/dong/tmp/critic_normalized_probe_20261104.py` and
+`python /dataHDD/dong/tmp/critic_shac_target_probe_20261104.py`.
+NDM `0171f5e` input normalization alone reaches target absolute maximum
+**1212410.50**; SHAC's target update (0.4 old + 0.6 online, once per round)
+alone reaches **18874.46**, both at round 200. Neither candidate is merged.
+`python /dataHDD/dong/tmp/critic_bootstrap_trace_20261104.py` traces the corrected
+baseline: 12/48 imagined paths remain nonterminal at H=32; all imagined rewards
+are in **[-100.5893, 0]**, but endpoint value reaches **22031.08**.
+Terminal target minus entering reward is exactly zero. Recomputing GAE with
+zero value inputs gives target absolute maximum **100.5893**, versus **21810.18**
+with learned values. This isolates the large targets to value bootstrap on
+nonterminal paths. The source GAE recurrence matches the local implementation;
+finite-window endpoint coverage and repeated fixed-data fitting remain to audit.
