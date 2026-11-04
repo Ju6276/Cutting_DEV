@@ -11,6 +11,7 @@ source patches are listed in [SOURCES](SOURCES.md).
 | Schedule | Warmup 40 vector steps with 4096 environments; UTD 0.4 per vector step | Original vector-step cadence for every environment count: warmup 40, UTD 0.4, first update at step 42. LR and step endpoint use vector steps; transition counts are telemetry. The collection regime differs when fewer environments are active. |
 | GPU checkpoint timing | Save every 4000 vector steps | User-requested SIGUSR1 saves at a completed iteration, plus stage boundaries and shutdown; periodic saves are disabled at the user's request. |
 | Terminal-label storage | Pinned recorder writes termination on both the last transition row and final state row; sampler reads the next state row | Cutting recorder labels only the reached terminal state, so a window marks the actual terminating transition once |
+| WM sequence coverage | The pinned sampler requires eight consecutive transitions within one episode | The local `SequenceReplay` adapter includes complete H8 windows and shorter recorded prefixes ending at an episode boundary. The loss sums state error and terminal BCE over valid transitions and divides by their total count across the effective batch. Full H8 windows retain the original loss and gradient. |
 | Objective | Survival-weighted 32-step return, terminal critic, GAE lambda 0.95 | Original objective and GAE functions; only their type-only import is changed |
 | Dynamics MLP | Three 2048-unit SiLU layers, zero final layer | Original source module with cutting StateSpec and connected trainer |
 | Policy | Goal encoder, 32-D latent, decoder; widths 2048/1024/512/256; decoder gain 0.01 | Same architecture with a 7-D target pose, ten frames of SliceIt's 24-D observation, and six task actions |
@@ -68,6 +69,25 @@ reset-first transitions, held-out full episodes, force-limit termination and
 policy success. No learned latent state or recurrent network is added.
 
 ## World-model-first training
+
+`SequenceReplay` retains the upstream storage and uniform sampling among eligible
+start rows. It pads completed short windows to the maximum horizon with their
+final recorded state and a false valid-step mask. Actions/rewards/done labels
+in padding are zero and contribute no supervision. A short unfinished buffer
+tail is excluded. A truncation ends a sequence but retains `done=0`; a natural
+termination retains `done=1` on its entering transition. Same-episode and write
+pointer checks prevent reset/overwrite crossings.
+
+Masked training uses a recorded initial state as a finite inactive input and
+freezes the predicted state after each window ends. Each microbatch contributes
+in proportion to its valid transition count, preserving the effective-batch
+gradient. State/terminal losses are means over real transitions; the first/last
+prediction-error metrics average windows, with `nse_kstep` evaluated at each
+window's last valid step. The sampler and masking are local data-handling changes
+to the [pinned source replay](https://github.com/CuboiLeo/SuperMimic-Reproduced/blob/ba6105349069bf040f1fdad60873d13138d505a2/src/supermimic/data/replay_buffer.py).
+The maximum horizon, model, policy/critic equations, optimizers, batch sizes and
+physical task remain unchanged. Per-update counts report sampled real
+transitions, terminal labels and short windows.
 
 Task-terminal handling follows the episodic bootstrap rule in
 [Gymnasium](https://gymnasium.farama.org/tutorials/gymnasium_basics/handling_time_limits/):

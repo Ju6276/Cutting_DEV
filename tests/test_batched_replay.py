@@ -16,5 +16,6 @@ def test_independent_terminals_truncation_and_window_boundaries():
     assert b.done[0, 4] == 1 and b.terminal[0, 4]
     assert b.done[1, 6] == 0 and b.terminal[1, 6]
     windows = b.sample_windows(128, 3)
-    torch.testing.assert_close(windows.states[1:, :, 0] - windows.states[:-1, :, 0], torch.ones(3, 128))
+    torch.testing.assert_close(windows.states[1:, :, 0] - windows.states[:-1, :, 0],
+                               windows.valid_steps.float())
     torch.testing.assert_close(windows.states[:, :, 1], windows.states[:1, :, 1].expand(4, -1))

@@ -35,7 +35,9 @@ class CuttingWorldModel(nn.Module):
     def predict(self, state, action, goal):
         return getattr(self, '_step_fn', self.step)(state, action, goal)
 
-    def window_loss(self, states, actions, goal, done):
+    def window_loss(self, states, actions, goal, done, valid_steps=None):
+        if valid_steps is not None:
+            return self.masked_window_loss(states, actions, goal, done, valid_steps)
         state = states[0]
         loss_state = states.new_zeros(())
         loss_term = states.new_zeros(())
@@ -52,3 +54,40 @@ class CuttingWorldModel(nn.Module):
         return loss, {'state_loss': loss_state.detach() / k, 'term_bce': loss_term.detach() / k,
                       'nse_1step': errors[0], 'nse_kstep': errors[-1],
                       'term_acc': torch.stack(accuracies).mean()}
+
+    def masked_window_loss(self, states, actions, goal, done, valid_steps):
+        if valid_steps.shape != done.shape or valid_steps.dtype != torch.bool:
+            raise ValueError('Valid-step mask must be boolean and align with termination labels')
+        if not valid_steps[0].all() or (valid_steps[1:] & ~valid_steps[:-1]).any():
+            raise ValueError('Each window must contain a nonempty valid prefix')
+        count = valid_steps.sum()
+        state = states[0]
+        loss_state = states.new_zeros(())
+        loss_term = states.new_zeros(())
+        correct = states.new_zeros(())
+        last_error = states.new_zeros(states.shape[1])
+        for t in range(len(actions)):
+            valid = valid_steps[t]
+            # Inactive rows use a finite recorded start, avoiding extrapolation past termination.
+            input_state = torch.where(valid[:, None], state, states[0])
+            action = torch.where(valid[:, None], actions[t], 0.)
+            predicted, _, logits = self.predict(input_state, action, goal)
+            target = torch.where(valid[:, None], states[t + 1], states[0])
+            compared = torch.where(valid[:, None], predicted, target)
+            sq = self.spec.error_vector(compared, target).square()
+            loss_state = loss_state + sq.sum()
+            logits = torch.where(valid, logits, 0.)
+            labels = torch.where(valid, done[t], 0.)
+            bce = F.binary_cross_entropy_with_logits(logits, labels, reduction='none')
+            loss_term = loss_term + torch.where(valid, bce, 0.).sum()
+            correct = correct + (valid & ((logits.detach() > 0) == labels.bool())).sum()
+            error = sq.detach().mean(-1)
+            last_error = torch.where(valid, error, last_error)
+            if t == 0:
+                first_error = error.mean()
+            state = torch.where(valid[:, None], predicted, state)
+        loss = (loss_state + loss_term) / count
+        return loss, {'state_loss': loss_state.detach() / count,
+                      'term_bce': loss_term.detach() / count,
+                      'nse_1step': first_error, 'nse_kstep': last_error.mean(),
+                      'term_acc': correct.detach() / count}

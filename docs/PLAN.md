@@ -45,15 +45,19 @@ or resumed checkpoints.
    imagination diagnostic confirms this behavior. Run3's complete physical
    evaluation exposes model disagreement: its H32 prediction calls the
    successful step18 a workspace failure.
-2. Repair model-training sequence coverage. All 1121 collision failures in the
-   latest run last 1–2 steps and are excluded by eight-step same-episode replay
-   windows. Preserve the maximum horizon, source objectives and batches; use
-   valid-step masks for real short terminal sequences and check full-length
-   equivalence. Keep rewards, thresholds and physics unchanged.
-3. Verify the repair against saved terminal sequences and repeat frozen physical
-   evaluation after learning. Compare critic values with complete discounted
-   returns and H32 terminal predictions on the same saved initial states.
-   Independent review checks actual terminal sample counts and return alignment.
+2. The `SequenceReplay` adapter now includes completed short terminal sequences
+   with a valid-step mask. Full H8 loss/gradients and mixed-length microbatch
+   updates match their unpadded references. The previous run's 1121 collision
+   failures were excluded from WM fitting; that run saved episode counts but
+   no replay transitions for those failures.
+3. Collect fresh transitions and validate the repair from policy52/WM552 with
+   1024 worlds, the original 40-step refill and unchanged H8/H32 schedule.
+   Budget: ten joint updates or 1800 seconds, followed by eight frozen complete
+   physical episodes, within 2700 seconds total. Save short real terminal
+   sequences and count their actual use in WM fitting. Evaluate critic values
+   against the new policy's complete physical returns; fixed-state model
+   comparisons keep the old policy52 actions separate. Independent review checks
+   sampling, masked-loss equivalence and return alignment.
 4. Run1's completed frozen SAC evaluation has ten successes, mean return
    91.02107 and zero optimizer updates. Keep its training independent of run2/3
    model and critic changes.

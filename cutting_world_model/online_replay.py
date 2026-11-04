@@ -1,12 +1,12 @@
-"""Streaming writes to the unchanged upstream replay, with state-aligned terminal labels."""
+"""Streaming replay writes with state-aligned terminal labels."""
 import torch
 
-from third_party.supermimic.replay_buffer import ReplayBuffer
+from .sequence_replay import SequenceReplay
 
 
 class OnlineReplay:
     def __init__(self, state_dim, device, capacity=1000):
-        self.buffer = ReplayBuffer(1, capacity, state_dim, 6, 7, device)
+        self.buffer = SequenceReplay(1, capacity, state_dim, 6, 7, device)
         self.device = device
         self.env_id = torch.tensor([0], device=device)
         self.frame = 0
@@ -34,7 +34,7 @@ class OnlineReplay:
 
 class BatchedOnlineReplay:
     def __init__(self, worlds, state_dim, device, capacity=1000):
-        self.buffer = ReplayBuffer(worlds, capacity, state_dim, 6, 7, device)
+        self.buffer = SequenceReplay(worlds, capacity, state_dim, 6, 7, device)
         self.ids = torch.arange(worlds, device=device)
         self.frame = torch.zeros(worlds, dtype=torch.long, device=device)
         self.episode = torch.zeros_like(self.frame)

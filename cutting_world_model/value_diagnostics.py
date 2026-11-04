@@ -60,7 +60,7 @@ def _expected_reuse(available, draws):
 
 @torch.no_grad()
 def replay_sampling_metrics(buffer, window, history, wm_batch_size=None, policy_batch_size=None):
-    """Counts follow the upstream window and history overwrite masks; rows include terminal rows."""
+    """Counts follow the active window sampler and history overwrite mask; rows include terminal rows."""
     if window < 1 or history < 1:
         raise ValueError('Window and history must be positive')
     if any(n is not None and n < 1 for n in (wm_batch_size, policy_batch_size)):

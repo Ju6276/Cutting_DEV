@@ -66,17 +66,35 @@ class OnlineLearner:
         for batch_index in range(cfg.batches_per_update):
             self.progress(phase="world_model", minibatch=batch_index + 1, minibatches=cfg.batches_per_update)
             batch = buffer.sample_windows(cfg.batch_size, cfg.window)
+            valid = getattr(batch, 'valid_steps', None)
+            if valid is not None:
+                count = valid.sum()
+                for key, value in {
+                    'sampled_transitions': count,
+                    'sample_terminal_transitions': torch.where(valid, batch.done, 0.).sum(),
+                    'short_windows': (valid.sum(0) < cfg.window).sum(),
+                }.items():
+                    aggregate[key] = aggregate.get(key, 0.) + value.detach()
             self.wopt.zero_grad(set_to_none=True)
             for part in chunks(cfg.batch_size, self.microbatch):
-                weight = (part.stop - part.start) / cfg.batch_size
-                loss, metrics = self.wm.window_loss(batch.states[:, part], batch.a_exec[:, part],
-                                                   batch.xi[part], batch.done[:, part])
+                if valid is None:
+                    weight = (part.stop - part.start) / cfg.batch_size
+                    loss, metrics = self.wm.window_loss(
+                        batch.states[:, part], batch.a_exec[:, part], batch.xi[part], batch.done[:, part])
+                else:
+                    weight = valid[:, part].sum().to(batch.states.dtype) / count
+                    loss, metrics = self.wm.window_loss(
+                        batch.states[:, part], batch.a_exec[:, part], batch.xi[part], batch.done[:, part],
+                        valid[:, part])
                 if not torch.isfinite(loss):
                     raise FloatingPointError('Non-finite world-model loss')
                 (loss * weight).backward()
                 metrics['loss'] = loss.detach()
                 for key, value in metrics.items():
-                    aggregate[key] = aggregate.get(key, 0.) + value.detach() * weight / cfg.batches_per_update
+                    metric_weight = ((part.stop - part.start) / cfg.batch_size
+                                     if key in ('nse_1step', 'nse_kstep') else weight)
+                    aggregate[key] = (aggregate.get(key, 0.)
+                                      + value.detach() * metric_weight / cfg.batches_per_update)
             gn = finite_gradient_norm(self.wm.parameters(), cfg.grad_clip)
             self.wopt.step()
             aggregate['grad_norm'] = aggregate.get('grad_norm', 0.) + gn.detach() / cfg.batches_per_update
