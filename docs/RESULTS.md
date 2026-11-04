@@ -757,6 +757,37 @@ task-terminal reward once when computing predicted returns; raw state-error
 rollouts continue for the requested horizon. Corrected GPU held-out 32-step
 return RMSE is **10.79 before / 59.56 after** fitting, from
 `task_return_evaluation.json`. The old evaluator repeated terminal bonuses.
-4090 full tests: **131 passed, 2 skipped**, 5.14 s. The original online
-joint-update schedule still needs evaluation with a fresh critic and the
-corrected terminal rule; fixed-recording experiments leave policy frozen.
+4090 full tests: **131 passed, 2 skipped**, 5.14 s. Fixed-recording experiments
+leave policy frozen; the online joint-update result follows below.
+
+## 2026-11-04 — Online joint updates with absorbing task termination
+
+Code `5458efb`; A6000 GPU 0 runs
+`/dataHDD/dong/tmp/run_critic_online_validation.py`, resuming the verified
+500-round WM-only checkpoint described in METHOD. Original H32, 1024 worlds,
+effective policy batch 4096, WM batch 2048, and update schedule are retained.
+Budget: 30 policy updates or 3400 s computation, with external termination at
+3540 s and kill at 3600 s. The run completes normally in **3128.32 s**:
+**114 vector steps, 116736 new transitions, 30 joint updates**; optimizer steps
+finish at WM **5300**, policy **30**, critic **600**.
+
+All recorded values are finite. Physical pre-action critic values across
+policy versions 0–29 reach absolute maximum **33.73**; the last mean is
+**−8.01**, absolute maximum **10.66**. Training-target means range
+**−34.33 to −4.61**, ending at **−13.47**; final-minibatch critic losses range
+**0.97–28.43**. This online run has no sustained value growth. The physical
+rollouts cover **5.7 s** each, with **0 completed or truncated episodes**;
+complete-episode Monte Carlo value errors remain to be measured.
+
+After update 30, sampled recorded-action replay rollouts at H8/H32 have
+position RMSE **0.273/2.089 mm**, force RMSE **0.379/0.454 N**, and undiscounted
+return RMSE **0.0693/0.4509**. Each horizon uses 64 training-replay windows
+with task-absorbing termination. The last physical step, using WM529, has
+one-step position/force RMSE **0.0557 mm/0.226 N**. Recorded timing includes
+the audit: physics **2422.37 s**, WM fitting **260.44 s**, policy/critic plus
+rollout diagnostics **413.76 s**.
+
+Output: `runs/critic_online_terminalfix_20261104`; checkpoints at joint updates
+1/10/20/30 and `last.pt`. W&B run `t54srl5x` finishes and syncs successfully.
+4090 full tests: **131 passed, 2 skipped**, 5.16 s. Next: freeze the final
+checkpoint and compare critic values with complete physical episode returns.
