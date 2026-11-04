@@ -11,11 +11,12 @@
   after critic divergence. Frozen episode return and bootstrap probes identify
   large value bias and terminal-head errors. The relative causal contributions
   remain to be established; single-world data reuse is a measured regime difference.
-- **3 — SuperMimic + MuJoCo Warp + DiSECt**: `gpu_wm_first_20261103` runs
-  on A6000 GPU 1 with 1024 environments, fresh weights, 500 world-model-only
-  rounds and a 24-hour budget. The source vector-step schedule and 1000 replay
-  rows per environment are retained. Joint learning starts on WM round 501.
-  W&B [dm6e5jan](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/dm6e5jan).
+- **3 — SuperMimic + MuJoCo Warp + DiSECt**: bounded training and frozen
+  evaluation finished on A6000 GPU 0. `critic_online_terminal_coverage_20261104`
+  finishes at policy52/WM552 after 2872 complete episodes; the frozen zero-noise
+  policy succeeds 8/8 in 18 steps. Value MAE is 141.6256. No GPU training process
+  remains from this run.
+  W&B [4s8uxh4o](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/4s8uxh4o).
 - Run 1 training stays on ROS 11321/Gazebo 11355. Frozen SAC evaluation uses
   separate ROS 11323/Gazebo 11357 and the source ten-episode deterministic evaluator.
 
@@ -28,7 +29,7 @@ and success count. Particles remain in DiSECt and recorded data. Source widths,
 effective batches 2048/4096, eight-step model fitting, 32-step BPTT, learning rates,
 update ratio and task thresholds are unchanged. Microbatch 64 controls storage.
 
-Both runs use the repaired post-step and zero-time reset joint snapshots.
+Gazebo runs 1 and 2 use the repaired post-step and zero-time reset joint snapshots.
 Shutdown independently saves artifacts, closes the environment within wall-time
 bounds and finishes W&B; a run-specific guard cleans up remaining child processes.
 The completed SAC task check had 31 transitions, 30 updates, return 84.00210,
@@ -39,22 +40,23 @@ or resumed checkpoints.
 
 ## Next work
 
-1. Source vector-step cadence and critic sample ordering are restored. Full/split
-   update comparison and independent review pass; the frozen SAC exit and optional
-   failure-priority reward branch are repaired. WM-first phase counters, partial
-   optimizer progress, checkpoint compatibility and both levels of Gazebo
-   exception cleanup are implemented and checked.
-2. Isolate force prediction and terminal-head inconsistency before changing the
-   learning method. On 735 recorded transitions, substituting measured force
-   features reduces missed terminal labels from 14 to 3; the remaining error
-   includes predicted pose/counter features and classifier consistency.
-3. Run the WM-first candidate through 500 model rounds and joint learning. Compare
-   force/termination prediction and critic targets, then evaluate a frozen policy
-   in physical episodes with the original task metrics. Startup has passed a full
-   source-size WM update on recorded transitions; task learning is the running experiment.
-4. Frozen SAC evaluation completed ten episodes: 10 successes, mean return
-   91.02107, zero optimizer updates. The evaluation fallthrough is repaired;
-   dispatch/lifecycle tests cover normal exit and exceptions.
+1. The shared run2/run3 learner applies the entering terminal reward once,
+   then freezes state and zeros later rewards/bootstrap; the same-checkpoint
+   imagination diagnostic confirms this behavior. Run3's complete physical
+   evaluation exposes model disagreement: its H32 prediction calls the
+   successful step18 a workspace failure.
+2. Repair model-training sequence coverage. All 1121 collision failures in the
+   latest run last 1–2 steps and are excluded by eight-step same-episode replay
+   windows. Preserve the maximum horizon, source objectives and batches; use
+   valid-step masks for real short terminal sequences and check full-length
+   equivalence. Keep rewards, thresholds and physics unchanged.
+3. Verify the repair against saved terminal sequences and repeat frozen physical
+   evaluation after learning. Compare critic values with complete discounted
+   returns and H32 terminal predictions on the same saved initial states.
+   Independent review checks actual terminal sample counts and return alignment.
+4. Run1's completed frozen SAC evaluation has ten successes, mean return
+   91.02107 and zero optimizer updates. Keep its training independent of run2/3
+   model and critic changes.
 
 Implementation differences are in METHOD; commands and numbers are in RESULTS.
 

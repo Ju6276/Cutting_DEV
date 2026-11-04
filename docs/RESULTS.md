@@ -819,7 +819,56 @@ with absorbing task termination. Both use the same task/material and backend.
 
 Output: `runs/critic_complete_policy30_20261104`; per-step force/value curves
 are in `force_value_curves.csv`, and world0 physical video frames in
-`video_world0.npz`. Stored data are about **1.9 MB**. Next: continue the original
-online update schedule through natural terminal episodes, then repeat the
-frozen complete-return evaluation.
+`video_world0.npz`. Stored data are about **1.9 MB**. The following run adds natural terminal
+episodes and repeats the frozen complete-return evaluation.
 4090 full tests: **131 passed, 2 skipped**, 5.11 s.
+
+
+## 2026-11-04 — Natural-terminal training and frozen policy52
+
+Code `4638442`; A6000 GPU 0 runs
+`/dataHDD/dong/tmp/run_critic_terminal_coverage.py`, then
+`/dataHDD/dong/tmp/evaluate_critic_terminal_coverage.py`. Training resumes
+policy30/WM530 with 1024 worlds and the unchanged H8/H32 schedule. Checkpoints
+restore learner state; physical state and replay restart, including the source
+40-step refill. The endpoint is ten joint updates after the first natural
+termination, capped at 250 vector steps or 4900 s; frozen evaluation is capped
+at 900 s within a total 6000 s budget.
+
+Training finishes in **2540.90 s**, after **94 new vector steps / 96256
+transitions** and **22 joint updates**, at policy **52**, WM **552**. The first
+natural termination occurs at step **70**, policy **42**. Completed episodes:
+**2872 = 1751 successes + 1121 collisions**, zero truncations. All 1024 first
+episodes succeed in 70–80 steps. Physical critic values remain finite, with
+absolute maximum **82.7721**. W&B run: `4s8uxh4o`.
+
+The WM optimizer samples **2706 terminal labels** after the first termination.
+All come from successful episodes: the 1121 collisions last only one or two
+steps (**273 / 848 episodes**) and cannot form the source eight-step,
+same-episode training windows. Independent reconstruction of all 22 rounds'
+window counts matches the sampler. The failures are recorded but excluded from
+WM fitting by this sequence-length requirement.
+
+Frozen policy52 completes **8/8** zero-noise episodes in **18 steps / 0.90 s**;
+wall time **35.12 s**, return **92.1573–92.1575**, peak force **42.595 N**,
+released springs **287**. Across 144 transitions, gamma 0.99 value errors are
+**MAE 141.6256, RMSE 142.1439, bias −141.6256**. Initial value is **−43.9075**,
+actual initial discounted return **76.9421–76.9423**. The same-condition
+policy30 evaluation had MAE **41.5014**: task execution improves while value
+accuracy worsens. Independent CPU recomputation matches rewards and task flags
+exactly, returns within **1e-12**, and critic values within **1.15e-5**.
+
+At the saved world0 initial state, the unchanged H32 imagination predicts an
+out-of-workspace failure at step 18, reward **−100.7226**, survival-weighted discounted reward
+**−95.7152**. The physical episode instead succeeds at step 18, terminal reward
+**99.719**, discounted return **76.9421**. Post-terminal reward and bootstrap
+are zero. This separates the repaired absorbing-terminal implementation from
+the model's erroneous future terminal state and the critic's value error.
+
+Outputs: `runs/critic_online_terminal_coverage_20261104` and
+`runs/critic_complete_terminal_coverage_20261104`; complete force/value curves,
+physical frames and `model_terminal_diagnosis.json` are saved. Next: admit
+recorded short terminal sequences to model fitting with a valid-step mask,
+verify full-length loss equivalence and terminal coverage, then repeat the
+same frozen physical-return check.
+4090 full tests: **131 passed, 2 skipped**, 5.16 s.
