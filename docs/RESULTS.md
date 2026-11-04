@@ -789,5 +789,37 @@ rollout diagnostics **413.76 s**.
 
 Output: `runs/critic_online_terminalfix_20261104`; checkpoints at joint updates
 1/10/20/30 and `last.pt`. W&B run `t54srl5x` finishes and syncs successfully.
-4090 full tests: **131 passed, 2 skipped**, 5.16 s. Next: freeze the final
-checkpoint and compare critic values with complete physical episode returns.
+4090 full tests: **131 passed, 2 skipped**, 5.16 s. The frozen-checkpoint
+physical value evaluation follows below.
+
+## 2026-11-04 — Frozen policy30 complete physical episodes
+
+Code `17225b9`; A6000 GPU 0 runs
+`/dataHDD/dong/tmp/evaluate_critic_complete_gpu.py` on the final online
+`last.pt`, eight worlds, zero action noise, 900 s wall ceiling. All eight
+same-initial-state episodes succeed in **152–153 steps / 7.60–7.65 s**;
+wall time **277.09 s**, return **34.623–34.987**, peak force **9.403 N**,
+released springs **279–281**. Collisions/truncations: **0/0**. Policy and
+critic tensors remain exactly equal to the checkpoint; optimizer updates **0**.
+
+Across **1221 transitions**, critic versus complete physical discounted
+returns at gamma **0.99** has **MAE 41.5014, RMSE 47.8341, bias −41.5014**.
+Initial value is **−34.0605**, actual initial return **−14.8874 to −14.5814**.
+The final transition reward is about **99.687**, while its pre-action critic
+is about **13.6**. First-114-step MAE is **29.5508**; later-step MAE **76.7731**.
+The preceding online run collected 114 steps per world and zero terminations.
+Task execution succeeds; value estimates still underestimate complete returns.
+
+Independent CPU replay exactly reproduces rewards, termination flags and
+success counters; independent discounted-return recursion agrees within
+**1e-12**, reconstructed-history critic values within **3.82e-6**. The earlier
+eight-world policy206 recording used action noise **0.1**, WM706 and the prior
+terminal rule; this evaluation uses zero noise, WM530 and policy30 trained
+with absorbing task termination. Both use the same task/material and backend.
+
+Output: `runs/critic_complete_policy30_20261104`; per-step force/value curves
+are in `force_value_curves.csv`, and world0 physical video frames in
+`video_world0.npz`. Stored data are about **1.9 MB**. Next: continue the original
+online update schedule through natural terminal episodes, then repeat the
+frozen complete-return evaluation.
+4090 full tests: **131 passed, 2 skipped**, 5.11 s.
