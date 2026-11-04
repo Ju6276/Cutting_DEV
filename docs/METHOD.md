@@ -6,7 +6,8 @@ robot utilities `177cf21`; DiSECt `db7de0f`.
 | Module | Source design | Cutting implementation |
 |---|---|---|
 | Replay | Episode-aware ring, 4096 environments × 1000 rows, clean/executed actions, terminal row | Original ring with 1000 rows per environment. Physical-transition counts exclude extra terminal rows. |
-| Schedule | Warmup 40 vector steps with 4096 environments; UTD 0.4 per vector step | Original vector-step cadence for every environment count: warmup 40, UTD 0.4, first update at step 42. LR, checkpoints and endpoint use vector steps; transition counts are telemetry. The collection regime differs when fewer environments are active. |
+| Schedule | Warmup 40 vector steps with 4096 environments; UTD 0.4 per vector step | Original vector-step cadence for every environment count: warmup 40, UTD 0.4, first update at step 42. LR and step endpoint use vector steps; transition counts are telemetry. The collection regime differs when fewer environments are active. |
+| GPU checkpoint timing | Save every 4000 vector steps | Also save every 30 wall minutes or on SIGUSR1 at a completed iteration, because cutting steps take much longer than humanoid steps. Learning objectives and update cadence stay unchanged. |
 | Terminal-label storage | Pinned recorder writes termination on both the last transition row and final state row; sampler reads the next state row | Cutting recorder labels only the reached terminal state, so a window marks the actual terminating transition once |
 | Objective | Survival-weighted 32-step return, terminal critic, GAE lambda 0.95 | Original objective and GAE functions; only their type-only import is changed |
 | Dynamics MLP | Three 2048-unit SiLU layers, zero final layer | Original source module with cutting StateSpec and connected trainer |
@@ -148,7 +149,7 @@ learning rates, effective batches and the 320000-vector-step schedule. Environme
 changes the number of physical transitions collected per vector step. It does
 not change the eight-step world-model loss or 32-step actor BPTT horizon.
 `--max-hours` and `--max-iterations` bound wall time and physical vector steps.
-LR, checkpoint cadence and endpoint use vector steps. Checkpoints record
+LR and the step endpoint use vector steps. Checkpoints record
 `vector_steps_v1` and the environment count. Resume refills replay with the source
 warmup; checkpoints using transition-rescaled schedule units require conversion.
 

@@ -582,3 +582,18 @@ WM-only finishes at vector step 1289; first joint update is at 1292 for an
 uninterrupted run. Estimated collection to that boundary is about 7.5 h from
 measured physical throughput, plus model fitting. The run records separate WM,
 policy and optimizer counts and saves both phase-boundary checkpoints.
+
+## 2026-11-04 — GPU checkpoint and frozen evaluation entry
+
+Commit `f77b548`; 4090 `PYTHONPATH=. .venv/bin/python -m pytest tests -q`:
+**125 passed, 2 skipped**, 5.09 s. Normal SIGTERM saved the previous run at
+**1806 vector steps, 706 WM rounds, 206 policy updates**. A6000 resume command:
+`scripts/train_gpu.py --backend-root ../CuttingGpuBackend --worlds 1024
+--wm-only-updates 500 --resume runs/gpu_wm_first_20261103/last.pt
+--checkpoint-minutes 30 --max-hours 11.340668234560225
+--output runs/gpu_wm_resume_20261104`. W&B `t21ma46i`; original wall deadline
+retained. Model/optimizer counts restored; replay and physical episodes restart.
+`kill -USR1 1249025` wrote **checkpoint_00001807.pt (182 MiB)** while training
+continued. Frozen physical evaluations use `scripts/evaluate_gpu.py`, one fixed
+scene episode per checkpoint with zero execution noise; outputs are
+`runs/gpu_frozen_eval_20261104_{initial,policy206}`.
