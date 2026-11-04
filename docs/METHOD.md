@@ -16,6 +16,7 @@ robot utilities `177cf21`; DiSECt `db7de0f`.
 | Actions | Gaussian execution noise sigma 0.1 | Same noise; execution respects SliceIt's existing action-space bounds; both clean and executed actions are recorded. SliceIt's last-action observation contains the executed action |
 | Observation/reward | Analytic task functions, including robot FK | Torch translation of corrected SliceIt normalization, reward and termination; decode component-major force history before averaging each component |
 | Termination | Learned probability head trained from simulator terminal labels | Connected cutting probability head with force, workspace, goal and counter features |
+| Absorbing task terminals | Imagined survival uses the learned termination probability | Predicted SliceIt force/workspace/goal terminals also end imagination. Subsequent state is absorbing, reward is zero, and bootstrap is zero, using the existing task predicates. This removes repeated terminal penalties when the learned classifier misses an already-known task terminal. The hard event mask has zero derivative across its switch; nonterminal model/action gradients remain. |
 | Success priority | SliceIt checks collision, then `termination_on_negative_reward`, then goal success | Shared task heads apply the same priority; a failure branch suppresses the success bonus while retaining counter advancement |
 | Physical state | Simulator state read at the transition boundary | ROS `native_ros_recurrent_v1` exports FDCC solver/PD/force/target state, hardware command, filter and sensor queues alongside joints/material. GPU `coupled_recurrent_v1` includes its controller/filter state. Observation snapshots precede terminal shutdown |
 | Force history | Observation reads the sensor history | Record that exact sensor read, rather than rereading a moving queue after env.step |
@@ -65,6 +66,13 @@ reset-first transitions, held-out full episodes, force-limit termination and
 policy success. No learned latent state or recurrent network is added.
 
 ## World-model-first training
+
+Task-terminal handling follows the episodic bootstrap rule in
+[Gymnasium](https://gymnasium.farama.org/tutorials/gymnasium_basics/handling_time_limits/):
+true termination removes bootstrap; an external time truncation does not.
+The correction adds one task-head evaluation per imagined step, changes neither
+physical trajectories nor task rewards/thresholds, and does not retrain the world
+model's terminal classifier using predicted labels.
 
 The user-selected startup stage follows ndm-gym `0171f5e`:
 [train.py](https://github.com/Frank-ZY-Dou/ndm-gym/blob/0171f5eadee50492d6ff30fa04b55e16cc11b61e/ndm_gym/train.py)

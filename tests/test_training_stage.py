@@ -100,6 +100,14 @@ def test_checkpoint_preserves_both_sides_of_world_model_stage_boundary():
     assert_unchanged(resumed.critic, weights(joint.critic))
 
 
+def test_resume_rejects_critic_trained_with_previous_terminal_rule():
+    learner, _ = make_learner()
+    saved = learner.checkpoint()
+    saved.pop('imagination_terminal_rule')
+    with pytest.raises(ValueError, match='imagination terminal rule'):
+        learner.restore(saved)
+
+
 def test_interrupted_world_model_block_records_optimizer_steps_without_completed_credit():
     learner, replay = make_learner(wm_only_updates=2)
 

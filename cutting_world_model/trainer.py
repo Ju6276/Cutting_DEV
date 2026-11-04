@@ -88,11 +88,21 @@ class OnlineLearner:
         spec, cfg = self.wm.spec, self.pcfg
         history = spec.field(history_states, 'observation')
         survival = torch.ones(state.shape[0], device=state.device)
+        absorbed = torch.zeros(state.shape[0], dtype=torch.bool, device=state.device)
         states, rewards, probabilities, survivals, actions = [state], [], [survival * 0], [survival], []
         for _ in range(cfg.horizon):
             action = self.policy(history, goal)
-            state, reward, logits = self.wm.predict(state, action, goal)
-            probability = logits.sigmoid()
+            next_state, reward, logits = self.wm.predict(state, action, goal)
+            collision = (spec.field(next_state, 'peak_wrench') > spec.force_limits).any(-1)
+            task_done, _, _, _ = spec.heads.termination(
+                spec.field(next_state, 'observation'),
+                spec.field(state, 'success_counter'), collision)
+            # The transition into a terminal state keeps its reward exactly once.
+            reward = torch.where(absorbed, torch.zeros_like(reward), reward)
+            next_state = torch.where(absorbed[:, None], state, next_state)
+            absorbed = absorbed | task_done
+            probability = torch.where(absorbed, torch.ones_like(logits), logits.sigmoid())
+            state = next_state
             survival = survival * (1 - probability)
             history = torch.cat((history[1:], spec.field(state, 'observation')[None]), 0)
             states.append(state)
@@ -202,7 +212,8 @@ class OnlineLearner:
         return metrics
 
     def checkpoint(self):
-        return {'world_model': self.wm.state_dict(), 'policy': self.policy.state_dict(),
+        return {'imagination_terminal_rule': 'task_absorbing_v1',
+                'world_model': self.wm.state_dict(), 'policy': self.policy.state_dict(),
                 'critic': self.critic.state_dict(), 'wm_optimizer': self.wopt.state_dict(),
                 'policy_optimizer': self.popt.state_dict(), 'critic_optimizer': self.copt.state_dict(),
                 'updates': self.updates,
@@ -213,6 +224,8 @@ class OnlineLearner:
                                    'policy_config': asdict(self.pcfg)}}
 
     def restore(self, data):
+        if data.get('imagination_terminal_rule') != 'task_absorbing_v1':
+            raise ValueError('Checkpoint imagination terminal rule differs')
         stage = data.get('training_stage')
         if not isinstance(stage, dict):
             raise ValueError('Checkpoint lacks training-stage configuration and counts')

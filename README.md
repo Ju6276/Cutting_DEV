@@ -62,6 +62,8 @@ adds to that time.
 `kill -USR1 PID` requests a GPU checkpoint at the next completed iteration while
 training continues. Phase boundaries and normal shutdown also save checkpoints;
 periodic wall-time and step-based saves are disabled. Checkpoints are written atomically.
+Training resumes require the current `task_absorbing_v1` imagination rule;
+earlier policies remain loadable for frozen evaluation.
 Evaluate a frozen policy with `scripts/evaluate_gpu.py --backend-root
 ../CuttingGpuBackend --checkpoint RUN/last.pt --output runs/gpu_evaluation`.
 

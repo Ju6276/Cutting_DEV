@@ -630,3 +630,27 @@ peak **10.8548 N**, trapezoidal time mean **2.4119 N**. SAC frozen 20k video
 286 released springs, sampled force peak **31.9968 N**, time mean **7.7572 N**.
 Both videos replay recorded robot/material states at 0.5x; robot FK position
 error for policy 206 is **7.22e-16 m**. Robot backends differ (Gazebo vs MuJoCo Warp).
+
+## 2026-11-04 — Known task terminals in imagination
+
+Frozen value probes use `/dataHDD/dong/tmp/probe_cutting_values.py CHECKPOINT
+EPISODE OUTPUT`, 48 evenly spaced physical starting states and 32 imagined steps.
+Gazebo run `control_history_resume_20261103`, update 316, episode 17:
+physical-state critic mean **-73684.30**, observed discounted-return mean
+**-94.38**. Original imagined step 32 has mean reward **-77.69**, minimum
+**-200.75**, even after predicted task failures. Absorbing the existing task
+terminals removes repeated terminal penalties: step-32 mean **-0.1468**, minimum
+**-0.6349**; terminated paths have zero future reward/bootstrap. Frozen weights
+are unchanged, so their physical-state value error remains.
+
+GPU update 206 on a new on-policy trace `policy206_value_trace_20261104`:
+**138 steps, success, return 46.6444**, physical-state critic mean **-1276.00**
+versus observed discounted-return mean **38.4822**. Initial critic estimate
+**-434.80** versus actual discounted return **-6.5264**. This separates the
+critic error from physical task success. Next validation is fresh value learning
+with the corrected terminal rule before restarting long training.
+
+4090 `PYTHONPATH=. .venv/bin/python -m pytest tests -q`: **130 passed,
+2 skipped**, 5.23 s. Force/workspace/success terminal examples retain the entering
+reward once, make subsequent rewards and bootstrap zero, and preserve bootstrap
+at a nonterminal rollout horizon. Old-terminal-rule training resumes are rejected.
