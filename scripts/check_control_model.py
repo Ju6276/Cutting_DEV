@@ -86,9 +86,18 @@ def evaluate(model, episodes, horizons=(1, 8, 32)):
             starts = torch.arange(n, device=ep['states'].device)
             state = ep['states'][starts]
             rewards = torch.zeros(n, device=state.device)
+            alive = torch.ones(n, dtype=torch.bool, device=state.device)
             for step in range(horizon):
+                previous = state
                 state, reward, logits = model.step(state, ep['actions'][starts + step], ep['goal'].expand(n, -1))
-                rewards += reward
+                collision = (spec.field(state, 'peak_wrench') > spec.force_limits).any(-1)
+                task_done, _, _, _ = spec.heads.termination(
+                    spec.field(state, 'observation'),
+                    spec.field(previous, 'success_counter'), collision)
+                # State errors audit the raw predictor; episodic returns end at
+                # the first predicted task terminal, including its reward once.
+                rewards += torch.where(alive, reward, torch.zeros_like(reward))
+                alive &= ~task_done
                 if not torch.isfinite(state).all() or not torch.isfinite(logits).all() or not torch.isfinite(reward).all():
                     result.append({'episode': ep['path'], 'horizon': horizon, 'finite': False, 'failed_step': step + 1})
                     break
