@@ -43,8 +43,6 @@ def main():
     parser.add_argument('--wm-only-updates', type=int, default=500,
                         help='Completed world-model rounds before policy/critic updates')
     parser.add_argument('--max-hours', type=float, default=6.)
-    parser.add_argument('--checkpoint-minutes', type=float, default=30.,
-                        help='Maximum wall interval between checkpoints at completed iterations')
     parser.add_argument('--max-iterations', type=int)
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--resume', type=Path)
@@ -54,8 +52,6 @@ def main():
     args = parser.parse_args()
     if args.wm_only_updates < 0:
         parser.error("--wm-only-updates must be nonnegative")
-    if not 0 < args.checkpoint_minutes < float('inf'):
-        parser.error('--checkpoint-minutes must be finite and positive')
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     started = time.monotonic()
@@ -120,7 +116,6 @@ def run(args, output, status, started):
     tracker = ExperimentTracker(output, manifest, args.wandb_project, args.wandb_entity, args.wandb_mode)
     stop_requested = False
     save_requested = False
-    last_checkpoint_time = time.monotonic()
 
     def stop(signum, context):
         nonlocal stop_requested
@@ -150,14 +145,12 @@ def run(args, output, status, started):
     learner.progress = learner_progress
 
     def checkpoint(name):
-        nonlocal last_checkpoint_time
         temp = output / (name + '.tmp')
         torch.save({'learner': learner.checkpoint(), 'metadata': metadata,
                     'iteration': schedule.iteration, 'schedule': schedule.state_dict(),
                     'torch_rng': torch.get_rng_state(),
                     'cuda_rng': torch.cuda.get_rng_state(), 'git': revisions}, temp)
         temp.replace(output / name)
-        last_checkpoint_time = time.monotonic()
 
     physical_limit = (None if args.max_iterations is None else
                       schedule.iteration + args.max_iterations)
@@ -254,8 +247,7 @@ def run(args, output, status, started):
             tracker.log(metrics)
             append_json(output / 'steps.jsonl', dict(status))
             print(json.dumps(status), flush=True)
-            if (schedule.checkpoint_due or save_requested or
-                    time.monotonic() - last_checkpoint_time >= args.checkpoint_minutes * 60):
+            if save_requested:
                 checkpoint('checkpoint_%08d.pt' % schedule.iteration)
                 save_requested = False
         else:

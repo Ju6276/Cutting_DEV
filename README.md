@@ -59,9 +59,9 @@ stores the first completed policy/critic update. At the measured 1024-world
 throughput, collection to this boundary alone takes about 7.5 hours; model fitting
 adds to that time.
 
-GPU training also saves at completed iterations every `--checkpoint-minutes 30`
-wall minutes. `kill -USR1 PID` requests a checkpoint at the next completed
-iteration while training continues. Checkpoints are written atomically.
+`kill -USR1 PID` requests a GPU checkpoint at the next completed iteration while
+training continues. Phase boundaries and normal shutdown also save checkpoints;
+periodic wall-time and step-based saves are disabled. Checkpoints are written atomically.
 Evaluate a frozen policy with `scripts/evaluate_gpu.py --backend-root
 ../CuttingGpuBackend --checkpoint RUN/last.pt --output runs/gpu_evaluation`.
 

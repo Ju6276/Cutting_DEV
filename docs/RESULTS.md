@@ -597,3 +597,21 @@ retained. Model/optimizer counts restored; replay and physical episodes restart.
 continued. Frozen physical evaluations use `scripts/evaluate_gpu.py`, one fixed
 scene episode per checkpoint with zero execution noise; outputs are
 `runs/gpu_frozen_eval_20261104_{initial,policy206}`.
+
+## 2026-11-04 — Frozen policy result and critic drift
+
+Commit `f77b548`, `scripts/evaluate_gpu.py --backend-root ../CuttingGpuBackend
+--checkpoint runs/gpu_wm_first_20261103/last.pt
+--output runs/gpu_frozen_eval_20261104_policy206`: one deterministic physical
+episode, **success, 144 steps / 7.2 simulated seconds, return 44.7112**, peak
+force 11.9093 N, 282 released springs, no force-limit termination. Weights
+unchanged, zero optimizer updates; wall 534.24 s while another evaluation ran.
+
+Training `9188c59` update log: critic means at policy updates 137/180/200/206
+are **-106.22/-383.86/-976.64/-1402.69**; update 206 critic loss **119971.91**.
+Its imagined discounted reward is **-6.307**, terminal bootstrap **-978.421**.
+Three-number trend shows renewed critic drift; task completion and value learning
+are evaluated separately. Resumed training was stopped before additional
+optimizer updates and saved at vector step **1836**, policy update **206**.
+Next check: compare frozen critic values and bootstrap targets against physical
+discounted returns and separate terminal-prediction error from value-target feedback.
