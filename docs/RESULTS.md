@@ -610,8 +610,23 @@ unchanged, zero optimizer updates; wall 534.24 s while another evaluation ran.
 Training `9188c59` update log: critic means at policy updates 137/180/200/206
 are **-106.22/-383.86/-976.64/-1402.69**; update 206 critic loss **119971.91**.
 Its imagined discounted reward is **-6.307**, terminal bootstrap **-978.421**.
-Three-number trend shows renewed critic drift; task completion and value learning
+The recorded trend shows renewed critic drift; task completion and value learning
 are evaluated separately. Resumed training was stopped before additional
 optimizer updates and saved at vector step **1836**, policy update **206**.
 Next check: compare frozen critic values and bootstrap targets against physical
 discounted returns and separate terminal-prediction error from value-target feedback.
+
+Frozen initial-policy control (`scripts/evaluate_gpu.py`, checkpoint
+`gpu_wm_first_20261103/wm_only_complete.pt`, output
+`gpu_frozen_eval_20261104_initial`): **500 steps / 25 s, timeout, return -193.7770**,
+no force-limit termination, 281 released springs. Zero execution noise and
+zero optimizer updates, same physical task as policy 206.
+
+Policy 206 video repeat at code `344e604`, output
+`runs/policy206_robot_video_20261104`: **144 steps / 7.2 s, success, return 44.7387**,
+283 released springs. Control-boundary material-force samples at 20 Hz:
+peak **10.8548 N**, trapezoidal time mean **2.4119 N**. SAC frozen 20k video
+`runs/sac_robot_video_20261104`: **19 steps / 0.95 s, success, return 91.0862**,
+286 released springs, sampled force peak **31.9968 N**, time mean **7.7572 N**.
+Both videos replay recorded robot/material states at 0.5x; robot FK position
+error for policy 206 is **7.22e-16 m**. Robot backends differ (Gazebo vs MuJoCo Warp).
