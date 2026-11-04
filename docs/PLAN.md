@@ -11,12 +11,13 @@
   after critic divergence. Frozen episode return and bootstrap probes identify
   large value bias and terminal-head errors. The relative causal contributions
   remain to be established; single-world data reuse is a measured regime difference.
-- **3 — SuperMimic + MuJoCo Warp + DiSECt**: bounded training and frozen
-  evaluation finished on A6000 GPU 0. `critic_online_terminal_coverage_20261104`
-  finishes at policy52/WM552 after 2872 complete episodes; the frozen zero-noise
-  policy succeeds 8/8 in 18 steps. Value MAE is 141.6256. No GPU training process
-  remains from this run.
-  W&B [4s8uxh4o](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/4s8uxh4o).
+- **3 — SuperMimic + MuJoCo Warp + DiSECt**: bounded validation finished on
+  A6000 GPU 0 at policy62/WM562. `critic_mask_validation_20261104` collects
+  3409 complete episodes and samples 2433 collision terminal labels, including
+  the previously excluded one/two-step failures. Frozen evaluation succeeds
+  8/8 in 20 steps; value MAE remains high at 153.418925. No process remains
+  from this run.
+  W&B [5h7xrk7c](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/5h7xrk7c).
 - Run 1 training stays on ROS 11321/Gazebo 11355. Frozen SAC evaluation uses
   separate ROS 11323/Gazebo 11357 and the source ten-episode deterministic evaluator.
 
@@ -26,7 +27,7 @@ The world model predicts 36 coordinates: joint position/velocity, observed wrenc
 history and interval peak wrench. Ten frames supply 480 physical/command inputs.
 The 860-coordinate rollout state also retains analytic observation/reward history
 and success count. Particles remain in DiSECt and recorded data. Source widths,
-effective batches 2048/4096, eight-step model fitting, 32-step BPTT, learning rates,
+effective batches 2048/4096, maximum eight-step model horizon, 32-step BPTT, learning rates,
 update ratio and task thresholds are unchanged. Microbatch 64 controls storage.
 
 Gazebo runs 1 and 2 use the repaired post-step and zero-time reset joint snapshots.
@@ -41,23 +42,20 @@ or resumed checkpoints.
 ## Next work
 
 1. The shared run2/run3 learner applies the entering terminal reward once,
-   then freezes state and zeros later rewards/bootstrap; the same-checkpoint
-   imagination diagnostic confirms this behavior. Run3's complete physical
-   evaluation exposes model disagreement: its H32 prediction calls the
-   successful step18 a workspace failure.
-2. The `SequenceReplay` adapter now includes completed short terminal sequences
-   with a valid-step mask. Full H8 loss/gradients and mixed-length microbatch
-   updates match their unpadded references. The previous run's 1121 collision
-   failures were excluded from WM fitting; that run saved episode counts but
-   no replay transitions for those failures.
-3. Collect fresh transitions and validate the repair from policy52/WM552 with
-   1024 worlds, the original 40-step refill and unchanged H8/H32 schedule.
-   Budget: ten joint updates or 1800 seconds, followed by eight frozen complete
-   physical episodes, within 2700 seconds total. Save short real terminal
-   sequences and count their actual use in WM fitting. Evaluate critic values
-   against the new policy's complete physical returns; fixed-state model
-   comparisons keep the old policy52 actions separate. Independent review checks
-   sampling, masked-loss equivalence and return alignment.
+   then freezes state and zeros later rewards/bootstrap. Same-checkpoint
+   imagination confirms this behavior.
+2. Short-sequence replay is repaired and exercised by real learning. Full H8
+   loss/gradients and mixed-length updates match their references; the new run
+   uses 2433 collision terminal labels from real one/two-step failures. Shared
+   code covers run2/run3; the completed physical validation uses run3.
+3. Resolve multi-step WM joint/pose error. On the same physical policy62 actions,
+   step15 one-step position error is below 0.31 mm per coordinate, but a rollout
+   from the initial state reaches roughly 24–26 mm error in x/z and falsely
+   crosses the workspace boundary. Audit joint integration, normalization and
+   history inputs against the source using the saved action/state records.
+   Preserve critic equations, reward, thresholds and optimizer settings; verify
+   the next repair with fixed-policy model rollouts and fresh complete physical
+   returns. Current complete-return MAE is 153.418925 after ten new updates.
 4. Run1's completed frozen SAC evaluation has ten successes, mean return
    91.02107 and zero optimizer updates. Keep its training independent of run2/3
    model and critic changes.

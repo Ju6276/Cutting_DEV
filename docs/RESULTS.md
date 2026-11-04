@@ -893,3 +893,62 @@ time**, **302.33 s wall time**, return **80.2902**, peak force **9.9761 N**,
 **288** released springs, zero collision or truncation. SAC continues on the
 same GPU. The run manifest records the pre-commit integration snapshot
 (`57286e4`, dirty); its runtime source is committed in `cb17d5f`.
+
+
+## 2026-11-04 — Short terminal sequences enter actual WM training
+
+Code `2495171`; A6000 GPU 0 runs
+`runs/critic_mask_validation_20261104/run.py`. Policy52/WM552 resumes with
+1024 environments, fresh physical state/replay, the source 40-step refill,
+H8/H32, effective batches 2048/4096 and original optimizer/task settings.
+The endpoint is ten joint updates or 1800 s training, followed by eight frozen
+physical episodes within a 2700 s total budget.
+
+Training reaches policy **62**, WM **562** after **64 vector steps / 65536
+new transitions**, in **1701.66 s**. Completed episodes: **3409 = 3072
+successes + 337 collisions**. All collisions last one or two steps (**57 / 280**).
+Ten WM rounds sample **204800 windows, 1320053 valid transitions, 88797 terminal
+labels and 2433 collision labels**. In the first round, **269 collision labels**
+come from 307 already-recorded one/two-step failures. These short failures now
+enter model fitting. The **77903 short windows** also include terminal suffixes
+of longer episodes. Actual short state/action/next-state records are saved.
+
+Frozen policy62 completes **8/8** zero-noise cuts in **20 steps / 1.00 s**,
+wall time **39.03 s**, mean return **90.814804**, peak force **30.658 N**,
+released springs **287–288**. Policy/critic weights remain unchanged and optimizer
+updates are zero. Across **160 transitions**, gamma 0.99 value errors are
+**MAE 153.418925, RMSE 154.442620, bias −153.418925**. Initial value is
+**−63.708687**, mean actual initial discounted return **74.074448**. The earlier
+policy52 complete evaluation had MAE **141.625561**. Value accuracy has not
+improved at this ten-update endpoint.
+
+On the same saved policy52 episodes with policy52 fixed during imagination,
+WM552 predicts a workspace failure at step **18**, survival-weighted discounted
+reward **−95.715187**; WM562 predicts it at step **15**, reward **−94.888535**.
+Teacher-forced analytic terminal mismatches on world0 decrease **1 to 0**.
+With current policy62, WM562 also predicts a step15 workspace failure while the
+physical episode succeeds at step20. Its imagined discounted reward is
+**−94.691711**, versus physical **74.074467**.
+
+Recorded-action replay isolates accumulated model error: using the exact
+physical policy62 actions, WM562 still predicts failure at step15. At that step,
+one-step end-effector position error is **[+0.304, −0.180, −0.255] mm**; continuous
+prediction from the initial state reaches **[−23.640, −11.070, −25.971] mm**.
+Predicted goal-x error **0.051697 m** exceeds the existing **0.05 m** workspace
+limit; actual goal-x error is **0.028057 m**. Recorded-action joint/pose drift therefore crosses the workspace boundary and
+produces an erroneous negative terminal reward; physical critic values remain
+negatively biased. Absorbing termination zeros subsequent rewards/bootstrap.
+
+Independent CPU reconstruction exactly matches rewards, task flags, success
+counts and short-episode state chains. Complete-return recursion agrees within
+**1e-12**, critic values within **1.53e-5**, and H32 survival-weighted objectives within **3.06e-5**.
+Before this run, 4090 suites pass **140 root tests + 19 backend tests**, zero
+skips; independent chronology reconstruction checks **150 ring-buffer snapshots**.
+
+Total orchestration time **1759.85 s**; processes finish and GPU 0 is released.
+W&B run `5h7xrk7c`; artifacts are under `runs/critic_mask_validation_20261104`:
+`training/short_episodes`, `evaluation/force_value_curves.csv`, complete physical
+frames, fixed-policy comparisons and `recorded_action_drift.json`. Next: audit
+joint-state integration, normalization and history inputs against the source
+using these fixed real-action rollouts; keep the critic objective and physical
+task unchanged while resolving multi-step model error.

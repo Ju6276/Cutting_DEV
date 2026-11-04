@@ -34,12 +34,12 @@ after the current iteration; normal completion and SIGTERM also save.
 
 ## Current result
 
-2026-11-04, source revision `57286e4`: frozen policy52 completes **8/8 cuts**,
-**0.90 s simulated time** per cut, **35.12 s wall time** for the eight-world
-evaluation, peak force **42.60 N**. Critic return MAE is **141.63**.
-The replay adapter now admits short terminal sequences: **1121 collision
-episodes** of 1–2 steps were excluded by the previous WM sampler. The next
-physical-return evaluation checks learning after this repair.
+2026-11-04, revision `2495171`: frozen policy62 completes **8/8 cuts**,
+**1.00 s simulated time** per cut, **39.03 s wall time** for eight worlds,
+peak force **30.66 N**. Critic return MAE remains **153.42**.
+Short terminal replay is repaired: actual WM updates use **2433 collision
+terminal labels** from one/two-step failures. The next focus is accumulated
+WM joint/pose error, which predicts a workspace failure on successful cuts.
 
 [Results](docs/RESULTS.md) · [Current work](docs/PLAN.md) ·
 [Methods and differences](docs/METHOD.md) · [Source versions](docs/SOURCES.md)
