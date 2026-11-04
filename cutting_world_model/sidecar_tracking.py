@@ -13,13 +13,8 @@ class SidecarTracker:
         environment = os.environ.copy()
         for key in ('PYTHONPATH', 'PYTHONHOME', 'VIRTUAL_ENV'):
             environment.pop(key, None)
-        environment['NETRC'] = '/dataHDD/dong/.config/wandb/netrc'
-        environment['WANDB_CONFIG_DIR'] = '/dataHDD/dong/.config/wandb'
-        environment['WANDB_CACHE_DIR'] = '/dataHDD/dong/.cache/wandb'
-        environment['WANDB_DATA_DIR'] = '/dataHDD/dong/.cache/wandb-data'
-        environment['XDG_CACHE_HOME'] = '/dataHDD/dong/.cache'
-        environment['TMPDIR'] = '/dataHDD/dong/tmp'
-        executable = '/dataHDD/dong/Projects/CuttingGpuBackend/.venv/bin/python'
+        root = Path(__file__).resolve().parents[1]
+        executable = environment.get('CUTTING_LOGGER_PYTHON', str(root / '.venv/bin/python'))
         self.process = subprocess.Popen(
             [executable, str(Path(__file__).resolve()), '--worker'],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=None,

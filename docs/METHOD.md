@@ -1,10 +1,12 @@
 # Source mapping
 
-Source revision: SuperMimic-Reproduced `ba610534`; SliceIt `4c65cf7`;
-robot utilities `177cf21`; DiSECt `db7de0f`.
+Source revision: SuperMimic-Reproduced `ba610534`; SliceIt `1e79abad`;
+robot utilities `ddc85eca`; DiSECt `db7de0f`. Complete dependency pins and
+source patches are listed in [SOURCES](SOURCES.md).
 
 | Module | Source design | Cutting implementation |
 |---|---|---|
+| Repository layout | Learning and physics maintained in separate local repositories | Both histories merged; physics resides in `backends/mujoco`, and SliceIt is restored from pinned revisions and patches. Entry points default to the bundled backend; cache and logger paths are configurable. Physics, learning objectives and task parameters are unchanged by this integration. |
 | Replay | Episode-aware ring, 4096 environments × 1000 rows, clean/executed actions, terminal row | Original ring with 1000 rows per environment. Physical-transition counts exclude extra terminal rows. |
 | Schedule | Warmup 40 vector steps with 4096 environments; UTD 0.4 per vector step | Original vector-step cadence for every environment count: warmup 40, UTD 0.4, first update at step 42. LR and step endpoint use vector steps; transition counts are telemetry. The collection regime differs when fewer environments are active. |
 | GPU checkpoint timing | Save every 4000 vector steps | User-requested SIGUSR1 saves at a completed iteration, plus stage boundaries and shutdown; periodic saves are disabled at the user's request. |

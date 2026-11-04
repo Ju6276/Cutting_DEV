@@ -1,0 +1,80 @@
+[
+  {
+    "path": ".",
+    "url": "https://github.com/omron-sinicx/sliceit.git",
+    "base_commit": "3a6964862f1f135af9d98dd400efeb44ba394c15",
+    "source_commit": "1e79abad889576c7533909006093a82f3b776c61",
+    "source_tree": "8769ece5baf2b20af4d9f06b46f1aa99d57848cc",
+    "upstream_ref": "refs/remotes/origin/HEAD",
+    "local_commits": 13,
+    "patch": "0-SliceIt.patch"
+  },
+  {
+    "path": "disect",
+    "url": "https://github.com/omron-sinicx/DiSECt.git",
+    "base_commit": "b8d0e5828a3e978f94974c7b429cc6a264b93412",
+    "source_commit": "db7de0fe5b303cbacc2c67219c86735b9e64f814",
+    "source_tree": "625ecaaf5046c4295da7f75f9598ac86ae546d02",
+    "upstream_ref": "refs/remotes/origin/osx_devel",
+    "local_commits": 2,
+    "patch": "1-disect.patch"
+  },
+  {
+    "path": "underlay_ws/src/cartesian_controllers",
+    "url": "https://github.com/cambel/cartesian_controllers.git",
+    "base_commit": "f4359b966bb3b8d8a07d829df463da814c2bee33",
+    "source_commit": "6d6fea2396efac82469504ee8d7f2f217093e9d8",
+    "source_tree": "3e91085e742eb015e5405fd42bc30d8c83ac804f",
+    "upstream_ref": "refs/remotes/origin/devel",
+    "local_commits": 1,
+    "patch": "2-cartesian_controllers.patch"
+  },
+  {
+    "path": "underlay_ws/src/third_party/gazebo_ros_link_attacher",
+    "url": "https://github.com/pal-robotics/gazebo_ros_link_attacher.git",
+    "base_commit": "1d170c44c2f12dad4e8c23e299d46f3f655e7def",
+    "source_commit": "1d170c44c2f12dad4e8c23e299d46f3f655e7def",
+    "source_tree": "0378519029bc9cc4a79fa03ae21068c5064e5460",
+    "upstream_ref": "refs/remotes/origin/HEAD",
+    "local_commits": 0
+  },
+  {
+    "path": "underlay_ws/src/third_party/gazebo_ros_pkgs",
+    "url": "https://github.com/cambel/gazebo_ros_pkgs.git",
+    "base_commit": "6700c882c7c2d16ea1844c6c926ee3cf125df34e",
+    "source_commit": "ef2faceabfe184ea4c0a4942aa630235dbb48447",
+    "source_tree": "c1689ca8ffb4f454e02c42fdc064440ffbedf4c8",
+    "upstream_ref": "refs/remotes/origin/step_control_PR",
+    "local_commits": 3,
+    "patch": "4-gazebo_ros_pkgs.patch"
+  },
+  {
+    "path": "underlay_ws/src/third_party/robotiq-cri",
+    "url": "https://github.com/cambel/robotiq.git",
+    "base_commit": "307e9b717f17f75d990ab3cf1c980aeaebb50c54",
+    "source_commit": "307e9b717f17f75d990ab3cf1c980aeaebb50c54",
+    "source_tree": "2dc0be3b7fc20df5db2c885559ccf8c74a03a26b",
+    "upstream_ref": "refs/remotes/origin/HEAD",
+    "local_commits": 0
+  },
+  {
+    "path": "underlay_ws/src/ur_python_utilities",
+    "url": "https://github.com/omron-sinicx/ur_python_utilities.git",
+    "base_commit": "7cd7cb8ce491b7953fce61ca891382e893e2ec43",
+    "source_commit": "ddc85eca09e41215a05f30da2cfc10d8a2b1974d",
+    "source_tree": "0caa9b3152e425d628207c13b0120463873fcf4e",
+    "upstream_ref": "refs/remotes/origin/disect",
+    "local_commits": 9,
+    "patch": "6-ur_python_utilities.patch"
+  },
+  {
+    "path": "underlay_ws/src/ur_python_utilities/dependencies/tf2rl",
+    "url": "https://github.com/cambel/tf2rl.git",
+    "base_commit": "a8d41f6e1891c64e71e1b985bd9624460580e808",
+    "source_commit": "8b9b9135ec92a0a1de3fc84bb7454d1ea07669e3",
+    "source_tree": "0a77e47f1a621adb123679c4bd7342baadd73be1",
+    "upstream_ref": "refs/remotes/origin/optuna",
+    "local_commits": 1,
+    "patch": "7-tf2rl.patch"
+  }
+]

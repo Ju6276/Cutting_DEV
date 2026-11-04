@@ -1,0 +1,369 @@
+diff --git a/cartesian_compliance_controller/CMakeLists.txt b/cartesian_compliance_controller/CMakeLists.txt
+index 513fc01..94525e9 100644
+--- a/cartesian_compliance_controller/CMakeLists.txt
++++ b/cartesian_compliance_controller/CMakeLists.txt
+@@ -13,6 +13,7 @@ add_compile_options(${ADDITIONAL_COMPILE_OPTIONS})
+ find_package (Eigen3 3.3 REQUIRED NO_MODULE)
+ find_package(catkin REQUIRED COMPONENTS
+   roscpp
++  std_srvs
+   cartesian_controller_base
+   cartesian_motion_controller
+   cartesian_force_controller
+@@ -113,6 +114,7 @@ catkin_package(
+   LIBRARIES cartesian_compliance_controller
+   CATKIN_DEPENDS
+     roscpp
++  std_srvs
+     cartesian_controller_base
+     cartesian_motion_controller
+     cartesian_force_controller
+diff --git a/cartesian_compliance_controller/include/cartesian_compliance_controller/cartesian_compliance_controller.h b/cartesian_compliance_controller/include/cartesian_compliance_controller/cartesian_compliance_controller.h
+index f377d08..0d6b8a6 100644
+--- a/cartesian_compliance_controller/include/cartesian_compliance_controller/cartesian_compliance_controller.h
++++ b/cartesian_compliance_controller/include/cartesian_compliance_controller/cartesian_compliance_controller.h
+@@ -42,6 +42,8 @@
+ 
+ // Project
+ #include <cartesian_controller_base/cartesian_controller_base.h>
++#include <std_srvs/Trigger.h>
++#include <mutex>
+ #include <cartesian_motion_controller/cartesian_motion_controller.h>
+ #include <cartesian_force_controller/cartesian_force_controller.h>
+ 
+@@ -94,6 +96,16 @@ class CartesianComplianceController
+     typedef cartesian_force_controller::CartesianForceController<HardwareInterface> ForceBase;
+ 
+   private:
++    void publishRecurrentState(const ros::Time& time);
++    bool captureRecurrentState(std_srvs::Trigger::Request&, std_srvs::Trigger::Response&);
++    ros::ServiceServer m_recurrent_service;
++    std::mutex m_recurrent_mutex;
++    std::vector<double> m_recurrent_snapshot;
++    bool m_recurrent_available = false;
++    uint64_t m_recurrent_sequence = 0;
++    bool m_recurrent_command_valid = false;
++    std::vector<double> m_previous_position_command;
++
+     /**
+      * @brief Compute the net force out of target wrench and stiffness-related pose offset
+      *
+diff --git a/cartesian_compliance_controller/include/cartesian_compliance_controller/cartesian_compliance_controller.hpp b/cartesian_compliance_controller/include/cartesian_compliance_controller/cartesian_compliance_controller.hpp
+index 9afcb09..3f34454 100644
+--- a/cartesian_compliance_controller/include/cartesian_compliance_controller/cartesian_compliance_controller.hpp
++++ b/cartesian_compliance_controller/include/cartesian_compliance_controller/cartesian_compliance_controller.hpp
+@@ -46,6 +46,9 @@
+ // Other
+ #include <algorithm>
+ #include <map>
++#include <iomanip>
++#include <limits>
++#include <sstream>
+ 
+ namespace cartesian_compliance_controller
+ {
+@@ -99,6 +102,11 @@ init(HardwareInterface* hw, ros::NodeHandle& nh)
+         ros::NodeHandle(nh.getNamespace() + "/stiffness")));
+   m_dyn_conf_server->setCallback(m_callback_type);
+ 
++  const size_t joints = Base::m_joint_handles.size();
++  m_recurrent_snapshot.resize(44 + 5 * joints);
++  m_previous_position_command.resize(joints);
++  m_recurrent_service = nh.advertiseService("recurrent_state",
++    &CartesianComplianceController<HardwareInterface>::captureRecurrentState, this);
+   return true;
+ }
+ 
+@@ -108,6 +116,11 @@ starting(const ros::Time& time)
+ {
+   // Base::starting(time) will get called twice,
+   // but that's fine.
++  {
++    std::lock_guard<std::mutex> lock(m_recurrent_mutex);
++    m_recurrent_available = false;
++  }
++  m_recurrent_command_valid = false;
+   MotionBase::starting(time);
+   ForceBase::starting(time);
+ }
+@@ -124,6 +137,9 @@ template <class HardwareInterface>
+ void CartesianComplianceController<HardwareInterface>::
+ update(const ros::Time& time, const ros::Duration& period)
+ {
++  for (size_t i = 0; i < Base::m_joint_handles.size(); ++i)
++    m_previous_position_command[i] = Base::m_joint_handles[i].getCommand();
++
+   // Synchronize the internal model and the real robot
+   Base::m_ik_solver->synchronizeJointPositions(Base::m_joint_handles);
+ 
+@@ -144,6 +160,89 @@ update(const ros::Time& time, const ros::Duration& period)
+ 
+   // Write final commands to the hardware interface
+   Base::writeJointControlCmds();
++  publishRecurrentState(time);
++  m_recurrent_command_valid = true;
++}
++
++template <class HardwareInterface>
++void CartesianComplianceController<HardwareInterface>::publishRecurrentState(const ros::Time& time)
++{
++  ++m_recurrent_sequence;
++  std::unique_lock<std::mutex> lock(m_recurrent_mutex, std::try_to_lock);
++  if (!lock.owns_lock())
++    return;
++  auto& data = m_recurrent_snapshot;
++  data[0] = 1;
++  data[1] = m_recurrent_sequence;
++  data[2] = time.toSec();
++  const auto& q = Base::m_ik_solver->getPositions();
++  const auto& v = Base::m_ik_solver->getVelocities();
++  const auto error = Base::getPreviousError();
++  const size_t joints = Base::m_joint_handles.size();
++  data[3] = joints;
++  for (size_t i = 0; i < joints; ++i)
++  {
++    data[4 + i] = Base::m_joint_handles[i].getPosition();
++    data[4 + joints + i] = Base::m_joint_handles[i].getVelocity();
++    data[4 + 2 * joints + i] = q(i);
++    data[4 + 3 * joints + i] = v(i);
++    data[4 + 4 * joints + i] = m_previous_position_command[i];
++  }
++  for (size_t i = 0; i < 6; ++i)
++  {
++    data[4 + 5 * joints + i] = error[i];
++  }
++  auto copy_pose = [&data](const KDL::Frame& pose, size_t offset) {
++    for (size_t i = 0; i < 3; ++i)
++      data[offset + i] = pose.p[i];
++    pose.M.GetQuaternion(data[offset + 3], data[offset + 4], data[offset + 5], data[offset + 6]);
++  };
++  copy_pose(Base::m_ik_solver->getEndEffectorPose(), 10 + 5 * joints);
++
++  data[42 + 5 * joints] = m_recurrent_command_valid;
++  data[43 + 5 * joints] = time.toSec();
++  m_recurrent_available = true;
++}
++
++template <class HardwareInterface>
++bool CartesianComplianceController<HardwareInterface>::captureRecurrentState(
++    std_srvs::Trigger::Request&, std_srvs::Trigger::Response& response)
++{
++  std::vector<double> data;
++  {
++    std::lock_guard<std::mutex> lock(m_recurrent_mutex);
++    if (!m_recurrent_available)
++    {
++      response.success = false;
++      response.message = "The controller has not completed an update";
++      return true;
++    }
++    data = m_recurrent_snapshot;
++    const size_t joints = Base::m_joint_handles.size();
++    // Call after stepped Gazebo has returned: writeSim has saturated these commands.
++    for (size_t i = 0; i < joints; ++i)
++      data[4 + 4 * joints + i] = Base::m_joint_handles[i].getCommand();
++    const auto target = MotionBase::getTargetFrameSnapshot();
++    const size_t pose_offset = 17 + 5 * joints;
++    for (size_t i = 0; i < 3; ++i)
++      data[pose_offset + i] = target.p[i];
++    target.M.GetQuaternion(data[pose_offset + 3], data[pose_offset + 4],
++                           data[pose_offset + 5], data[pose_offset + 6]);
++    ForceBase::copyForceState(data, 24 + 5 * joints);
++    data[43 + 5 * joints] = ros::Time::now().toSec();
++  }
++  std::ostringstream output;
++  output << std::setprecision(std::numeric_limits<double>::max_digits10) << "[";
++  for (size_t i = 0; i < data.size(); ++i)
++  {
++    if (i)
++      output << ",";
++    output << data[i];
++  }
++  output << "]";
++  response.success = true;
++  response.message = output.str();
++  return true;
+ }
+ 
+ template <class HardwareInterface>
+diff --git a/cartesian_compliance_controller/package.xml b/cartesian_compliance_controller/package.xml
+index 37d3a5a..8caf1ce 100644
+--- a/cartesian_compliance_controller/package.xml
++++ b/cartesian_compliance_controller/package.xml
+@@ -41,6 +41,7 @@
+   <buildtool_depend>catkin</buildtool_depend>
+ 
+   <build_depend>roscpp</build_depend>
++  <build_depend>std_srvs</build_depend>
+   <build_depend>cartesian_controller_base</build_depend>
+   <build_depend>cartesian_motion_controller</build_depend>
+   <build_depend>cartesian_force_controller</build_depend>
+@@ -48,6 +49,7 @@
+   <build_depend>pluginlib</build_depend>
+ 
+   <run_depend>roscpp</run_depend>
++  <run_depend>std_srvs</run_depend>
+   <run_depend>cartesian_controller_base</run_depend>
+   <run_depend>cartesian_motion_controller</run_depend>
+   <run_depend>cartesian_force_controller</run_depend>
+diff --git a/cartesian_controller_base/include/cartesian_controller_base/IKSolver.h b/cartesian_controller_base/include/cartesian_controller_base/IKSolver.h
+index 6a0262c..298857d 100644
+--- a/cartesian_controller_base/include/cartesian_controller_base/IKSolver.h
++++ b/cartesian_controller_base/include/cartesian_controller_base/IKSolver.h
+@@ -121,6 +121,7 @@ class IKSolver
+      * @return The current joint positions
+      */
+     const KDL::JntArray& getPositions() const;
++    const KDL::JntArray& getVelocities() const { return m_current_velocities; }
+ 
+     //! Set initial joint configuration
+     bool setStartState(const std::vector<hardware_interface::JointHandle>& joint_handles);
+diff --git a/cartesian_controller_base/include/cartesian_controller_base/PDController.h b/cartesian_controller_base/include/cartesian_controller_base/PDController.h
+index ee9917e..eeb91f0 100644
+--- a/cartesian_controller_base/include/cartesian_controller_base/PDController.h
++++ b/cartesian_controller_base/include/cartesian_controller_base/PDController.h
+@@ -81,6 +81,8 @@ class PDController
+ 
+     double operator()(const double& error, const ros::Duration& period);
+ 
++    double getPreviousError() const { return m_last_p_error; }
++
+   private:
+     struct PDGains
+     {
+diff --git a/cartesian_controller_base/include/cartesian_controller_base/SpatialPDController.h b/cartesian_controller_base/include/cartesian_controller_base/SpatialPDController.h
+index 8950875..4003df8 100644
+--- a/cartesian_controller_base/include/cartesian_controller_base/SpatialPDController.h
++++ b/cartesian_controller_base/include/cartesian_controller_base/SpatialPDController.h
+@@ -73,6 +73,14 @@ class SpatialPDController
+      */
+     ctrl::Vector6D operator()(const ctrl::Vector6D& error, const ros::Duration& period);
+ 
++    ctrl::Vector6D getPreviousError() const
++    {
++      ctrl::Vector6D error;
++      for (size_t i = 0; i < 6; ++i)
++        error[i] = m_pd_controllers[i].getPreviousError();
++      return error;
++    }
++
+   private:
+     ctrl::Vector6D m_cmd;
+     std::vector<PDController> m_pd_controllers;
+diff --git a/cartesian_controller_base/include/cartesian_controller_base/cartesian_controller_base.h b/cartesian_controller_base/include/cartesian_controller_base/cartesian_controller_base.h
+index 476327e..4d35dad 100644
+--- a/cartesian_controller_base/include/cartesian_controller_base/cartesian_controller_base.h
++++ b/cartesian_controller_base/include/cartesian_controller_base/cartesian_controller_base.h
+@@ -98,6 +98,8 @@ class CartesianControllerBase : public controller_interface::Controller<Hardware
+     virtual void starting(const ros::Time& time);
+ 
+   protected:
++    ctrl::Vector6D getPreviousError() const { return m_spatial_controller.getPreviousError(); }
++
+     /**
+      * @brief Write joint control commands to the real hardware
+      *
+diff --git a/cartesian_force_controller/include/cartesian_force_controller/cartesian_force_controller.h b/cartesian_force_controller/include/cartesian_force_controller/cartesian_force_controller.h
+index 3220738..33acb6c 100644
+--- a/cartesian_force_controller/include/cartesian_force_controller/cartesian_force_controller.h
++++ b/cartesian_force_controller/include/cartesian_force_controller/cartesian_force_controller.h
+@@ -42,6 +42,7 @@
+ 
+ // Project
+ #include <cartesian_controller_base/cartesian_controller_base.h>
++#include <mutex>
+ 
+ // ROS
+ #include <std_srvs/Trigger.h>
+@@ -94,6 +95,17 @@ class CartesianForceController : public virtual cartesian_controller_base::Carte
+     typedef cartesian_controller_base::CartesianControllerBase<HardwareInterface> Base;
+ 
+   protected:
++    void copyForceState(std::vector<double>& data, size_t offset) const
++    {
++      std::lock_guard<std::mutex> lock(m_force_state_mutex);
++      for (size_t i = 0; i < 6; ++i)
++      {
++        data[offset + i] = m_ft_sensor_wrench[i];
++        data[offset + 6 + i] = m_target_wrench[i];
++        data[offset + 12 + i] = m_grav_comp_during_taring[i];
++      }
++    }
++
+     /**
+      * @brief Compute the net force out of target wrench and measured sensor wrench
+      *
+@@ -104,6 +116,7 @@ class CartesianForceController : public virtual cartesian_controller_base::Carte
+     void setFtSensorReferenceFrame(const std::string& new_ref);
+ 
+   private:
++    mutable std::mutex m_force_state_mutex;
+     void                  compensateGravity(KDL::Wrench& ft_sensor_wrench);
+ 
+     void targetWrenchCallback(const geometry_msgs::WrenchStamped& wrench);
+diff --git a/cartesian_force_controller/include/cartesian_force_controller/cartesian_force_controller.hpp b/cartesian_force_controller/include/cartesian_force_controller/cartesian_force_controller.hpp
+index 300b99c..07918ce 100644
+--- a/cartesian_force_controller/include/cartesian_force_controller/cartesian_force_controller.hpp
++++ b/cartesian_force_controller/include/cartesian_force_controller/cartesian_force_controller.hpp
+@@ -248,6 +248,7 @@ template <class HardwareInterface>
+ void CartesianForceController<HardwareInterface>::
+ targetWrenchCallback(const geometry_msgs::WrenchStamped& wrench)
+ {
++  std::lock_guard<std::mutex> lock(m_force_state_mutex);
+   m_target_wrench[0] = wrench.wrench.force.x;
+   m_target_wrench[1] = wrench.wrench.force.y;
+   m_target_wrench[2] = wrench.wrench.force.z;
+@@ -260,6 +261,7 @@ template <class HardwareInterface>
+ void CartesianForceController<HardwareInterface>::
+ ftSensorWrenchCallback(const geometry_msgs::WrenchStamped& wrench)
+ {
++  std::lock_guard<std::mutex> lock(m_force_state_mutex);
+   m_ft_sensor_wrench[0] = wrench.wrench.force.x;
+   m_ft_sensor_wrench[1] = wrench.wrench.force.y;
+   m_ft_sensor_wrench[2] = wrench.wrench.force.z;
+@@ -272,6 +274,7 @@ template <class HardwareInterface>
+ bool CartesianForceController<HardwareInterface>::
+ signalTaringCallback(std_srvs::Trigger::Request& req, std_srvs::Trigger::Response& res)
+ {
++  std::lock_guard<std::mutex> lock(m_force_state_mutex);
+   // Compute current gravity effects in sensor frame
+   KDL::Wrench tmp = Base::displayInTipLink(m_weight_force, m_ft_sensor_ref_link);
+   tmp.torque = m_center_of_mass * tmp.force; // M = r x F
+diff --git a/cartesian_motion_controller/include/cartesian_motion_controller/cartesian_motion_controller.h b/cartesian_motion_controller/include/cartesian_motion_controller/cartesian_motion_controller.h
+index 896752d..063cf72 100644
+--- a/cartesian_motion_controller/include/cartesian_motion_controller/cartesian_motion_controller.h
++++ b/cartesian_motion_controller/include/cartesian_motion_controller/cartesian_motion_controller.h
+@@ -42,6 +42,7 @@
+ 
+ // Project
+ #include <cartesian_controller_base/cartesian_controller_base.h>
++#include <mutex>
+ 
+ // ROS
+ #include <kdl/frames.hpp>
+@@ -92,6 +93,13 @@ class CartesianMotionController : public virtual cartesian_controller_base::Cart
+     typedef cartesian_controller_base::CartesianControllerBase<HardwareInterface> Base;
+ 
+   protected:
++    mutable std::mutex m_target_state_mutex;
++    KDL::Frame getTargetFrameSnapshot() const
++    {
++      std::lock_guard<std::mutex> lock(m_target_state_mutex);
++      return m_target_frame;
++    }
++
+     /**
+      * @brief Compute the offset between a target pose and the current end effector pose
+      *
+diff --git a/cartesian_motion_controller/include/cartesian_motion_controller/cartesian_motion_controller.hpp b/cartesian_motion_controller/include/cartesian_motion_controller/cartesian_motion_controller.hpp
+index d347c1f..7348d27 100644
+--- a/cartesian_motion_controller/include/cartesian_motion_controller/cartesian_motion_controller.hpp
++++ b/cartesian_motion_controller/include/cartesian_motion_controller/cartesian_motion_controller.hpp
+@@ -183,6 +183,7 @@ template <class HardwareInterface>
+ void CartesianMotionController<HardwareInterface>::
+ targetFrameCallback(const geometry_msgs::PoseStamped& target)
+ {
++  std::lock_guard<std::mutex> lock(m_target_state_mutex);
+   if (target.header.frame_id != Base::m_robot_base_link)
+   {
+     ROS_WARN_STREAM_THROTTLE(3, "Got target pose in wrong reference frame. Expected: "

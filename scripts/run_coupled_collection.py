@@ -35,8 +35,10 @@ def main():
     started = time.monotonic()
     prefix = "source " + shlex.quote(str(sliceit / "scripts/public_env.sh")) + "; "
     overrides = {
-        "TORCHINDUCTOR_CACHE_DIR": "/dataHDD/dong/.cache/torchinductor",
-        "TRITON_CACHE_DIR": "/dataHDD/dong/.cache/triton",
+        "TORCHINDUCTOR_CACHE_DIR": os.environ.get(
+            "TORCHINDUCTOR_CACHE_DIR", str(root / "runs/cache/torchinductor")),
+        "TRITON_CACHE_DIR": os.environ.get(
+            "TRITON_CACHE_DIR", str(root / "runs/cache/triton")),
         "ROS_MASTER_URI": "http://127.0.0.1:11322",
         "GAZEBO_MASTER_URI": "http://127.0.0.1:11356",
         "ROS_HOME": str(output / "ros_home"), "ROS_LOG_DIR": str(output / "ros_logs"),

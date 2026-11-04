@@ -4,3 +4,15 @@ __pycache__/
 runs/
 *.egg-info/
 setup.log
+external/
+.DS_Store
+.env
+.env.*
+wandb/
+*.pt
+*.pth
+*.ckpt
+*.mp4
+*.npz
+*.mjb
+*.patch.rej

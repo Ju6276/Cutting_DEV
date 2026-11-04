@@ -18,7 +18,8 @@ from train_coupled import write_json
 @torch.no_grad()
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--backend-root', type=Path, required=True)
+    parser.add_argument('--backend-root', type=Path,
+                        default=Path(__file__).resolve().parents[1] / 'backends/mujoco')
     parser.add_argument('--checkpoint', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--max-seconds', type=float, default=1800.)

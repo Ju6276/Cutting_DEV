@@ -1,0 +1,2324 @@
+diff --git a/PUBLIC_DATA.md b/PUBLIC_DATA.md
+new file mode 100644
+index 0000000..6a6846b
+--- /dev/null
++++ b/PUBLIC_DATA.md
+@@ -0,0 +1,69 @@
++# Public DiSECt scene
++
++This entry runs SliceIt's Gazebo/DiSECt coupling and SAC implementation on the
++NVlabs DiSECt prism mesh and material configuration.
++
++## Run
++
++The ROS Noetic underlay and Python environment are under this checkout.
++Place the original DiSECt dataset at `disect/dataset`.
++
++```bash
++source scripts/public_env.sh
++python ../scripts/train_public.py --output ../runs/public_sac
++```
++
++The supervisor starts Gazebo, the cutting bridge, and the official
++`tf2rl_sac.py -e 3` entry. It stops the stack if a process fails and records
++process IDs, exit status, configurations and Git revisions in the output folder.
++Training uses the script's 100100 steps and 1000 warmup steps, with the YAML's
++batch size 1024, learning rate 0.01, reward, controller limits and termination rules.
++
++## Scene and implementation
++
++- Mesh and material: `disect/examples/config/ansys_prism.json`, original DiSECt dataset.
++- Knife: existing DiSECt `gazebo` knife, matching the robot scene. The initial
++  center height preserves the public scene's initial blade-edge height.
++- Robot reset: Z offset 0.0643 m, derived from the initial blade-edge height and
++  the original ROS frame conversion. The original value is 0.045 m.
++  `scripts/align_public_scene.py` computes it from TF while Gazebo is running.
++- `--config` selects the environment YAML in the original demo/training entries.
++- `public_ros_bridge.py` uses the original ROSVisualizer motion, stepping and
++  wrench methods without a GUI; it selects a scene and records particle states.
++- MeshCutter copies endpoint coordinates before appending vertices to its vector.
++  The original references became invalid on vector growth. AddressSanitizer
++  reproduces the original use-after-free; the corrected tetrahedron test passes.
++- CUDA compilation selects the configured architecture instead of compute_35.
++- Current environment: Python 3.8, PyTorch 2.4.1/CUDA 12.1, NumPy 1.23.5,
++  TensorFlow CPU 2.12.1, Gym 0.21.0. Cutting runs on the RTX 4090; SAC runs on CPU.
++
++The official task success condition checks the target pose and collision limit.
++Episode records separately include the number of zero-stiffness cutting springs.
++
++## Replay buffer build
++
++On this i9-14900K host, the cpprb 10.7.0 binary wheel exits with SIGILL when
++constructing PrioritizedReplayBuffer. Build the same version from upstream:
++commit `069188a4681fd7e9637b1e2ea13683068c70c340`, tag `v10.7.0`.
++
++```bash
++git clone --depth 1 --branch v10.7.0 https://github.com/ymd-h/cpprb.git /dataHDD/dong/Projects/cpprb-10.7.0
++source scripts/public_env.sh
++python -m pip install Cython==0.29.36
++python -m pip install --no-build-isolation --no-deps --force-reinstall /dataHDD/dong/Projects/cpprb-10.7.0
++```
++
++Construction, insertion, prioritized sampling, and priority updates pass with
++the source build. The SAC source and replay settings are unchanged.
++
++## Interface checks
++
++Reset observations, force-history axes and replay priorities are checked with
++independent transition examples. Changes from the pinned source are listed in
++[docs/METHOD.md](docs/METHOD.md). Run without starting ROS or training:
++
++```bash
++source scripts/public_env.sh
++cd "$SLICEIT_ROOT"
++CUDA_VISIBLE_DEVICES="" python -m unittest discover -s tests -v
++```
+diff --git a/README.md b/README.md
+index d8ffc00..93d9fd7 100644
+--- a/README.md
++++ b/README.md
+@@ -61,6 +61,20 @@ rosrun ur3e_rl simple_env.py -e 3
+ rosrun ur3e_rl tf2rl_sac.py -e 3
+ ```
+ 
++### Stepped joint-state check
++
++With headless Gazebo running, validate synchronous post-step joint snapshots,
++including a consumer with its joint-topic subscriber disconnected:
++
++```sh
++source scripts/public_env.sh
++python scripts/check_step_snapshot.py --calls 20000 --timeout 600 \
++  --output runs/joint_snapshot_check --unpause-boundary
++```
++
++The check records exact tick timing, paused Gazebo joint-property comparisons,
++and invalid-request behavior, then leaves Gazebo paused.
++
+ Authors:
+ - Cristian C. Beltran-Hernandez
+ - Nicolas Erbetti
+diff --git a/catkin_ws/src/o2ac_gazebo/CMakeLists.txt b/catkin_ws/src/o2ac_gazebo/CMakeLists.txt
+index 9480d5d..1006229 100644
+--- a/catkin_ws/src/o2ac_gazebo/CMakeLists.txt
++++ b/catkin_ws/src/o2ac_gazebo/CMakeLists.txt
+@@ -105,6 +105,9 @@ catkin_package(
+ #  DEPENDS system_lib
+ )
+ 
++catkin_install_python(PROGRAMS scripts/disect_wrench_relay.py
++  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
++
+ ###########
+ ## Build ##
+ ###########
+diff --git a/catkin_ws/src/o2ac_gazebo/launch/b_bot_gazebo.launch b/catkin_ws/src/o2ac_gazebo/launch/b_bot_gazebo.launch
+index eca106b..1d6a27e 100644
+--- a/catkin_ws/src/o2ac_gazebo/launch/b_bot_gazebo.launch
++++ b/catkin_ws/src/o2ac_gazebo/launch/b_bot_gazebo.launch
+@@ -13,6 +13,9 @@
+   <env name="GAZEBO_MODEL_PATH"
+        value="$(find o2ac_parts_description):$(find o2ac_scene_description):$(find o2ac_gazebo)/models:$(optenv GAZEBO_MODEL_PATH)" />
+ 
++  <!-- The compliance controller lives inside gzserver and inherits its remaps. -->
++  <remap from="/b_bot/cartesian_compliance_controller/ft_sensor_wrench" to="/b_bot/wrench/filtered"/>
++
+   <!-- startup simulated world -->
+   <include file="$(find gazebo_ros)/launch/empty_world.launch">
+     <arg name="world_name" value="$(arg world_name)"/>
+@@ -37,8 +40,6 @@
+         -unpause" respawn="false" output="screen" />
+   <include file="$(find o2ac_gazebo)/launch/controller_utils.launch"/>
+ 
+-  <remap from="/b_bot/cartesian_compliance_controller/ft_sensor_wrench" to="/b_bot/wrench/filtered"/>
+-
+   <!-- spawn controllers -->
+   <rosparam file="$(find o2ac_gazebo)/controller/2_bot_controllers.yaml" command="load"/>
+   <node name="controller_spawner" 
+@@ -53,8 +54,10 @@
+         output="screen" args="--stopped b_bot/cartesian_compliance_controller"/>
+ 
+   <group if="$(arg ft_filter)">
++      <node name="disect_wrench_relay" pkg="o2ac_gazebo" type="disect_wrench_relay.py"
++            output="screen"/>
+       <node name="b_bot_ft_filter"
+-            pkg="ur_control" type="ft_filter.py" args="-z -t wrench -ns b_bot"
++            pkg="ur_control" type="ft_filter.py" args="-z -t wrench -ns b_bot -t2 /disect/wrench_sensor"
+             output="screen"/>
+   </group>
+ 
+diff --git a/catkin_ws/src/o2ac_gazebo/package.xml b/catkin_ws/src/o2ac_gazebo/package.xml
+index 7f51384..364373b 100644
+--- a/catkin_ws/src/o2ac_gazebo/package.xml
++++ b/catkin_ws/src/o2ac_gazebo/package.xml
+@@ -26,6 +26,10 @@
+   <run_depend>ros_controllers</run_depend>
+   <run_depend>robot_state_publisher</run_depend>
+   <run_depend>controller_manager</run_depend>
++  <run_depend>rospy</run_depend>
++  <run_depend>tf</run_depend>
++  <run_depend>geometry_msgs</run_depend>
++  <run_depend>ur_control</run_depend>
+ 
+   <export>
+     <gazebo_ros gazebo_media_path="${prefix}" />
+diff --git a/catkin_ws/src/o2ac_gazebo/scripts/disect_wrench_relay.py b/catkin_ws/src/o2ac_gazebo/scripts/disect_wrench_relay.py
+new file mode 100755
+index 0000000..9851f91
+--- /dev/null
++++ b/catkin_ws/src/o2ac_gazebo/scripts/disect_wrench_relay.py
+@@ -0,0 +1,52 @@
++#!/usr/bin/env python3
++"""Convert DiSECt's robot-base wrench to the Gazebo wrist sensor frame."""
++import rospy
++import tf
++from geometry_msgs.msg import WrenchStamped
++from ur_control import conversions, spalg
++
++
++BASE_FRAME = 'b_bot_base_link'
++SENSOR_FRAME = 'b_bot_wrist_3_link'
++
++
++def sensor_message(message, translation, quaternion):
++    """Use SliceIt's [force, torque] transform and retain its simulation stamp."""
++    sensor_from_base = list(translation) + list(quaternion)
++    wrench = spalg.convert_wrench(conversions.from_wrench(message.wrench),
++                                 sensor_from_base)
++    result = WrenchStamped()
++    result.header.stamp = message.header.stamp
++    result.header.frame_id = SENSOR_FRAME
++    result.wrench = conversions.to_wrench(wrench)
++    return result
++
++
++class WrenchRelay:
++    def __init__(self):
++        self.listener = tf.TransformListener()
++        self.publisher = rospy.Publisher('/disect/wrench_sensor', WrenchStamped,
++                                         queue_size=10)
++        self.subscriber = rospy.Subscriber('/disect/wrench', WrenchStamped,
++                                          self.callback, queue_size=10)
++
++    def callback(self, message):
++        # ROSVisualizer leaves frame_id empty; its wrench is in robot base.
++        if message.header.frame_id not in ('', BASE_FRAME, '/' + BASE_FRAME):
++            rospy.logerr_throttle(1., 'DiSECt wrench must be in ' + BASE_FRAME)
++            return
++        try:
++            # TF arrives at the joint-state publication rate. Use its latest
++            # pose while keeping the source stamp for the FT filter's 10 ms gate.
++            translation, quaternion = self.listener.lookupTransform(
++                SENSOR_FRAME, BASE_FRAME, rospy.Time(0))
++        except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as error:
++            rospy.logwarn_throttle(1., 'Waiting for DiSECt wrench sensor TF: %s', error)
++            return
++        self.publisher.publish(sensor_message(message, translation, quaternion))
++
++
++if __name__ == '__main__':
++    rospy.init_node('disect_wrench_relay')
++    relay = WrenchRelay()
++    rospy.spin()
+diff --git a/catkin_ws/src/o2ac_gazebo/test/test_disect_wrench_relay.py b/catkin_ws/src/o2ac_gazebo/test/test_disect_wrench_relay.py
+new file mode 100644
+index 0000000..6f2a8f6
+--- /dev/null
++++ b/catkin_ws/src/o2ac_gazebo/test/test_disect_wrench_relay.py
+@@ -0,0 +1,72 @@
++"""Run with the SliceIt ROS Python environment; no master is started."""
++import importlib.util
++from pathlib import Path
++import unittest
++from unittest.mock import Mock
++
++import numpy as np
++import rospy
++from geometry_msgs.msg import WrenchStamped
++from ur_control import conversions
++
++
++path = Path(__file__).resolve().parents[1] / 'scripts/disect_wrench_relay.py'
++spec = importlib.util.spec_from_file_location('disect_wrench_relay', path)
++relay = importlib.util.module_from_spec(spec)
++spec.loader.exec_module(relay)
++
++
++class RelayTests(unittest.TestCase):
++    def message(self, wrench):
++        message = WrenchStamped()
++        message.header.stamp = rospy.Time(12, 345)
++        message.wrench = conversions.to_wrench(np.asarray(wrench, dtype=float))
++        return message
++
++    def test_identity_preserves_wrench_and_stamp(self):
++        message = self.message([1, 2, 3, 4, 5, 6])
++        result = relay.sensor_message(message, [0, 0, 0], [0, 0, 0, 1])
++        np.testing.assert_allclose(conversions.from_wrench(result.wrench), [1, 2, 3, 4, 5, 6])
++        self.assertEqual(result.header.stamp, message.header.stamp)
++        self.assertEqual(result.header.frame_id, relay.SENSOR_FRAME)
++
++    def test_source_rotation_translation_convention(self):
++        quaternion = [0, 0, np.sqrt(.5), np.sqrt(.5)]
++        result = relay.sensor_message(self.message([1, 0, 0, 0, 0, 2]),
++                                      [1, 2, 3], quaternion)
++        # Source spalg uses F' = R F + p x (R torque), torque' = R torque.
++        np.testing.assert_allclose(conversions.from_wrench(result.wrench),
++                                   [4, -1, 0, 0, 0, 2], atol=1e-14)
++
++    def test_disect_zero_torque_only_rotates_force(self):
++        result = relay.sensor_message(self.message([0, 10, 0, 0, 0, 0]),
++                                      [1, 2, 3], [0, 0, np.sqrt(.5), np.sqrt(.5)])
++        np.testing.assert_allclose(conversions.from_wrench(result.wrench),
++                                   [-10, 0, 0, 0, 0, 0], atol=1e-14)
++
++    def test_callback_looks_up_sensor_from_base(self):
++        node = relay.WrenchRelay.__new__(relay.WrenchRelay)
++        node.listener = Mock()
++        node.listener.lookupTransform.return_value = ([0, 0, 0], [0, 0, 0, 1])
++        node.publisher = Mock()
++        node.callback(self.message([0, 10, 0, 0, 0, 0]))
++        node.listener.lookupTransform.assert_called_once_with(
++            relay.SENSOR_FRAME, relay.BASE_FRAME, rospy.Time(0))
++        self.assertEqual(node.publisher.publish.call_count, 1)
++
++    def test_launch_connects_filter_to_gazebo_controller(self):
++        import roslaunch
++        import roslib.packages
++        launch = path.parents[1] / 'launch/b_bot_gazebo.launch'
++        config = roslaunch.config.load_config_default([str(launch)], None, verbose=False)
++        nodes = {node.name: node for node in config.nodes}
++        expected = ['/b_bot/cartesian_compliance_controller/ft_sensor_wrench',
++                    '/b_bot/wrench/filtered']
++        self.assertIn(expected, nodes['gazebo'].remap_args)
++        self.assertIn('-t2 /disect/wrench_sensor', nodes['b_bot_ft_filter'].args)
++        self.assertEqual(nodes['disect_wrench_relay'].package, 'o2ac_gazebo')
++        self.assertTrue(roslib.packages.find_node('o2ac_gazebo', 'disect_wrench_relay.py'))
++
++
++if __name__ == '__main__':
++    unittest.main()
+diff --git a/configs/public_prism.json b/configs/public_prism.json
+new file mode 100644
+index 0000000..c893ee8
+--- /dev/null
++++ b/configs/public_prism.json
+@@ -0,0 +1,130 @@
++{
++    "seed": 42,
++    "integrator": "explicit",
++    "sim_duration": 1.3,
++    "sim_substeps": 500,
++    "sim_dt": 2e-05,
++    "ground": true,
++    "ground_ke": 1000.0,
++    "ground_kd": 0.0,
++    "ground_kf": 1000.0,
++    "ground_mu": 0.2,
++    "ground_radius": 0.001,
++    "generator": "ansys",
++    "generators": {
++        "ansys": {
++            "filename": "dataset/meshes/prism.rst"
++        },
++        "meshio": {
++            "filename": "assets/apple1.obj_.msh"
++        },
++        "grid": {
++            "dim_x": 21,
++            "dim_y": 8,
++            "dim_z": 8,
++            "cell_x": 0.006,
++            "cell_y": 0.006,
++            "cell_z": 0.006
++        }
++    },
++    "mu": 13793.103448275862,
++    "lambda": 124137.9310344828,
++    "young": 40000.0,
++    "poisson": 0.45,
++    "density": 830.0,
++    "minimum_particle_mass": 0.0,
++    "damping": 10.0,
++    "relaxation": 0.9,
++    "geometry": {
++        "position": [
++            0.0,
++            0.0008,
++            0.0
++        ],
++        "rotation": [
++            0.0,
++            0.0,
++            1.0,
++            0.0
++        ],
++        "scale": 1.0
++    },
++    "cut_spring_ke": 1800.0,
++    "cut_spring_kd": 0.0,
++    "cut_spring_softness": 1600.0,
++    "cut_spring_rest_length": 5e-05,
++    "surface_cut_spring_ke": 2000.0,
++    "surface_cut_spring_kd": 0.0,
++    "surface_cut_spring_softness": 2000.0,
++    "surface_cut_spring_rest_length": 0.0001,
++    "sdf_ke": 1200.0,
++    "sdf_kd": 1.0,
++    "sdf_kf": 1000.0,
++    "sdf_mu": 0.5,
++    "surface_sdf_ke": 2000.0,
++    "surface_sdf_kd": 1.0,
++    "surface_sdf_kf": 2500.0,
++    "surface_sdf_mu": 0.5,
++    "sdf_radius": 0.0,
++    "static_vertices": {
++        "include": [
++            {
++                "min": [
++                    -100.0,
++                    -100.0,
++                    -100.0
++                ],
++                "max": [
++                    100.0,
++                    -0.002,
++                    100.0
++                ]
++            }
++        ],
++        "exclude": [
++            {
++                "min": [
++                    -0.01,
++                    -100.0,
++                    -100.0
++                ],
++                "max": [
++                    0.01,
++                    100.0,
++                    100.0
++                ]
++            }
++        ]
++    },
++    "velocity_y": -0.05,
++    "initial_y": 0.0895,
++    "knife_motion": {
++        "position": [
++            0.0,
++            0.08,
++            0.0
++        ],
++        "rotation": [
++            0.0,
++            0.0,
++            1.0,
++            0.0
++        ],
++        "velocity": [
++            0.0,
++            -0.05,
++            0.0
++        ],
++        "omega": [
++            0.0,
++            0.0,
++            0.0
++        ],
++        "1": 0.12
++    },
++    "knife_type": "gazebo",
++    "cutting": {
++        "active": true,
++        "mode": "fem"
++    }
++}
+\ No newline at end of file
+diff --git a/configs/public_prism_ros.yaml b/configs/public_prism_ros.yaml
+new file mode 100644
+index 0000000..55bd7fe
+--- /dev/null
++++ b/configs/public_prism_ros.yaml
+@@ -0,0 +1,166 @@
++ur3e_gym:
++  env_id: UR3eDisectSlicingEnv-v1
++  controller_type: cartesian_compliance
++  namespace: b_bot
++  ee_link: knife_center
++  use_gazebo_sim: true
++  real_robot: false
++  test_mode: false
++  use_step_control: true
++  batch_size: 1024
++  lr: 0.01
++  auto_alpha: true
++  update_interval: 1
++  relative_to_ee: false
++  robot_control_dt: 0.002
++  agent_control_dt: 0.05
++  reset_time: 0.5
++  n_actions: 6
++  action_type: slicing-3d
++  steps_per_episode: 500
++  actor_class: wave
++  ft_hist: true
++  wrench_hist_size: 3
++  last_action_as_obs: true
++  normalize_velocity: true
++  jerkiness_as_obs: true
++  use_dynamic_rewards: false
++  mu1: 0.0
++  mu2: 0.5
++  mu3: 1.0
++  rand_seed: 123456
++  object_name: target_block_tmp
++  object_friction: 1
++  object_stiffness: 600
++  max_stiffness_range:
++  - 500
++  - 1200
++  max_damping_range:
++  - 0
++  - 1
++  max_kp_range:
++  - 100000.0
++  - 500000.0
++  max_kd_range:
++  - 1
++  - 2
++  max_friction_range:
++  - 0
++  - 2
++  randomize_object_properties: true
++  normal_randomization: true
++  basic_randomization: false
++  object_initial_pose:
++  - -0.12
++  - 0.03
++  - 0.875
++  - 0
++  - 0
++  - 1.5707
++  object_workspace:
++  - - -0.05
++    - 0.05
++  - - -0.05
++    - 0.05
++  - - 0.08
++    - 0.02
++  - - -20
++    - 20
++  - - -20
++    - 20
++  - - -60
++    - 60
++  random_initial_pose: false
++  max_distance:
++  - 0.1
++  - 0.1
++  - 0.06
++  - 0.785398
++  - 0.785398
++  - 1.5707
++  workspace_limit:
++  - 0.05
++  - 0.1
++  - 0.174533
++  workspace:
++  - - 0
++    - 0
++  - - 0
++    - 0
++  - - 0.0
++    - 0.02
++  - - 0
++    - 0
++  - - 0
++    - 0
++  - - 0
++    - 0
++  init_q:
++  - 1.3524
++  - -1.5555
++  - 1.7697
++  - -1.7785
++  - -1.5644
++  - 1.3493
++  reset_motion:
++  - 0.0
++  - 0
++  - 0.06429999999999998
++  - 0
++  - 0
++  - 0
++  target_duration: 6
++  target_pose_uncertain: false
++  uncertainty_std:
++  - 0.001
++  - 0.0
++  random_target_pose: false
++  target_pose:
++  - 0.138
++  - 0.505
++  - 0.126
++  - 0.0
++  - 0.7071068
++  - 0.0
++  - 0.7071068
++  target_dims:
++  - 0
++  - 2
++  - 4
++  goal_threshold:
++  - 0.04
++  - 0.002
++  - 0.04
++  reward_type: slicing
++  termination_on_negative_reward: false
++  termination_reward_threshold: -300
++  cost:
++    collision: -100.0
++    done: 100
++    step: -1.0
++    l1: 0.1
++    l2: 2.0
++    alpha: 1.0e-10
++  w_dist: 1.0
++  w_force: 1.0
++  w_jerkiness: 1.0
++  w_velocity: 1.0
++  successes_threshold: 10
++ur3e_force_control:
++  max_twist:
++  - 1.0
++  - 0.0
++  max_force_torque:
++  - 50
++  - 50.0
++  - 50.0
++  - 10.0
++  - 10.0
++  - 10.0
++  desired_force_torque:
++  - 0.0
++  - 0.0
++  - 0.0
++  - 0.0
++  - 0.0
++  - 0.0
+diff --git a/disect b/disect
+index b8d0e58..db7de0f 160000
+--- a/disect
++++ b/disect
+@@ -1 +1 @@
+-Subproject commit b8d0e5828a3e978f94974c7b429cc6a264b93412
++Subproject commit db7de0fe5b303cbacc2c67219c86735b9e64f814
+diff --git a/docs/METHOD.md b/docs/METHOD.md
+new file mode 100644
+index 0000000..c9ea390
+--- /dev/null
++++ b/docs/METHOD.md
+@@ -0,0 +1,72 @@
++# Reproduction changes
++
++Source baselines: SliceIt `3a69648`, DiSECt `b8d0e58`, robot utilities
++`7cd7cb8`, tf2rl `a8d41f6`.
++
++| Interface | Source behavior | Current implementation |
++|---|---|---|
++| Episode reset | Reads observation before moving the robot and resetting DiSECt | Reads observation after physical reset; finite-difference history starts at the new pose |
++| Force-history reward | Observation is component-major; slicing reward reshapes it as time-major | Transpose the decoded history before applying the existing component scales and reward formula |
++| Force-history actor | Component-major observations are reshaped directly into TCN time-major input | Decode components then transpose to time-major; network layers and widths unchanged |
++| Replay priority | Column reward/done broadcasts against vector Q into a batch-by-batch TD array | One reward, done and TD error per transition, matching the critic update shape |
++| Material-force wiring | README launch omits the filter's secondary input and places the controller remap after Gazebo inclusion | Existing `31852dc` relay connects base-expressed force to the wrist sensor filter; remap is applied before Gazebo starts |
++
++Material force retains the author's sum of contact-force magnitudes and
++single-axis zero-torque construction in `ROSVisualizer.step_simulation()`.
++No contact moment or new application point is added. Materials, task thresholds,
++reward coefficients, SAC learning rates, warmup and batch size retain the public
++scene configuration described in [PUBLIC_DATA](../PUBLIC_DATA.md).
++
++The source trainer updates during random-action warmup. The critic currently
++ignores replay importance weights, and the force-history reader takes the oldest
++requested entries of its 25-sample queue. These source behaviors are unchanged.
++
++The shared SuperMimic interface uses the corrected force-history decoding,
++paused reset joint snapshots, and read-only native controller/filter state,
++including the FDCC internal velocity. Its current sampling contract is
++`synchronous_paused_joint_snapshot_v1`.
++
++## Stepped transition ordering
++
++| Interface | Source behavior | Current implementation |
++|---|---|---|
++| Step-control flag | The direct DiSECt environment inherited a false flag despite the existing configuration | Base environment reads the existing flag, matching the arm |
++| Reset pause | Pause/unpause publish asynchronous world-control requests; queued joint messages can change the first observation cache | Synchronous physics services and explicit snapshot_only pause/read before the reset observation; no physical tick is added |
++| Controller parameters | Gain RPC threads are still pending at the first physics step | Stepped mode finishes parameter writes before motion; continuous mode retains asynchronous updates |
++| Gazebo step completion | StepControl returns after publishing a request | Native `World::Step(n)` completes before return and reports start/end simulation times |
++| Knife joint sample | FK uses asynchronous joint topics sampled before integration | StepControl returns ordered post-integration joint position/velocity/effort at end_time; client installs atomically and rejects late/equal-time topic updates |
++| Control duration | ROS-clock/float loop sometimes executes 52 ms for a 50 ms action | Accumulate authoritative step durations as integer nanoseconds; waypoint and force conditions unchanged |
++| Native memory | Solver/filter recurrence is omitted from recorded state | Read-only controller/filter snapshots and atomic full sensor queue reads |
++
++The existing 2 ms robot/material coupling, gains, action mapping, material and
++reward parameters remain unchanged. Rebuild `gazebo_msgs` and `gazebo_ros` in
++underlay_ws together after the StepControl response change. Native state checks:
++`scripts/check_native_fdcc_state.py --output runs/native_fdcc_check` after
++sourcing `scripts/public_env.sh`.
++Source: https://github.com/gazebosim/gazebo/blob/gazebo11_11.15.1/gazebo/physics/World.cc#L807
++
++The two-tick paused loop cannot rely on a fresh JointState topic: the source
++joint-state controller may skip publication when its realtime publisher is busy.
++A service response now carries the selected hinge/slider joint snapshot directly.
++Angular coordinates retain the ROS hardware continuous branch. Episode reset
++uses the existing NO_RESET_SIM lifecycle, so simulation timestamps remain
++monotonic; recreating a world also requires recreating its state consumer.
++The snapshot follows the completed integration, while the original ROS hardware
++read is on WorldUpdateBegin. This changes the sample phase by up to one physics
++tick, without changing the requested tick count or physical equations.
++Source: https://github.com/ros-controls/ros_controllers/blob/noetic-devel/joint_state_controller/src/joint_state_controller.cpp
++
++`StepControl.snapshot_only=true` requires zero steps and nonempty joint names.
++It pauses and returns an authoritative joint sample with identical start/end
++times. The UR robot reset installs this sample before its first observation;
++queued topic updates at or before that time are ignored. Default zero-step
++requests retain their unpause behavior.
++
++
++### Training shutdown
++The active Gazebo connection provides a strict shutdown unpause service call
++with a 5 s wall-time bound. Controller shutdown has the same bound and reports
++failed service acknowledgements. Training orchestration independently attempts
++checkpoint/replay save, environment close, local status and W&B finish, retaining
++the original training exception. These bounds apply to teardown; robot/material
++integration, reward and learner parameters are unchanged.
+diff --git a/docs/RESULTS.md b/docs/RESULTS.md
+new file mode 100644
+index 0000000..ba7e73a
+--- /dev/null
++++ b/docs/RESULTS.md
+@@ -0,0 +1,104 @@
++# Results
++
++2026-11-02, robot utilities `177cf21`, tf2rl `8b9b913`:
++`source scripts/public_env.sh; cd "$SLICEIT_ROOT";
++CUDA_VISIBLE_DEVICES="" python -m unittest discover -s tests -v`:
++5 interface tests passed (0.423 s). Original tf2rl `tests.algos.test_sac`
++entry passed (12 reported cases, including 4 inactive base-class cases; 2.098 s).
++Existing ROS relay/launch tests: 5 passed (0.599 s). Independent review used
++separate batch, history-layout, TD-target and reset finite-difference examples;
++no blocking finding in these changes.
++
++Same code, RTX 4090:
++`python3 runs/sac_interface_fix_20261102/run.py` wraps the original
++`tf2rl_sac.py -e 3 --config configs/public_prism_ros.yaml` entry and stops after
++one natural episode plus the next reset, with a 600 s wall limit. Manifest
++records pre-commit parent `31852dc` and dirty nested sources; fixes are committed
++at the revisions above. Configuration and training parameters unchanged.
++31 transitions, 30 updates, return 84.45334, success=true, collision=false.
++DiSECt advanced 1.586 s through 793 bridge calls, releasing 288/304 springs;
++reset restored 0/304. Supervisor and cleanup: 112.71 s, zero remaining processes.
++Actions were still in the source random warmup phase.
++
++Both reset observations match measured position (maximum error 0 m), with zero
++initial velocity/acceleration history. Every priority TD array has shape (1024,)
++and finite values; all updated weights are finite. Decoded force history matches
++the sensor samples exactly. Force-reward accumulator error is 2.84e-14 against
++independent component means (source info is sampled before the current reward).
++Detailed evidence: `runs/sac_interface_fix_20261102/verification.json`.
++No checkpoint was saved and no long training is running.
++
++
++2026-11-02, utilities `c5f28a2`, controller `6d6fea2`, Gazebo `e2ac2c9`:
++`python -m pytest tests -q` after sourcing public_env: 21 passed in 1.69 s.
++`check_native_fdcc_state.py`: internal velocity difference 0.5 produces command
++difference 0.01; equation error 8.67e-18, restart error 0.
++Read-only live probes in CuttingWorldModel runs: pending configuration at first
++physics step 45/45 -> 0/45; stale pre-step knife samples 5/5 -> 0/5; substep
++counts all 2, action intervals all 50 ticks after integer-time repair.
++Three resets with immediate/0.25 s/1 s wall-time reads: controller, filter,
++material, queue and simulation clock changes all zero.
++
++2026-11-02, parent `3d0801d`, utilities `c5f28a2`, controller `6d6fea2`, Gazebo `e2ac2c9`:
++`python runs/sac_final_timing_clean_20261102/run.py` on RTX 4090: original SAC
++entry, warmup 1000, batch 1024, one natural episode and next reset, 600 s budget.
++31 transitions, 30 actor/Q1/Q2/alpha updates, return 84.40187, success=true,
++collision=false. DiSECt 1.552 s = reset 0.002 s + 31 x 0.05 s; 776 bridge calls,
++286/304 released springs, next reset 0/304. Both reset pose/history errors 0;
++force observation and pre-reward accumulator errors 0; TD arrays (1024,), all
++TD values and updated weights finite. Four force-chain topics received data.
++Automatic exit 0 in 112.74 s, zero remaining processes, no checkpoint files.
++Evidence: `runs/sac_final_timing_clean_20261102/verification.json`.
++
++
++2026-11-02, positive-step sources `3bc5024`, utilities `7ca3977`, Gazebo `c93e50a`:
++`check_step_snapshot.py --calls 20000 --timeout 600 --unpause-boundary
++--output runs/joint_snapshot_20261102/stress`: 20,000 double-tick calls in
++40.94 s with the consuming joint subscriber disconnected. Exact 2 ms intervals;
++138 paused Gazebo property comparisons have position/velocity error 0.
++Four invalid requests rejected without advancing; 1/5-step and unpause-boundary
++checks passed. Source publication can skip a busy realtime-publisher opportunity;
++the paused consumer now obtains its joint sample in the service response.
++
++2026-11-02, `1420ade`, utilities `97ba329`, Gazebo `ef2face`:
++`python runs/sac_paused_snapshot_20261102/run.py`, 600 s budget, original SAC
++entry/configuration: 31 transitions, 30 actor/Q1/Q2/alpha updates, return
++84.00210, success=true, collision=false. First and subsequent reset pose/history
++errors 0; snapshot start=end at 20.611/26.416 s, replacing 2/1 ms-old topic caches.
++The earlier `3bc5024` first-reset check differed by 0.519 mm; explicit zero-time
++pause/read now establishes the joint cache before the reset observation.
++Force observation/accumulator errors 0, TD arrays (1024,), TD/weights finite.
++All four force-chain topics received nonzero signals. DiSECt: 1.552 s, 776 calls,
++288/304 released springs, next reset 0/304. Exit 0 in 112.75 s, zero remaining
++processes, no checkpoint files. Source warmup 1000 and batch size 1024 unchanged;
++updates occur during random-action warmup. Full tests: 59 passed (1.76 s).
++Evidence: `runs/sac_paused_snapshot_20261102/verification.json`.
++
++2026-11-03, source `11fc054`, utilities `97ba329`, Gazebo `ef2face`:
++`python runs/sac_long_20261103/supervisor.py --output runs/sac_long_20261103`:
++fresh source SAC training, 100100-step endpoint / 259200-second execution budget.
++Warmup 1000, batch 1024, learning rate 0.01, source reward/termination unchanged.
++Physical step rewards, episode returns and success rate stream to
++[W&B xqmkhjbc](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/xqmkhjbc).
++Stopped at 290 physical steps, 282 optimizer updates and 8 complete episodes;
++checkpoint and replay were saved before the shutdown repair.
++Run manifest records the source revisions; the previous failed weights are not loaded.
++
++2026-11-03, SliceIt `5b7d208`, utilities `ddc85ec`, orchestration `702b90c`:
++`python -m pytest tests -q --disable-warnings`: 68 passed (2.12 s).
++Actual SAC normal shutdown: 2 physical steps / 2 optimizer updates; checkpoint
++and replay saved; W&B finished, worker exit 0, zero residual processes.
++Actual owned Gazebo process termination after 2 updates: unpause timed out in
++5 s, environment/controller close still attempted, checkpoint/replay saved;
++worker and supervisor exit 1, W&B failed, zero residual processes.
++Evidence: `CuttingWorldModel/runs/shutdown_fix_20261103/actual_shutdown_report.json`.
++
++2026-11-03, SliceIt `5b7d208`, orchestration `702b90c`:
++`python /dataHDD/dong/Projects/CuttingWorldModel/scripts/run_sac_training.py
++--sliceit-root /dataHDD/dong/Projects/SliceIt --output
++/dataHDD/dong/Projects/SliceIt/runs/sac_resume_20261103`.
++Restored the 290-step checkpoint and replay into a separate run; startup reached
++40 new physical steps / 38 new updates. Original 100100-step endpoint, 72-hour
++execution budget, reward, termination and training parameters are unchanged.
++The source resume entry restarts local step/episode counters and random warmup.
++[W&B xofe4ps8](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/xofe4ps8).
+diff --git a/scripts/align_public_scene.py b/scripts/align_public_scene.py
+new file mode 100644
+index 0000000..cdf494e
+--- /dev/null
++++ b/scripts/align_public_scene.py
+@@ -0,0 +1,32 @@
++import json, pathlib, yaml, importlib.util
++import numpy as np
++import rospy, tf
++from ur_control import transformations
++root=pathlib.Path("/dataHDD/dong/Projects/SliceIt")
++rospy.init_node("align_public_scene", anonymous=True)
++listener=tf.TransformListener()
++listener.waitForTransform("cutting_board_disect","b_bot_base_link",rospy.Time(0),rospy.Duration(20))
++translation,quaternion=listener.lookupTransform("cutting_board_disect","b_bot_base_link",rospy.Time(0))
++matrix=transformations.quaternion_matrix(quaternion)
++matrix[:3,3]=translation
++source=root/"underlay_ws/src/ur_python_utilities/ur3e_rl/config/simulation/slicing_3d_disect.yaml"
++env=yaml.safe_load(source.read_text())
++scene=json.loads((root/"configs/public_prism.json").read_text())
++settings=env["ur3e_gym"]
++initial_pose=transformations.transform_pose(settings["target_pose"], settings["reset_motion"], rotated_frame=False)
++current=(matrix @ np.r_[initial_pose[:3],1])[1]
++# Existing SliceIt reset subtracts 4.3 mm before adding half the blade height.
++spec=importlib.util.spec_from_file_location("scene_knife", root/"disect/disect/cutting/knife.py")
++knife_module=importlib.util.module_from_spec(spec)
++spec.loader.exec_module(knife_module)
++knife=knife_module.Knife(getattr(knife_module.KnifeType, scene["knife_type"].upper()))
++desired=scene["initial_y"]-knife.spine_height/2+0.0043
++old=settings["reset_motion"][2]
++settings["reset_motion"][2] += float((desired-current)/matrix[1,2])
++(root/"configs/public_prism_ros.yaml").write_text(yaml.safe_dump(env,sort_keys=False))
++report={"robot_reset_z_original":old,"robot_reset_z_public":settings["reset_motion"][2],"disect_knife_origin_y_original":float(current),"disect_knife_origin_y_public":desired,"matrix":matrix.tolist(),"training_config_source":str(source)}
++(root/"runs/public_aligned/alignment.json").write_text(json.dumps(report,indent=2)+"\n")
++original=yaml.safe_load(source.read_text())
++original["ur3e_gym"]["reset_motion"][2]=settings["reset_motion"][2]
++assert original==env
++print(json.dumps(report))
+diff --git a/scripts/check_native_fdcc_state.py b/scripts/check_native_fdcc_state.py
+new file mode 100644
+index 0000000..e79ac8c
+--- /dev/null
++++ b/scripts/check_native_fdcc_state.py
+@@ -0,0 +1,68 @@
++#!/usr/bin/env python3
++"""Compile and run the source FDCC memory/restart regression on an isolated ROS master."""
++import argparse
++import json
++import os
++from pathlib import Path
++import shlex
++import signal
++import socket
++import subprocess
++import time
++
++
++def main():
++    parser = argparse.ArgumentParser()
++    parser.add_argument('--output', required=True)
++    args = parser.parse_args()
++    root = Path(__file__).resolve().parents[1]
++    output = Path(args.output).resolve()
++    output.mkdir(parents=True, exist_ok=False)
++    executable = output / 'native_fdcc_state'
++    flags = shlex.split(subprocess.check_output(
++        ['pkg-config', '--cflags', '--libs', 'cartesian_controller_base'], text=True))
++    build = ['g++', '-std=c++17', '-O2', str(root / 'tests/native_fdcc_state.cpp'),
++             '-I/usr/include/eigen3', '-o', str(executable)] + flags + ['-lik_solvers']
++    subprocess.run(build, check=True, timeout=120)
++    with socket.socket() as sock:
++        sock.bind(('127.0.0.1', 0))
++        port = sock.getsockname()[1]
++    env = dict(os.environ, ROS_MASTER_URI='http://127.0.0.1:%d' % port,
++               ROS_HOME=str(output / 'ros_home'), ROS_LOG_DIR=str(output / 'ros_logs'))
++    with (output / 'roscore.log').open('w') as log:
++        master = subprocess.Popen(['roscore', '-p', str(port)], env=env, stdout=log,
++                                  stderr=subprocess.STDOUT, start_new_session=True)
++        try:
++            deadline = time.monotonic() + 30
++            while time.monotonic() < deadline:
++                probe = subprocess.run(['rosparam', 'list'], env=env, capture_output=True, timeout=5)
++                if probe.returncode == 0:
++                    break
++                if master.poll() is not None:
++                    raise RuntimeError('Isolated ROS master exited')
++                time.sleep(.1)
++            else:
++                raise TimeoutError('Isolated ROS master did not start')
++            run = subprocess.run([str(executable)], env=env, capture_output=True, text=True, timeout=30)
++            (output / 'solver.log').write_text(run.stdout + run.stderr)
++            run.check_returncode()
++            metrics = json.loads(next(line for line in run.stdout.splitlines() if line.startswith('{')))
++            def revision(directory):
++                commit = subprocess.check_output(['git', '-C', str(directory), 'rev-parse', 'HEAD'], text=True).strip()
++                dirty = bool(subprocess.check_output(['git', '-C', str(directory), 'status', '--porcelain'], text=True))
++                return {'commit': commit, 'dirty': dirty}
++            metrics['git'] = revision(root)
++            metrics['solver_git'] = revision(root / 'underlay_ws/src/cartesian_controllers')
++            (output / 'report.json').write_text(json.dumps(metrics, indent=2) + '\n')
++            print(json.dumps(metrics))
++        finally:
++            os.killpg(master.pid, signal.SIGINT)
++            try:
++                master.wait(timeout=10)
++            except subprocess.TimeoutExpired:
++                os.killpg(master.pid, signal.SIGKILL)
++                master.wait()
++
++
++if __name__ == '__main__':
++    main()
+diff --git a/scripts/check_step_snapshot.py b/scripts/check_step_snapshot.py
+new file mode 100644
+index 0000000..ee7705b
+--- /dev/null
++++ b/scripts/check_step_snapshot.py
+@@ -0,0 +1,209 @@
++#!/usr/bin/env python3
++"""Stress completed Gazebo joint snapshots against an already running ROS master."""
++import argparse
++from collections import deque
++import json
++import os
++from pathlib import Path
++import signal
++import subprocess
++import threading
++import time
++from types import SimpleNamespace
++
++import numpy as np
++import rospy
++from gazebo_msgs.srv import GetJointProperties, GetPhysicsProperties, GetWorldProperties
++from gazebo_msgs.srv import StepControl, StepControlRequest
++from sensor_msgs.msg import JointState
++from std_srvs.srv import Empty
++from ur_control.controllers import JointControllerBase
++from ur_control.fzi_cartesian_compliance_controller import CompliantController
++
++
++def revision(directory):
++    return {
++        'commit': subprocess.check_output(
++            ['git', '-C', str(directory), 'rev-parse', 'HEAD'], text=True).strip(),
++        'dirty': bool(subprocess.check_output(
++            ['git', '-C', str(directory), 'status', '--porcelain'], text=True)),
++    }
++
++
++def main():
++    parser = argparse.ArgumentParser(description=__doc__)
++    parser.add_argument('--calls', type=int, default=20000)
++    parser.add_argument('--timeout', type=float, default=600.)
++    parser.add_argument('--namespace', default='/b_bot')
++    parser.add_argument('--topic', default='/joint_states')
++    parser.add_argument('--output', required=True)
++    parser.add_argument('--unpause-boundary', action='store_true')
++    parser.add_argument('--compare-every', type=int, default=1000)
++    args = parser.parse_args()
++    if args.calls < 1 or args.timeout <= 0 or args.compare_every < 1:
++        parser.error('calls, timeout and compare-every must be positive')
++    root = Path(__file__).resolve().parents[1]
++    output = Path(args.output).resolve()
++    output.mkdir(parents=True, exist_ok=False)
++    report = {
++        'config': vars(args), 'ros_master_uri': os.environ.get('ROS_MASTER_URI'),
++        'git': revision(root),
++        'utilities_git': revision(root / 'underlay_ws/src/ur_python_utilities'),
++        'gazebo_git': revision(root / 'underlay_ws/src/third_party/gazebo_ros_pkgs'),
++        'status': 'running', 'calls_completed': 0, 'property_comparisons': 0,
++        'max_position_error': 0., 'max_velocity_error': 0.,
++        'topic_not_newer_at_response': 0, 'max_call_wall_seconds': 0.,
++    }
++    started = time.monotonic()
++    initial_sub = observer_sub = None
++    def timeout_handler(signum, frame):
++        raise TimeoutError('Snapshot stress exceeded wall-time budget')
++    signal.signal(signal.SIGALRM, timeout_handler)
++    signal.setitimer(signal.ITIMER_REAL, args.timeout)
++    try:
++        rospy.init_node('check_step_snapshot', anonymous=True, disable_signals=True)
++        for name in ('step_control', 'get_physics_properties', 'get_joint_properties',
++                     'get_world_properties', 'pause_physics', 'unpause_physics'):
++            rospy.wait_for_service('/gazebo/' + name, timeout=20.)
++        step = rospy.ServiceProxy('/gazebo/step_control', StepControl, persistent=True)
++        physics = rospy.ServiceProxy('/gazebo/get_physics_properties', GetPhysicsProperties)
++        properties = rospy.ServiceProxy('/gazebo/get_joint_properties', GetJointProperties)
++        world = rospy.ServiceProxy('/gazebo/get_world_properties', GetWorldProperties)
++        pause = rospy.ServiceProxy('/gazebo/pause_physics', Empty)
++        unpause = rospy.ServiceProxy('/gazebo/unpause_physics', Empty)
++        names = None
++        namespace = args.namespace.rstrip('/')
++        for suffix in ('joint_state_controller/joints', 'ur_hardware_interface/joints',
++                       'scaled_pos_joint_traj_controller/joints'):
++            candidate = rospy.get_param(namespace + '/' + suffix, None)
++            if candidate:
++                names = list(candidate)
++                break
++        initial = []
++        ready = threading.Event()
++        def initial_callback(message):
++            if names is None or set(names).issubset(message.name):
++                initial[:] = [message]
++                ready.set()
++        initial_sub = rospy.Subscriber(args.topic, JointState, initial_callback, queue_size=1)
++        if not ready.wait(20.):
++            raise TimeoutError('No initial joint state; start this check with the world running')
++        initial_sub.unregister()
++        initial_sub = None
++        message = initial[0]
++        if names is None:
++            prefix = namespace.strip('/') + '_'
++            names = [name for name in message.name if name.startswith(prefix)]
++        if not names or len(names) != len(set(names)):
++            raise RuntimeError('No unique requested joints available')
++        order = [message.name.index(name) for name in names]
++        joints = JointControllerBase.__new__(JointControllerBase)
++        joints.valid_joint_names = names
++        joints._joint_names = names.copy()
++        joints._joint_state_lock = threading.RLock()
++        joints._joint_state_stamp = message.header.stamp.to_sec()
++        joints._joint_state_stamp_ns = message.header.stamp.to_nsec()
++        joints._current_jnt_positions = np.asarray(message.position)[order]
++        joints._current_jnt_velocities = np.asarray(message.velocity)[order]
++        joints._current_jnt_efforts = np.asarray(message.effort)[order]
++        joints._jnt_positions_hist = deque(maxlen=24)
++        observed = {'stamp_ns': 0, 'messages': 0}
++        observer_lock = threading.Lock()
++        def observe(message):
++            if set(names).issubset(message.name):
++                with observer_lock:
++                    observed['stamp_ns'] = message.header.stamp.to_nsec()
++                    observed['messages'] += 1
++        observer_sub = rospy.Subscriber(args.topic, JointState, observe, queue_size=1)
++        arm = SimpleNamespace(step_simulation_serv=step, joint_traj_controller=joints)
++        pause()
++        settings = physics()
++        assert settings.success and settings.pause
++        tick_ns = rospy.Duration.from_sec(settings.time_step).to_nsec()
++        assert tick_ns > 0
++        report.update(joint_names=names, tick_ns=tick_ns, consumer_topic_subscribed=False)
++
++        def validate(response, steps):
++            assert response.success, response.status_message
++            assert response.end_time.to_nsec() - response.start_time.to_nsec() == steps * tick_ns
++            assert response.joint_state.header.stamp == response.end_time
++            assert list(response.joint_state.name) == names
++            state = joints.get_joint_state()
++            assert state['stamp'] == response.end_time.to_sec()
++            assert np.isfinite(state['q']).all() and np.isfinite(state['qd']).all()
++            assert np.isfinite(response.joint_state.effort).all()
++
++        def compare(response):
++            for index, name in enumerate(names):
++                reference = properties(name)
++                assert reference.success, reference.status_message
++                q_error = response.joint_state.position[index] - reference.position[0]
++                if response.joint_is_angular[index]:
++                    q_error = np.arctan2(np.sin(q_error), np.cos(q_error))
++                qd_error = response.joint_state.velocity[index] - reference.rate[0]
++                report['max_position_error'] = max(report['max_position_error'], abs(float(q_error)))
++                report['max_velocity_error'] = max(report['max_velocity_error'], abs(float(qd_error)))
++                assert abs(q_error) <= 1e-10 and abs(qd_error) <= 1e-10
++                report['property_comparisons'] += 1
++
++        invalid = [(2, ['__step_snapshot_missing_joint__']), (2, [names[0], names[0]]),
++                   (0, names), (2, [''])]
++        for steps, invalid_names in invalid:
++            before = world()
++            response = step(StepControlRequest(steps=steps, joint_names=invalid_names))
++            after = world()
++            assert not response.success
++            assert before.sim_time == after.sim_time
++            assert physics().pause
++        report['invalid_requests_rejected_without_advancing'] = len(invalid)
++        for ticks in (1, 5):
++            response = step(StepControlRequest(steps=ticks, joint_names=names))
++            joints.install_step_joint_state(response.joint_state, response.joint_is_angular,
++                                            response.start_time, response.end_time)
++            validate(response, ticks)
++            compare(response)
++        report['other_step_counts'] = [1, 5]
++        if args.unpause_boundary:
++            unpause()
++            response = CompliantController.advance_gazebo(arm, steps=2)
++            validate(response, 2)
++            assert physics().pause
++            report['unpause_boundary_passed'] = True
++        next_progress = time.monotonic()
++        for index in range(args.calls):
++            call_start = time.monotonic()
++            response = CompliantController.advance_gazebo(arm, steps=2)
++            report['max_call_wall_seconds'] = max(
++                report['max_call_wall_seconds'], time.monotonic() - call_start)
++            validate(response, 2)
++            with observer_lock:
++                if observed['stamp_ns'] <= response.start_time.to_nsec():
++                    report['topic_not_newer_at_response'] += 1
++            if index % args.compare_every == 0 or index + 1 == args.calls:
++                compare(response)
++            report['calls_completed'] = index + 1
++            if time.monotonic() >= next_progress:
++                report['wall_seconds'] = time.monotonic() - started
++                print(json.dumps({'calls': index + 1, 'wall_seconds': report['wall_seconds'],
++                                  'topic_not_newer_at_response': report['topic_not_newer_at_response']}), flush=True)
++                (output / 'progress.json').write_text(json.dumps(report, indent=2) + '\n')
++                next_progress = time.monotonic() + 5.
++        report['observer_messages'] = observed['messages']
++        report['status'] = 'passed'
++    except BaseException as error:
++        report['status'] = 'failed'
++        report['error'] = '{}: {}'.format(type(error).__name__, error)
++        raise
++    finally:
++        signal.setitimer(signal.ITIMER_REAL, 0)
++        if initial_sub is not None:
++            initial_sub.unregister()
++        if observer_sub is not None:
++            observer_sub.unregister()
++        report['wall_seconds'] = time.monotonic() - started
++        (output / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
++        print(json.dumps(report), flush=True)
++
++
++if __name__ == '__main__':
++    main()
+diff --git a/scripts/public_env.sh b/scripts/public_env.sh
+new file mode 100644
+index 0000000..bada587
+--- /dev/null
++++ b/scripts/public_env.sh
+@@ -0,0 +1,15 @@
++#!/usr/bin/env bash
++SLICEIT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
++source /opt/ros/noetic/setup.bash
++source "$SLICEIT_ROOT/underlay_ws/devel/setup.bash"
++source "$SLICEIT_ROOT/.venv/bin/activate"
++export PYTHONPATH="$SLICEIT_ROOT/.venv/lib/python3.8/site-packages:$SLICEIT_ROOT/underlay_ws/src/ur_python_utilities/dependencies/tf2rl:$PYTHONPATH"
++export ROS_PACKAGE_PATH="$SLICEIT_ROOT/catkin_ws/src:$SLICEIT_ROOT/underlay_ws/src:$ROS_PACKAGE_PATH"
++export ROS_HOME=/dataHDD/dong/.ros-sliceit ROS_LOG_DIR="$SLICEIT_ROOT/runs/ros"
++export ROS_MASTER_URI=http://127.0.0.1:11321 ROS_IP=127.0.0.1 GAZEBO_MASTER_URI=http://127.0.0.1:11355
++export TMPDIR=/dataHDD/dong/tmp XDG_CACHE_HOME=/dataHDD/dong/.cache
++export CUDA_HOME=/usr/local/cuda-12.9 TORCH_CUDA_ARCH_LIST=8.9 MAX_JOBS=2
++export TORCH_EXTENSIONS_DIR=/dataHDD/dong/.cache/torch_extensions_sliceit MPLCONFIGDIR=/dataHDD/dong/.cache/matplotlib
++export OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1
++export TF_CPP_MIN_LOG_LEVEL=3 TF_NUM_INTRAOP_THREADS=2 TF_NUM_INTEROP_THREADS=2
++cd "$SLICEIT_ROOT/disect"
+diff --git a/scripts/public_ros_bridge.py b/scripts/public_ros_bridge.py
+new file mode 100644
+index 0000000..6a057af
+--- /dev/null
++++ b/scripts/public_ros_bridge.py
+@@ -0,0 +1,173 @@
++#!/usr/bin/env python3
++"""Run SliceIt's ROS cutting bridge with an explicit scene and optional fitted parameters."""
++import argparse
++import copy
++import json
++import threading
++import time
++from pathlib import Path
++
++import numpy as np
++import rospy
++import tf
++import torch
++from geometry_msgs.msg import WrenchStamped
++from nav_msgs.msg import Odometry
++from std_srvs.srv import Empty, EmptyResponse
++from ur_control import conversions
++from disect.cutting import CuttingSim, load_settings
++from disect.cutting.ros_visualizer import ROSVisualizer
++
++
++class PublicBridge(ROSVisualizer):
++    def __init__(self, config, output, parameters=None):
++        self.config = Path(config).resolve()
++        self.output = Path(output).resolve()
++        self.output.mkdir(parents=True, exist_ok=True)
++        self.parameter_file = parameters
++        self.ros_frequency = 500
++        self.sim = None
++        self.episode = -1
++        self.lock = threading.RLock()
++        self.tf_listener = tf.TransformListener()
++        self.tf_listener.waitForTransform(
++            "b_bot_base_link", "cutting_board_disect", rospy.Time(0), rospy.Duration(20)
++        )
++        msg = conversions.to_pose_stamped("cutting_board_disect", [0, 0, 0, 0, 0, 0, 1])
++        transformed = self.tf_listener.transformPose("b_bot_base_link", msg)
++        self.transform_to_robot_base = conversions.from_pose_to_list(transformed.pose)
++        self.wrench_pub = rospy.Publisher("/disect/wrench", WrenchStamped, queue_size=10)
++        self.services = [
++            rospy.Service("/disect/load", Empty, self.load),
++            rospy.Service("/disect/reset", Empty, self.reset),
++            rospy.Service("/disect/step_simulation", Empty, self.step_simulation),
++        ]
++        self.subscriber = rospy.Subscriber(
++            "/disect/knife/odom", Odometry, self.update_knife_pose, queue_size=10
++        )
++        rospy.on_shutdown(self.save)
++        rospy.loginfo("Public-data DiSECt bridge ready: %s", self.config)
++
++    @torch.no_grad()
++    def load(self, req=None):
++        with self.lock:
++            self.save()
++            settings = load_settings(str(self.config))
++            settings.sim_dt = 1e-5
++            settings.sim_substeps = 500
++            self.sim = CuttingSim(
++                settings, experiment_name="public_ros", adapter="cuda",
++                requires_grad=False, allow_nans=False,
++            )
++            self.sim.cut()
++            if self.parameter_file:
++                self.sim.load_optimized_parameters(self.parameter_file, verbose=True)
++                self.sim.init_parameters()
++                self.sim.state = self.sim.model.state()
++                self.sim.assign_parameters()
++            else:
++                self.sim.state = self.sim.model.state()
++            self.sim.disable_gradients()
++            self.start_model = copy.copy(self.sim.model)
++            self.initial_q = self.sim.state.particle_q.detach().cpu().numpy().copy()
++            self.episode += 1
++            self.begin_recording()
++            return EmptyResponse()
++
++    def begin_recording(self):
++        self.recording = True
++        self.rows = []
++        self.frames = []
++        self.hist_knife_force = []
++        self.hist_time = []
++        self.calls = 0
++        self.sim_step = 0
++        self.started = time.monotonic()
++        self.initial_ke = self.sim.state.cut_spring_ke.detach().cpu().numpy().copy()
++
++    @torch.no_grad()
++    def reset(self, req=None):
++        with self.lock:
++            self.save()
++            self.recording = False
++            result = super().reset(req)
++            self.episode += 1
++            self.begin_recording()
++            self.update_view()
++            return result
++
++    @torch.no_grad()
++    def update_knife_pose(self, msg):
++        with self.lock:
++            if self.sim is None:
++                return
++            super().update_knife_pose(msg)
++
++    @torch.no_grad()
++    def step_simulation(self, req=None):
++        with self.lock:
++            if self.sim is None:
++                raise rospy.ServiceException("Load a scene before stepping.")
++            result = super().step_simulation(req)
++            self.calls += 1
++            if self.calls % 500 == 0:
++                self.save()
++                rospy.loginfo("Cutting time %.3f s, force %.3f N, released %d/%d",
++                              self.sim.sim_time, self.rows[-1]["force"],
++                              self.rows[-1]["zero_springs"], len(self.initial_ke))
++            return result
++
++    def update_view(self):
++        if not getattr(self, 'recording', False):
++            return
++        if self.calls % 25:
++            return
++        q = self.sim.state.particle_q.detach().cpu().numpy()
++        ke = self.sim.state.cut_spring_ke.detach().cpu().numpy()
++        if not np.isfinite(q).all() or not np.isfinite(ke).all():
++            raise rospy.ServiceException("Non-finite cutting state.")
++        force = self.hist_knife_force[-1] if self.hist_knife_force else 0.0
++        self.rows.append({
++            "time": self.sim.sim_time, "force": force,
++            "knife_position": self.sim.motion.current_pos.detach().cpu().tolist(),
++            "zero_springs": int(np.count_nonzero(ke == 0)),
++            "mean_stiffness": float(ke.mean()),
++            "min_particle_y": float(q[:, 1].min()),
++            "max_particle_y": float(q[:, 1].max()),
++        })
++        self.frames.append(q.copy())
++
++    def save(self):
++        if self.sim is None or not hasattr(self, "rows"):
++            return
++        with self.lock:
++            report = {
++                "config": str(self.config), "fitted_parameters": self.parameter_file,
++                "episode": self.episode, "simulation_seconds": self.sim.sim_time,
++                "wall_seconds": time.monotonic() - self.started,
++                "vertices": len(self.initial_q), "springs": len(self.initial_ke),
++                "calls": self.calls, "rows": self.rows,
++                "final_zero_springs": int((self.sim.state.cut_spring_ke == 0).sum().item()),
++                "final_knife_position": self.sim.motion.current_pos.detach().cpu().tolist(),
++            }
++            path = self.output / ("episode_%03d.json" % self.episode)
++            path.write_text(json.dumps(report, indent=2) + "\n")
++            if self.frames:
++                np.savez_compressed(
++                    self.output / ("episode_%03d.npz" % self.episode),
++                    positions=np.asarray(self.frames), initial=self.initial_q,
++                    spring_initial=self.initial_ke,
++                    spring_final=self.sim.state.cut_spring_ke.detach().cpu().numpy(),
++                    triangles=np.asarray(self.sim.builder.tri_indices),
++                )
++
++
++if __name__ == "__main__":
++    parser = argparse.ArgumentParser()
++    parser.add_argument("--config", required=True)
++    parser.add_argument("--output", required=True)
++    parser.add_argument("--parameters")
++    args = parser.parse_args(rospy.myargv()[1:])
++    rospy.init_node("public_disect_bridge")
++    bridge = PublicBridge(args.config, args.output, args.parameters)
++    rospy.spin()
+diff --git a/scripts/train_public.py b/scripts/train_public.py
+new file mode 100644
+index 0000000..e4d7ef5
+--- /dev/null
++++ b/scripts/train_public.py
+@@ -0,0 +1,117 @@
++#!/usr/bin/env python3
++"""Run the public-data scene with the repository's default SAC settings."""
++import argparse
++import json
++import os
++from pathlib import Path
++import shlex
++import signal
++import subprocess
++import time
++
++ROOT = Path(__file__).resolve().parents[1]
++parser = argparse.ArgumentParser()
++parser.add_argument("--output", required=True)
++args = parser.parse_args()
++output = Path(args.output).resolve()
++output.mkdir(parents=True, exist_ok=True)
++children = {}
++logs = []
++status = {"state": "starting", "pids": {}, "commands": {}}
++
++
++def write_status():
++    status["updated_unix"] = time.time()
++    (output / "status.json").write_text(json.dumps(status, indent=2) + "\n")
++
++
++def shell(command):
++    return ["bash", "-lc", "source " + shlex.quote(str(ROOT / "scripts/public_env.sh")) + "; " + command]
++
++
++def start(name, command):
++    log = open(output / (name + ".log"), "w")
++    logs.append(log)
++    process = subprocess.Popen(shell("exec " + command), stdout=log, stderr=subprocess.STDOUT,
++                               start_new_session=True)
++    children[name] = process
++    status["pids"][name] = process.pid
++    status["commands"][name] = command
++    write_status()
++
++
++def check_children():
++    for name, process in children.items():
++        code = process.poll()
++        if code is not None:
++            raise RuntimeError(name + " exited with " + str(code))
++
++
++def wait_service(name):
++    deadline = time.monotonic() + 120
++    while time.monotonic() < deadline:
++        check_children()
++        result = subprocess.run(shell("rosservice list"), stdout=subprocess.PIPE,
++                                stderr=subprocess.DEVNULL, text=True, timeout=10)
++        if name in result.stdout.splitlines():
++            return
++        time.sleep(1)
++    raise RuntimeError("Service did not start: " + name)
++
++
++try:
++    import yaml
++    original_path = ROOT / "underlay_ws/src/ur_python_utilities/ur3e_rl/config/simulation/slicing_3d_disect.yaml"
++    original = yaml.safe_load(original_path.read_text())
++    public_path = ROOT / "configs/public_prism_ros.yaml"
++    public = yaml.safe_load(public_path.read_text())
++    original["ur3e_gym"]["reset_motion"][2] = public["ur3e_gym"]["reset_motion"][2]
++    if original != public:
++        raise RuntimeError("Unexpected environment configuration changes.")
++    (output / "environment.yaml").write_text(public_path.read_text())
++    (output / "cutting_scene.json").write_text((ROOT / "configs/public_prism.json").read_text())
++    revisions = {}
++    for rel in [".", "disect", "underlay_ws/src/ur_python_utilities"]:
++        repo = ROOT / rel
++        revisions[rel] = {
++            "commit": subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD"], text=True).strip(),
++            "dirty": bool(subprocess.check_output(["git", "-C", str(repo), "status", "--porcelain"], text=True).strip()),
++        }
++    (output / "manifest.json").write_text(json.dumps({"git": revisions, "config": str(public_path)}, indent=2) + "\n")
++    start("gazebo", "roslaunch -p 11321 o2ac_gazebo b_bot_gazebo.launch gui:=false")
++    wait_service("/controller_manager/list_controllers")
++    start("bridge", "xvfb-run -a python -u " + shlex.quote(str(ROOT / "scripts/public_ros_bridge.py"))
++          + " --config " + shlex.quote(str(ROOT / "configs/public_prism.json"))
++          + " --output " + shlex.quote(str(output / "episodes")))
++    wait_service("/disect/load")
++    # Give the controller spawners a chance to complete without advancing the RL task.
++    subprocess.run(shell("rosservice call /controller_manager/list_controllers"), check=True,
++                   stdout=open(output / "controllers.txt", "w"))
++    start("sac", "env MPLBACKEND=Agg python -u " + shlex.quote(str(ROOT / "underlay_ws/src/ur_python_utilities/ur3e_rl/scripts/tf2rl_sac.py"))
++          + " -e 3 --config " + shlex.quote(str(public_path))
++          + " --logdir " + shlex.quote(str(output / "learner")))
++    status["state"] = "running"
++    write_status()
++    while children["sac"].poll() is None:
++        for name in ("gazebo", "bridge"):
++            if children[name].poll() is not None:
++                raise RuntimeError(name + " exited during training")
++        write_status()
++        time.sleep(10)
++    status["exit_code"] = children["sac"].returncode
++    status["state"] = "completed" if status["exit_code"] == 0 else "failed"
++except BaseException as exc:
++    status["state"] = "failed"
++    status["error"] = str(exc)
++finally:
++    for process in reversed(list(children.values())):
++        if process.poll() is None:
++            os.killpg(process.pid, signal.SIGINT)
++    for process in children.values():
++        try:
++            process.wait(timeout=20)
++        except subprocess.TimeoutExpired:
++            os.killpg(process.pid, signal.SIGTERM)
++    write_status()
++    for log in logs:
++        log.close()
+diff --git a/tests/native_fdcc_state.cpp b/tests/native_fdcc_state.cpp
+new file mode 100644
+index 0000000..ad96060
+--- /dev/null
++++ b/tests/native_fdcc_state.cpp
+@@ -0,0 +1,60 @@
++#include <cartesian_controller_base/ForwardDynamicsSolver.h>
++#include <hardware_interface/joint_command_interface.h>
++#include <ros/ros.h>
++#include <cmath>
++#include <iomanip>
++#include <iostream>
++
++class InspectableSolver : public cartesian_controller_base::ForwardDynamicsSolver
++{
++public:
++  void restore(double position, double velocity)
++  {
++    m_current_positions(0) = m_last_positions(0) = position;
++    m_current_velocities(0) = m_last_velocities(0) = velocity;
++    updateKinematics();
++  }
++};
++
++int main(int argc, char** argv)
++{
++  ros::init(argc, argv, "native_fdcc_state_regression");
++  ros::NodeHandle first_node("first"), second_node("second");
++  KDL::Chain chain;
++  chain.addSegment(KDL::Segment("tip", KDL::Joint("joint", KDL::Joint::RotZ),
++    KDL::Frame(KDL::Vector(1., 0., 0.)),
++    KDL::RigidBodyInertia(1., KDL::Vector::Zero(), KDL::RotationalInertia(1., 1., 1.))));
++  KDL::JntArray upper(1), lower(1);
++  upper(0) = 10.;
++  lower(0) = -10.;
++  InspectableSolver first, second;
++  if (!first.init(first_node, chain, upper, lower) || !second.init(second_node, chain, upper, lower))
++    return 2;
++  double position = .3, measured_velocity = -.07, effort = 0., command = 0.;
++  hardware_interface::JointStateHandle state("joint", &position, &measured_velocity, &effort);
++  std::vector<hardware_interface::JointHandle> handles{hardware_interface::JointHandle(state, &command)};
++  first.setStartState(handles);
++  second.setStartState(handles);
++  first.restore(position, .1);
++  second.restore(position, .6);
++  first.synchronizeJointPositions(handles);
++  second.synchronizeJointPositions(handles);
++  const auto force = ctrl::Vector6D::Zero();
++  const auto a = first.getJointControlCmds(ros::Duration(.02), force);
++  const auto b = second.getJointControlCmds(ros::Duration(.02), force);
++  const double displacement = b.positions[0] - a.positions[0];
++  const double velocity = b.velocities[0] - a.velocities[0];
++  const double equation_error = std::max(std::abs(displacement - .01), std::abs(velocity - .45));
++  second.restore(a.positions[0], a.velocities[0]);
++  first.synchronizeJointPositions(handles);
++  second.synchronizeJointPositions(handles);
++  const auto continued = first.getJointControlCmds(ros::Duration(.02), force);
++  const auto restarted = second.getJointControlCmds(ros::Duration(.02), force);
++  const double restart_error = std::max(std::abs(continued.positions[0] - restarted.positions[0]),
++                                        std::abs(continued.velocities[0] - restarted.velocities[0]));
++  std::cout << std::setprecision(17) << "{\"measured_q\":" << position
++    << ",\"measured_qd\":" << measured_velocity << ",\"internal_velocity_difference\":0.5"
++    << ",\"command_difference\":" << displacement << ",\"next_velocity_difference\":" << velocity
++    << ",\"equation_max_error\":" << equation_error << ",\"restart_max_error\":" << restart_error << "}" << std::endl;
++  return (equation_error < 1e-13 && restart_error < 1e-13) ? 0 : 1;
++}
+diff --git a/tests/test_controller_configuration.py b/tests/test_controller_configuration.py
+new file mode 100644
+index 0000000..10f86fb
+--- /dev/null
++++ b/tests/test_controller_configuration.py
+@@ -0,0 +1,82 @@
++"""Source controller parameter ordering before stepped physics advances."""
++import threading
++from types import SimpleNamespace
++
++import pytest
++
++from ur_control.fzi_cartesian_compliance_controller import CompliantController
++
++
++def test_stepped_action_waits_for_every_parameter_rpc_before_physics():
++    entered = threading.Event()
++    release = threading.Event()
++    completed = threading.Event()
++    events = []
++    def first(parameters):
++        events.append('first_begin')
++        entered.set()
++        assert release.wait(5)
++        events.append('first_end')
++    def second(parameters):
++        events.append('second_end')
++    controller = SimpleNamespace(async_mode=True, use_step_control=True, update_thread=None,
++        dyn_config_clients={'first': SimpleNamespace(update_configuration=first),
++                            'second': SimpleNamespace(update_configuration=second)})
++    def action():
++        try:
++            CompliantController.update_controller_parameters(controller, {'first': {'p': 1}, 'second': {'p': 2}})
++            events.append('physics')
++        finally:
++            completed.set()
++    worker = threading.Thread(target=action)
++    worker.start()
++    try:
++        assert entered.wait(5)
++        assert events == ['first_begin']
++        assert not completed.is_set()
++    finally:
++        release.set()
++        worker.join(5)
++    assert not worker.is_alive()
++    assert events == ['first_begin', 'first_end', 'second_end', 'physics']
++
++
++def test_continuous_async_updates_still_return_before_rpc_finishes():
++    entered = threading.Event()
++    release = threading.Event()
++    finished = threading.Event()
++    def update(parameters):
++        entered.set()
++        assert release.wait(5)
++        finished.set()
++    controller = SimpleNamespace(async_mode=True, use_step_control=False, update_thread=None,
++        dyn_config_clients={'gains': SimpleNamespace(update_configuration=update)})
++    try:
++        CompliantController.update_controller_parameters(controller, {'gains': {'p': 1}})
++        assert entered.wait(5)
++        assert not finished.is_set()
++    finally:
++        release.set()
++        controller.update_thread.join(5)
++    assert finished.is_set()
++
++
++def test_stepped_parameter_failure_prevents_physics_and_reaches_caller():
++    events = []
++    def fail(parameters):
++        raise RuntimeError('configuration service failed')
++    controller = SimpleNamespace(async_mode=True, use_step_control=True, update_thread=None,
++        dyn_config_clients={'gains': SimpleNamespace(update_configuration=fail)})
++    with pytest.raises(RuntimeError, match='configuration service failed'):
++        CompliantController.update_controller_parameters(controller, {'gains': {'p': 1}})
++        events.append('physics')
++    assert events == []
++
++
++def test_stepped_update_joins_existing_worker_before_new_rpc():
++    events = []
++    worker = SimpleNamespace(is_alive=lambda: True, join=lambda: events.append('join'))
++    controller = SimpleNamespace(async_mode=True, use_step_control=True, update_thread=worker,
++        dyn_config_clients={'gains': SimpleNamespace(update_configuration=lambda p: events.append('rpc'))})
++    CompliantController.update_controller_parameters(controller, {'gains': {'p': 1}})
++    assert events == ['join', 'rpc']
+diff --git a/tests/test_joint_step_delivery.py b/tests/test_joint_step_delivery.py
+new file mode 100644
+index 0000000..1df0eb3
+--- /dev/null
++++ b/tests/test_joint_step_delivery.py
+@@ -0,0 +1,315 @@
++"""Stepped consumers use authoritative snapshots without waiting for ROS topics."""
++from collections import deque
++import threading
++from types import SimpleNamespace
++
++import numpy as np
++import pytest
++import rospy
++
++from ur_control.controllers import JointControllerBase
++from ur_control.fzi_cartesian_compliance_controller import CompliantController
++
++
++def stamp(seconds):
++    return rospy.Time.from_sec(seconds)
++
++
++def joint_controller(names=('angular', 'slider')):
++    controller = JointControllerBase.__new__(JointControllerBase)
++    controller.valid_joint_names = list(names)
++    controller._joint_state_lock = threading.RLock()
++    controller._joint_state_stamp = 8.
++    controller._joint_state_stamp_ns = 8_000_000_000
++    controller._current_jnt_positions = np.zeros(len(names))
++    controller._current_jnt_velocities = np.zeros(len(names))
++    controller._current_jnt_efforts = np.zeros(len(names))
++    controller._joint_names = list(names)
++    controller._jnt_positions_hist = deque(maxlen=24)
++    return controller
++
++
++def joint_message(time=10.002, names=('angular', 'slider'), position=(.2, .4),
++                  velocity=(.5, .6), effort=(.7, .8)):
++    return SimpleNamespace(
++        name=list(names), position=list(position), velocity=list(velocity),
++        effort=list(effort), header=SimpleNamespace(stamp=stamp(time)))
++
++
++def install(controller, message=None, angular=(True, False), start=10., end=10.002):
++    return controller.install_step_joint_state(
++        joint_message() if message is None else message,
++        list(angular), stamp(start), stamp(end))
++
++
++def test_snapshot_install_needs_no_topic_and_returns_copied_state():
++    joints = joint_controller()
++    result = install(joints)
++    np.testing.assert_allclose(result['q'], [.2, .4])
++    np.testing.assert_allclose(result['qd'], [.5, .6])
++    assert result['stamp'] == 10.002
++    result['q'][:] = 99.
++    np.testing.assert_allclose(joints.get_joint_state()['q'], [.2, .4])
++
++
++def test_snapshot_joint_order_and_angular_flags_follow_names():
++    joints = joint_controller()
++    joints._current_jnt_positions[:] = [3.1, 0.]
++    result = install(joints, joint_message(
++        names=('slider', 'angular'), position=(7., -3.1),
++        velocity=(.6, .5), effort=(.8, .7)), angular=(False, True))
++    np.testing.assert_allclose(result['q'], [2. * np.pi - 3.1, 7.])
++    np.testing.assert_allclose(result['qd'], [.5, .6])
++    np.testing.assert_allclose(joints._current_jnt_efforts, [.7, .8])
++
++
++@pytest.mark.parametrize('initial, raw, expected', [
++    (3.1, -3.1, 2. * np.pi - 3.1),
++    (-3.1, 3.1, 3.1 - 2. * np.pi),
++    (4. * np.pi + .1, .2, 4. * np.pi + .2),
++])
++def test_angular_snapshot_preserves_unwrapped_branch(initial, raw, expected):
++    joints = joint_controller()
++    joints._current_jnt_positions[:] = [initial, initial]
++    state = install(joints, joint_message(position=(raw, raw)))
++    np.testing.assert_allclose(state['q'], [expected, raw])
++
++
++@pytest.mark.parametrize('message_time', [8., 10., 10.001, 10.002])
++def test_late_or_equal_topic_sample_cannot_overwrite_completed_snapshot(message_time):
++    joints = joint_controller()
++    install(joints)
++    history_length = len(joints._jnt_positions_hist)
++    joints.joint_states_cb(joint_message(
++        time=message_time, position=(90., 91.), velocity=(92., 93.), effort=(94., 95.)))
++    state = joints.get_joint_state()
++    assert state['stamp'] == 10.002
++    np.testing.assert_allclose(state['q'], [.2, .4])
++    np.testing.assert_allclose(state['qd'], [.5, .6])
++    np.testing.assert_allclose(joints._current_jnt_efforts, [.7, .8])
++    assert len(joints._jnt_positions_hist) == history_length
++
++
++def test_newer_topic_sample_remains_usable_after_stepping():
++    joints = joint_controller()
++    install(joints)
++    joints.joint_states_cb(joint_message(time=10.003, position=(.3, .5)))
++    assert joints.get_joint_state()['stamp'] == 10.003
++    np.testing.assert_allclose(joints.get_joint_state()['q'], [.3, .5])
++
++
++@pytest.mark.parametrize('field, value', [
++    ('name', ['angular']),
++    ('name', ['angular', 'angular']),
++    ('name', ['angular', 'unknown']),
++    ('name', ['angular', 'slider', 'extra']),
++    ('position', [.2]),
++    ('velocity', []),
++    ('effort', [.7, .8, .9]),
++    ('position', [np.nan, .4]),
++    ('position', [.2, np.inf]),
++    ('velocity', [np.inf, .6]),
++    ('effort', [.7, -np.inf]),
++])
++def test_malformed_snapshot_rejected_without_partial_state_update(field, value):
++    joints = joint_controller()
++    message = joint_message()
++    setattr(message, field, value)
++    with pytest.raises(rospy.ROSException):
++        install(joints, message)
++    assert joints.get_joint_state()['stamp'] == 8.
++    np.testing.assert_array_equal(joints.get_joint_state()['q'], [0., 0.])
++    assert not joints._jnt_positions_hist
++
++
++@pytest.mark.parametrize('angular', [(), (True,), (True, False, True)])
++def test_angular_flags_must_cover_every_joint(angular):
++    with pytest.raises(rospy.ROSException):
++        install(joint_controller(), angular=angular)
++
++
++@pytest.mark.parametrize('start, end, message_time', [
++    (10., 10., 10.),
++    (10.002, 10., 10.),
++    (10., 10.002, 10.),
++    (10., 10.002, 10.001),
++    (10., 10.002, 10.003),
++])
++def test_snapshot_requires_positive_interval_and_exact_end_stamp(start, end, message_time):
++    joints = joint_controller()
++    with pytest.raises(rospy.ROSException):
++        install(joints, joint_message(time=message_time), start=start, end=end)
++    assert joints.get_joint_state()['stamp'] == 8.
++
++
++def test_step_consumer_installs_response_without_waiting_or_extra_ticks():
++    joints = joint_controller()
++    calls = []
++    response = SimpleNamespace(
++        success=True, start_time=stamp(10.), end_time=stamp(10.002),
++        joint_state=joint_message(), joint_is_angular=[True, False])
++    def step(request):
++        calls.append((request.steps, list(request.joint_names)))
++        return response
++    arm = SimpleNamespace(step_simulation_serv=step, joint_traj_controller=joints)
++    actual = CompliantController.advance_gazebo(arm, steps=2)
++    assert actual is response
++    assert calls == [(2, ['angular', 'slider'])]
++    assert (actual.end_time - actual.start_time).to_nsec() == 2_000_000
++    np.testing.assert_allclose(joints.get_joint_state()['q'], [.2, .4])
++
++
++def test_failed_step_does_not_consume_joint_or_publish_stale_knife_pose():
++    joints = joint_controller()
++    events = []
++    arm = SimpleNamespace(
++        step_simulation_serv=lambda request: SimpleNamespace(
++            success=False, status_message='step failed'),
++        joint_traj_controller=joints)
++    with pytest.raises(rospy.ROSException, match='step failed'):
++        CompliantController.advance_gazebo(arm, steps=2)
++        events.append('knife')
++    assert events == []
++    assert joints.get_joint_state()['stamp'] == 8.
++
++
++def test_invalid_step_snapshot_prevents_downstream_knife_publish():
++    joints = joint_controller()
++    events = []
++    arm = SimpleNamespace(
++        step_simulation_serv=lambda request: SimpleNamespace(
++            success=True, start_time=stamp(10.), end_time=stamp(10.002),
++            joint_state=joint_message(time=10.), joint_is_angular=[True, False]),
++        joint_traj_controller=joints)
++    with pytest.raises(rospy.ROSException):
++        CompliantController.advance_gazebo(arm, steps=2)
++        events.append('knife')
++    assert events == []
++
++
++def test_older_topic_cannot_rollback_a_newer_topic_after_snapshot():
++    joints = joint_controller()
++    install(joints)
++    joints.joint_states_cb(joint_message(time=10.005, position=(.5, .7)))
++    joints.joint_states_cb(joint_message(time=10.003, position=(.3, .5)))
++    assert joints.get_joint_state()['stamp'] == 10.005
++    np.testing.assert_allclose(joints.get_joint_state()['q'], [.5, .7])
++
++
++def test_simulation_clock_rewind_requires_new_consumer_without_mutating_state():
++    joints = joint_controller()
++    install(joints)
++    with pytest.raises(rospy.ROSException, match='clock reversed'):
++        install(joints, joint_message(time=.002), start=0., end=.002)
++    assert joints.get_joint_state()['stamp'] == 10.002
++    np.testing.assert_allclose(joints.get_joint_state()['q'], [.2, .4])
++
++
++def test_explicit_snapshot_accepts_zero_interval_and_rejects_queued_topics():
++    joints = joint_controller()
++    result = joints.install_step_joint_state(
++        joint_message(time=10.), [True, False], stamp(10.), stamp(10.),
++        snapshot_only=True)
++    assert result['stamp'] == 10.
++    for time in (9.999, 10.):
++        joints.joint_states_cb(joint_message(time=time, position=(80., 90.)))
++    np.testing.assert_allclose(joints.get_joint_state()['q'], [.2, .4])
++    assert joints.get_joint_state()['stamp'] == 10.
++    assert joints._joint_state_stamp_ns == 10_000_000_000
++
++
++@pytest.mark.parametrize('start, end', [(10., 10.002), (10.002, 10.)])
++def test_snapshot_only_rejects_nonzero_intervals(start, end):
++    joints = joint_controller()
++    with pytest.raises(rospy.ROSException):
++        joints.install_step_joint_state(
++            joint_message(time=end), [True, False], stamp(start), stamp(end),
++            snapshot_only=True)
++    assert joints.get_joint_state()['stamp'] == 8.
++
++
++def test_positive_step_continues_from_zero_tick_snapshot():
++    joints = joint_controller()
++    joints.install_step_joint_state(
++        joint_message(time=10.), [True, False], stamp(10.), stamp(10.),
++        snapshot_only=True)
++    result = install(joints)
++    assert result['stamp'] == 10.002
++
++
++def test_snapshot_client_requests_zero_ticks_and_explicit_mode():
++    joints = joint_controller()
++    calls = []
++    response = SimpleNamespace(
++        success=True, start_time=stamp(10.), end_time=stamp(10.),
++        joint_state=joint_message(time=10.), joint_is_angular=[True, False])
++    def snapshot(request):
++        calls.append((request.steps, request.snapshot_only, list(request.joint_names)))
++        return response
++    arm = SimpleNamespace(step_simulation_serv=snapshot, joint_traj_controller=joints)
++    actual = CompliantController.snapshot_gazebo(arm)
++    assert actual is response
++    assert calls == [(0, True, ['angular', 'slider'])]
++    assert actual.end_time.to_nsec() == actual.start_time.to_nsec()
++    assert joints.get_joint_state()['stamp'] == 10.
++
++
++def test_failed_zero_tick_snapshot_keeps_existing_state():
++    joints = joint_controller()
++    arm = SimpleNamespace(
++        step_simulation_serv=lambda request: SimpleNamespace(
++            success=False, status_message='snapshot failed'),
++        joint_traj_controller=joints)
++    with pytest.raises(rospy.ROSException, match='snapshot failed'):
++        CompliantController.snapshot_gazebo(arm)
++    assert joints.get_joint_state()['stamp'] == 8.
++
++
++def test_first_and_later_resets_snapshot_before_observation_despite_queued_topics(monkeypatch):
++    from ur3e_openai.robot_env import RobotGazeboEnv
++    from ur3e_openai.robot_envs.ur3e_env import UR3eEnv
++
++    events = []
++    joints = joint_controller()
++    env = UR3eEnv.__new__(UR3eEnv)
++    env.use_step_control = True
++    env._update_episode = lambda: events.append('episode')
++    env._init_env_variables = lambda: events.append('init')
++    env.robot_connection = SimpleNamespace(pause=lambda: events.append('pause'))
++    monkeypatch.setattr(RobotGazeboEnv, '_reset_sim', lambda self: events.append('motion'))
++    reset_times = iter((10., 20.))
++    observed = []
++    def snapshot():
++        events.append('snapshot')
++        time = next(reset_times)
++        joints.install_step_joint_state(
++            joint_message(time=time, position=(time / 100., time / 10.)),
++            [False, False], stamp(time), stamp(time), snapshot_only=True)
++        # A final pre-integration message can arrive after the pause response.
++        joints.joint_states_cb(joint_message(time=time, position=(80., 90.)))
++    env.ur3e_arm = SimpleNamespace(snapshot_gazebo=snapshot)
++    def observation():
++        events.append('observation')
++        state = joints.get_joint_state()
++        observed.append(state)
++        return state['q']
++    env._get_obs = observation
++    for time in (10., 20.):
++        result = RobotGazeboEnv.reset(env)
++        np.testing.assert_allclose(result, [time / 100., time / 10.])
++        assert observed[-1]['stamp'] == time
++        np.testing.assert_array_equal(result, joints.get_joint_state()['q'])
++    assert events == ['episode', 'init', 'motion', 'snapshot', 'pause', 'observation'] * 2
++
++
++def test_continuous_reset_retains_original_motion_without_snapshot(monkeypatch):
++    from ur3e_openai.robot_env import RobotGazeboEnv
++    from ur3e_openai.robot_envs.ur3e_env import UR3eEnv
++
++    events = []
++    env = UR3eEnv.__new__(UR3eEnv)
++    env.use_step_control = False
++    env.ur3e_arm = SimpleNamespace(snapshot_gazebo=lambda: events.append('snapshot'))
++    monkeypatch.setattr(RobotGazeboEnv, '_reset_sim', lambda self: events.append('motion'))
++    env._reset_sim()
++    assert events == ['motion']
+diff --git a/tests/test_sac_interfaces.py b/tests/test_sac_interfaces.py
+new file mode 100644
+index 0000000..2427176
+--- /dev/null
++++ b/tests/test_sac_interfaces.py
+@@ -0,0 +1,166 @@
++"""Cross-package state, temporal-axis and replay contracts for the slicing task."""
++import types
++import unittest
++from unittest.mock import patch
++
++import numpy as np
++import tensorflow as tf
++
++from tf2rl.algos.sac import SAC
++from tf2rl.policies.tfp_wave_actor import WaveFTActor
++from ur3e_openai.robot_env import RobotGazeboEnv
++from ur3e_openai.peg_gazebo_connection import GazeboConnection
++from ur3e_openai.task_envs.ur3e_force_control import UR3eForceControlEnv
++from ur3e_openai import cost_utils
++
++
++class FixedActor:
++    def __call__(self, states):
++        return tf.zeros((tf.shape(states)[0], 1)), tf.zeros((tf.shape(states)[0],))
++
++
++class StateValue:
++    def __call__(self, states, actions):
++        return states[:, 0]
++
++
++class CaptureHistory(tf.keras.layers.Layer):
++    def call(self, inputs):
++        self.seen = inputs.numpy().copy()
++        return tf.zeros((tf.shape(inputs)[0], 32))
++
++
++class SACInterfaces(unittest.TestCase):
++    def test_td_error_matches_independent_transitions(self):
++        agent = SAC(state_shape=(1,), action_dim=1, gpu=-1)
++        agent.actor = FixedActor()
++        agent.qf1 = StateValue()
++        agent.qf1_target = StateValue()
++        agent.qf2_target = StateValue()
++        for batch in (1, 3):
++            states = np.array([[0.], [5.], [7.]], np.float32)[:batch]
++            next_states = np.array([[10.], [20.], [30.]], np.float32)[:batch]
++            actions = np.zeros((batch, 1), np.float32)
++            rewards = np.array([1., 2., 3.], np.float32)[:batch]
++            dones = np.array([0., 1., 0.], np.float32)[:batch]
++            expected = np.array([1 + agent.discount * 10, -3, 3 + agent.discount * 30 - 7])[:batch]
++            for columns in (False, True):
++                r = rewards[:, None] if columns else rewards
++                d = dones[:, None] if columns else dones
++                for tensor in (False, True):
++                    args = (states, actions, next_states, r, d)
++                    if tensor:
++                        args = tuple(tf.constant(x) for x in args)
++                    result = agent.compute_td_error(*args)
++                    self.assertEqual(result.shape, (batch,))
++                    np.testing.assert_allclose(result, expected, rtol=1e-6)
++
++    def test_reset_observation_uses_restored_state(self):
++        env = types.SimpleNamespace(position=9., use_step_control=False, _update_episode=lambda: None,
++                                    _init_env_variables=lambda: None)
++        env._reset_sim = lambda: setattr(env, 'position', 2.)
++        env._get_obs = lambda: np.array([env.position])
++        np.testing.assert_array_equal(RobotGazeboEnv.reset(env), [2.])
++
++    def test_base_environment_reads_step_mode_parameter(self):
++        for stepped in (False, True):
++            env = types.SimpleNamespace(seed=lambda seed: None, pause_callback=lambda msg: None)
++            with patch('rospy.get_param', return_value=stepped) as parameter, \
++                    patch('rospy.Subscriber'), \
++                    patch('ur3e_openai.robot_env.ControllersConnection'):
++                RobotGazeboEnv.__init__(env, robot_name_space='b_bot', reset_controls=False)
++            parameter.assert_called_once_with('/ur3e_gym/use_step_control', False)
++            self.assertIs(env.use_step_control, stepped)
++
++    def test_reset_pauses_stepped_physics_before_observation(self):
++        for stepped in (False, True):
++            events = []
++            env = types.SimpleNamespace(
++                use_step_control=stepped, _update_episode=lambda: None,
++                _init_env_variables=lambda: None,
++                _reset_sim=lambda: events.append('reset'),
++                robot_connection=types.SimpleNamespace(pause=lambda: events.append('pause')),
++                _get_obs=lambda: events.append('observation'))
++            RobotGazeboEnv.reset(env)
++            expected = ['reset', 'pause', 'observation'] if stepped else ['reset', 'observation']
++            self.assertEqual(events, expected)
++
++    def test_pause_calls_synchronous_physics_service_without_advancing(self):
++        calls = []
++        connection = types.SimpleNamespace(
++            pause_serv=lambda: calls.append('pause_physics'),
++            step_simulation_serv=lambda request: calls.append('step'))
++        with patch('rospy.wait_for_service') as wait:
++            GazeboConnection.pause(connection)
++        wait.assert_called_once_with('/gazebo/pause_physics')
++        self.assertEqual(calls, ['pause_physics'])
++
++    def test_reset_unpause_then_pause_uses_ordered_physics_services(self):
++        calls = []
++        connection = types.SimpleNamespace(
++            unpause_serv=lambda: calls.append('unpause_physics'),
++            pause_serv=lambda: calls.append('pause_physics'),
++            step_simulation_serv=lambda request: calls.append('step'))
++        with patch('rospy.wait_for_service'):
++            GazeboConnection.unpause(connection)
++            GazeboConnection.pause(connection)
++        self.assertEqual(calls, ['unpause_physics', 'pause_physics'])
++
++    def test_derivatives_restart_at_new_episode_pose(self):
++        pose = np.array([.1, .2, .3, 0., 0., 0., 1.])
++        env = types.SimpleNamespace(_log=lambda: None, n_actions=6,
++            previous_ee_pose=np.array([9., 9., 9., 0., 0., 0., 1.]),
++            previous_velocity=np.ones(6), previous_acceleration=np.ones(6),
++            ur3e_arm=types.SimpleNamespace(end_effector=lambda: pose.copy()),
++            agent_control_dt=.05, current_target_pose=pose.copy(), target_dims=[0, 2, 4])
++        UR3eForceControlEnv._init_env_variables(env)
++        result = UR3eForceControlEnv.get_end_effector_relative_position_and_velocity(env)
++        for value in result:
++            np.testing.assert_allclose(value, 0., atol=1e-14)
++        pose[0] += .01
++        _, velocity, acceleration, jerk = UR3eForceControlEnv.get_end_effector_relative_position_and_velocity(env)
++        np.testing.assert_allclose(velocity, [.2, 0, 0], atol=1e-12)
++        np.testing.assert_allclose(acceleration, [4, 0, 0], atol=1e-12)
++        np.testing.assert_allclose(jerk, [80, 0, 0], atol=1e-10)
++
++    def history_environment(self):
++        # Four time samples and three selected components avoid square-axis ambiguity.
++        history = np.array([[1., 8., 2., 9., .1, 7.], [2., 8., 4., 9., .2, 7.],
++                            [3., 8., 6., 9., .3, 7.], [4., 8., 8., 9., .4, 7.]])
++        limits = np.array([50., 50., 50., 10., 10., 10.])
++        env = types.SimpleNamespace(target_dims=[0, 2, 4], wrench_hist_size=4,
++            controller=types.SimpleNamespace(max_force_torque=limits),
++            ur3e_arm=types.SimpleNamespace(get_ee_wrench_hist=lambda n: history.copy()),
++            get_end_effector_relative_position_and_velocity=lambda: tuple(np.zeros(3) for _ in range(4)),
++            max_distance=np.ones(3), normalize_velocity=False, last_action_as_obs=True,
++            last_actions=np.zeros(6), jerkiness_as_obs=True, ft_hist=True, use_dynamic_rewards=False,
++            action_result=None, cost_collision=-100., cost_done=100., cost_step=-1.,
++            goal_reached=False, w_dist=1., w_force=1., w_jerkiness=1., total_steps=0,
++            cumulated_dist=0., cumulated_force=0., cumulated_jerk=0.)
++        obs = UR3eForceControlEnv._get_obs(env)
++        return env, obs, history[:, [0, 2, 4]], limits[[0, 2, 4]]
++
++    def test_reward_recovers_component_means(self):
++        env, obs, history, _ = self.history_environment()
++        reward, terms = cost_utils.slicing(env, obs, False)
++        norm = np.linalg.norm([2.5, 5., .25])
++        expected_force_reward = -1 / (1 + np.exp(-norm / 2 + 3))
++        self.assertAlmostEqual(env.cumulated_force, norm)
++        self.assertAlmostEqual(terms[1], expected_force_reward)
++        self.assertAlmostEqual(reward, (expected_force_reward - 1) / 4)
++
++    def test_actor_receives_actual_time_samples(self):
++        _, obs, history, limits = self.history_environment()
++        def param(name, default=None):
++            return {'ur3e_gym/wrench_hist_size': 4, 'ur3e_gym/target_dims': [0, 2, 4]}.get(name, default)
++        with patch('rospy.get_param', side_effect=param):
++            actor = WaveFTActor(state_shape=(len(obs),), action_dim=6, max_action=1.)
++        capture = CaptureHistory()
++        actor.ft_net = capture
++        actor._compute_dist(tf.constant(np.stack([obs, obs]), dtype=tf.float32))
++        expected = history / limits
++        np.testing.assert_allclose(capture.seen, np.stack([expected, expected]), rtol=1e-6)
++
++
++if __name__ == '__main__':
++    unittest.main()
+diff --git a/tests/test_shutdown_hook.py b/tests/test_shutdown_hook.py
+new file mode 100644
+index 0000000..2f66fbd
+--- /dev/null
++++ b/tests/test_shutdown_hook.py
+@@ -0,0 +1,127 @@
++"""ROS shutdown controller switching must have a wall-time bound."""
++import subprocess
++import sys
++import textwrap
++import threading
++import time
++
++import rospy
++import pytest
++
++from ur_control.fzi_cartesian_compliance_controller import CompliantController
++
++
++def controller(callback):
++    arm = CompliantController.__new__(CompliantController)
++    arm.activate_joint_trajectory_controller = callback
++    return arm
++
++
++def test_shutdown_preserves_normal_controller_activation():
++    calls = []
++    arm = controller(lambda: calls.append('activate') or True)
++    result = arm._shutdown_controller(timeout=.1)
++    assert calls == ['activate']
++    assert result['state'] == 'ok'
++    assert arm.shutdown_result == result
++
++
++def test_shutdown_logs_switch_exception_without_raising(monkeypatch):
++    errors = []
++    monkeypatch.setattr(rospy, 'logerr', lambda *args: errors.append(args))
++    def fail():
++        raise RuntimeError('controller service disappeared')
++    arm = controller(fail)
++    result = arm._shutdown_controller(timeout=.1)
++    assert result['state'] == 'error'
++    assert arm.shutdown_result == result
++    assert errors
++    assert 'controller service disappeared' in repr(errors)
++
++
++def test_shutdown_does_not_wait_forever_for_controller_switch(monkeypatch):
++    errors = []
++    release = threading.Event()
++    entered = threading.Event()
++    monkeypatch.setattr(rospy, 'logerr', lambda *args: errors.append(args))
++    def block():
++        assert threading.current_thread().daemon
++        entered.set()
++        release.wait()
++    started = time.monotonic()
++    try:
++        arm = controller(block)
++        result = arm._shutdown_controller(timeout=.03)
++        assert result['state'] == 'timeout'
++        assert arm.shutdown_result == result
++        assert entered.is_set()
++        assert time.monotonic() - started < .5
++        assert errors
++    finally:
++        release.set()
++
++
++def test_real_rospy_atexit_exits_when_controller_service_never_returns():
++    code = textwrap.dedent("""
++        import threading
++        import rospy
++        from ur_control.fzi_cartesian_compliance_controller import CompliantController
++        arm = CompliantController.__new__(CompliantController)
++        def block():
++            print('SHUTDOWN_CALLBACK_ENTERED', flush=True)
++            threading.Event().wait()
++        arm.activate_joint_trajectory_controller = block
++        rospy.on_shutdown(lambda: arm._shutdown_controller(timeout=.05))
++        print('MAIN_RETURNED', flush=True)
++    """)
++    result = subprocess.run([sys.executable, '-c', code], capture_output=True,
++                            text=True, timeout=5.)
++    assert result.returncode == 0, result.stdout + result.stderr
++    assert 'MAIN_RETURNED' in result.stdout
++    assert 'SHUTDOWN_CALLBACK_ENTERED' in result.stdout
++
++
++@pytest.mark.parametrize('failed_result', [False, None])
++def test_shutdown_reports_service_rejection_even_when_switch_does_not_raise(monkeypatch, failed_result):
++    errors = []
++    monkeypatch.setattr(rospy, 'logerr', lambda *args: errors.append(args))
++    arm = controller(lambda: failed_result)
++    result = arm._shutdown_controller(timeout=.1)
++    assert result['state'] == 'error'
++    assert arm.shutdown_result == result
++    assert errors
++
++
++def test_shutdown_unpause_uses_bounded_service_discovery_and_calls_rpc(monkeypatch):
++    from ur3e_openai.peg_gazebo_connection import GazeboConnection
++    calls = []
++    monkeypatch.setattr(rospy, 'wait_for_service',
++                        lambda name, timeout: calls.append(('wait', name, timeout)))
++    connection = GazeboConnection.__new__(GazeboConnection)
++    connection.unpause_serv = lambda: calls.append(('rpc',))
++    connection.unpause_for_shutdown(timeout=.1)
++    assert calls == [('wait', '/gazebo/unpause_physics', .1), ('rpc',)]
++
++
++def test_shutdown_unpause_propagates_discovery_failure_without_calling_rpc(monkeypatch):
++    from ur3e_openai.peg_gazebo_connection import GazeboConnection
++    calls = []
++    def unavailable(name, timeout):
++        raise rospy.ROSException('unpause service unavailable')
++    monkeypatch.setattr(rospy, 'wait_for_service', unavailable)
++    connection = GazeboConnection.__new__(GazeboConnection)
++    connection.unpause_serv = lambda: calls.append('rpc')
++    with pytest.raises(rospy.ROSException, match='unpause service unavailable'):
++        connection.unpause_for_shutdown(timeout=.1)
++    assert calls == []
++
++
++def test_shutdown_unpause_propagates_rpc_service_exception(monkeypatch):
++    from ur3e_openai.peg_gazebo_connection import GazeboConnection
++    monkeypatch.setattr(rospy, 'wait_for_service', lambda name, timeout: None)
++    connection = GazeboConnection.__new__(GazeboConnection)
++    def fail():
++        raise rospy.ServiceException('unpause RPC disconnected')
++    connection.unpause_serv = fail
++    with pytest.raises(rospy.ServiceException, match='unpause RPC disconnected'):
++        connection.unpause_for_shutdown(timeout=.1)
+diff --git a/tests/test_stepped_duration.py b/tests/test_stepped_duration.py
+new file mode 100644
+index 0000000..f92e9ca
+--- /dev/null
++++ b/tests/test_stepped_duration.py
+@@ -0,0 +1,60 @@
++"""Control duration uses completed server intervals despite delayed ROS clock delivery."""
++from types import SimpleNamespace
++from unittest.mock import patch
++
++import numpy as np
++import pytest
++import rospy
++
++from ur_control.fzi_cartesian_compliance_controller import CompliantController
++
++
++def controller():
++    calls = []
++    targets = []
++    state = {'time_ns': 19507000000}
++    def step(request):
++        before = state['time_ns']
++        state['time_ns'] += request.steps * 1000000
++        calls.append(request.steps)
++        return SimpleNamespace(success=True,
++            start_time=rospy.Time(before // 1000000000, before % 1000000000),
++            end_time=rospy.Time(state['time_ns'] // 1000000000, state['time_ns'] % 1000000000),
++            joint_state=SimpleNamespace(), joint_is_angular=[])
++    arm = SimpleNamespace(use_step_control=True, auto_switch_controllers=False,
++        set_cartesian_target_wrench=lambda value: None,
++        set_cartesian_target_pose=lambda value: targets.append((len(calls), value.copy())),
++        get_ee_wrench=lambda **kwargs: np.zeros(6), step_simulation_serv=step,
++        joint_traj_controller=SimpleNamespace(valid_joint_names=['joint'],
++            install_step_joint_state=lambda *args: None),
++        compute_disect_knife_pose=lambda: (np.zeros(7), np.zeros(6)),
++        publish_odom=lambda *args, **kwargs: None, disect_step_sim=lambda: None)
++    arm.advance_gazebo = lambda steps: CompliantController.advance_gazebo(arm, steps)
++    return arm, calls, targets
++
++
++@pytest.mark.parametrize('duration, expected_steps', [(.05, 25), (.1, 50)])
++def test_step_duration_ignores_frozen_or_delayed_client_clock(duration, expected_steps):
++    arm, calls, _ = controller()
++    with patch('rospy.get_time', return_value=19.505), patch('rospy.is_shutdown', side_effect=lambda: len(calls) > 100):
++        CompliantController.execute_compliance_control(arm, trajectory=np.zeros(7),
++            target_wrench=np.zeros(6), max_force_torque=np.ones(6), duration=duration, auto_stop=False)
++    assert calls == [2] * expected_steps
++
++
++def test_trajectory_segment_retains_strict_greater_than_source_boundary():
++    arm, calls, targets = controller()
++    with patch('rospy.get_time', return_value=19.505), patch('rospy.is_shutdown', side_effect=lambda: len(calls) > 100):
++        CompliantController.execute_compliance_control(arm, trajectory=np.arange(14.).reshape(2, 7),
++            target_wrench=np.zeros(6), max_force_torque=np.ones(6), duration=.1, auto_stop=False)
++    assert calls == [2] * 50
++    assert [tick for tick, _ in targets] == [0, 26]
++
++
++def test_force_termination_still_prevents_any_physics_step():
++    arm, calls, _ = controller()
++    arm.get_ee_wrench = lambda **kwargs: np.full(6, 2.)
++    with patch('rospy.get_time', return_value=19.505), patch('rospy.is_shutdown', return_value=False):
++        CompliantController.execute_compliance_control(arm, trajectory=np.zeros(7),
++            target_wrench=np.zeros(6), max_force_torque=np.ones(6), duration=.05, auto_stop=False)
++    assert calls == []
+diff --git a/underlay_ws/src/.rosinstall b/underlay_ws/src/.rosinstall
+index ed3ef06..6fc5c30 100644
+--- a/underlay_ws/src/.rosinstall
++++ b/underlay_ws/src/.rosinstall
+@@ -56,4 +56,4 @@
+ - git:
+     local-name: third_party/gazebo_ros_pkgs
+     uri: https://github.com/cambel/gazebo_ros_pkgs.git
+-    version: step_control_PR
++    version: ef2faceabfe184ea4c0a4942aa630235dbb48447
+diff --git a/underlay_ws/src/cartesian_controllers b/underlay_ws/src/cartesian_controllers
+index f4359b9..6d6fea2 160000
+--- a/underlay_ws/src/cartesian_controllers
++++ b/underlay_ws/src/cartesian_controllers
+@@ -1 +1 @@
+-Subproject commit f4359b966bb3b8d8a07d829df463da814c2bee33
++Subproject commit 6d6fea2396efac82469504ee8d7f2f217093e9d8
+diff --git a/underlay_ws/src/ur_python_utilities b/underlay_ws/src/ur_python_utilities
+index 7cd7cb8..ddc85ec 160000
+--- a/underlay_ws/src/ur_python_utilities
++++ b/underlay_ws/src/ur_python_utilities
+@@ -1 +1 @@
+-Subproject commit 7cd7cb8ce491b7953fce61ca891382e893e2ec43
++Subproject commit ddc85eca09e41215a05f30da2cfc10d8a2b1974d

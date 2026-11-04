@@ -1,0 +1,138 @@
+diff --git a/gazebo_msgs/srv/StepControl.srv b/gazebo_msgs/srv/StepControl.srv
+index 02f7af3..5ad444b 100644
+--- a/gazebo_msgs/srv/StepControl.srv
++++ b/gazebo_msgs/srv/StepControl.srv
+@@ -11,9 +11,15 @@
+ #
+ 
+ uint32  steps               # Number of steps to advance the simulator.
+-                            # 0     : unpause the simulator (equivalent to /unpause_physics)
++                            # 0     : unpause when snapshot_only=false
+                             # >= 1  : advance given # of steps and pause the simulator
++string[] joint_names        # Single-axis joints sampled after stepping or in snapshot_only mode.
++bool snapshot_only          # Pause and sample without advancing; requires steps=0 and joint_names.
+ 
+ ---
+ bool success                # return true if spawn successful
+-string status_message       # comments if available
+\ No newline at end of file
++string status_message       # comments if available
++time start_time             # Simulation time before executing this request
++time end_time               # Simulation time when the requested steps completed
++sensor_msgs/JointState joint_state # Ordered post-integration state, stamped with end_time.
++bool[] joint_is_angular      # True for hinge joints, false for prismatic joints.
+diff --git a/gazebo_ros/src/gazebo_ros_api_plugin.cpp b/gazebo_ros/src/gazebo_ros_api_plugin.cpp
+index 5cdc9e9..cf973f2 100644
+--- a/gazebo_ros/src/gazebo_ros_api_plugin.cpp
++++ b/gazebo_ros/src/gazebo_ros_api_plugin.cpp
+@@ -26,6 +26,8 @@
+ #include <boost/format.hpp>
+ #include <chrono>
+ #include <thread>
++#include <cmath>
++#include <set>
+ 
+ namespace gazebo
+ {
+@@ -1748,23 +1750,88 @@ bool GazeboRosApiPlugin::unpausePhysics(std_srvs::Empty::Request &req,std_srvs::
+ 
+ bool GazeboRosApiPlugin::stepControl(gazebo_msgs::StepControl::Request &req, gazebo_msgs::StepControl::Response &res)
+ {
+-  gazebo::msgs::WorldControl step_msg;
+-
+-  // Unpause for 0 steps / Pause for >=1 steps
+-  bool to_pause = (req.steps >= 1);
+-  step_msg.set_pause(to_pause);
+-
+-  if (req.steps > 1)
+-  { // Multi-step:
+-    step_msg.set_multi_step(req.steps);
++  std::vector<gazebo::physics::JointPtr> joints;
++  std::set<std::string> names;
++  if (req.snapshot_only && (req.steps != 0 || req.joint_names.empty()))
++  {
++    res.success = false;
++    res.status_message = "StepControl: snapshot_only requires zero steps and joint names";
++    return true;
++  }
++  if (!req.snapshot_only && req.steps == 0 && !req.joint_names.empty())
++  {
++    res.success = false;
++    res.status_message = "StepControl: joint snapshots require a positive step count";
++    return true;
++  }
++  for (const auto &name : req.joint_names)
++  {
++    if (name.empty() || !names.insert(name).second)
++    {
++      res.success = false;
++      res.status_message = "StepControl: empty or duplicate joint name";
++      return true;
++    }
++    gazebo::physics::JointPtr selected;
++    for (const auto &model : world_->Models())
++    {
++      auto candidate = model->GetJoint(name);
++      if (!candidate) continue;
++      if (selected)
++      {
++        res.success = false;
++        res.status_message = "StepControl: ambiguous joint name " + name;
++        return true;
++      }
++      selected = candidate;
++    }
++    if (!selected || selected->DOF() != 1 ||
++        !(selected->HasType(gazebo::physics::Base::HINGE_JOINT) ||
++          selected->HasType(gazebo::physics::Base::SLIDER_JOINT)))
++    {
++      res.success = false;
++      res.status_message = "StepControl: unknown or unsupported single-axis joint " + name;
++      return true;
++    }
++    joints.push_back(selected);
++  }
++  const bool to_pause = req.snapshot_only || (req.steps >= 1);
++  if (to_pause)
++  {
++    // World::Step blocks until the requested physics iterations complete.
++    world_->SetPaused(true);
++    const auto start = world_->SimTime();
++    res.start_time = ros::Time(start.sec, start.nsec);
++    if (!req.snapshot_only) world_->Step(req.steps);
++    const auto end = world_->SimTime();
++    res.end_time = ros::Time(end.sec, end.nsec);
++    res.joint_state.header.stamp = res.end_time;
++    res.joint_state.name = req.joint_names;
++    for (const auto &joint : joints)
++    {
++      const double q = joint->Position(0);
++      const double qd = joint->GetVelocity(0);
++      const double effort = joint->GetForce(0);
++      if (!std::isfinite(q) || !std::isfinite(qd) || !std::isfinite(effort))
++      {
++        res.success = false;
++        res.status_message = "StepControl: non-finite post-step joint state";
++        return true;
++      }
++      res.joint_state.position.push_back(q);
++      res.joint_state.velocity.push_back(qd);
++      res.joint_state.effort.push_back(effort);
++      res.joint_is_angular.push_back(joint->HasType(gazebo::physics::Base::HINGE_JOINT));
++    }
+   }
+   else
+-  { // One-step:
+-    step_msg.set_step(req.steps == 1);
++  {
++    const auto now = world_->SimTime();
++    res.start_time = ros::Time(now.sec, now.nsec);
++    world_->SetPaused(false);
++    res.end_time = res.start_time;
+   }
+ 
+-  world_control_pub_->Publish(step_msg);
+-
+   res.success = true;
+   res.status_message = boost::str(boost::format("StepControl: %1% steps (%2%)") % req.steps % (to_pause ? "Paused" : "Unpaused"));
+   return true;

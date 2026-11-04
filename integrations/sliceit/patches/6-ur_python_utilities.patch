@@ -1,0 +1,611 @@
+diff --git a/dependencies/tf2rl b/dependencies/tf2rl
+index a8d41f6..8b9b913 160000
+--- a/dependencies/tf2rl
++++ b/dependencies/tf2rl
+@@ -1 +1 @@
+-Subproject commit a8d41f6e1891c64e71e1b985bd9624460580e808
++Subproject commit 8b9b9135ec92a0a1de3fc84bb7454d1ea07669e3
+diff --git a/ur3e_openai/src/ur3e_openai/cost_utils.py b/ur3e_openai/src/ur3e_openai/cost_utils.py
+index 53caf5c..c8d2dcc 100644
+--- a/ur3e_openai/src/ur3e_openai/cost_utils.py
++++ b/ur3e_openai/src/ur3e_openai/cost_utils.py
+@@ -72,7 +72,8 @@ def slicing(self, obs, done):
+     max_force_torque = np.array([self.controller.max_force_torque[i] for i in self.target_dims])
+ 
+     wrench_size = self.wrench_hist_size*num_dims
+-    force = np.reshape(obs[-wrench_size:], (-1, num_dims)) * max_force_torque
++    # Observations store each wrench component across the history window.
++    force = np.reshape(obs[-wrench_size:], (num_dims, -1)).T * max_force_torque
+     force = np.average(force, axis=0)
+     norm_force_torque = np.linalg.norm(force[:3])
+ 
+diff --git a/ur3e_openai/src/ur3e_openai/peg_gazebo_connection.py b/ur3e_openai/src/ur3e_openai/peg_gazebo_connection.py
+index 1584967..662d87e 100644
+--- a/ur3e_openai/src/ur3e_openai/peg_gazebo_connection.py
++++ b/ur3e_openai/src/ur3e_openai/peg_gazebo_connection.py
+@@ -98,8 +98,7 @@ class GazeboConnection(ConnectionBase):
+         rospy.logdebug("PAUSING START")
+         rospy.wait_for_service('/gazebo/pause_physics')
+         try:
+-            self.step_simulation_serv(StepControlRequest(steps=1))
+-            # self.pause_serv()
++            self.pause_serv()
+         except rospy.ServiceException:
+             print("/gazebo/pause_physics service call failed")
+ 
+@@ -110,13 +109,16 @@ class GazeboConnection(ConnectionBase):
+         rospy.logdebug("UNPAUSING START")
+         rospy.wait_for_service('/gazebo/unpause_physics')
+         try:
+-            self.step_simulation_serv(StepControlRequest(steps=0))
+-            # self.unpause_serv()
++            self.unpause_serv()
+         except rospy.ServiceException:
+             print("/gazebo/unpause_physics service call failed")
+ 
+         rospy.logdebug("UNPAUSING FiNISH")
+ 
++    def unpause_for_shutdown(self, timeout=5.0):
++        rospy.wait_for_service('/gazebo/unpause_physics', timeout=timeout)
++        return self.unpause_serv()
++
+     def reset(self):
+         """
+         This was implemented because some simulations, when reseted the simulation
+diff --git a/ur3e_openai/src/ur3e_openai/robot_env.py b/ur3e_openai/src/ur3e_openai/robot_env.py
+index 383ad42..748fb74 100644
+--- a/ur3e_openai/src/ur3e_openai/robot_env.py
++++ b/ur3e_openai/src/ur3e_openai/robot_env.py
+@@ -40,7 +40,7 @@ class RobotGazeboEnv(gym.Env):
+         self.cumulated_episode_reward = 0
+         self.pause = False
+         self._log_message = None
+-        self.use_step_control = False
++        self.use_step_control = rospy.get_param("/ur3e_gym/use_step_control", False)
+         rospy.logdebug("END init RobotGazeboEnv")
+ 
+     def pause_callback(self, msg):
+@@ -99,8 +99,10 @@ class RobotGazeboEnv(gym.Env):
+         self.cumulated_jerk = 0
+         self.cumulated_vel = 0
+         self.cumulated_reward_details = np.zeros(7)
+-        obs = self._get_obs()
+         self._reset_sim()
++        if self.use_step_control:
++            self.robot_connection.pause()
++        obs = self._get_obs()
+         rospy.logdebug("END Reseting RobotGazeboEnvironment")
+         return obs
+ 
+diff --git a/ur3e_openai/src/ur3e_openai/robot_envs/ur3e_env.py b/ur3e_openai/src/ur3e_openai/robot_envs/ur3e_env.py
+index 79d718e..c3a9ffd 100644
+--- a/ur3e_openai/src/ur3e_openai/robot_envs/ur3e_env.py
++++ b/ur3e_openai/src/ur3e_openai/robot_envs/ur3e_env.py
+@@ -78,6 +78,12 @@ class UR3eEnv(robot_env.RobotGazeboEnv):
+     # Methods needed by the RobotGazeboEnv
+     # ----------------------------
+ 
++    def _reset_sim(self):
++        result = super(UR3eEnv, self)._reset_sim()
++        if self.use_step_control:
++            self.ur3e_arm.snapshot_gazebo()
++        return result
++
+     def _pause_env(self):
+         self.ur3e_arm.activate_joint_trajectory_controller()
+         current_pose = self.ur3e_arm.joint_angles()
+diff --git a/ur3e_openai/src/ur3e_openai/task_envs/ur3e_force_control.py b/ur3e_openai/src/ur3e_openai/task_envs/ur3e_force_control.py
+index 4f0189e..056d67f 100644
+--- a/ur3e_openai/src/ur3e_openai/task_envs/ur3e_force_control.py
++++ b/ur3e_openai/src/ur3e_openai/task_envs/ur3e_force_control.py
+@@ -291,14 +291,12 @@ class UR3eForceControlEnv(ur3e_env.UR3eEnv):
+         and velocities of the end effector with respect to the target pose
+         """
+ 
++        current_ee_pose = self.ur3e_arm.end_effector()
+         if self.previous_ee_pose is None:
+-            self.previous_ee_pose = self.ur3e_arm.end_effector()
++            self.previous_ee_pose = np.copy(current_ee_pose)
+             self.previous_velocity = np.zeros(6)
+             self.previous_acceleration = np.zeros(6)
+ 
+-        # Current position
+-        current_ee_pose = self.ur3e_arm.end_effector()
+-
+         # Use the past position to get the present velocity.
+         linear_velocity = (current_ee_pose[:3] - self.previous_ee_pose[:3]) / self.agent_control_dt
+         angular_velocity = transformations.angular_velocity_from_quaternions(current_ee_pose[3:], self.previous_ee_pose[3:], self.agent_control_dt)
+@@ -542,6 +540,10 @@ class UR3eForceControlEnv(ur3e_env.UR3eEnv):
+         self.step_count = 0
+         self.action_result = None
+         self.last_actions = np.zeros(self.n_actions)
++        # Finite differences begin at the new episode's physical pose.
++        self.previous_ee_pose = None
++        self.previous_velocity = np.zeros(6)
++        self.previous_acceleration = np.zeros(6)
+ 
+     def _set_action(self, action):
+         self.last_actions = action
+diff --git a/ur3e_rl/scripts/simple_env.py b/ur3e_rl/scripts/simple_env.py
+index e247875..1177301 100755
+--- a/ur3e_rl/scripts/simple_env.py
++++ b/ur3e_rl/scripts/simple_env.py
+@@ -66,6 +66,7 @@ if __name__ == '__main__':
+ 
+     parser = argparse.ArgumentParser(description='Test force control')
+     parser.add_argument('-e', '--env_id', type=int, help='environment ID', default=None)
++    parser.add_argument('--config', help='ROS environment YAML path')
+     parser.add_argument('-a', '--action_type', type=int, help='Action type', default=0)
+     parser.add_argument('-r', '--repetitions', type=int, help='repetitions', default=1)
+ 
+@@ -88,6 +89,9 @@ if __name__ == '__main__':
+     else:
+         raise Exception("invalid env_id")
+ 
++    if args.config:
++        param_file = args.config
++
+     p = utils.TextColors()
+     p.error("GYM Environment:{} ".format(param_file))
+ 
+diff --git a/ur3e_rl/scripts/tf2rl_sac.py b/ur3e_rl/scripts/tf2rl_sac.py
+index 1972239..9a3bf26 100755
+--- a/ur3e_rl/scripts/tf2rl_sac.py
++++ b/ur3e_rl/scripts/tf2rl_sac.py
+@@ -25,6 +25,7 @@ if __name__ == '__main__':
+ 
+     parser = Trainer.get_argument()
+     parser.add_argument('-e', '--env_id', type=int, help='environment ID', default=None)
++    parser.add_argument('--config', help='ROS environment YAML path')
+     parser.set_defaults(batch_size=256)
+     parser.set_defaults(n_warmup=1000)  # still don't know what it this for
+     parser.set_defaults(max_steps=100100)  # 10000 for training 200 for evaluation
+@@ -73,6 +74,9 @@ if __name__ == '__main__':
+     else:
+         raise Exception("invalid env_id")
+ 
++    if args.config:
++        param_file = args.config
++
+     p = utils.TextColors()
+     p.error("GYM Environment:{} ".format(param_file))
+ 
+diff --git a/ur_control/scripts/ft_filter.py b/ur_control/scripts/ft_filter.py
+index e597479..7786a55 100755
+--- a/ur_control/scripts/ft_filter.py
++++ b/ur_control/scripts/ft_filter.py
+@@ -27,6 +27,9 @@
+ import copy
+ import argparse
+ import collections
++import threading
++import json
++from functools import wraps
+ import rospy
+ 
+ import numpy as np
+@@ -34,12 +37,20 @@ from ur_control.constants import get_arm_joint_names
+ from ur_pykdl import ur_kinematics
+ from ur_control import spalg, utils, filters, conversions
+ 
+-from std_srvs.srv import Empty, EmptyResponse, SetBool, SetBoolResponse
++from std_srvs.srv import Empty, EmptyResponse, SetBool, SetBoolResponse, Trigger, TriggerResponse
+ 
+ from geometry_msgs.msg import WrenchStamped, Wrench
+ from ur_control.controllers import JointControllerBase
+ 
+ 
++def state_locked(method):
++    @wraps(method)
++    def call(self, *args, **kwargs):
++        with self.state_lock:
++            return method(self, *args, **kwargs)
++    return call
++
++
+ class FTsensor(object):
+ 
+     def __init__(self, in_topic, in_topic2=None, namespace="", out_topic=None,
+@@ -47,6 +58,9 @@ class FTsensor(object):
+                  order=2, data_window=200, timeout=3.0,
+                  republish=False, gravity_compensation=False):
+ 
++        self.state_lock = threading.RLock()
++        self.state_sequence = 0
++        self.raw_stamp = 0.0
+         self.ns = namespace
+         self.enable_publish = republish
+         self.enable_filtering = True
+@@ -99,9 +113,12 @@ class FTsensor(object):
+         assert (self.data_window >= 5)
+         self.data_queue = collections.deque(maxlen=self.data_window)
+ 
++        self.added_wrench = np.zeros(6)
++        self.state_service = rospy.Service(self.out_topic + "recurrent_state", Trigger,
++                                           self.capture_recurrent_state)
++
+         # Subscribe to incoming topic
+         rospy.Subscriber(self.in_topic, WrenchStamped, self.cb_raw)
+-        self.added_wrench = np.zeros(6)
+         if self.in_topic2 != None:
+             rospy.Subscriber(self.in_topic2, WrenchStamped, self.cb_adder)
+ 
+@@ -131,6 +148,7 @@ class FTsensor(object):
+     def add_wrench_observation(self, wrench):
+         self.data_queue.append(np.array(wrench))
+ 
++    @state_locked
+     def cb_adder(self, msg):
+         if rospy.is_shutdown():
+             return
+@@ -140,11 +158,14 @@ class FTsensor(object):
+             rospy.logerr("NaN values in the topic2. Ignoring.")
+             self.added_wrench = np.zeros(6)
+ 
++    @state_locked
+     def cb_raw(self, msg):
+         if rospy.is_shutdown():
+             return
+         self._active = True
+         msg_time = msg.header.stamp.to_sec()
++        self.raw_stamp = msg_time
++        self.state_sequence += 1
+         if msg_time - self.topic2_time < 0.01: 
+             current_wrench = conversions.from_wrench(msg.wrench) + self.added_wrench
+         else:
+@@ -176,6 +197,26 @@ class FTsensor(object):
+                     tcp_msg.wrench = conversions.to_wrench(tcp_wrench)
+                     self.pub_tcp.publish(tcp_msg)
+ 
++    def capture_recurrent_state(self, request):
++        with self.state_lock:
++            history = np.zeros((self.data_window, 6))
++            if self.data_queue:
++                history[:len(self.data_queue)] = np.asarray(self.data_queue)
++            initialized = hasattr(self.filter, "zi")
++            order = max(len(self.filter.a), len(self.filter.b)) - 1
++            zi = self.filter.zi.copy() if initialized else np.zeros((order, 6))
++            fields = {
++                "schema_version": np.array([1]), "sequence": np.array([self.state_sequence]),
++                "stamp": np.array([rospy.get_time()]), "raw_stamp": np.array([self.raw_stamp]),
++                "topic2_stamp": np.array([self.topic2_time]),
++                "filter_history": history, "filter_history_count": np.array([len(self.data_queue)]),
++                "filter_zi": zi, "filter_initialized": np.array([initialized]),
++                "filter_offset": np.asarray(self.wrench_offset).copy(),
++                "filter_added_wrench": self.added_wrench.copy(),
++                "filter_flags": np.array([self.enable_publish, self.enable_filtering]),
++            }
++        return TriggerResponse(True, json.dumps({name: value.tolist() for name, value in fields.items()}))
++
+     # function to filter out high frequency signal
+     def get_filtered_wrench(self):
+         if len(self.data_queue) < self.data_window:
+@@ -183,6 +224,7 @@ class FTsensor(object):
+         wrench_filtered = self.filter(np.array(self.data_queue))
+         return wrench_filtered[-1, :]
+ 
++    @state_locked
+     def update_wrench_offset(self):
+         current_wrench = self.get_filtered_wrench()
+         if current_wrench is not None:
+@@ -190,9 +232,11 @@ class FTsensor(object):
+             if self.wrench_offset is not None:
+                 rospy.set_param('%sft_offset' % self.out_topic, self.wrench_offset.tolist())
+ 
++    @state_locked
+     def set_enable_publish(self, enable):
+         self.enable_publish = enable
+ 
++    @state_locked
+     def set_enable_filtering(self, enable):
+         self.enable_filtering = enable
+ 
+@@ -233,4 +277,5 @@ def main():
+     rospy.spin()
+ 
+ 
+-main()
++if __name__ == "__main__":
++    main()
+diff --git a/ur_control/src/ur_control/arm.py b/ur_control/src/ur_control/arm.py
+index 486176d..3db88b8 100644
+--- a/ur_control/src/ur_control/arm.py
++++ b/ur_control/src/ur_control/arm.py
+@@ -23,6 +23,7 @@
+ # Author: Cristian Beltran
+ 
+ import collections
++import threading
+ import numpy as np
+ 
+ import rospy
+@@ -84,6 +85,8 @@ class Arm(object):
+         self._joint_velocity = dict()
+         self._joint_effort = dict()
+ 
++        self._wrench_state_lock = threading.RLock()
++        self._wrench_state_stamp = 0.0
+         self.current_ft_value = np.zeros(6)
+         self.wrench_queue = collections.deque(maxlen=25)  # store history of FT data
+ 
+@@ -186,8 +189,16 @@ class Arm(object):
+             return
+ 
+     def __ft_callback__(self, msg):
+-        self.current_ft_value = conversions.from_wrench(msg.wrench)
+-        self.wrench_queue.append(self.current_ft_value)
++        with self._wrench_state_lock:
++            self.current_ft_value = conversions.from_wrench(msg.wrench)
++            self.wrench_queue.append(self.current_ft_value)
++            self._wrench_state_stamp = rospy.get_time()
++
++    def get_wrench_state(self):
++        with self._wrench_state_lock:
++            return {"queue": np.asarray(self.wrench_queue).copy(),
++                    "current": self.current_ft_value.copy(), "stamp": self._wrench_state_stamp,
++                    "capacity": self.wrench_queue.maxlen}
+ 
+     def _flexible_trajectory(self, position, time=5.0, vel=None):
+         """ Publish point by point making it more flexible for real-time control """
+@@ -253,7 +264,7 @@ class Arm(object):
+         if self.current_ft_value is None:
+             raise Exception("FT Sensor not initialized")
+ 
+-        ft_hist = np.array(self.wrench_queue)[:hist_size]
++        ft_hist = self.get_wrench_state()["queue"][:hist_size]
+ 
+         if hand_frame_control:
+             q_hist = self.joint_traj_controller.get_joint_positions_hist()[:hist_size]
+diff --git a/ur_control/src/ur_control/controllers.py b/ur_control/src/ur_control/controllers.py
+index 5ebe4f1..d734847 100644
+--- a/ur_control/src/ur_control/controllers.py
++++ b/ur_control/src/ur_control/controllers.py
+@@ -2,6 +2,7 @@
+ import actionlib
+ import copy
+ import collections
++import threading
+ import rospy
+ from ur_control import utils, filters, conversions, constants
+ import numpy as np
+@@ -300,6 +301,9 @@ class JointControllerBase(object):
+         self.ns = utils.solve_namespace(namespace)
+         self._jnt_positions_hist = collections.deque(maxlen=24)
+         # Set-up publishers/subscribers
++        self._joint_state_lock = threading.RLock()
++        self._joint_state_stamp = 0.0
++        self._joint_state_stamp_ns = 0
+         self._js_sub = rospy.Subscriber('joint_states', JointState, self.joint_states_cb, queue_size=1)
+         retry = False
+         rospy.logdebug('Waiting for [%sjoint_states] topic' % self.ns)
+@@ -341,7 +345,53 @@ class JointControllerBase(object):
+         @rtype: numpy.ndarray
+         @return: Current joint positions of the UR robot.
+         """
+-        return np.array(self._current_jnt_positions)
++        return self.get_joint_state()["q"]
++
++    def get_joint_state(self):
++        with self._joint_state_lock:
++            return {"q": np.array(self._current_jnt_positions),
++                    "qd": np.array(self._current_jnt_velocities),
++                    "stamp": self._joint_state_stamp}
++
++    def install_step_joint_state(self, message, angular, start_time, end_time, snapshot_only=False):
++        """Install a post-integration snapshot; joint angles retain their continuous branch."""
++        start_ns, end_ns = start_time.to_nsec(), end_time.to_nsec()
++        valid_interval = end_ns == start_ns if snapshot_only else end_ns > start_ns
++        if not valid_interval or message.header.stamp.to_nsec() != end_ns:
++            raise rospy.ROSException('Invalid post-step joint snapshot time')
++        names = list(message.name)
++        if len(names) != len(self.valid_joint_names) or set(names) != set(self.valid_joint_names):
++            raise rospy.ROSException('Invalid post-step joint snapshot names')
++        if len(set(names)) != len(names):
++            raise rospy.ROSException('Duplicate post-step joint snapshot names')
++        arrays = (message.position, message.velocity, message.effort, angular)
++        if any(len(values) != len(names) for values in arrays):
++            raise rospy.ROSException('Invalid post-step joint snapshot array lengths')
++        order = [names.index(name) for name in self.valid_joint_names]
++        q, qd, effort = [np.asarray(values, dtype=float)[order] for values in arrays[:3]]
++        if not all(np.isfinite(values).all() for values in (q, qd, effort)):
++            raise rospy.ROSException('Non-finite post-step joint snapshot')
++        is_angular = np.asarray(angular, dtype=bool)[order]
++        with self._joint_state_lock:
++            previous_end = getattr(self, '_step_state_stamp_ns', None)
++            if previous_end is not None and start_ns < previous_end:
++                raise rospy.ROSException('Simulation clock reversed; recreate the joint-state consumer after reset')
++            old = self._current_jnt_positions
++            if not np.isfinite(old).all():
++                raise rospy.ROSException('Non-finite reference joint state')
++            difference = q - old
++            wrapped = np.remainder(difference + np.pi, 2 * np.pi) - np.pi
++            wrapped = np.where(wrapped == -np.pi, np.pi, wrapped)
++            q = np.where(is_angular, old + wrapped, q)
++            self._current_jnt_positions = q
++            self._current_jnt_velocities = qd
++            self._current_jnt_efforts = effort
++            self._joint_names = list(self.valid_joint_names)
++            self._joint_state_stamp = end_time.to_sec()
++            self._joint_state_stamp_ns = end_ns
++            self._step_state_stamp_ns = end_ns
++            self._jnt_positions_hist.append(q.copy())
++            return self.get_joint_state()
+ 
+     def get_joint_positions_hist(self):
+         """
+@@ -379,11 +429,18 @@ class JointControllerBase(object):
+                     velocity.append(msg.velocity[idx])
+                 position.append(msg.position[idx])
+         if set(name) == set(self.valid_joint_names):
+-            self._current_jnt_positions = np.array(position)
+-            self._jnt_positions_hist.append(self._current_jnt_positions)
+-            self._current_jnt_velocities = np.array(velocity)
+-            self._current_jnt_efforts = np.array(effort)
+-            self._joint_names = list(name)
++            with self._joint_state_lock:
++                step_stamp = getattr(self, '_step_state_stamp_ns', None)
++                newest_stamp = max(step_stamp or 0, getattr(self, '_joint_state_stamp_ns', 0))
++                if step_stamp is not None and msg.header.stamp.to_nsec() <= newest_stamp:
++                    return
++                self._current_jnt_positions = np.array(position)
++                self._jnt_positions_hist.append(self._current_jnt_positions)
++                self._current_jnt_velocities = np.array(velocity)
++                self._current_jnt_efforts = np.array(effort)
++                self._joint_names = list(name)
++                self._joint_state_stamp = msg.header.stamp.to_sec()
++                self._joint_state_stamp_ns = msg.header.stamp.to_nsec()
+ 
+ 
+ class JointPositionController(JointControllerBase):
+diff --git a/ur_control/src/ur_control/fzi_cartesian_compliance_controller.py b/ur_control/src/ur_control/fzi_cartesian_compliance_controller.py
+index 1b80cbf..3a9d5d6 100644
+--- a/ur_control/src/ur_control/fzi_cartesian_compliance_controller.py
++++ b/ur_control/src/ur_control/fzi_cartesian_compliance_controller.py
+@@ -161,7 +161,33 @@ class CompliantController(Arm):
+         self.set_end_effector_link(self.ee_link)
+         self.min_scale_error = 1.5
+ 
+-        rospy.on_shutdown(self.activate_joint_trajectory_controller)
++        rospy.on_shutdown(self._shutdown_controller)
++
++    def _shutdown_controller(self, timeout=5.0):
++        """Bound remote controller switching by wall time after simulation stops."""
++        completed = threading.Event()
++        result = {}
++
++        def activate():
++            try:
++                if not self.activate_joint_trajectory_controller():
++                    raise RuntimeError('Shutdown controller switch was not acknowledged')
++                result['state'] = 'ok'
++            except BaseException as error:
++                result.update(state='error', error=repr(error))
++            finally:
++                completed.set()
++
++        thread = threading.Thread(target=activate, name='controller-shutdown', daemon=True)
++        thread.start()
++        if completed.wait(timeout):
++            self.shutdown_result = dict(result)
++        else:
++            self.shutdown_result = {'state': 'timeout',
++                                   'error': 'Controller shutdown exceeded %.3f wall seconds' % timeout}
++        if self.shutdown_result['state'] != 'ok':
++            rospy.logerr('Controller shutdown failed: %s', self.shutdown_result['error'])
++        return self.shutdown_result
+ 
+     def target_pose_cb(self, data):
+         self.current_target_pose = conversions.from_pose_to_list(data.pose)
+@@ -198,18 +224,22 @@ class CompliantController(Arm):
+             rospy.logerr("Fail to set_target_pose(): %s" % e)
+ 
+     def update_controller_parameters(self, parameters: dict):
+-        if not self.async_mode and self.update_thread and self.update_thread.isAlive():
++        async_updates = self.async_mode and not self.use_step_control
++        if not async_updates and self.update_thread and self.update_thread.is_alive():
+             self.update_thread.join()
+ 
+         def update():
+-            try:
+-                for param in parameters.keys():
+-                    rospy.logdebug("Setting parameters %s to the group %s" % (parameters[param], param))
+-                    self.dyn_config_clients[param].update_configuration(parameters[param])
+-            except:
+-                pass
+-        if self.async_mode:
+-            self.update_thread = threading.Thread(target=update)
++            for param in parameters.keys():
++                rospy.logdebug("Setting parameters %s to the group %s" % (parameters[param], param))
++                self.dyn_config_clients[param].update_configuration(parameters[param])
++
++        if async_updates:
++            def update_async():
++                try:
++                    update()
++                except Exception:
++                    pass
++            self.update_thread = threading.Thread(target=update_async)
+             self.update_thread.start()
+         else:
+             update()
+@@ -293,6 +323,10 @@ class CompliantController(Arm):
+         # loop throw target trajectory
+         initial_time = rospy.get_time()
+         step_initial_time = rospy.get_time()
++        duration_ns = rospy.Duration.from_sec(duration).to_nsec()
++        step_duration_ns = rospy.Duration.from_sec(step_duration).to_nsec()
++        elapsed_ns = 0
++        segment_start_ns = 0
+ 
+         result = DONE
+ 
+@@ -305,7 +339,12 @@ class CompliantController(Arm):
+         if scale_up_error and max_scale_error:
+             self.sliding_error(trajectory[trajectory_index], max_scale_error)
+ 
+-        while not rospy.is_shutdown() and (rospy.get_time() - initial_time) < duration:
++        while not rospy.is_shutdown():
++            if self.use_step_control:
++                if elapsed_ns >= duration_ns:
++                    break
++            elif (rospy.get_time() - initial_time) >= duration:
++                break
+ 
+             current_wrench = self.get_ee_wrench(hand_frame_control=True)
+ 
+@@ -328,8 +367,14 @@ class CompliantController(Arm):
+                 result = FORCE_TORQUE_EXCEEDED
+                 break
+ 
+-            if (rospy.get_time() - step_initial_time) > step_duration:
+-                step_initial_time = rospy.get_time()
++            segment_finished = (elapsed_ns - segment_start_ns > step_duration_ns
++                                if self.use_step_control else
++                                rospy.get_time() - step_initial_time > step_duration)
++            if segment_finished:
++                if self.use_step_control:
++                    segment_start_ns = elapsed_ns
++                else:
++                    step_initial_time = rospy.get_time()
+                 trajectory_index += 1
+                 if trajectory_index >= trajectory.shape[0]:
+                     break
+@@ -343,8 +388,8 @@ class CompliantController(Arm):
+                 func(self.end_effector())
+ 
+             if self.use_step_control:
+-                # Advance gazebo sim
+-                self.step_simulation_serv(StepControlRequest(steps=2))  # Forward 2 milliseconds
++                interval = self.advance_gazebo(steps=2)
++                elapsed_ns += interval.end_time.to_nsec() - interval.start_time.to_nsec()
+                 
+                 # Publish knife state to disect
+                 disect_knife_pose, disect_knife_twist = self.compute_disect_knife_pose()
+@@ -364,6 +409,27 @@ class CompliantController(Arm):
+ 
+         return result
+ 
++    def advance_gazebo(self, steps):
++        response = self.step_simulation_serv(StepControlRequest(
++            steps=steps, joint_names=self.joint_traj_controller.valid_joint_names))
++        if not response.success:
++            raise rospy.ROSException(response.status_message)
++        self.joint_traj_controller.install_step_joint_state(
++            response.joint_state, response.joint_is_angular, response.start_time, response.end_time)
++        return response
++
++    def snapshot_gazebo(self):
++        """Pause and synchronize joints without advancing the robot or material clocks."""
++        response = self.step_simulation_serv(StepControlRequest(
++            steps=0, joint_names=self.joint_traj_controller.valid_joint_names,
++            snapshot_only=True))
++        if not response.success:
++            raise rospy.ROSException(response.status_message)
++        self.joint_traj_controller.install_step_joint_state(
++            response.joint_state, response.joint_is_angular,
++            response.start_time, response.end_time, snapshot_only=True)
++        return response
++
+     def compute_disect_knife_pose(self):
+         knife_pose = self.end_effector(tip_link='b_bot_knife_sim')
+         disect_knife_pose = transformations.apply_transformation(knife_pose, self.transform_pose)

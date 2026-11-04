@@ -1,4 +1,12 @@
-# CuttingWorldModel working rules
+# Cutting DEV working rules
+
+- Learning lives in `cutting_world_model/`; bundled physics lives in
+  `backends/mujoco/`; SliceIt source versions and patches live in `integrations/`.
+- Repository organization changes preserve physics, training settings and task
+  thresholds. Keep active runs on their existing checkouts until they finish.
+- Validate both root and backend suites on the 4090 before committing. Use the
+  commands in `docs/RUNNING.md`; exclude assets, runs, credentials and environments
+  from Git. Document source modifications in METHOD and preserve licenses.
 
 - Migrate SuperMimic-Reproduced `ba610534` to the existing SliceIt Gazebo + DiSECt
   UR5e robot/compliance task. Keep the original SAC baseline independent.

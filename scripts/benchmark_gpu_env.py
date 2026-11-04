@@ -15,7 +15,8 @@ from train_coupled import write_json
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument('--backend-root', type=Path, required=True)
+    p.add_argument('--backend-root', type=Path,
+                   default=Path(__file__).resolve().parents[1] / 'backends/mujoco')
     p.add_argument('--worlds', type=int, required=True)
     p.add_argument('--wall-seconds', type=float, default=600.)
     p.add_argument('--output', type=Path, required=True)

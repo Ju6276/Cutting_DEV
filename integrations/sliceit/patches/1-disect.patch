@@ -1,0 +1,48 @@
+diff --git a/disect/dflex/adjoint.py b/disect/dflex/adjoint.py
+index 8f715c6..ebc770b 100644
+--- a/disect/dflex/adjoint.py
++++ b/disect/dflex/adjoint.py
+@@ -1915,7 +1915,7 @@ def compile():
+         ld_flags = ["-DNDEBUG"]
+ 
+     # just use minimum to ensure compatability
+-    cuda_flags = ['-gencode=arch=compute_35,code=compute_35']
++    cuda_flags = []
+ 
+     # release config
+     if use_cuda:
+diff --git a/meshing/meshing.cpp b/meshing/meshing.cpp
+index 36cd976..dd08daa 100644
+--- a/meshing/meshing.cpp
++++ b/meshing/meshing.cpp
+@@ -301,8 +301,9 @@ public:
+           << std::endl;
+     }
+     for (const Edge &eis : topology.unique_edges) {
+-      const Vec3 &a = X[eis[0]];
+-      const Vec3 &b = X[eis[1]];
++      // copy_vertex may reallocate particle_x before these endpoints are used.
++      const Vec3 a = X[eis[0]];
++      const Vec3 b = X[eis[1]];
+       if (!edge_intersects_bounds(a, b)) {
+         continue;
+       }
+diff --git a/meshing/tests/test_vertex_growth.py b/meshing/tests/test_vertex_growth.py
+new file mode 100644
+index 0000000..85261a1
+--- /dev/null
++++ b/meshing/tests/test_vertex_growth.py
+@@ -0,0 +1,13 @@
++import numpy as np
++from meshcutter import MeshCutter
++
++
++def test_cut_survives_vertex_vector_growth():
++    vertices = [[-1., 0., 0.], [1., 0., 0.], [-1., 1., 0.], [-1., 0., 1.]]
++    faces = [[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]]
++    surface = [[[0., -2., -2.], [0., 2., -2.], [0., 2., 2.]],
++               [[0., -2., -2.], [0., 2., 2.], [0., -2., 2.]]]
++    cutter = MeshCutter(faces, [[0, 1, 2, 3]], vertices)
++    assert cutter.cut(surface)
++    assert len(cutter.cut_spring_indices) == 3
++    assert np.isfinite(cutter.cut_edge_coords).all()

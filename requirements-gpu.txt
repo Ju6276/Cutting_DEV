@@ -1,2 +1,2 @@
--r ../CuttingGpuBackend/requirements.txt
+-r backends/mujoco/requirements.txt
 wandb==0.31.0

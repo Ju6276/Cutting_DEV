@@ -1,0 +1,39 @@
+diff --git a/tf2rl/algos/sac.py b/tf2rl/algos/sac.py
+index 64b74ca..c140d36 100644
+--- a/tf2rl/algos/sac.py
++++ b/tf2rl/algos/sac.py
+@@ -265,9 +265,6 @@ class SAC(OffPolicyAgent):
+         Returns
+             np.ndarray: TD error
+         """
+-        if isinstance(actions, tf.Tensor):
+-            rewards = tf.expand_dims(rewards, axis=1)
+-            dones = tf.expand_dims(dones, 1)
+         td_errors = self._compute_td_error_body(
+             states, actions, next_states, rewards, dones)
+         return td_errors.numpy()
+@@ -275,6 +272,9 @@ class SAC(OffPolicyAgent):
+     @tf.function
+     def _compute_td_error_body(self, states, actions, next_states, rewards, dones):
+         with tf.device(self.device):
++            # Q and log-probability have one value per replay transition.
++            rewards = tf.reshape(rewards, (-1,))
++            dones = tf.reshape(dones, (-1,))
+             not_dones = 1. - tf.cast(dones, dtype=tf.float32)
+ 
+             # Compute TD errors for Q-value func
+diff --git a/tf2rl/policies/tfp_wave_actor.py b/tf2rl/policies/tfp_wave_actor.py
+index fe10dee..741d497 100644
+--- a/tf2rl/policies/tfp_wave_actor.py
++++ b/tf2rl/policies/tfp_wave_actor.py
+@@ -79,7 +79,9 @@ class WaveFTActor(tf.keras.Model):
+         x_features = self.x_features(x_features)
+ 
+ 
+-        ft_state = tf.reshape(states[:, -wrench_hist_size:],(-1, self.wrench_hist_size, self.ft_size))
++        # Convert component-major observations to the TCN time-major input.
++        ft_state = tf.reshape(states[:, -wrench_hist_size:], (-1, self.ft_size, self.wrench_hist_size))
++        ft_state = tf.transpose(ft_state, (0, 2, 1))
+         ft_features = self.ft_net(ft_state)
+ 
+         features = tf.keras.layers.Concatenate()([x_features, ft_features])

@@ -36,7 +36,8 @@ def finalize_gpu_run(checkpoint, progress, tracker, output, status, iteration, u
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--backend-root', type=Path, required=True)
+    parser.add_argument('--backend-root', type=Path,
+                        default=Path(__file__).resolve().parents[1] / 'backends/mujoco')
     parser.add_argument('--worlds', type=int, default=16)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--microbatch', type=int, default=64)
