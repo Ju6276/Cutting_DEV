@@ -685,3 +685,34 @@ zero value inputs gives target absolute maximum **100.5893**, versus **21810.18*
 with learned values. This isolates the large targets to value bootstrap on
 nonterminal paths. The source GAE recurrence matches the local implementation;
 finite-window endpoint coverage and repeated fixed-data fitting remain to audit.
+
+## 2026-11-04 — Critic data coverage and physical-transition comparison
+
+Code `7675283`; frozen WM/policy, fresh critic, original GAE/Adam/batch/epoch
+settings. `/dataHDD/dong/tmp/critic_resampled_probe.py --rounds 1000 --seconds 180
+--seed SEED` samples 4096 starts each round from Gazebo episodes 0–15; episodes
+16–17 are held out. Seeds 41/42/43 finish with target absolute maxima
+**1059.05 / 647.12 / 200.76** and held-out value MAE
+**97.44 / 131.04 / 75.60**. Replacing predicted future states/rewards with
+recorded transitions (`--physical`, seed 41) gives maximum **102.84**, MAE
+**15.42** after 1000 rounds. The observed future returns include the collection
+policy's execution noise. These runs update only the critic on fixed recordings.
+Outputs: `runs/critic_paired_20261104_seed*`.
+
+A6000 `/dataHDD/dong/tmp/collect_critic_gpu_validation.py` collects eight new
+physical episodes with frozen GPU policy 206 and source action noise 0.1:
+**8/8 successes, 128–234 steps, return 16.09–49.74**, 282–285 released springs.
+All task-terminal labels match recomputation; observation error is at most
+**3.00e-14**, reward error **3.52e-6** from float32 reward storage.
+Output: `runs/critic_gpu_validation_20261104`.
+
+The frozen GPU WM evaluated on every valid recorded-action window has
+position RMSE **0.42 / 3.20 / 19.64 mm** at **1 / 8 / 32 steps**, force RMSE
+**0.81 / 1.43 / 2.06 N**, and return RMSE **0.03 / 7.08 / 10.48**.
+On episodes 0/2/4/5 for critic fitting and 6/7 held out, the same 1000-round
+comparison gives held-out value MAE **46.49** with model futures versus **5.17**
+with physical futures; target absolute maxima are **99.72** versus **107.42**.
+Commands: `/dataHDD/dong/tmp/wm_checkpoint_eval.py` and
+`/dataHDD/dong/tmp/critic_gpu_resampled_probe.py --rounds 1000 --seconds 300
+--seed 41 [--physical]`. Next: improve the world model with the unchanged
+supervised loss, then repeat the paired value-learning comparison.
