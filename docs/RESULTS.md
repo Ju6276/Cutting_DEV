@@ -716,3 +716,47 @@ Commands: `/dataHDD/dong/tmp/wm_checkpoint_eval.py` and
 `/dataHDD/dong/tmp/critic_gpu_resampled_probe.py --rounds 1000 --seconds 300
 --seed 41 [--physical]`. Next: improve the world model with the unchanged
 supervised loss, then repeat the paired value-learning comparison.
+
+## 2026-11-04 — Fixed-data WM fitting and repeated value learning
+
+Code `7675283`; A6000 GPU 0 runs
+`/dataHDD/dong/tmp/fit_wm_critic_repair.py --updates 500 --seconds 3600 --microbatch 2048`
+and `fit_wm_gpu_critic_repair.py` with the same arguments. Each continues the
+existing WM/Adam for 500 rounds, with original eight-step loss, effective batch
+2048, ten batches per round, and frozen policy. Gazebo uses recorded episodes
+0–15 / held-out 16–17; GPU uses new recorded episodes 0–5 / held-out 6–7.
+No physical data are collected during these fits. Times: **519 / 610 s**.
+
+Gazebo held-out position RMSE changes **0.72→0.42 mm** at one step and
+**1.78→1.44 mm** at eight steps; eight-step force RMSE **6.91→8.10 N**.
+Both held-out terminal force peaks remain missed. Subsequent seed-41 critic
+fitting for 1000 rounds has target absolute maximum **200.72**, value MAE
+**62.96**; the maximum is a single combined force/workspace penalty.
+GPU held-out position RMSE changes **3.22→0.57 mm** at eight steps and
+**19.37→9.30 mm** at 32 steps; force RMSE changes **1.44→0.27 N** and
+**2.06→0.32 N**.
+
+`critic_gpu_after_wm_probe.py --rounds 1000 --seconds 300 --seed SEED`, seeds
+41/42/43, finishes with target absolute maxima **15001.14 / 135.82 / 99.72**
+and held-out MAE **2800.71 / 54.97 / 54.36**. Recorded-physical-future
+comparisons (`critic_gpu_resampled_probe.py ... --physical`) give maxima
+**107.42 / 104.53 / 102.61**, MAE **5.17 / 6.75 / 10.70**.
+The tests identify unstable bootstrap on model-generated states; improved
+average state-prediction error alone does not resolve it.
+
+NDM `0171f5e` RunningNorm on the complete model-state sample, seed 41, still
+finishes at target maximum **4811.88**, MAE **1219.57**. A physical-time
+comparison uses 13 cutting steps (**0.65 s**) versus Cuboi's 32×0.02 s
+(**0.64 s**): target maximum **99.72**, MAE **81.98**. Both alternatives fail
+value accuracy; training retains 32 steps and its existing normalization.
+Outputs: `runs/wm*_critic_repair_20261104`, `critic_gpu_after_wm_*`,
+`critic_gpu_ndm_norm_*`, `critic_gpu_source_time_*`.
+
+Evaluation fix `235e118`: `check_control_model.py` now counts the entering
+task-terminal reward once when computing predicted returns; raw state-error
+rollouts continue for the requested horizon. Corrected GPU held-out 32-step
+return RMSE is **10.79 before / 59.56 after** fitting, from
+`task_return_evaluation.json`. The old evaluator repeated terminal bonuses.
+4090 full tests: **131 passed, 2 skipped**, 5.14 s. The original online
+joint-update schedule still needs evaluation with a fresh critic and the
+corrected terminal rule; fixed-recording experiments leave policy frozen.
