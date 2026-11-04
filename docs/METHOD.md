@@ -284,3 +284,16 @@ Action duration and trajectory segment timing use accumulated server intervals
 in integer nanoseconds in stepped mode. The previous ROS-clock/float loop
 produced 52 ms actions for the configured 50 ms interval. Continuous control
 retains its original clock path and all trajectory/force predicates.
+
+## Pre-policy checkpoint compatibility
+
+The explicit terminal-rule migration uses a separate copy of the completed
+WM-only checkpoint. Conditions: WM rounds equal the configured 500-round
+startup stage; completed policy rounds are zero; policy and critic Adam states
+are empty with recorded step counts zero; WM Adam step counts equal 5000;
+trainer configurations and the 1024-environment schedule match the current
+entry. All model tensors must be finite. The copy adds only
+`learner.imagination_terminal_rule=task_absorbing_v1`; every original field is
+checked for exact equality after saving and loading. The unchanged strict
+loader then validates the copy. Checkpoints containing policy or critic updates
+under the previous terminal rule retain the existing rejection.
