@@ -654,3 +654,19 @@ with the corrected terminal rule before restarting long training.
 2 skipped**, 5.23 s. Force/workspace/success terminal examples retain the entering
 reward once, make subsequent rewards and bootstrap zero, and preserve bootstrap
 at a nonterminal rollout horizon. Old-terminal-rule training resumes are rejected.
+
+## 2026-11-04 — Frozen-model critic target feedback
+
+Code `7675283`; command `.venv/bin/python /dataHDD/dong/tmp/critic_fixed_test_20261104.py`
+on RTX 4090; output `runs/critic_fixed_comparison_20261104/report.json`.
+Frozen Gazebo WM/policy, episode 17, 48 fixed starts, horizon 32, seed 41;
+each fresh critic runs 200 rounds × 5 epochs × 4 minibatches, source Adam LR
+2e-4 and gradient norm limit 1. Total experiment time **28.30 s**.
+Previous termination reaches target absolute maximum **146381.23**; corrected
+termination still grows from **100.59 to 21810.18**. Holding the initial corrected
+targets fixed gives final imagined value mean **-16.25** versus target **-17.87**.
+Updating bootstrap targets reproduces instability with WM and policy frozen.
+The fixed-target control isolates this feedback; it is not installed in training.
+Next: audit horizon-state coverage and bootstrap evaluation against the source
+implementation before selecting a value-learning correction. These fixed-start
+critic-only rounds do not run online collection or policy updates.
