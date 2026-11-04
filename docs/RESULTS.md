@@ -952,3 +952,59 @@ frames, fixed-policy comparisons and `recorded_action_drift.json`. Next: audit
 joint-state integration, normalization and history inputs against the source
 using these fixed real-action rollouts; keep the critic objective and physical
 task unchanged while resolving multi-step model error.
+
+## 2026-11-05 — Frozen WM train/held-out fit
+
+Code `b27a566`, A6000 GPU0, `runs/wm_frozen_fit_20261105/run.py`.
+New data: 32 environments × 4 episodes; fixed groups yield 96 train episodes
+(1981 transitions, 93 successes/3 workspace failures) and 32 held-out episodes
+(648 transitions, all successful). Policy62, critic and both optimizers remain
+frozen. WM562→662 completes 100 original H8 rounds in **1165.81 s**, within
+the 2700 s total budget, retaining batch2048, ten Adam steps/round and source LR.
+
+| Extra WM rounds | Held-out H1 position RMSE | H8 endpoint RMSE | Full-trajectory RMSE | Correct first terminal time/type |
+|---:|---:|---:|---:|---:|
+| 0 | 1.234 mm | 3.158 mm | 19.418 mm | 0/32 |
+| 100 | 2.483 mm | 4.758 mm | 7.148 mm | 0/32 |
+
+Final predicted goal-z error is **−16.39 to −6.52 mm**, actual **−0.392 to
+−0.298 mm**, against the existing **2 mm** threshold. All 32 successes are
+missed; predicted success count is 0, actual 11. Train/held-out physical-state
+losses rise from round50's **0.015591/0.015923** to **0.023258/0.023553** while
+terminal BCE decreases. Independent CPU reconstruction matches all 30 metric
+groups and 640 first events; all frozen tensors match. Next: separate state-loss
+and BCE gradients on the same saved batches. Artifacts:
+`runs/wm_frozen_fit_20261105`; [W&B 7jnyx9n4](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/7jnyx9n4).
+
+## 2026-11-05 — Shared physical evaluator and source SAC adapter
+
+Implementation `47f4e60`; manifests record the pre-commit `b27a566` dirty
+snapshot. `evaluate_benchmark.py --method METHOD --episodes 1 --wall-seconds
+600 --output runs/fixed_benchmark_20261105/METHOD` checks identical robot/material
+assets and task settings. SAC supplies its source Python/config/checkpoint;
+SuperMimic loads policy62 from `critic_mask_validation_20261104/training/last.pt`.
+
+| Method | Endpoint | Steps / simulated seconds | Return | Peak material force | Released springs |
+|---|---|---:|---:|---:|---:|
+| Policy62, A6000 | Success | 20 / 1.000 | 90.81489 | 30.65784 N | 288 |
+| Gazebo SAC ckpt-10, 4090 | Force-limit failure | 1 / 0.042 | −100.60348 | 63.42530 N | 0 |
+| Constant zero, A6000 | Wall budget; incomplete | 346 / 17.300 | −144.80551 (partial) | 5.83108 N | 282 |
+
+All evaluations preserve weights and perform zero optimizer updates. SAC is a
+Gazebo-trained checkpoint transferred to MuJoCo Warp; same-environment SAC
+training is next. Wrench-x reaches **52.1676 N**, above its **50 N** limit.
+Constant control ends **2.049 mm** above target with no physical terminal event.
+An earlier shared-4090 constant run reaches 88 steps at its 600 s budget.
+Policy62 uses **39.40 s** total wall time on A6000; hardware/concurrent workload
+is recorded separately. Runtime packages match on both hosts.
+
+The new source SAC bridge runs **7 physical steps/7 original SAC updates** in
+a 60 s check, with warmup1000 unchanged. Reload restores all four optimizer
+counters to 7; replay state/action alignment and frozen inference match.
+The time-limit replay adapter preserves source-buffer done flags **[1,0,0]**
+for natural termination, pure truncation and continuation through save/reload.
+4090 checks: **155 root + 19 backend pass**; two legacy Gym cases run in the
+Python3.8 bridge suite (**10 pass**, GPU-worker case covered in Python3.12).
+Independent review covers task/reset identity, terminal frames, saved exception
+prefixes and source replay ordering. Artifacts: `runs/fixed_benchmark_20261105`
+and `runs/sac_gpu_bridge_check_20261105`.

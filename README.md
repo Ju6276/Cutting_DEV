@@ -35,12 +35,15 @@ after the current iteration; normal completion and SIGTERM also save.
 
 ## Current result
 
-2026-11-04, revision `2495171`: frozen policy62 completes **8/8 cuts**,
-**1.00 s simulated time** per cut, **39.03 s wall time** for eight worlds,
-peak force **30.66 N**. Critic return MAE remains **153.42**.
-Short terminal replay is repaired: actual WM updates use **2433 collision
-terminal labels** from one/two-step failures. The next focus is accumulated
-WM joint/pose error, which predicts a workspace failure on successful cuts.
+2026-11-05: the shared evaluator executes policy62 successfully in **20 steps /
+1.00 s**, peak material force **30.66 N**. The source SAC adapter completes
+real physical transitions, learning updates and checkpoint/replay reload.
+
+With policy/critic frozen, 100 additional WM rounds reduce held-out full-trajectory
+position RMSE **19.42 → 7.15 mm**, but miss all **32** successful terminal events.
+Predicted final height remains **6.52–16.39 mm** from the target. The next model
+check separates the physical-state and terminal-classification gradients.
+The last measured critic return MAE is **153.42**; critic weights stayed frozen in this probe.
 
 [Fixed benchmark](docs/BENCHMARK.md) · [Results](docs/RESULTS.md) · [Current work](docs/PLAN.md) ·
 [Methods and differences](docs/METHOD.md) · [Source versions](docs/SOURCES.md)
