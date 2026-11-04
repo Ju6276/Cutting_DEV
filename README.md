@@ -35,7 +35,8 @@ after the current iteration; normal completion and SIGTERM also save.
 ## Current result
 
 2026-11-04, source revision `57286e4`: frozen policy52 completes **8/8 cuts**,
-**0.90 s** per cut, peak force **42.60 N**. Critic return MAE is **141.63**.
+**0.90 s simulated time** per cut, **35.12 s wall time** for the eight-world
+evaluation, peak force **42.60 N**. Critic return MAE is **141.63**.
 The next repair covers short terminal sequences: **1121 collision episodes**
 of 1–2 steps were excluded by the eight-step WM training window.
 

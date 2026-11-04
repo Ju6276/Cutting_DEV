@@ -872,3 +872,24 @@ recorded short terminal sequences to model fitting with a valid-step mask,
 verify full-length loss equivalence and terminal coverage, then repeat the
 same frozen physical-return check.
 4090 full tests: **131 passed, 2 skipped**, 5.16 s.
+
+## 2026-11-04 — Unified repository
+
+Code `cb17d5f`, retaining parents `57286e4` (learning) and `5279f77`
+(physics). RTX 4090, `/dataHDD/dong/Projects/Cutting_DEV`:
+
+- `CUTTING_BACKEND_ROOT="$PWD/backends/mujoco" PYTHONPATH=. .venv/bin/python
+  -m pytest tests -q`: **133 passed**, zero skips, **121.26 s**.
+- From `backends/mujoco`, `PYTHONPATH=. ../../.venv/bin/python -m pytest
+  tests -q`: **19 passed**, zero skips, **2.70 s**.
+- `python3 scripts/checkout_sliceit.py --output external/SliceIt-online`:
+  all **8** repositories fetched from their public origins; all patched Git
+  trees match `integrations/sliceit/patches/sources.json`.
+
+`scripts/benchmark_gpu_env.py --worlds 1 --wall-seconds 600 --output
+runs/integration_reference_20261104` uses the bundled backend by default.
+The complete physical reference cut succeeds in **40 steps / 2.00 s simulated
+time**, **302.33 s wall time**, return **80.2902**, peak force **9.9761 N**,
+**288** released springs, zero collision or truncation. SAC continues on the
+same GPU. The run manifest records the pre-commit integration snapshot
+(`57286e4`, dirty); its runtime source is committed in `cb17d5f`.
