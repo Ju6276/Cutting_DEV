@@ -90,6 +90,12 @@ existing Gazebo process, endpoint and wall budget. Current machine routes and
 local environment paths are in `runs/operations/MACHINES.md` on the Mac;
 connection details and credentials stay outside Git.
 
+## Frozen review — 2026-11-05
+
+State frozen at tag `freeze-20261105-pre-critic`. The code review and critic
+failure analysis are in [ANALYSIS](ANALYSIS.md). No new run is started until
+the proposed rule change and critic experiment plan are approved.
+
 ## External implementation evidence
 
 [ndm-gym](https://github.com/Frank-ZY-Dou/ndm-gym/tree/0171f5eadee50492d6ff30fa04b55e16cc11b61e)
