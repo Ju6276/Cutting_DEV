@@ -61,6 +61,22 @@ export CUTTING_LOGGER_PYTHON="$PWD/.venv/bin/python"
 This command starts a fresh SAC. Frozen evaluation of an existing checkpoint
 uses `evaluate_benchmark.py` below.
 
+To continue a stopped or interrupted run, repeat the command with a new
+`--output` and `--resume runs/sac_gpu_training`. Every 5000-step save and the
+final save write `resume_state.json` (checkpoint, replay file, total steps,
+updates and episode records) when replay rows equal steps and every optimizer
+iteration count equals the update count. Resume restores the TensorFlow
+checkpoint (networks, targets, Adam moments and counters, log-alpha and its
+optimizer), loads the replay through the source Trainer, and continues the
+total step count: the remaining warmup is `1000 - steps`, the 100100 endpoint
+and 5000-step saves count all steps, and episode/TensorBoard indices continue.
+The child `run_config.json` records the parent. Not restored: an unfinished
+episode restarts from reset (its transitions stay in replay and the count is
+recorded as `discarded_episode_steps`); restored replay rows start at cpprb's
+default maximum priority (the source pickle stores transitions only); random streams restart from seed 123456, as in the
+source Trainer's own `--model-dir` restore. Outputs written before resume
+support resume from the final save in `result.json`.
+
 ## Evaluate
 
 Set the CUDA/cache variables in [RUNNING](RUNNING.md) first. Each command writes

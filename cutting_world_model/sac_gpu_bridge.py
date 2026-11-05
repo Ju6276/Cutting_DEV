@@ -130,9 +130,10 @@ def validate_task(source_parameters, metadata):
 class TerminalReplayBuffer:
     """Keep physical termination when it coincides with the time limit."""
 
-    def __init__(self, buffer, environment):
+    def __init__(self, buffer, environment, after_episode=None):
         self.buffer = buffer
         self.environment = environment
+        self.after_episode = after_episode
 
     def add(self, **transition):
         # Source restore supplies a batch; preserve its recorded done flags.
@@ -140,16 +141,26 @@ class TerminalReplayBuffer:
             transition = dict(transition, done=bool(self.environment.last_response["terminated"]))
         return self.buffer.add(**transition)
 
+    def on_episode_end(self):
+        # The source loop calls this after the terminal transition was stored.
+        result = self.buffer.on_episode_end()
+        if self.after_episode is not None:
+            self.after_episode()
+        return result
+
     def __getattr__(self, name):
         return getattr(self.buffer, name)
 
 
-def install_terminal_replay_factory(trainer_module):
+def install_terminal_replay_factory(trainer_module, on_create=None, after_episode=None):
     source_factory = trainer_module.get_replay_buffer
 
     def get_replay_buffer(policy, environment, *args, **kwargs):
         buffer = source_factory(policy, environment, *args, **kwargs)
-        return TerminalReplayBuffer(buffer, environment)
+        replay = TerminalReplayBuffer(buffer, environment, after_episode)
+        if on_create is not None:
+            on_create(replay)
+        return replay
 
     trainer_module.get_replay_buffer = get_replay_buffer
 
