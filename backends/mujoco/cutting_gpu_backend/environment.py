@@ -9,14 +9,15 @@ import torch
 import warp as wp
 
 from .batched_disect import BatchedDiSECt
-from .controller.fdcc import ControllerConfig, FDCCController, SerialChain, SlicingActionMapper, quat_apply
+from .controller.fdcc import ControllerConfig, FDCCController, SerialChain, SlicingActionMapper
 from .coupling import SliceItCoupling
+from .reference import KnifeTrajectory
 from .robot import Robot
 
 
 class CuttingBatch:
     @torch.no_grad()
-    def __init__(self, root, worlds=1, scene='runs/disect_source_v4/scene.pt'):
+    def __init__(self, root, worlds=1, scene='runs/disect_source_v4/scene.pt', reference_trajectory=None):
         root = Path(root)
         self.worlds = worlds
         self.device = torch.device('cuda:0')
@@ -53,6 +54,7 @@ class CuttingBatch:
         self.wrench_queue = self.feedback['sensor_wrench'][:, None].repeat(1, 25, 1)
         self.target = torch.as_tensor(episode['target_pose'][0], device=self.device, dtype=self.dtype)[None].repeat(worlds, 1)
         self.reference_start = self.frames[self.chain.tip].clone()
+        self.set_reference_trajectory(reference_trajectory)
         self.force_limits = torch.tensor(task['controller']['max_force_torque'], device=self.device, dtype=self.dtype)
         self.desired_wrench = torch.tensor(task['controller']['desired_force_torque'], device=self.device, dtype=self.dtype)[None].expand(worlds, -1)
         self.coupling.previous_pose_base = knife.clone()
@@ -67,6 +69,20 @@ class CuttingBatch:
         self._initial_queue = self.wrench_queue.clone()
         self._initial_previous_knife = knife.clone()
         self.spring_reference = self.material.state_field('cut_spring_ke').clone()
+
+    def set_reference_trajectory(self, trajectory=None):
+        """None restores the scene's constant knife velocity over its duration."""
+        if trajectory is None:
+            trajectory = KnifeTrajectory.constant(
+                self.material.reference_linear_velocity.reshape(-1, 3)[0].to(self.dtype),
+                self.material.reference_duration, kind='scene_constant_velocity')
+        self.reference_trajectory = trajectory
+
+    def reference_target(self, time):
+        """Controller target after ``time`` seconds of the DiSECt-frame knife trajectory."""
+        target = self.reference_start.clone()
+        target[:, :3] += self.reference_trajectory.displacement(time, self.coupling.base_from_disect[3:])
+        return target
 
     def _feedback(self, raw):
         return self.coupling.feedback(self.material.state_field('knife_f').to(self.dtype),
@@ -198,11 +214,8 @@ class CuttingBatch:
             raise ValueError('Expected one six-component action per environment')
         self.peak.zero_()
         if reference:
-            velocity = quat_apply(self.coupling.base_from_disect[3:], self.material.reference_linear_velocity.to(self.dtype))
-            target = self.reference_start.clone()
             dt = self.task['environment']['agent_control_dt']
-            target[:, :3] += velocity * (self.sim_time + dt).clamp(max=self.material.reference_duration)[:, None]
-            args = {'target_pose': target}
+            args = {'target_pose': self.reference_target(self.sim_time + dt)}
         else:
             args = self.mapper(action, self.target, self.frames[self.chain.tip])
         collision = torch.zeros(self.worlds, dtype=torch.bool, device=self.device)

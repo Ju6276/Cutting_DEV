@@ -322,3 +322,26 @@ entry. All model tensors must be finite. The copy adds only
 checked for exact equality after saving and loading. The unchanged strict
 loader then validates the copy. Checkpoints containing policy or critic updates
 under the previous terminal rule retain the existing rejection.
+
+## Trajectory baselines
+
+Sources: backend reference branch (`CuttingBatch.step(reference=True)`);
+DiSECt `SlicingMotion` and NVlabs
+[`optimize_slicing.py`](https://github.com/NVlabs/DiSECt/blob/main/examples/optimize_slicing.py),
+run through the DiSECt-Optimization wrapper (`372e8ac`).
+
+| Item | Source | Cutting implementation |
+|---|---|---|
+| Reference target | Constant DiSECt-frame knife velocity `v` for the scene duration `T`: target = reset tip + `R v min(t + dt, T)` | `KnifeTrajectory`: piecewise-constant DiSECt-frame velocities; target = reset tip + `sum_i R v_i (clamp(t + dt, t_i, t_i+1) - t_i)`. The default is the one-interval scene trajectory (`v = (0, -0.05, 0)` m/s, `T = 1.3` s); velocities are rotated before integration, so its targets are bit-identical to the previous formula |
+| Frame | `R` = rotation of the fixed URDF transform `b_bot_base_link -> cutting_board_disect` | Same `coupling.base_from_disect`; DiSECt -y maps to base -z |
+| Execution | Same compliance controller, coupling and task heads | Unchanged; the 6-D action mapper is bypassed and the recorded action is zero |
+| DiSECt motion | Velocity `v_y = sum_k w_k(t) p_k`, `v_z = sin(f t) sum_k w_k(t) a_k`, `w_k = exp(-(t - t_k)^2 / 0.02)`, five waypoints over 0.6 s, evaluated at each 1e-5 s substep | Exported as 600 intervals of 1 ms, each the mean of its substep velocities (float64; DiSECt evaluates in float32). Against the recorded free-knife positions the exported displacement differs by at most 1.1e-5 m |
+| Start pose | Free knife at (0, 0.0895, 0) m, identity rotation | The trajectory is applied as a displacement from the robot's reset knife: (0, 0.08822, 4.9e-5) m in the DiSECt frame, rotation about x by 6.7e-4 rad |
+| Time | DiSECt time from 0 to 0.6 s, knife free of the robot | Episode simulated time; after 0.6 s the target holds, and the episode continues until SliceIt success, a force/workspace terminal or 500 steps |
+
+The trajectory is open loop: tracking error and force feedback in the compliance
+controller decide the knife's actual path. Determinism: two runs of the identical
+default reference at `71be9ec` differ in the last digits (peak 9.9746 vs 9.9763 N,
+return 80.2903 vs 80.2899; both 40 steps, 288 springs) because the material uses
+FP32 atomic force sums, so bit identity is tested on controller targets, not on
+whole rollouts.
