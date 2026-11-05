@@ -1,4 +1,6 @@
 """Streaming replay writes with state-aligned terminal labels."""
+from pathlib import Path
+
 import torch
 
 from .sequence_replay import SequenceReplay
@@ -38,6 +40,22 @@ class BatchedOnlineReplay:
         self.ids = torch.arange(worlds, device=device)
         self.frame = torch.zeros(worlds, dtype=torch.long, device=device)
         self.episode = torch.zeros_like(self.frame)
+
+    def state_dict(self):
+        return {'buffer': self.buffer.state_dict(), 'frame': self.frame.cpu(),
+                'episode': self.episode.cpu()}
+
+    def load_state_dict(self, saved):
+        self.buffer.load_state_dict(saved['buffer'])
+        self.frame.copy_(saved['frame'].to(self.frame.device))
+        self.episode.copy_(saved['episode'].to(self.episode.device))
+
+    def save(self, path, **metadata):
+        """Atomic replay snapshot; online data otherwise exists only in device memory."""
+        path = Path(path)
+        temp = path.with_name(path.name + '.tmp')
+        torch.save({**self.state_dict(), **metadata}, temp)
+        temp.replace(path)
 
     @torch.no_grad()
     def add(self, state, clean, executed, goal, reward, next_state, terminated, truncated):

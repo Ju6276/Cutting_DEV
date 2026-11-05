@@ -12,6 +12,36 @@ class MaskedWindowBatch(WindowBatch):
 
 
 class SequenceReplay(ReplayBuffer):
+    tensors = ('s', 'a', 'a_exec', 'xi', 'r', 'done', 'frame', 'clip', 'ep_id',
+               'terminal', 'ep_start', 'valid', 'ptr', 'ep_counter')
+
+    @torch.no_grad()
+    def state_dict(self):
+        """Complete ring contents on CPU; rows never written are omitted when no world wrapped."""
+        rows = self.T if bool((self.valid[:, -1]).any()) else max(int(self.ptr.max()), 1)
+        data = {name: getattr(self, name).cpu() for name in self.tensors}
+        for name in self.tensors[:12]:
+            data[name] = data[name][:, :rows].clone()
+        return {'format': 'sequence_replay_v1', 'capacity': self.T, 'rows': rows,
+                'total_rows': self.total_rows, 'tensors': data}
+
+    @torch.no_grad()
+    def load_state_dict(self, saved):
+        if saved.get('format') != 'sequence_replay_v1' or saved['capacity'] != self.T:
+            raise ValueError('Replay format or capacity differs')
+        rows = saved['rows']
+        for name in self.tensors:
+            value = saved['tensors'][name].to(self.device)
+            target = getattr(self, name)
+            if name in self.tensors[:12]:
+                if value.shape[0] != self.E or value.shape[2:] != target.shape[2:]:
+                    raise ValueError('Replay tensor shape differs: ' + name)
+                target.zero_() if name != 'ep_id' else target.fill_(-1)
+                target[:, :rows] = value
+            else:
+                target.copy_(value)
+        self.total_rows = saved['total_rows']
+
     @torch.no_grad()
     def window_lengths(self, k):
         if not 1 <= k < self.T:

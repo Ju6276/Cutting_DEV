@@ -18,7 +18,7 @@ from cutting_world_model.policy import SliceItPolicy, SliceItCritic
 from cutting_world_model.provenance import git_revision
 from cutting_world_model.control_state import ControlStateSpec
 from cutting_world_model.lifecycle import finalize_training
-from cutting_world_model.trainer import OnlineLearner
+from cutting_world_model.trainer import CRITIC_TARGETS, OnlineLearner
 from cutting_world_model.tracking import ExperimentTracker
 from cutting_world_model.world_model import CuttingWorldModel
 from third_party.supermimic.schedule import cosine_lr
@@ -50,9 +50,22 @@ def main():
     parser.add_argument('--wandb-project', default='sliceit-supermimic')
     parser.add_argument('--wandb-entity')
     parser.add_argument('--wandb-mode', choices=('online', 'offline', 'disabled'), default='online')
+    parser.add_argument('--critic-target', choices=CRITIC_TARGETS, default='imagined',
+                        help="'imagined': source GAE targets on imagined rollouts; "
+                             "'real': GAE targets on recorded replay windows")
+    parser.add_argument('--critic-reset', action='store_true',
+                        help="With --resume and --critic-target real: discard the saved critic")
+    parser.add_argument('--critic-prefit-rounds', type=int, default=0,
+                        help='Real-target critic updates on refilled replay before the next policy update')
+    parser.add_argument('--critic-microbatch', type=int,
+                        help='Storage chunk for real-target critic minibatches (default: --microbatch)')
     args = parser.parse_args()
     if args.wm_only_updates < 0:
         parser.error("--wm-only-updates must be nonnegative")
+    if args.critic_reset and (args.critic_target != 'real' or not args.resume):
+        parser.error('--critic-reset requires --resume and --critic-target real')
+    if args.critic_prefit_rounds < 0 or (args.critic_reset and args.critic_prefit_rounds < 1):
+        parser.error('--critic-reset requires a positive --critic-prefit-rounds')
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
     started = time.monotonic()
@@ -84,13 +97,17 @@ def run(args, output, status, started):
     policy = SliceItPolicy().to(device)
     critic = SliceItCritic(spec.state_dim).to(device)
     learner = OnlineLearner(wm, policy, critic, args.microbatch,
-                            wm_only_updates=args.wm_only_updates)
+                            wm_only_updates=args.wm_only_updates,
+                            critic_target=args.critic_target,
+                            critic_microbatch=args.critic_microbatch)
     schedule = OnlineSchedule(worlds=args.worlds)
     if args.resume:
         saved = torch.load(args.resume, map_location=device, weights_only=False)
         if saved['metadata'] != metadata:
             raise ValueError('Checkpoint and physical task metadata differ')
-        learner.restore(saved['learner'])
+        learner.restore(saved['learner'], reset_critic=args.critic_reset)
+        if learner.critic_prefit_pending and args.critic_prefit_rounds < 1:
+            raise ValueError('Checkpoint has a pending critic pre-fit; set --critic-prefit-rounds')
         schedule = OnlineSchedule.resume(saved.get('schedule', {}), worlds=args.worlds)
         torch.set_rng_state(saved['torch_rng'].cpu())
         torch.cuda.set_rng_state(saved['cuda_rng'].cpu())
@@ -112,6 +129,9 @@ def run(args, output, status, started):
         'timeout': 'SIGTERM saves last.pt and progress.json',
         'state_dim': spec.state_dim, 'delta_dim': spec.delta_dim,
         'replay_capacity_per_world': schedule.replay_capacity,
+        'critic_variant': learner.critic_variant(),
+        'critic_microbatch': learner.critic_microbatch,
+        'replay_snapshot': 'replay.pt rewritten with every checkpoint',
     }
     write_json(output / 'manifest.json', manifest)
     tracker = ExperimentTracker(output, manifest, args.wandb_project, args.wandb_entity, args.wandb_mode)
@@ -152,6 +172,8 @@ def run(args, output, status, started):
                     'torch_rng': torch.get_rng_state(),
                     'cuda_rng': torch.cuda.get_rng_state(), 'git': revisions}, temp)
         temp.replace(output / name)
+        replay.save(output / 'replay.pt', metadata=metadata, iteration=schedule.iteration,
+                    transitions=schedule.transitions, checkpoint=name)
 
     physical_limit = (None if args.max_iterations is None else
                       schedule.iteration + args.max_iterations)
@@ -213,6 +235,14 @@ def run(args, output, status, started):
                 wm_metrics = learner.fit_world_model(replay.buffer)
                 timing['world_model'] += time.monotonic() - tick
                 policy_metrics = {}
+                if learner.should_update_policy and learner.critic_prefit_pending:
+                    tick = time.monotonic()
+                    for index, row in enumerate(learner.prefit_critic(replay.buffer,
+                                                                      args.critic_prefit_rounds)):
+                        append_json(output / 'critic_prefit.jsonl', {'round': index + 1, **row})
+                        tracker.log({'critic_prefit/' + k: v for k, v in row.items()})
+                    timing['critic_prefit'] = time.monotonic() - tick
+                    checkpoint('critic_prefit_complete.pt')
                 if learner.should_update_policy:
                     tick = time.monotonic()
                     policy_metrics = learner.improve_policy(replay.buffer)

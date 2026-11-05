@@ -345,3 +345,59 @@ default reference at `71be9ec` differ in the last digits (peak 9.9746 vs 9.9763 
 return 80.2903 vs 80.2899; both 40 steps, 288 springs) because the material uses
 FP32 atomic force sums, so bit identity is tested on controller targets, not on
 whole rollouts.
+
+## Variant `critic_target=real`
+
+`source` (`--critic-target imagined`, default) fits the critic on GAE targets
+computed along the 32-step WM-imagined rollouts of each policy update. Measured
+(ANALYSIS, RESULTS): full-episode WM position error 5–7 mm exceeds the 2 mm
+goal-z threshold, imagined terminal events are wrong, and the policy62 critic
+has held-out return MAE ~153. Run C1 (`runs/critic_real_c1_20261105`, outside
+Git) fitted a fresh source critic on recorded windows of the same data: held-out
+MAE 10.9, max |target| 103.5.
+
+`--critic-target real` changes only the critic's training data. The actor
+objective, its BPTT through the WM and its `gamma^H * survival_H * V(s_H)`
+bootstrap are unchanged. Each critic update draws episode-bounded H=32 windows
+from the real `SequenceReplay` (`sample_windows`: recorded reward, terminal
+label and valid-step mask) and applies the source GAE recursion
+(`gamma 0.99, lambda 0.95`) per window: a window with L recorded steps uses
+`R_L = V(s_L)`, as the source uses `R_H = V_H`. A natural terminal (`done=1`)
+on the entering transition keeps that reward once and removes all later value
+(absorbing); a time truncation bootstraps from the recorded truncation state.
+Padding steps after the window end are excluded from the loss. With all steps
+valid the recursion is bit-identical to `gae_targets` (`masked_gae_targets`).
+
+Data size: the source fits each update on `batch_size x horizon = 4096 x 32 =
+131072` imagined states. Recorded windows stop at episode ends (a successful
+cut lasts 20 steps), so batches of 4096 windows are drawn until their valid steps
+reach 131072, and a uniform subset of exactly 131072 (state, goal, target)
+triples is kept. Critic network, inputs, Adam (lr 2e-4), 5 epochs x 4 shuffled
+minibatches and grad clip 1.0 are the source settings. `--critic-microbatch`
+only chunks the gradient accumulation of a minibatch (default `--microbatch`).
+Values for the targets come from the critic before the update, as in the source.
+
+Starting from an existing checkpoint, `--critic-reset --critic-prefit-rounds N`
+keeps the freshly initialized critic and Adam state instead of the saved critic,
+and runs N real-target critic updates on the refilled replay before the next
+policy update (each round: one data draw plus 5 x 4 Adam steps). This pre-fit is
+part of the variant: a critic trained on imagined targets is biased by ~−150
+and would otherwise bootstrap the actor during the first updates.
+
+Checkpoints store `learner.critic_variant = {target, reset_update,
+prefit_rounds, prefit_pending}`. Resuming with a different `--critic-target`
+is rejected; checkpoints without the field are treated as `imagined`. Critic
+optimizer counts are validated against `updates - reset_update + prefit_rounds`
+critic rounds, and a pending pre-fit blocks policy updates until it is run.
+In this variant, `policy/critic_target_*`, `critic_value_mean` and
+`critic_value_target_mae` describe the real targets; imagined-target means are
+logged as `policy/imag_critic_*` diagnostics only.
+
+Every GPU checkpoint also rewrites `replay.pt` atomically with the complete
+replay ring (states, actions, rewards, labels, episode ids, pointers; unwritten
+rows are omitted while no world has wrapped), so online data survive the run.
+`BatchedOnlineReplay.load_state_dict` restores it exactly.
+
+Related methods train value functions from real transitions while using a model
+for policy improvement or target expansion (MVE, STEVE, MAAC); this variant is
+an adaptation of the SuperMimic source to the cutting task, not a novelty claim.
