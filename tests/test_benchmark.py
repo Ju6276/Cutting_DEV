@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 import torch
 
-from cutting_world_model.benchmark import ConstantPolicy, check_contract, evaluate
+from cutting_world_model.benchmark import ConstantPolicy, ReferencePolicy, check_contract, evaluate
 
 
 class Clock:
@@ -134,3 +134,24 @@ def test_reset_change_is_rejected(tmp_path):
     env.reset = changed_reset
     with pytest.raises(ValueError, match='Physical reset changed cut_spring_ke'):
         evaluate(env, ConstantPolicy(), tmp_path, 1, 100., clock)
+
+
+def test_reference_method_uses_the_reference_control_branch(tmp_path):
+    clock = Clock()
+    branches = []
+
+    def recording_episode():
+        env = PhysicalEpisode(clock, 'success')
+        original = env.step
+        def step(action, reference=False):
+            branches.append(reference)
+            return original(action)
+        env.step = step
+        return env
+
+    report = evaluate(recording_episode(), ReferencePolicy(), tmp_path / 'reference', 1, 100., clock)
+    assert branches == [True, True] and report['control_branch'] == 'knife_reference'
+    assert report['successes'] == 1 and report['episodes'][0]['steps'] == 2
+    branches.clear()
+    report = evaluate(recording_episode(), ConstantPolicy(), tmp_path / 'constant', 1, 100., clock)
+    assert branches == [False, False] and report['control_branch'] == 'policy_action'

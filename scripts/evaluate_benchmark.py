@@ -15,7 +15,8 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from cutting_world_model.benchmark import (
-    ConstantPolicy, WorldModelPolicy, check_contract, evaluate, physical_contract, write_json,
+    ConstantPolicy, ReferencePolicy, WorldModelPolicy, check_contract, evaluate, file_digest,
+    physical_contract, write_json,
 )
 from cutting_world_model.provenance import git_revision
 
@@ -51,7 +52,7 @@ class SACPolicy:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--method', choices=('constant-zero', 'supermimic', 'sac'), required=True)
+    parser.add_argument('--method', choices=('constant-zero', 'reference', 'supermimic', 'sac'), required=True)
     parser.add_argument('--backend-root', type=Path, default=ROOT / 'backends/mujoco')
     parser.add_argument('--contract', type=Path, default=ROOT / 'configs/public_prism/benchmark.json')
     parser.add_argument('--checkpoint', type=Path)
@@ -62,10 +63,15 @@ def main():
     parser.add_argument('--sac-python', type=Path)
     parser.add_argument('--sliceit-root', type=Path)
     parser.add_argument('--sac-config', type=Path)
+    parser.add_argument('--trajectory', type=Path,
+                        help='Reference knife trajectory (cutting-knife-velocity-v1 JSON); '
+                             'default is the scene constant-velocity reference')
     args = parser.parse_args()
     if args.episodes < 1 or not 0 < args.wall_seconds < float('inf'):
         parser.error('Episodes and finite wall budget must be positive')
-    if args.method != 'constant-zero' and args.checkpoint is None:
+    if args.trajectory is not None and args.method != 'reference':
+        parser.error('--trajectory applies to --method reference')
+    if args.method not in ('constant-zero', 'reference') and args.checkpoint is None:
         parser.error('Learned policies require --checkpoint')
     if args.method == 'sac' and any(value is None for value in
                                   (args.sac_python, args.sliceit_root, args.sac_config)):
@@ -82,6 +88,7 @@ def main():
                 'requested_episodes': args.episodes, 'action_noise_std': 0.,
                 'wall_budget_seconds': args.wall_seconds,
                 'checkpoint': str(args.checkpoint.resolve()) if args.checkpoint else None,
+                'control_branch': 'knife_reference' if args.method == 'reference' else 'policy_action',
                 'runtime': {'python': platform.python_version(),
                             'packages': {name: importlib.metadata.version(name) for name in
                                          ('torch', 'numpy', 'mujoco', 'mujoco-warp', 'warp-lang')},
@@ -102,6 +109,17 @@ def main():
         elif args.method == 'sac':
             policy = SACPolicy(args, env)
             manifest['sac_actor'] = policy.process.metadata
+        elif args.method == 'reference':
+            from cutting_gpu_backend.reference import KnifeTrajectory
+            trajectory = KnifeTrajectory.load(args.trajectory) if args.trajectory else None
+            env.physics.set_reference_trajectory(trajectory)
+            trajectory = env.physics.reference_trajectory
+            manifest['trajectory'] = {
+                'path': str(args.trajectory.resolve()) if args.trajectory else None,
+                'sha256': file_digest(args.trajectory) if args.trajectory else None,
+                'values_sha256': trajectory.digest(), 'intervals': len(trajectory.linear_velocity),
+                'duration_seconds': trajectory.duration, 'source': trajectory.metadata}
+            policy = ReferencePolicy()
         else:
             policy = ConstantPolicy()
         manifest['setup_seconds'] = time.monotonic() - started

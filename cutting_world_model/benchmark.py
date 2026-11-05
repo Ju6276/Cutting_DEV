@@ -91,6 +91,14 @@ class ConstantPolicy:
         return True
 
 
+class ReferencePolicy(ConstantPolicy):
+    """Prescribed knife trajectory: the backend reference branch sets the controller target.
+
+    The recorded six-component action is zero; the 6-D action mapper is bypassed.
+    """
+    reference = True
+
+
 class WorldModelPolicy:
     def __init__(self, checkpoint, env):
         from .control_state import ControlStateSpec
@@ -133,6 +141,8 @@ def evaluate(env, policy, output, episodes, deadline, clock=time.monotonic):
               'optimizer_updates': 0, 'inference_seconds': 0., 'physics_seconds': 0.,
               'reset_seconds': 0.}
     write_json(output / 'progress.json', report)
+    reference = bool(getattr(policy, 'reference', False))
+    report['control_branch'] = 'knife_reference' if reference else 'policy_action'
     initial = copy_frame(env.current)
     row = None
     states = []
@@ -176,7 +186,8 @@ def evaluate(env, policy, output, episodes, deadline, clock=time.monotonic):
                 if clock() >= deadline:
                     break
                 tick = clock()
-                frame, reward, terminated, truncated, info = env.step(action)
+                frame, reward, terminated, truncated, info = (
+                    env.step(action, reference=True) if reference else env.step(action))
                 synchronize(env.device)
                 report['physics_seconds'] += clock() - tick
                 states.append(copy_frame(frame))

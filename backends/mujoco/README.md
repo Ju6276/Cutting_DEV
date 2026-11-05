@@ -17,7 +17,9 @@ From the repository root:
 ```
 
 This executes the reference motion through the complete robot/controller/material
-loop and records task termination, force and timing. A robot-only throughput
+loop and records task termination, force and timing. `CuttingBatch` accepts a
+time-varying DiSECt-frame knife trajectory (`cutting_gpu_backend/reference.py`);
+the default is the scene's constant-velocity reference. A robot-only throughput
 measurement is available through `scripts/benchmark_ur5e.py` in this backend;
 it excludes controller and material integration.
 
