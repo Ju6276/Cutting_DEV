@@ -42,7 +42,7 @@ def test_known_task_terminal_is_absorbing_even_when_classifier_predicts_survival
             return new, reward, torch.full((1,), -100.)
 
     predictor = Predictor()
-    learner = SimpleNamespace(wm=predictor, pcfg=SimpleNamespace(horizon=4),
+    learner = SimpleNamespace(wm=predictor, pcfg=SimpleNamespace(horizon=4), actor_horizon=4,
                               policy=lambda history, target: torch.zeros((1, 6)))
     ro = OnlineLearner.imagine(learner, state, state[None].repeat(10, 1, 1), goal)
     values = torch.full((5, 1), -10000.)

@@ -324,3 +324,52 @@ def test_replay_snapshot_round_trip(tmp_path):
     torch.manual_seed(1)
     b = restored.buffer.sample_windows(16, 3)
     assert torch.equal(a.states, b.states) and torch.equal(a.valid_steps, b.valid_steps)
+
+
+def test_model_state_samples_are_wm_predictions_of_recorded_states_with_real_targets():
+    learner, replay = make_learner('real_wm', horizon=8)
+    torch.manual_seed(13)
+    batch = replay.sample_windows(16, 8)
+    states, goals, targets, _ = learner.real_window_targets(batch)
+    full = learner._last_window_targets
+    model_states, model_goals, model_targets, _ = learner.model_state_targets(batch, full)
+    expected_states, expected_targets = [], []
+    for w in range(batch.states.shape[1]):
+        state = batch.states[0, w][None]
+        for j in range(1, int(batch.valid_steps[:, w].sum())):
+            with torch.no_grad():
+                state, _, _ = learner.wm.step(state, batch.a_exec[j - 1, w][None], batch.xi[w][None])
+            expected_states.append((j, w, state[0]))
+            expected_targets.append((j, w, float(full[j, w])))
+    order = sorted(range(len(expected_states)), key=lambda i: expected_states[i][:2])
+    assert len(model_states) == len(order) > 0
+    torch.testing.assert_close(model_states, torch.stack([expected_states[i][2] for i in order]),
+                               atol=1e-5, rtol=1e-5)
+    torch.testing.assert_close(model_targets, torch.tensor([expected_targets[i][2] for i in order]))
+    assert torch.equal(model_goals, torch.stack([batch.xi[expected_states[i][1]] for i in order]))
+    (data, metrics) = learner.real_critic_data(replay)
+    assert len(data[2]) == learner.pcfg.batch_size * learner.pcfg.horizon
+    assert 0 < metrics['critic_model_state_fraction'] < 1
+
+
+def test_actor_horizon_shortens_imagination_and_is_recorded():
+    learner, replay = make_learner('real_wm', horizon=3, actor_horizon=2)
+    starts = replay.sample_starts(4, learner.pcfg.history)
+    ro = learner.imagine(starts.state, starts.hist_states, starts.xi)
+    assert ro.rewards.shape[0] == 2 and ro.states.shape[0] == 3
+    learner.improve_policy(replay)
+    saved = deepcopy(learner.checkpoint())
+    assert saved['actor_horizon'] == 2
+    other, _ = make_learner('real_wm', horizon=3)
+    with pytest.raises(ValueError, match='horizon differs'):
+        other.restore(deepcopy(saved))
+    same, _ = make_learner('real_wm', horizon=3, actor_horizon=2)
+    same.restore(saved)
+    with pytest.raises(ValueError, match='actor_horizon'):
+        make_learner('real', horizon=3, actor_horizon=4)
+    # A critic reset may start a new horizon from a source checkpoint.
+    source, source_replay = make_learner('imagined', horizon=3)
+    source.improve_policy(source_replay)
+    start, _ = make_learner('real_wm', horizon=3, actor_horizon=2)
+    start.restore(deepcopy(source.checkpoint()), reset_critic=True)
+    assert start.actor_horizon == 2 and start.critic_prefit_pending

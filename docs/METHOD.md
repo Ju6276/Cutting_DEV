@@ -401,3 +401,26 @@ rows are omitted while no world has wrapped), so online data survive the run.
 Related methods train value functions from real transitions while using a model
 for policy improvement or target expansion (MVE, STEVE, MAAC); this variant is
 an adaptation of the SuperMimic source to the cutting task, not a novelty claim.
+
+## Variant `critic_target=real_wm` with `actor_horizon`
+
+Measured on the held-out episodes of `wm_frozen_fit_20261105` with frozen
+policy62/WM562 (`runs/critic_real_c3_20261105/{horizon_probe,drift_probe,field_probe}.py`):
+450 of 648 imagined H32 paths end in a workspace failure although every physical
+episode succeeds; at least 365 of these occur at or after the step where the physical cut ended,
+because the 2 mm goal-z success is missed. All paths terminate, so the H32
+bootstrap weight is zero and the source actor objective is biased by −139 relative
+to physical returns. Shortening the horizon alone does not help with a critic
+fitted only on recorded states: one WM step changes the C1 critic by −638 on
+average, almost entirely through the finite-difference `previous_acceleration`
+field (prediction error 14 data standard deviations).
+
+`--critic-target real_wm` keeps the `real` targets and adds, for every sampled
+window, the current WM's open-loop predictions of the recorded states s_{t+j}
+(j ≥ 1, recorded executed actions from s_t), each paired with the recorded
+target of s_{t+j}. The pool of recorded and predicted samples is subsampled to
+the same 131072 samples per update. `--actor-horizon h` sets the number of
+imagined steps of the actor objective and its `gamma^h c_h V(s_h)` bootstrap
+(default: the source 32); the critic windows keep H=32. Checkpoints record
+`actor_horizon`; a resume with a different horizon is rejected unless it starts
+the variant with `--critic-reset`.

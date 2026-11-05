@@ -52,7 +52,10 @@ def main():
     parser.add_argument('--wandb-mode', choices=('online', 'offline', 'disabled'), default='online')
     parser.add_argument('--critic-target', choices=CRITIC_TARGETS, default='imagined',
                         help="'imagined': source GAE targets on imagined rollouts; "
-                             "'real': GAE targets on recorded replay windows")
+                             "'real': GAE targets on recorded replay windows; "
+                             "'real_wm': also on WM open-loop predictions of those states")
+    parser.add_argument('--actor-horizon', type=int,
+                        help='Imagination/BPTT steps of the actor objective (default: source 32)')
     parser.add_argument('--critic-reset', action='store_true',
                         help="With --resume and --critic-target real: discard the saved critic")
     parser.add_argument('--critic-prefit-rounds', type=int, default=0,
@@ -62,8 +65,8 @@ def main():
     args = parser.parse_args()
     if args.wm_only_updates < 0:
         parser.error("--wm-only-updates must be nonnegative")
-    if args.critic_reset and (args.critic_target != 'real' or not args.resume):
-        parser.error('--critic-reset requires --resume and --critic-target real')
+    if args.critic_reset and (args.critic_target == 'imagined' or not args.resume):
+        parser.error('--critic-reset requires --resume and a real-data --critic-target')
     if args.critic_prefit_rounds < 0 or (args.critic_reset and args.critic_prefit_rounds < 1):
         parser.error('--critic-reset requires a positive --critic-prefit-rounds')
     output = args.output.resolve()
@@ -99,7 +102,8 @@ def run(args, output, status, started):
     learner = OnlineLearner(wm, policy, critic, args.microbatch,
                             wm_only_updates=args.wm_only_updates,
                             critic_target=args.critic_target,
-                            critic_microbatch=args.critic_microbatch)
+                            critic_microbatch=args.critic_microbatch,
+                            actor_horizon=args.actor_horizon)
     schedule = OnlineSchedule(worlds=args.worlds)
     if args.resume:
         saved = torch.load(args.resume, map_location=device, weights_only=False)
@@ -130,7 +134,7 @@ def run(args, output, status, started):
         'state_dim': spec.state_dim, 'delta_dim': spec.delta_dim,
         'replay_capacity_per_world': schedule.replay_capacity,
         'critic_variant': learner.critic_variant(),
-        'critic_microbatch': learner.critic_microbatch,
+        'critic_microbatch': learner.critic_microbatch, 'actor_horizon': learner.actor_horizon,
         'replay_snapshot': 'replay.pt rewritten with every checkpoint',
     }
     write_json(output / 'manifest.json', manifest)

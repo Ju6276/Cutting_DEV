@@ -25,7 +25,7 @@ def optimizer_step_count(states):
     return max((int(state['step']) for state in states.values() if 'step' in state), default=0)
 
 
-CRITIC_TARGETS = ('imagined', 'real')
+CRITIC_TARGETS = ('imagined', 'real', 'real_wm')
 
 
 @torch.no_grad()
@@ -50,13 +50,19 @@ def masked_gae_targets(rewards, done_next, values, valid, gamma, lam):
 
 class OnlineLearner:
     def __init__(self, wm, policy, critic, microbatch=64, wm_cfg=None, policy_cfg=None,
-                 wm_only_updates=500, critic_target='imagined', critic_microbatch=None):
+                 wm_only_updates=500, critic_target='imagined', critic_microbatch=None,
+                 actor_horizon=None):
         if type(wm_only_updates) is not int or wm_only_updates < 0:
             raise ValueError('wm_only_updates must be a nonnegative integer')
         if critic_target not in CRITIC_TARGETS:
             raise ValueError('critic_target must be one of ' + ', '.join(CRITIC_TARGETS))
-        # 'imagined' is the source variant; 'real' fits the critic on recorded replay windows.
+        # 'imagined' is the source variant; 'real' fits the critic on recorded replay windows;
+        # 'real_wm' adds WM open-loop predictions of the recorded states with the same targets.
         self.critic_target = critic_target
+        horizon = (policy_cfg or PolicyTrainerCfg()).horizon
+        self.actor_horizon = horizon if actor_horizon is None else actor_horizon
+        if type(self.actor_horizon) is not int or not 1 <= self.actor_horizon <= horizon:
+            raise ValueError('actor_horizon must be an integer in [1, policy horizon]')
         # Storage-only chunking of real-target critic minibatches; effective minibatches are unchanged.
         self.critic_microbatch = critic_microbatch or microbatch
         # Critic optimizer history after a deliberate critic reinitialization (variant 'real').
@@ -142,7 +148,7 @@ class OnlineLearner:
         survival = torch.ones(state.shape[0], device=state.device)
         absorbed = torch.zeros(state.shape[0], dtype=torch.bool, device=state.device)
         states, rewards, probabilities, survivals, actions = [state], [], [survival * 0], [survival], []
-        for _ in range(cfg.horizon):
+        for _ in range(self.actor_horizon):
             action = self.policy(history, goal)
             next_state, reward, logits = self.wm.predict(state, action, goal)
             collision = (spec.field(next_state, 'peak_wrench') > spec.force_limits).any(-1)
@@ -189,7 +195,7 @@ class OnlineLearner:
                 ro = self.imagine(starts.state[part], starts.hist_states[:, part], goal)
                 terminal = self.critic_values(ro.states[-1], goal) if cfg.use_critic else None
                 objective = policy_objective(ro, terminal, cfg.gamma)
-                loss = -objective * weight / cfg.horizon
+                loss = -objective * weight / self.actor_horizon
                 if not torch.isfinite(loss):
                     raise FloatingPointError('Non-finite policy objective')
                 loss.backward()
@@ -200,7 +206,7 @@ class OnlineLearner:
                     discounted_reward = policy_objective(ro, None, cfg.gamma)
                     bootstrap = discounted_reward.new_zeros(())
                     if cfg.use_critic:
-                        bootstrap = ((cfg.gamma ** cfg.horizon) * ro.survival[-1] * terminal).mean()
+                        bootstrap = ((cfg.gamma ** self.actor_horizon) * ro.survival[-1] * terminal).mean()
                     spec = self.wm.spec
                     collision = (spec.field(ro.states[1:], 'peak_wrench') > spec.force_limits).any(-1)
                     analytic_done, _, _, _ = spec.heads.termination(
@@ -208,7 +214,7 @@ class OnlineLearner:
                         spec.field(ro.states[:-1], 'success_counter'), collision)
                     if cfg.use_critic and self.critic_target == 'imagined':
                         states = ro.states[:-1].detach().cpu()
-                        goals = goal[None].expand(cfg.horizon, -1, -1).cpu()
+                        goals = goal[None].expand(self.actor_horizon, -1, -1).cpu()
                         critic_data.append((states, goals, targets.cpu()))
                     measures = {
                         'imag_objective': objective.detach(),
@@ -298,7 +304,31 @@ class OnlineLearner:
         values = values.view(steps + 1, n)
         targets = masked_gae_targets(batch.reward, batch.done, values, valid,
                                      cfg.gamma, cfg.gae_lambda)
+        self._last_window_targets = targets
         return batch.states[:-1][valid], goals[:-1][valid], targets[valid], values[:-1][valid]
+
+    @torch.no_grad()
+    def model_state_targets(self, batch, targets):
+        """Variant 'real_wm': WM open-loop predictions of recorded states with their real targets.
+
+        From each window start s_t the current WM is rolled out with the recorded executed
+        actions; the prediction of s_{t+j} (j >= 1, a valid transition start) receives the
+        recorded-window target of s_{t+j}. The actor bootstraps the critic on WM states, so
+        the critic is fitted where it is queried while its targets stay physical.
+        """
+        valid = batch.valid_steps
+        steps = valid.shape[0]
+        state, predictions = batch.states[0], []
+        for t in range(steps - 1):
+            state, _, _ = self.wm.predict(state, batch.a_exec[t], batch.xi)
+            predictions.append(state)
+        predicted = torch.stack(predictions)  # predicted[j] estimates states[j + 1]
+        mask = valid[1:]
+        goals = batch.xi[None].expand(steps - 1, -1, -1)
+        states = predicted[mask]
+        values = torch.cat([self.critic_values(states[part], goals[mask][part])
+                            for part in chunks(len(states), self.critic_microbatch)])
+        return states, goals[mask], targets[1:][mask], values
 
     @torch.no_grad()
     def real_critic_data(self, buffer):
@@ -310,17 +340,25 @@ class OnlineLearner:
         """
         cfg = self.pcfg
         need = cfg.batch_size * cfg.horizon
-        parts, count, windows, terminals = [], 0, 0, 0.
+        parts, count, windows, terminals, model_count = [], 0, 0, 0., 0
         while count < need:
             self.progress(phase="critic_data", samples=count, required=need)
             batch = buffer.sample_windows(cfg.batch_size, cfg.horizon)
-            parts.append(self.real_window_targets(batch))
-            count += len(parts[-1][2])
+            part = self.real_window_targets(batch)
+            source = torch.zeros(len(part[2]), dtype=torch.bool, device=part[2].device)
+            if self.critic_target == 'real_wm':
+                model = self.model_state_targets(batch, self._last_window_targets)
+                part = tuple(torch.cat(pair) for pair in zip(part, model))
+                source = torch.cat((source, torch.ones(len(model[2]), dtype=torch.bool,
+                                                       device=source.device)))
+                model_count += len(model[2])
+            parts.append((*part, source))
+            count += len(part[2])
             windows += cfg.batch_size
             terminals += float(torch.where(batch.valid_steps, batch.done, 0.).sum())
-        data = [torch.cat([part[i] for part in parts]) for i in range(4)]
+        data = [torch.cat([part[i] for part in parts]) for i in range(5)]
         keep = torch.randperm(count, device=data[2].device)[:need]
-        states, goals, targets, values = [value[keep] for value in data]
+        states, goals, targets, values, model_state = [value[keep] for value in data]
         if not torch.isfinite(targets).all():
             raise FloatingPointError('Non-finite recorded critic targets')
         metrics = {
@@ -334,11 +372,17 @@ class OnlineLearner:
             'critic_real_samples': len(targets),
             'critic_real_terminal_labels': terminals,
         }
+        if self.critic_target == 'real_wm':
+            error = (values - targets).abs()
+            metrics.update(critic_model_state_fraction=float(model_state.float().mean()),
+                           critic_model_state_value_target_mae=float(error[model_state].mean()),
+                           critic_recorded_state_value_target_mae=float(error[~model_state].mean()),
+                           critic_model_state_candidates=model_count)
         return (states, goals, targets), metrics
 
     def reset_critic(self, critic_state, optimizer_state):
         """Variant 'real': install a fresh critic/optimizer, pre-fit before the next policy update."""
-        if self.critic_target != 'real':
+        if self.critic_target == 'imagined':
             raise ValueError('Critic reset is part of the real-target variant only')
         self.critic.load_state_dict(critic_state)
         self.copt.load_state_dict(optimizer_state)
@@ -348,7 +392,7 @@ class OnlineLearner:
 
     def prefit_critic(self, buffer, rounds):
         """Real-target critic updates without policy updates; one round equals one critic update."""
-        if self.critic_target != 'real' or not self.critic_prefit_pending:
+        if self.critic_target == 'imagined' or not self.critic_prefit_pending:
             raise RuntimeError('Critic pre-fit requires a pending real-target critic reset')
         if not self.should_update_policy:
             raise RuntimeError('Critic pre-fit requires completion of the world-model-only stage')
@@ -374,6 +418,7 @@ class OnlineLearner:
                 'policy_optimizer': self.popt.state_dict(), 'critic_optimizer': self.copt.state_dict(),
                 'updates': self.updates,
                 'critic_variant': self.critic_variant(),
+                'actor_horizon': self.actor_horizon,
                 'training_stage': {'wm_only_updates': self.wm_only_updates,
                                    'wm_updates': self.wm_updates,
                                    'optimizer_steps': self.optimizer_steps,
@@ -389,11 +434,14 @@ class OnlineLearner:
                                               'prefit_rounds': 0, 'prefit_pending': False})
         if not isinstance(variant, dict) or variant.get('target') not in CRITIC_TARGETS:
             raise ValueError('Checkpoint critic variant is invalid')
-        if reset_critic and self.critic_target != 'real':
+        if reset_critic and self.critic_target == 'imagined':
             raise ValueError('Critic reset is part of the real-target variant only')
         if not reset_critic and variant['target'] != self.critic_target:
             raise ValueError('Checkpoint critic target differs: %s, configured %s'
                              % (variant['target'], self.critic_target))
+        # A critic reset starts a new variant from the saved WM/policy; it may change the horizon.
+        if not reset_critic and data.get('actor_horizon', self.pcfg.horizon) != self.actor_horizon:
+            raise ValueError('Checkpoint actor imagination horizon differs')
         reset_update = variant.get('reset_update')
         prefit_rounds = variant.get('prefit_rounds', 0)
         if reset_update is not None and (type(reset_update) is not int or reset_update < 0
