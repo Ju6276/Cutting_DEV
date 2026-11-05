@@ -10,9 +10,16 @@
 
 - Migrate SuperMimic-Reproduced `ba610534` to the existing SliceIt Gazebo + DiSECt
   UR5e robot/compliance task. Keep the original SAC baseline independent.
-- Preserve source training objectives, update cadence, effective batch sizes,
-  optimizer settings and network widths. Document task-specific interfaces and
-  scale provenance in docs/METHOD.md before changing them.
+- The SuperMimic source configuration stays runnable as the `source` baseline
+  variant: training objectives, update cadence, effective batch sizes, optimizer
+  settings and network widths unchanged. Method changes enter as named variants,
+  one at a time, documented in docs/METHOD.md and compared against `source`.
+  Document task-specific interfaces and scale provenance in METHOD.
+- Every paid run needs an approved plan first: question, hypothesis, setting,
+  metric, decision rule and wall/GPU budget. Docs separate measured results from
+  inferences; search the literature before claiming novelty.
+- All methods are evaluated through `scripts/evaluate_benchmark.py` with matched
+  real-transition and wall budgets (docs/BENCHMARK.md).
 - Keep SliceIt rewards, thresholds, material configuration and physical behavior.
   No scene-specific success shortcuts, damage projection or invented reward head.
 - Short-term loss/reward oscillation and a few weak episodes do not establish
