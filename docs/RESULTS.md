@@ -1,5 +1,17 @@
 # Results
 
+## 2026-11-06 — manual checkpoint scheduling
+
+Base `4364586` + checkpoint callback fix. The callback now lets the source
+runner own automatic saves when a manual request coincides with a periodic
+save, the final iteration, or graceful termination. This removes the duplicate
+filename failure. Actual signal-driven training checks cover all three cases:
+endpoint and SIGTERM each finish at iteration 1 with one checkpoint; the
+periodic-save case resumes iteration 8 and saves iterations 9/10. All three
+reload actions exactly; native terminal mismatches and physical overflow are
+zero. Records: `runs/manipulation_reset/save_at_endpoint`, `save_at_stop`,
+`save_at_periodic`.
+
 ## 2026-11-06 — cutting-stage resets and event gradients
 
 Base `8bcdebb` + stage adapter; upstream `eda7da48`; A6000 GPU 1.

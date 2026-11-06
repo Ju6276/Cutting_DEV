@@ -16,7 +16,7 @@ categories of 64. Actual physical replay, terminal resets, source learning
 updates and checkpoint reload have passed. Complete apple cutting success
 remains the task outcome to establish.
 
-Next run: A6000 GPU 1, 256 environments, fresh source default networks,
+Training configuration: A6000 GPU 1, 256 environments, fresh source default networks,
 1,000 WM-only iterations and 10,000 total iterations, with a 48-hour wall cap.
 The source optimizer, batches, horizons, scheduler and clipping are unchanged.
 The question is whether stage resets and the source learned-model/BPTT loop

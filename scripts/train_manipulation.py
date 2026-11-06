@@ -117,11 +117,16 @@ def main():
     signal.signal(signal.SIGUSR1, request_checkpoint)
     begin = time.monotonic()
     environment = runner = tracking = None
+    end_iteration = None
     exit_code = 0
     def iteration_boundary():
         nonlocal checkpoint_requested
+        should_stop = stop or time.monotonic() - begin >= args.max_hours * 3600
         if checkpoint_requested:
-            runner.save()
+            automatic_save = (should_stop or runner.iteration == end_iteration
+                              or runner.iteration % run.save_interval == 0)
+            if not automatic_save:
+                runner.save()
             checkpoint_requested = False
         write_json(args.output / 'progress.json', {
             'state': 'running', 'iteration': runner.iteration,
@@ -131,7 +136,7 @@ def main():
             'completed_episodes': environment.completed_episodes,
             'successful_episodes': environment.successful_episodes,
             'wall_seconds': time.monotonic() - begin})
-        return stop or time.monotonic() - begin >= args.max_hours * 3600
+        return should_stop
     try:
         with (args.output / 'physics.log').open('w') as physics_log:
             environment = CuttingEnvironment(
@@ -150,6 +155,7 @@ def main():
             runner.logger = CuttingMetricsLogger(runner.logger, environment)
             if args.resume:
                 restore(runner, args.resume.resolve())
+            end_iteration = runner.iteration + run.iterations
             checkpoint, completed = runner.run(stop_requested=iteration_boundary)
             report = {'completed': completed, 'checkpoint': str(checkpoint),
                       'iterations': runner.iteration, 'real_transitions': runner.real_transitions,
