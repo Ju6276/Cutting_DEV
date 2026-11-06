@@ -158,6 +158,52 @@ python scripts/run_sac_training.py --sliceit-root "$SLICEIT_ROOT" \
 SAC uses ROS/Gazebo ports 11321/11355; Gazebo WM uses 11322/11356.
 Keep current running SliceIt processes on their original checkouts.
 
+## Manipulation SuperMimic — UR5e apple
+
+Prepare the apple scene and robot reset with the earlier scene commands. Use
+an independent upstream checkout and its locked environment:
+
+```bash
+export MANIPULATION_ROOT=/dataHDD/dong/Projects/supermimic_manipulation
+git clone https://github.com/emoPointer/supermimic_manipulation "$MANIPULATION_ROOT"
+git -C "$MANIPULATION_ROOT" checkout eda7da480c6d92a68cc41c9628b7efdae08cae23
+(cd "$MANIPULATION_ROOT" && uv sync --locked --extra dev)
+export CUDA_VISIBLE_DEVICES=1
+export XDG_CACHE_HOME=/dataHDD/dong/.cache
+export TMPDIR=/dataHDD/dong/tmp
+"$MANIPULATION_ROOT/.venv/bin/python" scripts/train_manipulation.py \
+  --source-root "$MANIPULATION_ROOT" --physics-python "$PWD/.venv/bin/python" \
+  --worlds 16 --scene runs/apple_native/scene.pt --capture runs/apple_capture \
+  --smoke --max-hours 0.2 --output runs/manipulation_smoke
+```
+
+Paths for scene/capture are relative to `backends/mujoco`. W&B project is
+`cutting-manipulation`; use the account's existing login. Full training omits
+`--smoke`: source defaults use 1,000 WM-only iterations followed by joint
+updates, ending at iteration 10,000; WM/policy batches are 2048/4096 and the
+imagined policy horizon is 16. Set the world count and wall budget before
+launching. SIGTERM/SIGINT requests a save at the next completed iteration.
+`--resume RUN/model_XXXXXX.pt` restores learner/optimizer/counters/RNG;
+physics and replay restart with the source warmup.
+`--iterations N` follows the source runner: execute N additional iterations
+in this invocation, including after resume.
+
+Frozen evaluation uses the common physical benchmark and saved task contract:
+
+```bash
+.venv/bin/python scripts/evaluate_benchmark.py \
+  --method manipulation-supermimic \
+  --manipulation-python "$MANIPULATION_ROOT/.venv/bin/python" \
+  --manipulation-source-root "$MANIPULATION_ROOT" \
+  --checkpoint runs/manipulation_smoke/model_000003.pt \
+  --contract runs/manipulation_smoke/params/benchmark.json \
+  --scene runs/apple_native/scene.pt --capture runs/apple_capture \
+  --wall-seconds 1500 --output runs/manipulation_evaluation
+```
+
+Results include physical return, force, released springs, termination and
+wall time. The full-task reset is enabled; the OmniReset apple bank is pending.
+
 ## Checks
 
 The robot tests also use a standalone import in `runs/model/`. Generate it

@@ -1,0 +1,237 @@
+"""SliceIt task contract for the external supermimic_manipulation learner."""
+from dataclasses import dataclass
+from pathlib import Path
+from types import SimpleNamespace
+
+import torch
+
+from .control_state import ControlStateSpec
+from .sac_gpu_bridge import JsonProcess, clean_python_environment
+
+SOURCE_REVISION = 'eda7da480c6d92a68cc41c9628b7efdae08cae23'
+
+
+@dataclass
+class EnvironmentConfig:
+    metadata: dict
+    scene: str
+    capture: str
+    auto_reset: bool = True
+    is_finite_horizon: bool = True
+
+
+class CuttingMDP:
+    task = 'ur5e_apple'
+    reward_matches_native = True
+    action_dim = 6
+    context_dim = 7
+
+    def __init__(self, metadata, device='cpu'):
+        self.spec = ControlStateSpec(metadata).to(device)
+        self.state_dim = self.spec.state_dim + 1  # Episode clock, advanced analytically.
+        self.delta_dim = self.spec.delta_dim
+        self.obs_dim = self.spec.shapes['observation'][0]
+        self.input_dim = self.spec.dynamics_dim + self.action_dim + self.context_dim
+        self.critic_dim = self.state_dim + self.context_dim + self.obs_dim
+        self.error_floor = torch.full((self.delta_dim,), 1e-3, device=device)
+        for key in ('joint_q', 'joint_qd'):
+            self.error_floor[self.spec.delta_slices[key]] = 1e-2
+
+    def physical(self, state):
+        return torch.cat([self.spec.field(state, key).flatten(1)
+                          for key in self.spec.physical_fields], -1)
+
+    def inputs(self, state, action, context):
+        frames = state[:, :-1].reshape(-1, self.spec.history_length, self.spec.base_dim)
+        history = frames.index_select(-1, self.spec.dynamics_indices).flatten(1)
+        return torch.cat((history, self.spec.execute(action), context), -1)
+
+    def targets(self, state, next_state):
+        return self.physical(next_state) - self.physical(state)
+
+    def state_error(self, prediction, target):
+        return self.physical(prediction) - self.physical(target)
+
+    def integrate(self, state, delta, action, context):
+        old = state[:, :-1]
+        fields = {key: self.spec.field(old, key)
+                  for key in self.spec.physical_fields + self.spec.history_fields}
+        for key in self.spec.physical_fields:
+            fields[key] = fields[key] + delta[:, self.spec.delta_slices[key]].reshape_as(fields[key])
+        new, _, _ = self.spec.derive(old, fields, self.spec.execute(action), context)
+        return torch.cat((new, state[:, -1:] + 1), -1)
+
+    def observe(self, state, context):
+        return self.spec.field(state, 'observation')
+
+    def advance_obs(self, observation, next_state, action, context):
+        return self.observe(next_state, context)
+
+    def reward(self, state, action, next_state, context):
+        observation = self.observe(next_state, context)
+        collision = (self.spec.field(next_state, 'peak_wrench') > self.spec.force_limits).any(-1)
+        done, success, outside, _ = self.spec.heads.termination(
+            observation, self.spec.field(state, 'success_counter'), collision)
+        reward = self.spec.heads.reward(observation, collision, success, outside)
+        # The upstream runner models a finite task horizon, including its timeout.
+        done = done | (next_state[:, -1] >= self.spec.metadata['environment']['steps_per_episode'])
+        return reward, done.float()
+
+    def critic_features(self, state, context, observation):
+        return torch.cat((state, context, observation), -1)
+
+    def contract(self):
+        return {
+            'task': self.task, 'state_dim': self.state_dim, 'delta_dim': self.delta_dim,
+            'input_dim': self.input_dim, 'obs_dim': self.obs_dim,
+            'action_dim': self.action_dim, 'context_dim': self.context_dim,
+            'critic_dim': self.critic_dim, 'history': self.spec.history_length,
+            'predicted_fields': list(self.spec.physical_fields),
+            'delta': 'physical SI increments', 'reward': 'native SliceIt',
+            'finite_horizon_steps': self.spec.metadata['environment']['steps_per_episode'],
+            'error_floor': self.error_floor.tolist(),
+        }
+
+
+class CuttingEnvironment:
+    """Batched physical worker with terminal POST captured before automatic reset."""
+
+    def __init__(self, python, backend_root, *, worlds, scene, capture, device='cuda:0',
+                 timeout=600, log=None):
+        self.device = torch.device(device)
+        self.num_envs = worlds
+        self._reward_sum = 0.0
+        self._transitions = 0
+        self._force_max = 0.0
+        self._return_sum = 0.0
+        self._episodes = 0
+        worker = Path(__file__).resolve().parents[1] / 'scripts/manipulation_gpu_worker.py'
+        self.client = JsonProcess(
+            [python, worker, '--backend-root', backend_root, '--worlds', str(worlds),
+             '--scene', scene, '--capture', capture], timeout=timeout,
+            environment=clean_python_environment(), stderr=log)
+        try:
+            ready = self.client.request('init')
+            self.cfg = EnvironmentConfig(ready['metadata'], str(scene), str(capture))
+            self.mdp = CuttingMDP(ready['model_metadata'], self.device)
+            self.sim = SimpleNamespace(data=SimpleNamespace(overflow=None))
+            self.frame = self._frame(ready['frame'])
+            self.state = self._pack(self.frame)
+            self.context = self.frame['target_pose']
+            self.post = None
+            self.sim.data.overflow = self._tensor(ready['overflow'], torch.int32)
+        except BaseException:
+            self.close()
+            raise
+
+    def _tensor(self, value, dtype=torch.float32):
+        return torch.as_tensor(value, dtype=dtype, device=self.device)
+
+    def _frame(self, values):
+        return {key: self._tensor(value) for key, value in values.items()}
+
+    def _pack(self, frame, previous=None):
+        spec = self.mdp.spec
+        state = (spec.pack_batch(frame) if previous is None
+                 else spec.pack_batch_transition(frame, previous[:, :-1]))
+        return torch.cat((state, frame['step_count']), -1).float()
+
+    def reset(self):
+        reply = self.client.request('reset')
+        self.frame = self._frame(reply['frame'])
+        self.state = self._pack(self.frame)
+        self.context = self.frame['target_pose']
+        self.sim.data.overflow = self._tensor(reply['overflow'], torch.int32)
+        return {'actor': self.mdp.observe(self.state, self.context)}, {}
+
+    def step(self, action):
+        reply = self.client.request('step', action=action.detach().cpu().tolist())
+        self._reward_sum += sum(reply['reward'])
+        self._transitions += len(reply['reward'])
+        self._force_max = max(self._force_max, reply['material_force_max'])
+        episode_metrics = reply['episode_metrics']
+        if episode_metrics:
+            count = episode_metrics['Episode_Metrics/type_0_episodes']
+            self._episodes += count
+            self._return_sum += count * episode_metrics['Episode_Metrics/return_mean']
+        self.post = self._pack(self._frame(reply['post']), self.state)
+        terminated = self._tensor(reply['terminated'], torch.bool)
+        truncated = self._tensor(reply['truncated'], torch.bool)
+        self.frame = self._frame(reply['frame'])
+        done = terminated | truncated
+        self.state = torch.where(done[:, None], self._pack(self.frame), self.post)
+        self.context = self.frame['target_pose']
+        self.sim.data.overflow = self._tensor(reply['overflow'], torch.int32)
+        extras = {'log': reply['episode_metrics']}
+        return ({'actor': self.mdp.observe(self.state, self.context)},
+                self._tensor(reply['reward']), terminated, truncated, extras)
+
+    def read(self):
+        return self.state.clone(), self.context.clone()
+
+    def post_step(self):
+        return self.post
+
+    def validate_observation(self, state, context, observation):
+        error = (self.mdp.observe(state, context) - observation).abs().max().item()
+        if error:
+            raise ValueError(f'Actor observation mismatch: {error}')
+        return error
+
+    def close(self):
+        self.client.close()
+
+    def take_metrics(self):
+        result = {}
+        if self._transitions:
+            result['Environment/reward_mean'] = self._reward_sum / self._transitions
+            result['Environment/material_force_max'] = self._force_max
+        if self._episodes:
+            result['Episodes/return_mean'] = self._return_sum / self._episodes
+            result['Episodes/count'] = self._episodes
+        self._reward_sum = self._force_max = self._return_sum = 0.0
+        self._transitions = self._episodes = 0
+        return result
+
+
+class CuttingMetricsLogger:
+    def __init__(self, logger, environment):
+        self.logger = logger
+        self.environment = environment
+        self.writer = logger.writer
+
+    def log(self, metrics, *, step):
+        self.logger.log(dict(metrics, **self.environment.take_metrics()), step=step)
+
+    def close(self):
+        self.logger.close()
+
+
+class ManipulationPolicy:
+    def __init__(self, python, source_root, checkpoint, contract):
+        worker = Path(__file__).resolve().parents[1] / 'scripts/manipulation_policy_worker.py'
+        self.client = JsonProcess([python, worker, '--source-root', source_root,
+                                   '--checkpoint', checkpoint], environment=clean_python_environment())
+        try:
+            ready = self.client.request('init', contract=contract)
+            self.updates = ready['policy_updates']
+        except BaseException:
+            self.close()
+            raise
+
+    def reset(self, frame):
+        pass
+
+    def observe(self, frame):
+        pass
+
+    def act(self, frame):
+        observation = frame['observation']
+        reply = self.client.request('act', observation=observation.cpu().tolist())
+        return torch.as_tensor(reply['action'], device=observation.device, dtype=torch.float32)
+
+    def unchanged(self):
+        return self.client.request('unchanged')['unchanged']
+
+    def close(self):
+        self.client.close()

@@ -19,6 +19,8 @@ assets. Gazebo collection and SAC use the separate ROS Noetic environment.
 Installation and asset preparation: [RUNNING](docs/RUNNING.md).
 New material scenes use `prepare_scene_reset.py` to align the UR5e reset and
 `benchmark_gpu_env.py --scene ... --capture ... --record-episode` to record a reference cut.
+The separate [manipulation SuperMimic entry](docs/RUNNING.md#manipulation-supermimic--ur5e-apple)
+imports the pinned upstream learner and connects it to the UR5e apple scene.
 
 ```bash
 python3.12 -m venv .venv

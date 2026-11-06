@@ -4,6 +4,8 @@ This repository combines the CuttingWorldModel and CuttingGpuBackend source
 histories. Vendored and patched dependencies retain their upstream licenses:
 
 - SuperMimic-Reproduced: `third_party/supermimic/LICENSE`.
+- supermimic_manipulation: MIT license in the separate pinned upstream checkout;
+  imported by `scripts/train_manipulation.py`.
 - SliceIt task code: `third_party/sliceit/LICENSE`.
 - DiSECt/DFlex: `backends/mujoco/third_party/disect/LICENSE.md`.
 - Controller/KDL implementation: `backends/mujoco/licenses/`.

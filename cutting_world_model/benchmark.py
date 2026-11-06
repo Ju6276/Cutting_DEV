@@ -25,15 +25,16 @@ def check_contract(expected, actual, path='benchmark'):
         raise ValueError(f'{path}: expected {expected!r}, got {actual!r}')
 
 
-def physical_contract(backend_root, env):
+def physical_contract(backend_root, env, scene_path='runs/disect_source_v4/scene.pt',
+                      capture_path='runs/source', name='public-prism-ur5e-v1'):
     root = Path(backend_root)
-    scene = torch.load(root / 'runs/disect_source_v4/scene.pt',
+    scene = torch.load(root / scene_path,
                        weights_only=False, map_location='cpu')
-    with np.load(root / 'runs/source/episode_000.npz') as capture:
+    with np.load(root / capture_path / 'episode_000.npz') as capture:
         reset = {key: capture[key][0].tolist()
                  for key in ('joint_q', 'joint_qd', 'target_pose')}
     return {
-        'name': 'public-prism-ur5e-v1',
+        'name': name,
         'reset_mode': 'fixed_export',
         'task': {key: value for key, value in env.physics.task.items() if key != 'robot_xml'},
         'controller_parameters': json.loads(
@@ -43,7 +44,7 @@ def physical_contract(backend_root, env):
                  'cut_springs': env.physics.material.springs},
         'reset': reset,
         'asset_content': {
-            'scene_sha256': file_digest(root / 'runs/disect_source_v4/scene.pt'),
+            'scene_sha256': file_digest(root / scene_path),
             'robot_model_sha256': file_digest(root / 'runs/model_coupled/robot.mjb'),
             'robot_xml_sha256': hashlib.sha256(env.physics.task['robot_xml'].encode()).hexdigest(),
         },

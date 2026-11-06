@@ -1,5 +1,41 @@
 # Results
 
+## 2026-11-06 — manipulation SuperMimic connected updates
+
+Base `b07e276` + manipulation adapter; upstream `eda7da48`; tamsgpu5 A6000 GPU 1.
+`train_manipulation.py --worlds 16 --scene runs/apple_native/scene.pt
+--capture runs/apple_capture --smoke --max-hours 0.2`: 3 upstream smoke
+iterations, 368 physical transitions, 26 WM updates and 2 policy/critic rounds
+in 63.94 s. Maximum analytic/native reward difference 5.96e-8, terminal
+mismatch 0/48; saved/reloaded actor action difference exactly zero.
+Record: `runs/manipulation_interface/smoke_final`,
+[W&B](https://wandb.ai/ju-dong6276-technical-university-of-munich/cutting-manipulation/runs/t38x4f2x).
+
+`--resume smoke_final/model_000003.pt --smoke --iterations 4`: resumes at
+iteration 3 and executes four more source iterations. Final counters:
+iteration 7, 784 transitions, 63 WM updates, 6 policy rounds; 107.36 s.
+Actor reload difference stays zero. Record:
+`runs/manipulation_interface/resume_check`.
+
+`evaluate_benchmark.py --method manipulation-supermimic --wall-seconds 660`
+on `smoke_final/model_000003.pt`: budget exhausted after 280 physical steps /
+14.00 simulated seconds; return -204.58, peak force 24.33 N, 77/244 springs
+released, success false, collision false. The 500-step episode is incomplete.
+Policy weights remain identical; optimizer updates 0. Record:
+`runs/manipulation_interface/frozen_episode`.
+
+Full source default network/batch check: 128 collected transitions, one WM
+update and one policy/critic round; WM 5x2048, batches 2048/4096, BPTT horizon
+16. WM loss 3.3983, policy loss 7.4113, critic loss 9.9691; learner peak
+allocation 3993.96 MiB, wall 126.44 s including first compilation. Weights
+from this capacity check were discarded. Record:
+`runs/manipulation_interface/full_update/report.json`.
+
+RTX 4090 tamsgpu7: root 163 passed / 5 skipped in 206.28 s, backend 24 passed
+in 3.95 s. Checks cover additive state updates, terminal precedence, action
+gradients and per-world terminal/reset history. Full apple training and the
+OmniReset apple state bank remain next work.
+
 ## 2026-11-06 — official apple material with UR5e
 
 Base `2f1059a` + apple scene/reset adapter; DiSECt `db7de0f`, NVlabs

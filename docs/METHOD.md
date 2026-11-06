@@ -4,6 +4,29 @@ Source revision: SuperMimic-Reproduced `ba610534`; SliceIt `1e79abad`;
 robot utilities `ddc85eca`; DiSECt `db7de0f`. Complete dependency pins and
 source patches are listed in [SOURCES](SOURCES.md).
 
+## Manipulation SuperMimic apple adapter
+
+`train_manipulation.py` uses emoPointer/supermimic_manipulation `eda7da48`
+directly. The older `train_gpu.py` learner remains a separate method.
+
+| Interface | Upstream manipulation design | UR5e apple adapter |
+|---|---|---|
+| Learning | Empirically normalized WM, imagined BPTT, lambda-return critic, replay and update scheduler | Original `SuperMimicRunner` and `SuperMimicAgent`; default networks, optimizer, clipping, batches, horizons and scheduler unchanged |
+| Physical data | Task adapter reads native pre/post states | Python 3.12 worker runs MuJoCo Warp, compliance and DiSECt; Python 3.13 learner exchanges compact tensors through a private socket. Terminal POST is stored before per-world reset |
+| Policy | Existing task observations and actions | SliceIt 24-D observation and 6-D action; same action mapping, reward and success/force predicates |
+| WM representation | Task-owned additive physical increments and analytic observation/reward functions | Predict 36 increments: joint position/velocity, three wrench samples and peak wrench. Ten-frame control history supplies 480 raw features; action and goal produce 493 inputs. FK, command/history updates and reward use existing task functions; empirical normalization stays in the upstream learner |
+| Value input | State, context and actor observation | 861-D history/clock state, 7-D goal and 24-D actor observation. Particle state remains in physics; it is omitted from WM inputs/outputs |
+| Horizon | Finite-horizon upstream task objective | Existing 500-step physical timeout also ends imagined returns. Replay retains separate physical termination and truncation flags; SAC keeps its own time-limit bootstrap rule |
+| Loss scaling | Task-specific normalization floor | Source default 1e-3; joint position/velocity 1e-2. These bound normalization denominators, not physical task acceptance |
+| Reset | Upstream supports full-task resets and an OmniReset curriculum | Full-task reset only. An apple reset bank with material damage and controller/filter histories is pending |
+
+The apple scene is the public `ansys_sphere_apple.json` sphere with apple
+material. Training collects current-policy physical transitions; there is no
+demonstration trajectory input. The optional `--smoke` flag calls the upstream
+small-network execution profile; default training uses its full configuration.
+
+## Existing SliceIt and SuperMimic-Reproduced interfaces
+
 | Module | Source design | Cutting implementation |
 |---|---|---|
 | Repository layout | Learning and physics maintained in separate local repositories | Both histories merged; physics resides in `backends/mujoco`, and SliceIt is restored from pinned revisions and patches. Entry points default to the bundled backend; cache and logger paths are configurable. Physics, learning objectives and task parameters are unchanged by this integration. |

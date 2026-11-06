@@ -1,5 +1,21 @@
 # Current plan
 
+## Apple manipulation adapter — 2026-11-06
+
+The `feat/apple-cutting-adapter` branch connects the clean manipulation
+SuperMimic runner (`eda7da48`) to UR5e + compliance + DiSECt apple physics.
+The official smoke profile has executed collection, WM and policy/critic
+updates, W&B logging, save and reload. Full default network/batch updates also
+execute on A6000 GPU 1. The shared evaluator loads this method with its saved
+physical-task contract.
+
+Next: complete a physical episode, then run the source full training schedule
+with an explicit environment count and time budget. Track complete return,
+success, force, WM held-out error and critic versus physical returns. The
+separate OmniReset apple bank must restore material damage and controller
+histories as well as robot pose; current collection uses full-task resets.
+The older numbered learners below are separate experiments.
+
 ## Numbered runs
 
 - **1 — SAC + Gazebo + DiSECt**: resumed training in SliceIt

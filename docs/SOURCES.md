@@ -7,6 +7,11 @@ The main branch retains both original histories through a two-parent merge:
 - SuperMimic-Reproduced: `ba610534`, source subset and license in
   `third_party/supermimic/`.
 - ndm-gym: `0171f5e`, the 500-round WM preparation stage is recorded in METHOD.
+- [supermimic_manipulation](https://github.com/emoPointer/supermimic_manipulation):
+  `eda7da480c6d92a68cc41c9628b7efdae08cae23`, MIT. The separate
+  `train_manipulation.py` entry imports its runner, agent, replay and networks
+  directly from a clean external checkout. Its Python 3.13 environment uses
+  the upstream `uv.lock`; physics retains the existing Python 3.12 environment.
 
 The exact SliceIt and nested repository versions are in
 [`sources.json`](../integrations/sliceit/patches/sources.json). Each entry records

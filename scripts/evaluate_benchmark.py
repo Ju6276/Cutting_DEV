@@ -52,9 +52,14 @@ class SACPolicy:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--method', choices=('constant-zero', 'reference', 'supermimic', 'sac'), required=True)
+    parser.add_argument('--method', choices=('constant-zero', 'reference', 'supermimic', 'sac',
+                                            'manipulation-supermimic'), required=True)
     parser.add_argument('--backend-root', type=Path, default=ROOT / 'backends/mujoco')
     parser.add_argument('--contract', type=Path, default=ROOT / 'configs/public_prism/benchmark.json')
+    parser.add_argument('--scene', default='runs/disect_source_v4/scene.pt')
+    parser.add_argument('--capture', default='runs/source')
+    parser.add_argument('--manipulation-python', type=Path)
+    parser.add_argument('--manipulation-source-root', type=Path)
     parser.add_argument('--checkpoint', type=Path)
     parser.add_argument('--episodes', type=int, default=1)
     parser.add_argument('--wall-seconds', type=float, default=600.)
@@ -76,6 +81,9 @@ def main():
     if args.method == 'sac' and any(value is None for value in
                                   (args.sac_python, args.sliceit_root, args.sac_config)):
         parser.error('SAC requires --sac-python, --sliceit-root and --sac-config')
+    if args.method == 'manipulation-supermimic' and any(value is None for value in
+            (args.manipulation_python, args.manipulation_source_root)):
+        parser.error('Manipulation SuperMimic requires its Python and source-root paths')
     args.output.mkdir(parents=True, exist_ok=False)
     started = time.monotonic()
     def terminate(signum, stack):
@@ -99,11 +107,17 @@ def main():
     try:
         sys.path.insert(0, str(args.backend_root.resolve()))
         from cutting_world_model.gpu_env import GPUEnvironment
-        env = GPUEnvironment(args.backend_root, worlds=1)
-        actual = physical_contract(args.backend_root, env)
+        env = GPUEnvironment(args.backend_root, worlds=1, scene=args.scene, capture=args.capture)
+        actual = physical_contract(args.backend_root, env, args.scene, args.capture,
+                                   manifest['contract']['name'])
         check_contract(manifest['contract'], actual)
         write_json(args.output / 'task.json', env.metadata)
-        if args.method == 'supermimic':
+        if args.method == 'manipulation-supermimic':
+            from cutting_world_model.manipulation import ManipulationPolicy
+            policy = ManipulationPolicy(args.manipulation_python, args.manipulation_source_root,
+                                        args.checkpoint, actual)
+            manifest['policy_updates'] = policy.updates
+        elif args.method == 'supermimic':
             policy = WorldModelPolicy(args.checkpoint, env)
             manifest['policy_updates'] = policy.updates
         elif args.method == 'sac':
