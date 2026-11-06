@@ -1008,3 +1008,116 @@ Python3.8 bridge suite (**10 pass**, GPU-worker case covered in Python3.12).
 Independent review covers task/reset identity, terminal frames, saved exception
 prefixes and source replay ordering. Artifacts: `runs/fixed_benchmark_20261105`
 and `runs/sac_gpu_bridge_check_20261105`.
+
+## 2026-11-05/06 — Critic-target variants from policy62/WM562
+
+Code: branch commits `7ac4ef0` (critic_target real, replay snapshots),
+`0c091dd` (real_wm, actor_horizon), `ae056e8` (actor_bc_alpha). A6000 GPU 0,
+1024 worlds, resume from `critic_mask_validation_20261104/training/last.pt`,
+fresh critic pre-fitted 100 rounds on the refilled replay, source schedule,
+then frozen `evaluate_benchmark.py --method supermimic --episodes 8` and
+`runs/critic_real_c3_20261105/value_eval.py` (values vs complete physical
+discounted returns, gamma 0.99; WM-imagined vs physical return from the same
+starts; held-out = 32 episodes of `wm_frozen_fit_20261105`). The analysis script
+reproduces the recorded policy62 numbers (benchmark MAE 153.419, held-out 152.707).
+
+| Run (W&B) | Variant | Updates | Frozen 8 ep. | Steps | Return | Peak force | Value MAE / bias (benchmark) | Held-out MAE | max real target |
+|---|---|---:|---|---:|---:|---:|---|---:|---:|
+| policy62 | source | 62 | 8/8 | 20 | 90.81 | 30.66 N | 153.4 / −153.4 | 152.7 | – |
+| C3 `m0rtgke0` | real, h32 | 150 | 8/8 | 33 | 84.46 | 15.42 N | 74.4 / +70.4, values 19.6–246 | 30.5 | 256.6 |
+| V2 `tbsa78z9` | real_wm, h8 | 84 (stopped) | 0/8 collision | 1 | −100.60 | 59.43 N | 117.9 / +117.9 | 11.6 | 106.8 |
+| V3 `dmtqrroa` | real_wm, h8, BC 2.5 | 72 (stopped) | 8/8 | 17 | 92.67 | 47.88 N | 10.7 / +6.1, values 60–123 | 4.0 | 102.8 |
+| V4 `twr8mk8r` | real_wm, h32 | 115 (stopped) | 0/8 workspace | 26 | −112.48 | 19.11 N | 53.8 / +53.5, values −93…1 | 16.7 | 168.3 |
+| V5 `dpfjiwgl` | real_wm, h8, BC 0.25 | 103 (1 h budget) | 8/8 | 18 | 92.18 | 39.35 N | 1.7 / −1.0, values 68–101 | 3.1 | 106.9 |
+
+Measured:
+
+- C3: bootstrap weight `survival_H` is 0 for updates 63–105, so the actor
+  follows the source objective (imagined objective −40…−87 against physical
+  ~87). Training-episode success drops from 98% to 0–80% (workspace failures),
+  then recovers with slower cuts (66–97 steps). From update ~111 imagined paths
+  survive H32 (`survival_H` 0.3–0.56), bootstrap reaches 127 per sample and the
+  critic's endpoint value on WM states 150–221; recorded-window targets exceed
+  110 (up to 256.6) once full 32-step windows bootstrap on overestimated values.
+- V2: the H8 bootstrap carries ~55 of J ≈ 60; policy gradient norm 40–93 (C3
+  2–18); mean |action| 0.95 → 1.37 within ten updates (C3 0.88 → 0.60).
+  Training episodes switch to 1–2-step force-limit collisions (99% by
+  iteration 1645). For 3316 recorded early-failure transitions WM562/WM584
+  predict collision in 22%/22% (predicted peak/limit 0.67/0.83, recorded 1.04);
+  from the frozen collision start the WM predicts no terminal on 8/8 paths and
+  an objective of +29.6 against −100.6.
+- V3: BC MSE stays ≤0.07 and mean |action| still rises 0.94 → 1.21 by update 72
+  (V2 1.28): the alpha 2.5 term hardly constrains the actor. Training episodes
+  at iteration 1625 collide in 83% (0.1 action noise); the deterministic policy
+  at that point succeeds in 17 steps at 47.9 N, near the 50 N limit. H8
+  imagination predicts 2 negative terminals on 648 held-out starts (H32 policy62: 450).
+
+- V4 (one change against C3: WM-state critic samples, h32): bootstrap weight
+  stays ~0 (updates 63–115) and the physical policy degrades as in C3 (training
+  success 0% from iteration 1680, workspace failures after ~28 steps). Recorded
+  targets exceed 110 (max 168.3) from update ~109, before any bootstrap weight.
+- V5 (one change against V3: alpha 0.25): mean |action| 0.94 → 0.99 (max 1.06),
+  BC MSE ≤ 0.026, policy gradient norm ≤ 77; training episodes 90–99% success,
+  force-limit collisions 1–10%, cut length 16–20 steps. Recorded-target MAE
+  before each critic update 3.3–8.7, max |target| 106.9. Frozen: 8/8 in 18
+  steps (policy62: 20), return 92.18 (90.81), peak 39.3 N (30.7 N). Imagined H8
+  objective − physical return: −43.7 (benchmark), −45.1 (held-out); the WM still
+  imagines 218/648 held-out workspace failures with policy103.
+
+### V5 stability run
+
+`runs/critic_real_v5s_20261106` resumes V5's `last.pt` with identical options
+(no critic reset; refill 40 vector steps), 5 h wall, W&B `4bowhisp`; SIGUSR1
+checkpoints at policy updates 150/200/250. Policy 103 → 374, WM 603 → 874,
+iteration 2424, 18042 s.
+
+| Checkpoint | Policy/WM | Frozen | Steps | Return | Peak force | Value MAE / bias (benchmark) | max value | Held-out MAE | Imagined H8 − physical |
+|---|---|---|---:|---:|---:|---|---:|---:|---:|
+| 1863 | 150/650 | 8/8 | 17 | 92.55 | 42.47 N | 1.54 / −1.51 | 99.8 | 1.81 | −43.1 |
+| 1989 | 201/701 | 8/8 | 17 | 92.60 | 45.51 N | 3.54 / −2.20 | 101.1 | 3.11 | −45.5 |
+| 2113 | 250/750 | 8/8 | 17 | 92.64 | 47.48 N | 5.18 / −4.32 | 100.7 | 4.21 | −46.4 |
+| last 2424 | 374/874 | 8/8 | 17 | 92.54 | 35.11 N | 3.95 / −3.45 | 100.4 | 3.58 | −34.8 |
+
+Training episodes (0.1 action noise), per 60 vector steps from iteration 1680:
+success 94, 94, 90, 82, 76, 66, 60, 67, 72, 94, 99.7, 99.4, 99.4%; all
+force-limit failures occur at step 1 or 2 (≈85% at step 2). Mean recorded-target
+MAE before each critic update, per 30 updates: 0.90, 0.73, 0.96, 1.19, 1.41,
+1.53, 1.56, 1.45, 1.32, 1.13; max |target| 100.8 throughout; mean |action|
+1.06–1.10; BC MSE 0.0017–0.0035. The gap between the critic's mean value and
+its imagined-rollout targets on imagined states stays 36–43 per 30 updates
+(single updates 30–63) without a trend.
+
+Measured: every evaluated checkpoint passes 8/8 with value MAE ≤ 5.2 and values
+≤ 101.1; critic-target MAE and noisy-episode collisions rise until about update
+280 and then fall back. Frozen peak force rises to 47.5 N at update 250 (limit
+50 N) and is 35.1 N at the end. Inferred: the imagined-state gap reflects WM
+imagination (imagined workspace failures on physically successful cuts, e.g.
+218/648 held-out paths at policy 103), not critic error against physical returns.
+
+### Ablation (a), 1 h
+
+`runs/critic_real_abl_a_20261106/run` (W&B `02cdch2v`): critic_target real
+(no WM-state samples), actor horizon 8, BC 0.25, otherwise as V5. Policy 62 → 104.
+Frozen 8/8, 18 steps, return 92.09, peak 30.83 N; benchmark value MAE 2.67
+(bias −2.09, values 52–100), held-out MAE 5.15; max recorded target 105.1;
+target MAE before update 3.9–7.2. Training episodes: success 98, 93, 54, 99,
+99.9, 100% per 20 vector steps (collision dip at iteration 1640–1659).
+Imagined H8 objective − physical return −45.1. At 42 updates this does not show
+that WM-state samples are unnecessary; the user requested matched-length (≥250
+updates) reruns of ablations (a) and (b). Ablation (b) started automatically
+and was stopped at refill end (`critic_real_abl_b_20261106`, policy 62, W&B
+`oiw4yvhv`, no policy update); it is not a result.
+
+Attribution (measured runs, inferred conclusion): the 1–2-step collision
+collapse occurs with real_wm + h8 (V2) but not with real_wm + h32 (V4) or real +
+h32 (C3), so it needs the short horizon, through which the critic bootstrap
+enters the actor gradient. real + h8 is not yet run. With alpha 0.25 the actor
+still changes: shorter cuts (18 vs 20 steps), higher return and higher peak force
+than policy62 at a mean |action| change of +0.05, so the regularizer limits but
+does not reduce the update to imitation.
+
+Inferred: V2/V3 failures come from the actor following the critic bootstrap
+gradient into actions whose force consequences the WM under-predicts; the
+critic's values on WM states were calibrated (model-state MAE 8–13 during V2).
+C3's value failure comes from bootstrapping on WM endpoint states outside the
+recorded-state critic's support once imagination stops terminating.
