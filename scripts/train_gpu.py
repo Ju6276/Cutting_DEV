@@ -56,6 +56,8 @@ def main():
                              "'real_wm': also on WM open-loop predictions of those states")
     parser.add_argument('--actor-horizon', type=int,
                         help='Imagination/BPTT steps of the actor objective (default: source 32)')
+    parser.add_argument('--actor-bc-alpha', type=float,
+                        help='TD3+BC alpha for actor regularization toward recorded actions (default: off)')
     parser.add_argument('--critic-reset', action='store_true',
                         help="With --resume and --critic-target real: discard the saved critic")
     parser.add_argument('--critic-prefit-rounds', type=int, default=0,
@@ -103,7 +105,8 @@ def run(args, output, status, started):
                             wm_only_updates=args.wm_only_updates,
                             critic_target=args.critic_target,
                             critic_microbatch=args.critic_microbatch,
-                            actor_horizon=args.actor_horizon)
+                            actor_horizon=args.actor_horizon,
+                            actor_bc_alpha=args.actor_bc_alpha)
     schedule = OnlineSchedule(worlds=args.worlds)
     if args.resume:
         saved = torch.load(args.resume, map_location=device, weights_only=False)
@@ -135,6 +138,7 @@ def run(args, output, status, started):
         'replay_capacity_per_world': schedule.replay_capacity,
         'critic_variant': learner.critic_variant(),
         'critic_microbatch': learner.critic_microbatch, 'actor_horizon': learner.actor_horizon,
+        'actor_bc_alpha': learner.actor_bc_alpha,
         'replay_snapshot': 'replay.pt rewritten with every checkpoint',
     }
     write_json(output / 'manifest.json', manifest)

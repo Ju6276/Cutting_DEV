@@ -373,3 +373,59 @@ def test_actor_horizon_shortens_imagination_and_is_recorded():
     start, _ = make_learner('real_wm', horizon=3, actor_horizon=2)
     start.restore(deepcopy(source.checkpoint()), reset_critic=True)
     assert start.actor_horizon == 2 and start.critic_prefit_pending
+
+
+def control_learner(**kwargs):
+    from test_control_state import compact_fixture
+    torch.set_num_threads(2)
+    torch.manual_seed(21)
+    metadata, frame = compact_fixture()
+    model = CuttingWorldModel(metadata, hidden=(16, 16))
+    replay = episodic_replay(model, frame)
+    learner = OnlineLearner(
+        model, TinyHistoryPolicy(), SliceItCritic(model.spec.state_dim), microbatch=2,
+        wm_only_updates=0, wm_cfg=WMTrainerCfg(compile=None, window=3, batch_size=4, batches_per_update=2),
+        policy_cfg=PolicyTrainerCfg(compile=None, horizon=3, batch_size=4, critic_epochs=1,
+                                   critic_minibatches=2), **kwargs)
+    return learner, replay
+
+
+class TinyHistoryPolicy(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.net = torch.nn.Linear(10 * 24 + 7, 6)
+
+    def forward(self, history, goal):
+        return self.net(torch.cat((history.transpose(0, 1).flatten(1), goal), -1))
+
+
+def test_observation_history_from_state_matches_replay_history():
+    learner, replay = control_learner(critic_target='real_wm')
+    torch.manual_seed(2)
+    starts = replay.sample_starts(16, learner.pcfg.history)
+    expected = learner.wm.spec.field(starts.hist_states, 'observation')
+    assert torch.equal(learner.observation_history(starts.state), expected)
+
+
+def test_behavior_regularization_gradient_is_scaled_td3bc_term():
+    learner, replay = control_learner(critic_target='real_wm', actor_bc_alpha=2.5)
+    rng = torch.get_rng_state()
+    learner.policy.zero_grad(set_to_none=True)
+    metrics = learner.behavior_regularization(replay, torch.tensor(7.))
+    grads = [p.grad.clone() for p in learner.policy.parameters()]
+    torch.set_rng_state(rng)
+    batch = replay.sample_windows(learner.pcfg.batch_size, 1)
+    learner.policy.zero_grad(set_to_none=True)
+    history = learner.wm.spec.field(batch.states[0], 'control_history')
+    mse = F.mse_loss(learner.policy(learner.observation_history(batch.states[0]), batch.xi),
+                     batch.a_clean[0])
+    (mse * 7. / (2.5 * learner.actor_horizon)).backward()
+    for actual, param in zip(grads, learner.policy.parameters()):
+        torch.testing.assert_close(actual, param.grad)
+    assert metrics['actor_bc_scale'] == pytest.approx(7. / (2.5 * 3))
+    assert history.shape[-2] == 9
+    learner.improve_policy(replay)  # full update with the regularizer
+    saved = deepcopy(learner.checkpoint())
+    assert saved['actor_bc_alpha'] == 2.5
+    with pytest.raises(ValueError, match='behavior regularization'):
+        control_learner(critic_target='real_wm')[0].restore(saved)

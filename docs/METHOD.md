@@ -424,3 +424,24 @@ imagined steps of the actor objective and its `gamma^h c_h V(s_h)` bootstrap
 (default: the source 32); the critic windows keep H=32. Checkpoints record
 `actor_horizon`; a resume with a different horizon is rejected unless it starts
 the variant with `--critic-reset`.
+
+## Variant `actor_bc_alpha`
+
+Measured in run `critic_real_v2_20261106` (real_wm, actor horizon 8, from
+policy62/WM562): the H8 bootstrap carries most of the actor objective (survival
+0.4–0.8, bootstrap ≈ 55 of J ≈ 60), the policy gradient norm rises to 40–90
+(C3: 2–18), and the mean |action| grows 0.95 → 1.37 within ten updates. The
+physical policy then fails by force-limit collision in 1–2 steps; for these
+recorded transitions the WM predicts the collision in 22% of cases (predicted
+peak/limit 0.67–0.83, recorded 1.04) and its learned terminal probability is ~0.
+The actor moved to actions whose force consequences the WM does not represent.
+
+`--actor-bc-alpha a` adds the TD3+BC behavior term
+([Fujimoto & Gu 2021](https://arxiv.org/abs/2106.06860)) to the actor loss:
+`-J/h + (mean|J| / (a h)) * MSE(pi(o_t), a_t)` on a separate batch of
+`batch_size` recorded transitions (clean recorded actions, ten-frame observation
+history read from the stored control-history state). This is `1/lambda` times
+`-lambda J + MSE` with `lambda = a / mean|J|`; `a = 2.5` is the source value.
+It keeps the policy near actions present in replay, where the WM is fitted.
+Default: off (source). Checkpoints record the value; a resume with a different
+value is rejected unless it starts the variant with `--critic-reset`.

@@ -25,6 +25,13 @@ def optimizer_step_count(states):
     return max((int(state['step']) for state in states.values() if 'step' in state), default=0)
 
 
+def discount_weights(ro, gamma):
+    """gamma^t c_t of the source objective for each imagined reward, shape (H, n)."""
+    H = ro.rewards.shape[0]
+    disc = gamma ** torch.arange(H, device=ro.rewards.device, dtype=ro.rewards.dtype)
+    return disc[:, None] * ro.survival[:-1]
+
+
 CRITIC_TARGETS = ('imagined', 'real', 'real_wm')
 
 
@@ -51,7 +58,7 @@ def masked_gae_targets(rewards, done_next, values, valid, gamma, lam):
 class OnlineLearner:
     def __init__(self, wm, policy, critic, microbatch=64, wm_cfg=None, policy_cfg=None,
                  wm_only_updates=500, critic_target='imagined', critic_microbatch=None,
-                 actor_horizon=None):
+                 actor_horizon=None, actor_bc_alpha=None):
         if type(wm_only_updates) is not int or wm_only_updates < 0:
             raise ValueError('wm_only_updates must be a nonnegative integer')
         if critic_target not in CRITIC_TARGETS:
@@ -63,6 +70,10 @@ class OnlineLearner:
         self.actor_horizon = horizon if actor_horizon is None else actor_horizon
         if type(self.actor_horizon) is not int or not 1 <= self.actor_horizon <= horizon:
             raise ValueError('actor_horizon must be an integer in [1, policy horizon]')
+        if actor_bc_alpha is not None and not actor_bc_alpha > 0:
+            raise ValueError('actor_bc_alpha must be positive')
+        # TD3+BC-style behavior regularization of the actor toward recorded clean actions.
+        self.actor_bc_alpha = actor_bc_alpha
         # Storage-only chunking of real-target critic minibatches; effective minibatches are unchanged.
         self.critic_microbatch = critic_microbatch or microbatch
         # Critic optimizer history after a deliberate critic reinitialization (variant 'real').
@@ -187,6 +198,7 @@ class OnlineLearner:
         self.critic.requires_grad_(False)
         self.popt.zero_grad(set_to_none=True)
         metrics, critic_data = {}, []
+        abs_objective = 0.
         try:
             for part in chunks(cfg.batch_size, self.microbatch):
                 self.progress(phase="policy", samples=part.start, batch_size=cfg.batch_size)
@@ -246,7 +258,15 @@ class OnlineLearner:
                         )
                     for key, value in measures.items():
                         metrics[key] = metrics.get(key, 0.) + float(value) * weight
+                    if self.actor_bc_alpha is not None:
+                        per_sample = (discount_weights(ro, cfg.gamma) * ro.rewards).sum(0)
+                        if terminal is not None:
+                            per_sample = (per_sample + (cfg.gamma ** self.actor_horizon)
+                                          * ro.survival[-1] * terminal)
+                        abs_objective = abs_objective + per_sample.detach().abs().sum()
                 del ro, loss, terminal, objective
+            if self.actor_bc_alpha is not None:
+                metrics.update(self.behavior_regularization(buffer, abs_objective / cfg.batch_size))
             gn = finite_gradient_norm(self.policy.parameters(), cfg.grad_clip_norm)
             torch.nn.utils.clip_grad_value_(self.policy.parameters(), cfg.grad_clip_value)
             self.popt.step()
@@ -265,6 +285,33 @@ class OnlineLearner:
             metrics['critic_loss'] = self.fit_critic(data, self.critic_microbatch)
         self.updates += 1
         return metrics
+
+    def observation_history(self, states):
+        """Policy input (time, n, obs) from the history frames stored in a control-history state."""
+        spec = self.wm.spec
+        frames = torch.cat((spec.field(states, 'control_history'),
+                            states[..., None, :spec.base_dim]), -2)  # oldest first, current last
+        return spec.field(frames, 'observation').transpose(0, 1)[-self.pcfg.history:]
+
+    def behavior_regularization(self, buffer, mean_abs_objective):
+        """Adds the gradient of (mean|J| / alpha) * MSE(pi(o_t), a_t) / H on recorded transitions.
+
+        With the source loss -J/H this is (1/lambda) times the TD3+BC loss
+        -lambda J + MSE with lambda = alpha / mean|J| (Fujimoto & Gu, 2021).
+        """
+        cfg = self.pcfg
+        batch = buffer.sample_windows(cfg.batch_size, 1)
+        history = self.observation_history(batch.states[0])
+        scale = float(mean_abs_objective) / (self.actor_bc_alpha * self.actor_horizon)
+        total = 0.
+        for part in chunks(cfg.batch_size, self.microbatch * 16):
+            weight = (part.stop - part.start) / cfg.batch_size
+            action = self.policy(history[:, part], batch.xi[part])
+            mse = F.mse_loss(action, batch.a_clean[0, part])
+            (mse * weight * scale).backward()
+            total += float(mse.detach()) * weight
+        return {'actor_bc_mse': total, 'actor_bc_scale': scale,
+                'actor_mean_abs_objective': float(mean_abs_objective)}
 
     def fit_critic(self, data, microbatch):
         """Source critic regression: epochs x shuffled minibatches of clipped Adam steps."""
@@ -418,7 +465,7 @@ class OnlineLearner:
                 'policy_optimizer': self.popt.state_dict(), 'critic_optimizer': self.copt.state_dict(),
                 'updates': self.updates,
                 'critic_variant': self.critic_variant(),
-                'actor_horizon': self.actor_horizon,
+                'actor_horizon': self.actor_horizon, 'actor_bc_alpha': self.actor_bc_alpha,
                 'training_stage': {'wm_only_updates': self.wm_only_updates,
                                    'wm_updates': self.wm_updates,
                                    'optimizer_steps': self.optimizer_steps,
@@ -442,6 +489,8 @@ class OnlineLearner:
         # A critic reset starts a new variant from the saved WM/policy; it may change the horizon.
         if not reset_critic and data.get('actor_horizon', self.pcfg.horizon) != self.actor_horizon:
             raise ValueError('Checkpoint actor imagination horizon differs')
+        if not reset_critic and data.get('actor_bc_alpha') != self.actor_bc_alpha:
+            raise ValueError('Checkpoint actor behavior regularization differs')
         reset_update = variant.get('reset_update')
         prefit_rounds = variant.get('prefit_rounds', 0)
         if reset_update is not None and (type(reset_update) is not int or reset_update < 0
