@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from cutting_world_model.manipulation import CuttingEnvironment, CuttingMetricsLogger, SOURCE_REVISION
 from cutting_world_model.provenance import git_revision
+from cutting_world_model.benchmark import write_json
 
 def restore(runner, path):
     from clab.algorithms.supermimic.networks import ACTOR_INPUT_NORMALIZATION
@@ -54,6 +55,7 @@ def main():
     parser.add_argument('--worlds', type=int, required=True)
     parser.add_argument('--scene', required=True)
     parser.add_argument('--capture', required=True)
+    parser.add_argument('--reset-bank', type=Path)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--iterations', type=int,
                         help='Iterations executed by this invocation, including after resume')
@@ -95,25 +97,47 @@ def main():
     manifest = {'git': git_revision(ROOT), 'source_revision': revision, 'command': sys.argv,
                 'wall_budget_seconds': args.max_hours * 3600, 'seed': args.seed,
                 'algorithm': asdict(algorithm), 'run': asdict(run), 'worlds': args.worlds,
-                'reset_mode': 'full_task', 'endpoint': 'configured upstream iterations per invocation',
+                'reset_mode': 'stage_bank' if args.reset_bank else 'full_task',
+                'endpoint': 'configured upstream iterations per invocation',
                 'shutdown': 'save at the next completed iteration, then close the physical worker'}
     (args.output / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
     stop = False
+    checkpoint_requested = False
 
     def request_stop(signum, frame):
         nonlocal stop
         stop = True
 
+    def request_checkpoint(signum, frame):
+        nonlocal checkpoint_requested
+        checkpoint_requested = True
+
     signal.signal(signal.SIGINT, request_stop)
     signal.signal(signal.SIGTERM, request_stop)
+    signal.signal(signal.SIGUSR1, request_checkpoint)
     begin = time.monotonic()
     environment = runner = tracking = None
     exit_code = 0
+    def iteration_boundary():
+        nonlocal checkpoint_requested
+        if checkpoint_requested:
+            runner.save()
+            checkpoint_requested = False
+        write_json(args.output / 'progress.json', {
+            'state': 'running', 'iteration': runner.iteration,
+            'real_transitions': runner.real_transitions,
+            'wm_updates': runner.agent.world_model_updates,
+            'policy_updates': runner.agent.policy_updates,
+            'completed_episodes': environment.completed_episodes,
+            'successful_episodes': environment.successful_episodes,
+            'wall_seconds': time.monotonic() - begin})
+        return stop or time.monotonic() - begin >= args.max_hours * 3600
     try:
         with (args.output / 'physics.log').open('w') as physics_log:
             environment = CuttingEnvironment(
                 args.physics_python, args.backend_root, worlds=args.worlds,
-                scene=args.scene, capture=args.capture, log=physics_log)
+                scene=args.scene, capture=args.capture, log=physics_log,
+                reset_bank=args.reset_bank, seed=args.seed)
             (params / 'environment.json').write_text(json.dumps(asdict(environment.cfg), indent=2) + '\n')
             (params / 'benchmark.json').write_text(json.dumps(
                 environment.cfg.metadata['benchmark_contract'], indent=2) + '\n')
@@ -126,12 +150,15 @@ def main():
             runner.logger = CuttingMetricsLogger(runner.logger, environment)
             if args.resume:
                 restore(runner, args.resume.resolve())
-            checkpoint, completed = runner.run(
-                stop_requested=lambda: stop or time.monotonic() - begin >= args.max_hours * 3600)
+            checkpoint, completed = runner.run(stop_requested=iteration_boundary)
             report = {'completed': completed, 'checkpoint': str(checkpoint),
                       'iterations': runner.iteration, 'real_transitions': runner.real_transitions,
                       'wm_updates': runner.agent.world_model_updates,
                       'policy_updates': runner.agent.policy_updates,
+                      'completed_episodes': environment.completed_episodes,
+                      'successful_episodes': environment.successful_episodes,
+                      'physics_overflow_world_steps': runner.physics_overflow_world_steps,
+                      'diverged_transitions': int(runner.diverged_transitions.item()),
                       'reward_observation_checks': runner.reward_comparison_metrics(),
                       'wall_seconds': time.monotonic() - begin}
             if args.smoke:
@@ -143,12 +170,15 @@ def main():
                     torch.testing.assert_close(reloaded.policy(obs), runner.agent.policy(obs), atol=0, rtol=0)
                 report['reload_action_max_error'] = 0.0
             (args.output / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
+            write_json(args.output / 'progress.json', dict(report, state='completed' if completed else 'stopped'))
             print(json.dumps(report, indent=2), flush=True)
     except BaseException as error:
         exit_code = 1
         (args.output / 'report.json').write_text(json.dumps({
             'completed': False, 'error': repr(error),
             'wall_seconds': time.monotonic() - begin}, indent=2) + '\n')
+        write_json(args.output / 'progress.json', {
+            'state': 'failed', 'error': repr(error), 'wall_seconds': time.monotonic() - begin})
         raise
     finally:
         try:

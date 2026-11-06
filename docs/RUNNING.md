@@ -171,9 +171,21 @@ git -C "$MANIPULATION_ROOT" checkout eda7da480c6d92a68cc41c9628b7efdae08cae23
 export CUDA_VISIBLE_DEVICES=1
 export XDG_CACHE_HOME=/dataHDD/dong/.cache
 export TMPDIR=/dataHDD/dong/tmp
+.venv/bin/python scripts/collect_cutting_resets.py \
+  --scene runs/apple_native/scene.pt --capture runs/apple_capture \
+  --worlds 64 --per-stage 64 --seed 0 --split train --wall-seconds 600 \
+  --output runs/apple_bank_train
+.venv/bin/python scripts/collect_cutting_resets.py \
+  --scene runs/apple_native/scene.pt --capture runs/apple_capture \
+  --worlds 64 --per-stage 64 --seed 7 --split test --wall-seconds 600 \
+  --output runs/apple_bank_test
+.venv/bin/python scripts/check_cutting_resets.py \
+  --scene runs/apple_native/scene.pt --capture runs/apple_capture \
+  --bank runs/apple_bank_test/bank.pt --output runs/apple_bank_check
 "$MANIPULATION_ROOT/.venv/bin/python" scripts/train_manipulation.py \
   --source-root "$MANIPULATION_ROOT" --physics-python "$PWD/.venv/bin/python" \
   --worlds 16 --scene runs/apple_native/scene.pt --capture runs/apple_capture \
+  --reset-bank runs/apple_bank_train/bank.pt \
   --smoke --max-hours 0.2 --output runs/manipulation_smoke
 ```
 
@@ -183,10 +195,26 @@ Paths for scene/capture are relative to `backends/mujoco`. W&B project is
 updates, ending at iteration 10,000; WM/policy batches are 2048/4096 and the
 imagined policy horizon is 16. Set the world count and wall budget before
 launching. SIGTERM/SIGINT requests a save at the next completed iteration.
+SIGUSR1 saves at the next completed iteration and continues. `progress.json`
+records actual iteration/transition/update/episode counters at each boundary.
 `--resume RUN/model_XXXXXX.pt` restores learner/optimizer/counters/RNG;
 physics and replay restart with the source warmup.
 `--iterations N` follows the source runner: execute N additional iterations
 in this invocation, including after resume.
+
+The current full-size apple run uses a 256-state-per-category training bank:
+
+```bash
+.venv/bin/python scripts/collect_cutting_resets.py \
+  --scene runs/apple_native/scene.pt --capture runs/apple_capture \
+  --worlds 256 --per-stage 256 --seed 0 --split train --wall-seconds 600 \
+  --output runs/apple_bank_256
+"$MANIPULATION_ROOT/.venv/bin/python" scripts/train_manipulation.py \
+  --source-root "$MANIPULATION_ROOT" --physics-python "$PWD/.venv/bin/python" \
+  --worlds 256 --scene runs/apple_native/scene.pt --capture runs/apple_capture \
+  --reset-bank runs/apple_bank_256/bank.pt \
+  --max-hours 48 --output runs/manipulation_apple_256
+```
 
 Frozen evaluation uses the common physical benchmark and saved task contract:
 
@@ -202,7 +230,11 @@ Frozen evaluation uses the common physical benchmark and saved task contract:
 ```
 
 Results include physical return, force, released springs, termination and
-wall time. The full-task reset is enabled; the OmniReset apple bank is pending.
+wall time. The default evaluates the complete task from its original start.
+Use `--reset-bank runs/apple_bank_test/bank.pt --reset-stage closest_cut` to
+evaluate a held-out category; the other category names are `full_task`,
+`before_cut` and `cutting`. Bank collection writes `partial.pt` and fails when
+a category is empty or its requested count is not reached.
 
 ## Checks
 

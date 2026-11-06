@@ -16,6 +16,7 @@ class EnvironmentConfig:
     metadata: dict
     scene: str
     capture: str
+    reset_bank: dict | None = None
     auto_reset: bool = True
     is_finite_horizon: bool = True
 
@@ -36,6 +37,35 @@ class CuttingMDP:
         self.error_floor = torch.full((self.delta_dim,), 1e-3, device=device)
         for key in ('joint_q', 'joint_qd'):
             self.error_floor[self.spec.delta_slices[key]] = 1e-2
+        self.smooth_temperature = 0.01
+        self.success_gradient_scale = 0.02
+
+    @staticmethod
+    def _event(hard, soft):
+        return hard.to(soft.dtype) + (soft - soft.detach())
+
+    def candidate(self, state):
+        obs = self.observe(state, None)
+        threshold = obs.new_tensor(self.spec.heads.env['goal_threshold'])
+        maximum = obs.new_tensor(self.spec.heads.max_distance)
+        error = obs[:, :len(threshold)].abs()
+        margin = threshold / maximum - error
+        return self._event((error * maximum < threshold).all(-1),
+                           torch.sigmoid(margin / self.smooth_temperature).prod(-1))
+
+    def events(self, state):
+        obs = self.observe(state, None)
+        limits = obs.new_tensor(self.spec.heads.env['workspace_limit'])
+        maximum = obs.new_tensor(self.spec.heads.max_distance)
+        error = obs[:, :len(limits)].abs()
+        workspace = error - limits / maximum
+        peak = self.spec.field(state, 'peak_wrench')
+        force = peak / self.spec.force_limits - 1
+        def any_event(hard, margin):
+            return self._event(hard,
+                1 - torch.sigmoid(-margin / self.smooth_temperature).prod(-1))
+        return (any_event((peak > self.spec.force_limits).any(-1), force),
+                any_event((error * maximum > limits).any(-1), workspace))
 
     def physical(self, state):
         return torch.cat([self.spec.field(state, key).flatten(1)
@@ -59,6 +89,9 @@ class CuttingMDP:
         for key in self.spec.physical_fields:
             fields[key] = fields[key] + delta[:, self.spec.delta_slices[key]].reshape_as(fields[key])
         new, _, _ = self.spec.derive(old, fields, self.spec.execute(action), context)
+        counter = self.spec.field(old, 'success_counter') + self.candidate(new)
+        new = new.clone()
+        new[:, self.spec.layout['success_counter']] = counter[:, None]
         return torch.cat((new, state[:, -1:] + 1), -1)
 
     def observe(self, state, context):
@@ -73,9 +106,27 @@ class CuttingMDP:
         done, success, outside, _ = self.spec.heads.termination(
             observation, self.spec.field(state, 'success_counter'), collision)
         reward = self.spec.heads.reward(observation, collision, success, outside)
+        candidate = self.candidate(next_state)
+        counter = self.spec.field(state, 'success_counter') + candidate
+        margin = counter - self.spec.heads.env['successes_threshold']
+        counted = self._event(margin > 0, torch.sigmoid(margin / 0.5))
+        force_event, outside_event = self.events(next_state)
+        success_event = candidate * counted * (1 - force_event)
+        success_event *= float(not self.spec.heads.env['termination_on_negative_reward'])
+        success_event = (success_event.detach() + self.success_gradient_scale
+                         * (success_event - success_event.detach()))
+        costs = self.spec.heads.env['cost']
+        reward = reward + costs['done'] * (success_event - success_event.detach())
+        reward = reward + costs['collision'] * (force_event - force_event.detach())
+        reward = reward + costs['collision'] * (outside_event - outside_event.detach())
         # The upstream runner models a finite task horizon, including its timeout.
-        done = done | (next_state[:, -1] >= self.spec.metadata['environment']['steps_per_episode'])
-        return reward, done.float()
+        timeout = next_state[:, -1] >= self.spec.metadata['environment']['steps_per_episode']
+        done = done | timeout
+        soft_done = 1 - (1 - success_event) * (1 - force_event) * (1 - outside_event)
+        soft_done = soft_done * (~timeout).to(soft_done.dtype)
+        if self.spec.heads.env['termination_on_negative_reward']:
+            soft_done = soft_done * 0
+        return reward, self._event(done, soft_done)
 
     def critic_features(self, state, context, observation):
         return torch.cat((state, context, observation), -1)
@@ -90,6 +141,9 @@ class CuttingMDP:
             'delta': 'physical SI increments', 'reward': 'native SliceIt',
             'finite_horizon_steps': self.spec.metadata['environment']['steps_per_episode'],
             'error_floor': self.error_floor.tolist(),
+            'event_gradient': 'native forward; normalized-margin sigmoid straight-through backward',
+            'smooth_temperature': self.smooth_temperature,
+            'success_gradient_scale': self.success_gradient_scale,
         }
 
 
@@ -97,7 +151,7 @@ class CuttingEnvironment:
     """Batched physical worker with terminal POST captured before automatic reset."""
 
     def __init__(self, python, backend_root, *, worlds, scene, capture, device='cuda:0',
-                 timeout=600, log=None):
+                 timeout=600, log=None, reset_bank=None, seed=0):
         self.device = torch.device(device)
         self.num_envs = worlds
         self._reward_sum = 0.0
@@ -105,18 +159,22 @@ class CuttingEnvironment:
         self._force_max = 0.0
         self._return_sum = 0.0
         self._episodes = 0
+        self.completed_episodes = 0
+        self.successful_episodes = 0
         worker = Path(__file__).resolve().parents[1] / 'scripts/manipulation_gpu_worker.py'
-        self.client = JsonProcess(
-            [python, worker, '--backend-root', backend_root, '--worlds', str(worlds),
-             '--scene', scene, '--capture', capture], timeout=timeout,
+        command = [python, worker, '--backend-root', backend_root, '--worlds', str(worlds),
+                   '--scene', scene, '--capture', capture, '--seed', str(seed)]
+        if reset_bank is not None:
+            command += ['--reset-bank', str(reset_bank)]
+        self.client = JsonProcess(command, timeout=timeout,
             environment=clean_python_environment(), stderr=log)
         try:
             ready = self.client.request('init')
-            self.cfg = EnvironmentConfig(ready['metadata'], str(scene), str(capture))
+            self.cfg = EnvironmentConfig(ready['metadata'], str(scene), str(capture), ready.get('reset_bank'))
             self.mdp = CuttingMDP(ready['model_metadata'], self.device)
             self.sim = SimpleNamespace(data=SimpleNamespace(overflow=None))
             self.frame = self._frame(ready['frame'])
-            self.state = self._pack(self.frame)
+            self.state = self._reset_state(ready)
             self.context = self.frame['target_pose']
             self.post = None
             self.sim.data.overflow = self._tensor(ready['overflow'], torch.int32)
@@ -136,10 +194,15 @@ class CuttingEnvironment:
                  else spec.pack_batch_transition(frame, previous[:, :-1]))
         return torch.cat((state, frame['step_count']), -1).float()
 
+    def _reset_state(self, reply):
+        if 'history' not in reply:
+            return self._pack(self.frame)
+        return torch.cat((self._tensor(reply['history']), self.frame['step_count']), -1).float()
+
     def reset(self):
         reply = self.client.request('reset')
         self.frame = self._frame(reply['frame'])
-        self.state = self._pack(self.frame)
+        self.state = self._reset_state(reply)
         self.context = self.frame['target_pose']
         self.sim.data.overflow = self._tensor(reply['overflow'], torch.int32)
         return {'actor': self.mdp.observe(self.state, self.context)}, {}
@@ -151,15 +214,18 @@ class CuttingEnvironment:
         self._force_max = max(self._force_max, reply['material_force_max'])
         episode_metrics = reply['episode_metrics']
         if episode_metrics:
-            count = episode_metrics['Episode_Metrics/type_0_episodes']
+            count = sum(value for key, value in episode_metrics.items() if key.endswith('_episodes'))
             self._episodes += count
+            self.completed_episodes += count
+            self.successful_episodes += sum(value for key, value in episode_metrics.items()
+                                            if key.endswith('_successes'))
             self._return_sum += count * episode_metrics['Episode_Metrics/return_mean']
         self.post = self._pack(self._frame(reply['post']), self.state)
         terminated = self._tensor(reply['terminated'], torch.bool)
         truncated = self._tensor(reply['truncated'], torch.bool)
         self.frame = self._frame(reply['frame'])
         done = terminated | truncated
-        self.state = torch.where(done[:, None], self._pack(self.frame), self.post)
+        self.state = torch.where(done[:, None], self._reset_state(reply), self.post)
         self.context = self.frame['target_pose']
         self.sim.data.overflow = self._tensor(reply['overflow'], torch.int32)
         extras = {'log': reply['episode_metrics']}

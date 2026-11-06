@@ -9,12 +9,34 @@ updates, W&B logging, save and reload. Full default network/batch updates also
 execute on A6000 GPU 1. The shared evaluator loads this method with its saved
 physical-task contract.
 
-Next: complete a physical episode, then run the source full training schedule
-with an explicit environment count and time budget. Track complete return,
-success, force, WM held-out error and critic versus physical returns. The
-separate OmniReset apple bank must restore material damage and controller
-histories as well as robot pose; current collection uses full-task resets.
-The older numbered learners below are separate experiments.
+The task-stage bank now restores material damage/contact buffers, controller
+history, robot warmstart and ten observed frames. The training bank contains
+four categories of 256 states; the separately collected test bank has four
+categories of 64. Actual physical replay, terminal resets, source learning
+updates and checkpoint reload have passed. Complete apple cutting success
+remains the task outcome to establish.
+
+Next run: A6000 GPU 1, 256 environments, fresh source default networks,
+1,000 WM-only iterations and 10,000 total iterations, with a 48-hour wall cap.
+The source optimizer, batches, horizons, scheduler and clipping are unchanged.
+The question is whether stage resets and the source learned-model/BPTT loop
+can learn the existing apple task while retaining its force limit. The working
+hypothesis is that actual cutting-prefix states improve coverage of the
+material/contact dynamics. Source saves every 1,000 iterations; SIGUSR1 can
+save at an iteration boundary. Progress is written every iteration; graceful
+wall termination saves and closes the physical worker. An outer timeout allows
+ten minutes for shutdown before killing only this run's process group.
+
+Track physical episode return/success/force by reset category, held-out WM
+error, critic loss and physical divergence/overflow. Evaluate saved policies
+from the original complete-task start through `evaluate_benchmark.py`; compare
+critic values to complete physical discounted returns. Success from a partial
+reset is counted separately from complete-task success. Do not change the
+method because of short-term learning-curve fluctuations. Nonfinite updates
+or physical execution errors stop the run for diagnosis. The 256-world probe
+measures 2.89 s per collection step; 1,024 worlds take 7.89 s per step.
+
+The older numbered learners below are separate experiments and checkouts.
 
 ## Numbered runs
 
@@ -101,7 +123,7 @@ or resumed checkpoints.
    the same robot/controller evaluation. Its free-knife optimization results
    remain a separate experiment until that adapter executes the same task.
 
-No new long training is launched during these bounded checks. Run1 keeps its
+No new long training of the older numbered learners is launched by these checks. Run1 keeps its
 existing Gazebo process, endpoint and wall budget. Current machine routes and
 local environment paths are in `runs/operations/MACHINES.md` on the Mac;
 connection details and credentials stay outside Git.

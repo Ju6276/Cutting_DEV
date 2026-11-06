@@ -110,3 +110,34 @@ def test_manipulation_autoreset_preserves_terminal_post_and_other_world_history(
     torch.testing.assert_close(env.state[1], env.post_step()[1])
     assert env.post_step()[0, -1].item() == 1
     assert env.state[0, -1].item() == 0
+
+
+def test_straight_through_events_preserve_native_forward_and_supply_goal_gradient():
+    mdp, state, goal = mdp_fixture()
+    spec = mdp.spec
+    state = state.repeat(128, 1)
+    generator = torch.Generator().manual_seed(17)
+    state[:, spec.layout['success_counter']] = torch.randint(0, 13, (128, 1), generator=generator).float()
+    new = state.clone()
+    obs = torch.randn(128, 24, generator=generator) * .1
+    obs[:32, :3] = 0
+    threshold = obs.new_tensor(spec.heads.env['goal_threshold']) / obs.new_tensor(spec.heads.max_distance)
+    obs[32:35, :3] = threshold
+    new[:, spec.layout['observation']] = obs
+    new[:, spec.layout['peak_wrench']] = torch.rand(128, 6, generator=generator) * spec.force_limits * 1.1
+    new[:, -1] = torch.arange(128) + 400
+    collision = (spec.field(new, 'peak_wrench') > spec.force_limits).any(-1)
+    done, success, outside, _ = spec.heads.termination(obs, spec.field(state, 'success_counter'), collision)
+    expected = spec.heads.reward(obs, collision, success, outside)
+    reward, actual_done = mdp.reward(state, torch.zeros(128, 6), new, goal.repeat(128, 1))
+    torch.testing.assert_close(reward, expected, rtol=0, atol=0)
+    assert torch.equal(actual_done.bool(), done | (new[:, -1] >= 500))
+
+    new = new[:1].detach()
+    new[:, spec.layout['observation']] = 0
+    new[:, spec.layout['observation'].start + 1] = threshold[1]
+    new.requires_grad_(True)
+    candidate = mdp.candidate(new)
+    gradient = torch.autograd.grad(candidate.sum(), new)[0]
+    assert candidate.item() == 0
+    assert gradient[0, spec.layout['observation'].start + 1] < 0

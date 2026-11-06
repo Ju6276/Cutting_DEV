@@ -58,6 +58,9 @@ def main():
     parser.add_argument('--contract', type=Path, default=ROOT / 'configs/public_prism/benchmark.json')
     parser.add_argument('--scene', default='runs/disect_source_v4/scene.pt')
     parser.add_argument('--capture', default='runs/source')
+    parser.add_argument('--reset-bank', type=Path)
+    parser.add_argument('--reset-stage', choices=('full_task', 'before_cut', 'cutting', 'closest_cut'),
+                        default='full_task')
     parser.add_argument('--manipulation-python', type=Path)
     parser.add_argument('--manipulation-source-root', type=Path)
     parser.add_argument('--checkpoint', type=Path)
@@ -111,6 +114,12 @@ def main():
         actual = physical_contract(args.backend_root, env, args.scene, args.capture,
                                    manifest['contract']['name'])
         check_contract(manifest['contract'], actual)
+        if args.reset_bank:
+            from cutting_world_model.reset_bank import CuttingResetBank, BankEvaluationEnvironment
+            bank = CuttingResetBank(args.reset_bank, actual)
+            env = BankEvaluationEnvironment(env, bank, args.reset_stage, args.seed)
+            manifest['reset_bank'] = bank.metadata
+            manifest['reset_stage'] = args.reset_stage
         write_json(args.output / 'task.json', env.metadata)
         if args.method == 'manipulation-supermimic':
             from cutting_world_model.manipulation import ManipulationPolicy

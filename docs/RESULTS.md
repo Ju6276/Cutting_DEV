@@ -1,5 +1,52 @@
 # Results
 
+## 2026-11-06 — cutting-stage resets and event gradients
+
+Base `8bcdebb` + stage adapter; upstream `eda7da48`; A6000 GPU 1.
+`collect_cutting_resets.py --worlds 64 --per-stage 64 --stride 8`: training
+seed 0 and test seed 7 each produce four categories of 64 physical states
+from 1,024 transitions. Collection takes 27.67/31.84 s; complete proposal
+episodes 24/26, all force-limit failures. Minimum reached goal-z errors
+7.54/7.46 mm. Each bank is 21 MiB. The closest category contains unfinished
+cutting prefixes, with their original remaining material stiffness.
+
+`check_cutting_resets.py --per-stage 8`: 32 test-bank states, restored one-step
+joint maximum error 1.19e-7 rad; reward 1.01e-6; particle position 1.32e-6 m.
+Rebuilding observations from actual physical increments gives maximum error
+1.49e-5 and reward error 4.53e-6; both terminal comparisons have zero mismatches.
+Record: `runs/manipulation_reset/replay_check/report.json`.
+
+`train_manipulation.py --reset-bank .../train_bank/bank.pt --worlds 16
+--smoke --iterations 8`: 576 real transitions, 75 WM updates, 7 policy/critic
+rounds in 67.76 s. Actual terminated episodes trigger per-world bank resets.
+Native reward maximum difference 5.96e-8; terminal mismatch 0/64; actor
+checkpoint reload difference zero. Record: `runs/manipulation_reset/complete_updates`,
+[W&B](https://wandb.ai/ju-dong6276-technical-university-of-munich/cutting-manipulation/runs/futoalou).
+
+4090 tamsgpu7: root 166 passed / 5 skipped in 154.61 s; backend 24 passed
+in 3.32 s. The added checks cover unchanged forward event rewards, event
+gradient direction, physical snapshot replay and preserving unreset worlds.
+
+Full source network/batch capacity check: 256/1,024 worlds collect
+2,048/8,192 transitions in 23.09/63.11 s (2.89/7.89 s per vector step).
+One WM plus policy/critic update takes 6.30/114.34 s; the 1,024-world number
+includes compilation of the new batch shapes. Learner peak allocations are
+5,654/10,827 MiB. Native terminal mismatches are zero for both sizes.
+Records: `runs/manipulation_reset/capacity_256` and `capacity_1024`.
+
+`collect_cutting_resets.py --worlds 256 --per-stage 256 --seed 0`:
+4,096 real transitions, four categories of 256 states in 49.99 s;
+106 completed proposal episodes, all force-limit failures. Minimum goal-z
+error 7.54 mm, maximum 215/244 released springs. Record:
+`runs/manipulation_reset/train_256`.
+
+`train_manipulation.py --resume .../model_000008.pt --smoke --iterations 2`:
+iteration 10, cumulative 912 transitions / 93 WM updates / 9 policy rounds;
+32.98 s for this invocation. Physical divergence and overflow counters are
+zero, native reward maximum difference 5.96e-8, terminal mismatch 0/32,
+actor reload difference zero. Per-iteration progress and final status are
+written to `runs/manipulation_reset/progress_resume/progress.json`.
+
 ## 2026-11-06 — manipulation SuperMimic connected updates
 
 Base `b07e276` + manipulation adapter; upstream `eda7da48`; tamsgpu5 A6000 GPU 1.

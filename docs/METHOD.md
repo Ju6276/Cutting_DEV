@@ -6,6 +6,26 @@ source patches are listed in [SOURCES](SOURCES.md).
 
 ## Manipulation SuperMimic apple adapter
 
+The stage-reset adapter follows the upstream `_gate` / `_success_term` rules:
+hard native SliceIt events forward, sigmoid straight-through derivatives
+backward (temperature 0.01, success-gradient scale 0.02 from upstream).
+Position/workspace margins use the existing observation normalization; force
+margins use the existing force limits. The success counter keeps SliceIt's
+cumulative semantics. Native stepping, rewards and termination stay unchanged.
+This adds backward derivatives to event bonuses without changing their forward
+values; it changes imagined actor gradients and requires fresh training.
+
+Reset banks follow the upstream task-owned collectors: save physically reached
+prefix states, then sample stage categories uniformly. Cutting categories are
+the full start, before spring weakening, active cutting, and the closest valid
+cutting prefix to the goal in each proposal trajectory. Classification uses
+existing spring stiffness and goal coordinates. Closest-prefix resets retain
+their measured goal error; they are not labeled task successes.
+Snapshots include all material state/contact buffers, controller/filter state,
+robot warmstart, feedback and the actual ten-frame history. New episodes reset
+their clock and success counter while retaining physical damage and history.
+Empty categories stop bank collection; they are never filled with edited damage.
+
 `train_manipulation.py` uses emoPointer/supermimic_manipulation `eda7da48`
 directly. The older `train_gpu.py` learner remains a separate method.
 
@@ -18,7 +38,16 @@ directly. The older `train_gpu.py` learner remains a separate method.
 | Value input | State, context and actor observation | 861-D history/clock state, 7-D goal and 24-D actor observation. Particle state remains in physics; it is omitted from WM inputs/outputs |
 | Horizon | Finite-horizon upstream task objective | Existing 500-step physical timeout also ends imagined returns. Replay retains separate physical termination and truncation flags; SAC keeps its own time-limit bootstrap rule |
 | Loss scaling | Task-specific normalization floor | Source default 1e-3; joint position/velocity 1e-2. These bound normalization denominators, not physical task acceptance |
-| Reset | Upstream supports full-task resets and an OmniReset curriculum | Full-task reset only. An apple reset bank with material damage and controller/filter histories is pending |
+| Reset | Upstream samples task-stage categories uniformly from physically validated banks | Four cutting-prefix categories sampled uniformly; complete material, contact, feedback, controller and control-history snapshots. Separate train/test collections use different seeds. Full-task resets remain available without a bank |
+
+Bank proposals sample the four existing gain actions in their responsive [0, 1]
+range and the two existing motion actions within their bounds. The lateral
+command alternates sign every eight control steps (the source WM window).
+Reservoir sampling retains prefix states; the closest category keeps the
+minimum goal-z error reached by each proposal before termination. This is a
+task-specific collector, following the upstream Drawer physical-prefix design.
+It adds no new task acceptance threshold. Training uses the original actor plus
+source Gaussian exploration, not the collector's action generator.
 
 The apple scene is the public `ansys_sphere_apple.json` sphere with apple
 material. Training collects current-policy physical transitions; there is no

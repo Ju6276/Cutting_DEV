@@ -21,6 +21,8 @@ New material scenes use `prepare_scene_reset.py` to align the UR5e reset and
 `benchmark_gpu_env.py --scene ... --capture ... --record-episode` to record a reference cut.
 The separate [manipulation SuperMimic entry](docs/RUNNING.md#manipulation-supermimic--ur5e-apple)
 imports the pinned upstream learner and connects it to the UR5e apple scene.
+`collect_cutting_resets.py` builds physical cutting-stage reset banks;
+`check_cutting_resets.py` verifies restoration and native observation/reward replay.
 
 ```bash
 python3.12 -m venv .venv
@@ -39,7 +41,12 @@ after the current iteration; normal completion and SIGTERM also save.
 
 ## Current result
 
-2026-11-05: the shared evaluator executes policy62 successfully in **20 steps /
+2026-11-06 apple adapter: real stage resets and source WM/policy/critic updates
+execute on A6000; 256 and 1,024 environments fit. Snapshot replay has joint
+error **1.19e-7 rad** and zero terminal mismatches. Full apple training uses
+the plan in [PLAN](docs/PLAN.md); complete apple cutting success is still open.
+
+2026-11-05 prism experiment: the shared evaluator executes policy62 successfully in **20 steps /
 1.00 s**, peak material force **30.66 N**. The source SAC adapter completes
 real physical transitions, learning updates and checkpoint/replay reload.
 
