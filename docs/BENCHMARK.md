@@ -158,6 +158,45 @@ existing predicate; spring releases are reported separately as material evidence
 The material force metric is the maximum, over coupling intervals, of DiSECt's
 sum of contact-force magnitudes. It is separate from the filtered robot wrench.
 
+### Episode metrics
+
+`CuttingBatch.step` integrates over every 2 ms coupling substep of the world while
+it is active (a world stops integrating at its collision check). The step's
+return values are unchanged; the integrals of the last step are
+`CuttingBatch.step_metrics` and `GPUEnvironment.step` adds them to `info`
+(`material_impulse`, `knife_work`, `knife_gross_work`, `safety_margin`, plus
+`jerkiness`). `evaluate()` sums them per episode. `F` is DiSECt's summed contact-force
+magnitude after the substep's material advance (`feedback['force_magnitude']`,
+the quantity whose maximum is `material_peak_force_n`); `v` is the knife linear
+velocity sent to DiSECt for that substep (DiSECt frame, after the coupling's
+first-step and jump zeroing).
+
+| Field | Definition |
+|---|---|
+| `material_impulse_ns` | ∫ F dt (N s) |
+| `mean_material_force_n` | `material_impulse_ns / simulation_seconds` (time average over simulated time) |
+| `knife_work_j` | ∫ F (-v_y) dt (J): net mechanical work by the knife on the material |
+| `knife_gross_work_j` | ∫ F \|v_y\| dt (J); equals net work unless the knife rises while in contact |
+| `safety_margin` | max over checks and components of \|observation_wrench_k\| / max_force_torque_k, the collision check's quantity; >= 1 means a limit was exceeded |
+| `total_cut_springs`, `cut_fraction` | number of cut springs (304); `released_springs / total_cut_springs` (includes springs released at reset) |
+| `mean_jerk` | mean over control steps of SliceIt's reward jerkiness, the norm of the observed jerk over `target_dims` divided by 500 (`SliceItHeads.jerkiness`; dimensionless, the reward clamps it at 1) |
+
+**Work sign and frame.** DiSECt y is up; the scene reference presses at
+v_y = -0.05 m/s. The coupling applies the material force to the knife purely
+along +y of the DiSECt frame (`wrench_disect[..., 1] = magnitude`), opposing the
+press, so the power delivered to the material is `-F_knife · v = F (-v_y)`:
+positive when pressing down, negative when the knife is lifted against
+contact force. The lateral (z, along-blade) sawing motion does no work in this
+coupling because the applied force has no z component.
+
+The safety margin uses the checks at the start of each substep, so the
+wrench after the final substep of an episode is not included, as in the
+collision check itself.
+
+`report.json` also contains `summary`: over completed episodes, the mean and
+population std (`ddof=0`) of every numeric row field, plus `success_rate` and
+`collision_rate`.
+
 ## Trajectory baseline results (2026-11-05, 4090 shared with other jobs)
 
 Measured, one deterministic-input episode each (the material's FP32 atomics make
