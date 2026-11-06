@@ -11,6 +11,7 @@ import warp as wp
 from .batched_disect import BatchedDiSECt
 from .controller.fdcc import ControllerConfig, FDCCController, SerialChain, SlicingActionMapper
 from .coupling import SliceItCoupling
+from .metrics import StepMetrics
 from .reference import KnifeTrajectory
 from .robot import Robot
 
@@ -61,6 +62,8 @@ class CuttingBatch:
         self.motion_initialized = torch.zeros(worlds, device=self.device, dtype=torch.bool)
         self.sim_time = torch.zeros(worlds, device=self.device, dtype=self.dtype)
         self.peak = torch.zeros_like(self.desired_wrench)
+        self.metrics = StepMetrics(worlds, self.device, self.dtype)
+        self.step_metrics = self.metrics.as_dict()
         self.robot.save_reset_state()
         self.material.save_reset_state()
         self._initial_controller = {k: v.clone() for k, v in vars(self.controller).items() if isinstance(v, torch.Tensor)}
@@ -213,6 +216,7 @@ class CuttingBatch:
         if action.shape != (self.worlds, 6):
             raise ValueError('Expected one six-component action per environment')
         self.peak.zero_()
+        self.metrics.zero_()
         if reference:
             dt = self.task['environment']['agent_control_dt']
             args = {'target_pose': self.reference_target(self.sim_time + dt)}
@@ -225,6 +229,7 @@ class CuttingBatch:
         for _ in range(intervals):
             observed = self.feedback['observation_wrench'].abs()
             self.peak = torch.where(collision[:, None], self.peak, torch.maximum(self.peak, observed))
+            self.metrics.check_wrench(observed, self.force_limits, ~collision)
             newly_done = (~collision) & (observed > self.force_limits).any(-1)
             if newly_done.any():
                 current = self.frame()
@@ -251,6 +256,7 @@ class CuttingBatch:
             self.material.advance(.002, active=active)
             raw = -self.robot.sensor_wrench(self.config.sensor_ref_link).to(self.dtype)
             self.feedback = self._feedback(raw)
+            self.metrics.accumulate(self.feedback['force_magnitude'], twist[:, :3], active, .002)
             self.wrench_queue = torch.cat((self.wrench_queue[:, 1:], self.feedback['sensor_wrench'][:, None]), 1)
             peak_force = torch.where(collision, peak_force, torch.maximum(peak_force, self.feedback['force_magnitude'].float()))
             self.sim_time += active * .002
@@ -260,4 +266,6 @@ class CuttingBatch:
         if terminal is not None:
             for k in frame:
                 frame[k][collision] = terminal[k][collision]
+        # Read by callers after step(); the return signature is unchanged.
+        self.step_metrics = self.metrics.as_dict()
         return frame, collision, peak_force

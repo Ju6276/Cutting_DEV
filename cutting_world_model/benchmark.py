@@ -77,6 +77,40 @@ def save_episode(output, row, states, transitions):
     np.savez_compressed(output / f"episode_{row['episode']:03d}.npz", **arrays)
 
 
+def episode_metrics(row, totals):
+    """Derived per-episode metrics from per-step integrals (see docs/BENCHMARK.md)."""
+    seconds = row['simulation_seconds']
+    return {
+        'mean_material_force_n': totals['material_impulse'] / seconds if seconds > 0 else 0.,
+        'material_impulse_ns': totals['material_impulse'],
+        'knife_work_j': totals['knife_work'],
+        'knife_gross_work_j': totals['knife_gross_work'],
+        'safety_margin': totals['safety_margin'],
+        'cut_fraction': row['released_springs'] / row['total_cut_springs'],
+        'mean_jerk': totals['jerkiness'] / row['steps'] if row['steps'] else 0.,
+    }
+
+
+SUMMARY_EXCLUDED = ('episode',)
+
+
+def summarize(episodes):
+    """Mean and population std of numeric row fields over completed episodes."""
+    completed = [row for row in episodes if row['completed']]
+    summary = {'episodes': len(completed),
+               'success_rate': (sum(row['success'] for row in completed) / len(completed)
+                                if completed else None),
+               'collision_rate': (sum(row['collision'] for row in completed) / len(completed)
+                                  if completed else None)}
+    if completed:
+        for key, value in completed[0].items():
+            if key in SUMMARY_EXCLUDED or isinstance(value, bool) or not isinstance(value, (int, float)):
+                continue
+            values = np.array([row[key] for row in completed], dtype=np.float64)
+            summary[key] = {'mean': float(values.mean()), 'std': float(values.std())}
+    return summary
+
+
 class ConstantPolicy:
     def reset(self, frame):
         pass
@@ -167,12 +201,16 @@ def evaluate(env, policy, output, episodes, deadline, clock=time.monotonic):
             transitions = []
             start_time = float(frame['sim_time'][0, 0])
             initial_released = int((frame['cut_spring_ke'][0] == 0).sum())
+            totals = dict.fromkeys(('material_impulse', 'knife_work', 'knife_gross_work',
+                                    'safety_margin', 'jerkiness'), 0.)
             row = {'episode': episode, 'completed': False, 'steps': 0, 'return': 0.,
                    'simulation_seconds': 0., 'material_peak_force_n': 0.,
                    'initial_released_springs': initial_released,
                    'released_springs': initial_released,
                    'success': False, 'collision': False, 'outside': False,
-                   'terminated': False, 'truncated': False}
+                   'terminated': False, 'truncated': False,
+                   'total_cut_springs': int(frame['cut_spring_ke'].shape[-1])}
+            row.update(episode_metrics(row, totals))
             while clock() < deadline:
                 tick = clock()
                 action = policy.act(frame)
@@ -205,6 +243,10 @@ def evaluate(env, policy, output, episodes, deadline, clock=time.monotonic):
                            success=bool(info['success'][0]), collision=bool(info['collision'][0]),
                            outside=bool(info['outside'][0]), terminated=bool(terminated[0]),
                            truncated=bool(truncated[0]))
+                for key in ('material_impulse', 'knife_work', 'knife_gross_work', 'jerkiness'):
+                    totals[key] += float(info[key][0])
+                totals['safety_margin'] = max(totals['safety_margin'], float(info['safety_margin'][0]))
+                row.update(episode_metrics(row, totals))
                 row['completed'] = row['terminated'] or row['truncated']
                 policy.observe(frame)
                 write_json(output / 'progress.json', {**report, 'current_episode': row,
@@ -234,6 +276,7 @@ def evaluate(env, policy, output, episodes, deadline, clock=time.monotonic):
         completed = [row for row in report['episodes'] if row['completed']]
         report.update(completed_episodes=len(completed),
                       successes=sum(row['success'] for row in completed),
+                      summary=summarize(report['episodes']),
                       wall_seconds=clock() - started)
         write_json(output / 'report.json', report)
         write_json(output / 'progress.json', report)

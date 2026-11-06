@@ -103,4 +103,7 @@ class GPUEnvironment:
         return frame, reward.float(), terminated, truncated, {
             'success': success, 'collision': collision, 'outside': outside,
             'peak_force': peak_force, 'released_springs': (frame['cut_spring_ke'] == 0).sum(-1),
+            **({'jerkiness': self.heads.jerkiness(frame['observation'])}
+               if self.environment['jerkiness_as_obs'] else {}),
+            **self.physics.step_metrics,
         }

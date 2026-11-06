@@ -50,7 +50,13 @@ class PhysicalEpisode:
                 torch.tensor([collision or success]), torch.tensor([truncated]),
                 {'collision': torch.tensor([collision]), 'success': torch.tensor([success]),
                  'outside': torch.tensor([False]), 'peak_force': torch.tensor([self.steps * 7.]),
-                 'released_springs': torch.tensor([self.steps + 1])})
+                 'released_springs': torch.tensor([self.steps + 1]),
+                 # Step integrals: step 1 is 0.05 s at 4 N, step 2 is 0.012 s at 10 N.
+                 'material_impulse': torch.tensor([.2 if self.steps == 1 else .12], dtype=torch.float64),
+                 'knife_work': torch.tensor([.01 if self.steps == 1 else -.002], dtype=torch.float64),
+                 'knife_gross_work': torch.tensor([.01 if self.steps == 1 else .004], dtype=torch.float64),
+                 'safety_margin': torch.tensor([.5 if self.steps == 1 else 1.2], dtype=torch.float64),
+                 'jerkiness': torch.tensor([.3 if self.steps == 1 else .1], dtype=torch.float64)})
 
 
 def test_terminal_frame_time_and_transition_alignment(tmp_path):
@@ -65,6 +71,21 @@ def test_terminal_frame_time_and_transition_alignment(tmp_path):
         assert row['simulation_seconds'] == .062
         assert row['material_peak_force_n'] == 14.
         assert row['released_springs'] == 3 and row['newly_released_springs'] == 2
+        assert row['material_impulse_ns'] == pytest.approx(.32)
+        assert row['mean_material_force_n'] == pytest.approx(.32 / .062)
+        assert row['mean_material_force_n'] < row['material_peak_force_n']
+        assert row['knife_work_j'] == pytest.approx(.008)
+        assert row['knife_gross_work_j'] == pytest.approx(.014)
+        assert row['safety_margin'] == pytest.approx(1.2)
+        assert row['total_cut_springs'] == 3 and row['cut_fraction'] == 1.
+        assert row['mean_jerk'] == pytest.approx(.2)
+    summary = report['summary']
+    assert summary['episodes'] == 2
+    assert summary['success_rate'] == 0. and summary['collision_rate'] == 1.
+    assert summary['knife_work_j'] == {'mean': pytest.approx(.008), 'std': pytest.approx(0.)}
+    assert summary['return'] == {'mean': -23., 'std': 0.}
+    assert 'success' not in summary and 'episode' not in summary
+    assert json.loads((tmp_path / 'report.json').read_text())['summary']['episodes'] == 2
     with np.load(tmp_path / 'episode_000.npz') as data:
         np.testing.assert_array_equal(data['observation'][:, 0], [0, 1, 2])
         np.testing.assert_array_equal(data['reward'], [2., -25.])
@@ -82,6 +103,7 @@ def test_budget_preserves_incomplete_episode_without_counting_success(tmp_path):
     assert report['episodes'][0]['steps'] == 1
     assert not report['episodes'][0]['terminated']
     assert not report['episodes'][0]['truncated']
+    assert report['summary'] == {'episodes': 0, 'success_rate': None, 'collision_rate': None}
 
 
 def test_task_time_limit_stays_distinct_from_terminal_failure(tmp_path):
@@ -155,3 +177,20 @@ def test_reference_method_uses_the_reference_control_branch(tmp_path):
     branches.clear()
     report = evaluate(recording_episode(), ConstantPolicy(), tmp_path / 'constant', 1, 100., clock)
     assert branches == [False, False] and report['control_branch'] == 'policy_action'
+
+
+def test_summary_mean_and_std_over_mixed_outcomes(tmp_path):
+    clock = Clock()
+    outcomes = iter(['success', 'success', 'collision'])  # __init__ resets once
+
+    class Mixed(PhysicalEpisode):
+        def reset(self):
+            self.outcome = next(outcomes, self.outcome)
+            return super().reset()
+
+    env = Mixed(clock, 'success')
+    report = evaluate(env, ConstantPolicy(), tmp_path, 2, 100., clock)
+    summary = report['summary']
+    assert summary['success_rate'] == .5 and summary['collision_rate'] == .5
+    assert summary['return']['mean'] == pytest.approx((4. - 23.) / 2)
+    assert summary['return']['std'] == pytest.approx(13.5)

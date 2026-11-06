@@ -47,10 +47,15 @@ class SliceItHeads:
         pieces.append(force)
         return torch.cat(pieces, dim=-1)
 
+    def jerkiness(self, observation):
+        """SliceIt's reward jerkiness: norm of the observed jerk (target dims, / 500)."""
+        dims = len(self.dims)
+        return torch.linalg.vector_norm(observation[..., dims * 2:dims * 3], dim=-1)
+
     def reward(self, observation, collision, goal_reached, out_of_workspace):
         dims = len(self.dims)
         distance = observation[..., 1].abs()
-        jerk = torch.linalg.vector_norm(observation[..., dims * 2:dims * 3], dim=-1)
+        jerk = self.jerkiness(observation)
         limits = observation.new_tensor([self.force_limits[i] for i in self.dims])
         # Observations store each component across the history window.
         force = observation[..., -self.history * dims:].reshape(*observation.shape[:-1], dims, self.history)
