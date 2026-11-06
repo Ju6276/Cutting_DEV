@@ -7,8 +7,10 @@ from .task_heads import SliceItHeads, pose_error, TASK_INTERFACE_REVISION
 
 
 class GPUEnvironment:
-    def __init__(self, backend_root, worlds=1, reference_trajectory=None):
-        self.physics = CuttingBatch(backend_root, worlds, reference_trajectory=reference_trajectory)
+    def __init__(self, backend_root, worlds=1, reference_trajectory=None,
+                 scene='runs/disect_source_v4/scene.pt', capture='runs/source'):
+        self.physics = CuttingBatch(backend_root, worlds, scene=scene,
+                                    reference_trajectory=reference_trajectory, capture=capture)
         self.worlds, self.device = worlds, self.physics.device
         self.metadata = dict(self.physics.task)
         self.metadata['task_interface_revision'] = TASK_INTERFACE_REVISION

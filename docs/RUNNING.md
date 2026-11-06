@@ -76,6 +76,31 @@ Assets are stored under `backends/mujoco/runs/`:
 `source/`, `model_coupled/`, `controller_source/` and `disect_source_v4/`.
 They remain outside Git.
 
+### New DiSECt material scene
+
+`export_disect_scene.py` preserves the supplied configuration's material step
+and simulation duration. For the official apple example, select
+`examples/config/ansys_sphere_apple.json` and provide its `dataset/meshes/sphere.rst`.
+This asset is a spherical mesh with apple material parameters. Export it to
+`backends/mujoco/runs/apple_native` in the SliceIt environment above, then use
+the GPU environment to prepare the robot reset and run the reference controller:
+
+```bash
+.venv/bin/python backends/mujoco/scripts/prepare_scene_reset.py \
+  --capture backends/mujoco/runs/source \
+  --scene backends/mujoco/runs/apple_native/scene.pt \
+  --output backends/mujoco/runs/apple_capture
+.venv/bin/python scripts/benchmark_gpu_env.py --worlds 1 \
+  --scene runs/apple_native/scene.pt --capture runs/apple_capture \
+  --record-episode --wall-seconds 660 --output runs/apple_reference
+```
+
+The reset command derives initial joints and the goal from the exported knife
+motion, checks the joint limits and initial blade clearance, and writes
+`reset.json`. `--record-episode` saves world 0 physical states (T+1 frames),
+rewards, terminal flags and commanded reference poses (T transitions) in
+`episode_world0.npz`. The manifest identifies the prescribed reference controller.
+
 ## GPU training and evaluation — run 3
 
 ```bash

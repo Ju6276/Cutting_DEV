@@ -63,6 +63,15 @@ def test_reset_offset_plane_constraint_and_source_velocity_sign():
     assert torch.equal(stopped['angular_velocity'],torch.zeros_like(stopped['angular_velocity']))
 
 
+def test_material_reset_pose_round_trip_with_robot_frame_rotation():
+    transform = torch.tensor([0.138, 0.505, 0.126, 0.5, 0.5, 0.5, 0.5], dtype=torch.float64)
+    coupling = SliceItCoupling(transform, 0.04)
+    material = torch.tensor([[0., 0.08, 0.01, 0., 0., 0., 1.]], dtype=torch.float64)
+    material[:, 3:] = quat_exp(torch.tensor([[0.1, 0., 0.]], dtype=torch.float64))
+    robot = coupling.robot_pose_for_material_pose(material)
+    torch.testing.assert_close(coupling.reset_pose(robot), material, atol=1e-14, rtol=0)
+
+
 def test_whole_window_filter_matches_source_lfilter_recurrence():
     filtering = SourceWrenchFilter()
     baseline = torch.tensor([[0.2,-0.1,1.,0.1,0.2,0.3]],dtype=torch.float64)

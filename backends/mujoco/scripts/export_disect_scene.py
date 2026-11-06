@@ -22,8 +22,6 @@ def main():
     sys.path.insert(0, str(args.disect_root.resolve()))
     from disect.cutting import CuttingSim, load_settings
     settings = load_settings(str(args.config.resolve()))
-    settings.sim_dt = 1e-5
-    settings.sim_substeps = 500
     with torch.no_grad():
         sim = CuttingSim(settings, adapter='cuda', requires_grad=False, allow_nans=False,
                          log_folder=str(args.output / 'log'))

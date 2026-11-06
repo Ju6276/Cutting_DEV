@@ -141,6 +141,8 @@ class SourceWrenchFilter:
 
 
 class SliceItCoupling:
+    RESET_Y_OFFSET = -0.0043
+
     def __init__(self, base_from_disect, spine_height):
         self.base_from_disect = base_from_disect
         self.disect_from_base = inverse_pose(base_from_disect)
@@ -157,10 +159,16 @@ class SliceItCoupling:
 
     def reset_pose(self, knife_pose_base):
         pose = compose_pose(self.disect_from_base,knife_pose_base)
-        pose[...,1] -= 0.0043
+        pose[...,1] += self.RESET_Y_OFFSET
         twist = pose.new_zeros((*pose.shape[:-1],6))
         pose,twist = constrain_knife(pose,twist,self.spine_height)
         return pose
+
+    def robot_pose_for_material_pose(self, material_pose):
+        """Invert the initial mapping for a pose in the planar knife frame."""
+        pose = material_pose.clone()
+        pose[..., 1] -= self.spine_height / 2 + self.RESET_Y_OFFSET
+        return compose_pose(self.base_from_disect, pose)
 
     def motion(self, knife_pose_base):
         previous = knife_pose_base if self.previous_pose_base is None else self.previous_pose_base

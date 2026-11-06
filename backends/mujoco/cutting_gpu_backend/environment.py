@@ -17,15 +17,16 @@ from .robot import Robot
 
 class CuttingBatch:
     @torch.no_grad()
-    def __init__(self, root, worlds=1, scene='runs/disect_source_v4/scene.pt', reference_trajectory=None):
+    def __init__(self, root, worlds=1, scene='runs/disect_source_v4/scene.pt',
+                 reference_trajectory=None, capture='runs/source'):
         root = Path(root)
         self.worlds = worlds
         self.device = torch.device('cuda:0')
         self.dtype = torch.float64
         wp.config.kernel_cache_dir = os.environ.get(
             'WARP_CACHE_PATH', str(root / 'runs/cache/warp'))
-        self.task = json.loads((root / 'runs/source/task.json').read_text())
-        episode = np.load(root / 'runs/source/episode_000.npz')
+        self.task = json.loads((root / capture / 'task.json').read_text())
+        episode = np.load(root / capture / 'episode_000.npz')
         task = self.task
         self.material = BatchedDiSECt(root / scene, worlds)
         self.robot = Robot(root / 'runs/model_coupled/robot.mjb', episode['joint_q'][0], episode['joint_qd'][0], worlds)

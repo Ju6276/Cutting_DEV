@@ -1,5 +1,26 @@
 # Results
 
+## 2026-11-06 — official apple material with UR5e
+
+Base `2f1059a` + apple scene/reset adapter; DiSECt `db7de0f`, NVlabs
+`ansys_sphere_apple.json`. `export_disect_scene.py --steps 200`: 704 particles,
+2717 tetrahedra and 244 cutting springs after preprocessing; native step 20 µs.
+The packed replay's maximum particle-position difference is 2.61e-8 m after
+200 steps. `prepare_scene_reset.py`: blade clearance 9.32 mm; settled robot
+reference endpoint differs from the prepared goal by 5.19e-8 m vertically.
+
+`benchmark_gpu_env.py --worlds 1 --scene runs/apple_native/scene.pt
+--capture runs/apple_capture --record-episode --wall-seconds 600`: 493 steps
+in 601.30 s on A6000 GPU 1. Restoring its final state and advancing seven steps
+reaches the unchanged 500-step time limit: success false, collision false,
+202/244 released springs, goal error 9.01 mm, material force 45.01 N.
+Prescribed material-only motion for the source 1.3 s ends with 216/244 springs
+released and 100.17 N force. The robot's fixed compliance controller settles
+above the goal; the material-only endpoint exceeds the task's 50 N force limit.
+RTX 4090 suites: root 159 passed / 5 skipped (246.59 s), backend 24 passed
+(2.55 s). The recording check saves 3 physical frames and 2 commanded poses
+for 2 real transitions.
+
 ## 2026-11-02
 
 ROS wiring audit, running `online_source_20261102` and SAC masters 11322/11321:
