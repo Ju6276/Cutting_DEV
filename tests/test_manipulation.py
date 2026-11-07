@@ -45,6 +45,28 @@ def mdp_fixture():
     return mdp, state, goal
 
 
+def test_manipulation_model_inputs_preserve_native_action_equivalence():
+    mdp, state, goal = mdp_fixture()
+    mdp.spec.double()
+    state, goal = state.double(), goal.double()
+    first = torch.tensor([[-.2, -.3, -.4, -.5, .6, -.7]], dtype=torch.float64)
+    second = torch.tensor([[-.8, -.7, -.6, -.9, .6, .9]], dtype=torch.float64)
+    a, b = state.clone(), state.clone()
+    action_start = mdp.spec.layout['observation'].start + 9
+    for value, action in [(a, first), (b, second)]:
+        frames = value[:, :-1].view(1, mdp.spec.history_length, mdp.spec.base_dim)
+        frames[..., action_start:action_start + 6] = action[:, None]
+    assert not torch.equal(mdp.observe(a, goal), mdp.observe(b, goal))
+    torch.testing.assert_close(mdp.inputs(a, first, goal), mdp.inputs(b, second, goal), rtol=0, atol=0)
+    first.requires_grad_()
+    gradient = torch.autograd.grad(mdp.inputs(a, first, goal).sum(), first)[0]
+    torch.testing.assert_close(gradient, torch.tensor([[0., 0., 0., 0., 1., 0.]], dtype=torch.float64))
+    responsive = torch.full((1, 6), .3, dtype=torch.float64, requires_grad=True)
+    assert torch.autograd.gradcheck(lambda action: mdp.inputs(a, action, goal), (responsive,))
+    mdp.spec.metadata['controller']['max_twist'][1] = 1.
+    assert mdp.dynamics_action(first)[0, 5].item() == first[0, 5].item()
+
+
 def test_manipulation_delta_targets_reconstruct_physics_and_shift_history():
     mdp, state, goal = mdp_fixture()
     action = torch.full((1, 6), .2)

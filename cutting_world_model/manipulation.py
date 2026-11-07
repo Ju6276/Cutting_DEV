@@ -71,10 +71,19 @@ class CuttingMDP:
         return torch.cat([self.spec.field(state, key).flatten(1)
                           for key in self.spec.physical_fields], -1)
 
+    def dynamics_action(self, action):
+        executed = self.spec.execute(action)
+        gains = executed[..., :4].clamp(0, 1)
+        active = executed.new_tensor([
+            value != 0 for value in self.spec.metadata['controller']['max_twist']])
+        return torch.cat((gains, executed[..., 4:] * active), -1)
+
     def inputs(self, state, action, context):
         frames = state[:, :-1].reshape(-1, self.spec.history_length, self.spec.base_dim)
-        history = frames.index_select(-1, self.spec.dynamics_indices).flatten(1)
-        return torch.cat((history, self.spec.execute(action), context), -1)
+        history = frames.index_select(-1, self.spec.dynamics_indices)
+        # The last six selected features are each frame's previous action.
+        history = torch.cat((history[..., :-6], self.dynamics_action(history[..., -6:])), -1)
+        return torch.cat((history.flatten(1), self.dynamics_action(action), context), -1)
 
     def targets(self, state, next_state):
         return self.physical(next_state) - self.physical(state)
@@ -138,6 +147,7 @@ class CuttingMDP:
             'action_dim': self.action_dim, 'context_dim': self.context_dim,
             'critic_dim': self.critic_dim, 'history': self.spec.history_length,
             'predicted_fields': list(self.spec.physical_fields),
+            'dynamics_action_features': 'native gain saturation and enabled motion axes v1',
             'delta': 'physical SI increments', 'reward': 'native SliceIt',
             'finite_horizon_steps': self.spec.metadata['environment']['steps_per_episode'],
             'error_floor': self.error_floor.tolist(),

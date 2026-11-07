@@ -1,5 +1,37 @@
 # Results
 
+## 2026-11-07 — apple action-feature correction and complete policy evaluation
+
+Training code `0c76934`, evaluator `6f6b68a`. The 256-world source run stopped
+and saved `model_003117.pt`: 2,011,136 real transitions, 3,698 WM updates,
+2,117 policy updates, 0/6,529 successful episodes, 23,811.35 s. Physical
+overflow/divergence and native-terminal reconstruction mismatches are zero.
+
+`evaluate_benchmark.py --method manipulation-supermimic --checkpoint
+.../model_003000.pt --wall-seconds 1500`: complete 500-step/25 s episode ends
+by timeout, return -368.07347, peak material force 47.45718 N, 191/244 released
+springs. Minimum/final goal-z error is 10.13970/18.95996 mm. Weights stay
+unchanged; optimizer updates 0. Record: `runs/manipulation_apple_eval_003000`.
+
+Base `6f6b68a` + action-feature correction. Frozen checkpoint3000, 16 physical
+starts × 32 steps: mean position error at H16 is 2.53879 mm; six physical
+force-limit terminations are missed by the single-step model. Their measured
+peaks are 50.23–50.85 N, predicted peaks 45.86–48.49 N. Two negative gain
+commands that map to identical native controls produce identical robot
+positions/rewards in the physical check, but different WM positions. Encoding
+the native action saturation in current/history features changes the maximum
+WM position difference 0.51609 mm → 0; inactive-axis position gradients also
+become zero while the active motion gradient stays nonzero. Record:
+`runs/apple_debug_20261107`, `runs/model_action_checks/frozen_model_equivalence.json`.
+
+`train_manipulation.py --worlds 16 --smoke --iterations 8 --max-hours 0.12`:
+576 physical transitions, 75 WM updates and 7 policy/critic updates in 59.92 s.
+Checkpoint reload action error 0; native reward maximum error 5.96e-8,
+terminal mismatch 0/64, physical overflow/divergence 0. Record:
+`runs/model_action_checks/connected_updates`. 4090 full suites: 168 root pass /
+5 skips in 229.37 s; 24 backend pass in 3.97 s. Next: complete the native
+control-profile feasibility check before restarting long training.
+
 ## 2026-11-07 — frozen manipulation actor action bounds
 
 Base `0c76934` + evaluation adapter fix. `evaluate_benchmark.py --method

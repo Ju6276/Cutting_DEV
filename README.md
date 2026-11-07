@@ -41,10 +41,12 @@ after the current iteration; normal completion and SIGTERM also save.
 
 ## Current result
 
-2026-11-06 apple adapter: real stage resets and source WM/policy/critic updates
-execute on A6000; 256 and 1,024 environments fit. Snapshot replay has joint
-error **1.19e-7 rad** and zero terminal mismatches. Full apple training uses
-the plan in [PLAN](docs/PLAN.md); complete apple cutting success is still open.
+2026-11-07 apple run stopped at iteration **3,117**, with **0/6,529** successes.
+The frozen policy times out after 500 steps; its closest goal-z error is
+**10.14 mm**. WM inputs now encode the controller's existing action saturation,
+removing false motion predictions for physically equivalent commands.
+Next: finish the native control-profile feasibility check before restarting
+long training; see [PLAN](docs/PLAN.md).
 
 2026-11-05 prism experiment: the shared evaluator executes policy62 successfully in **20 steps /
 1.00 s**, peak material force **30.66 N**. The source SAC adapter completes

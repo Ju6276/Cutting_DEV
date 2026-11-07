@@ -1,6 +1,6 @@
 # Current plan
 
-## Apple manipulation adapter — 2026-11-06
+## Apple manipulation adapter — 2026-11-07
 
 The `feat/apple-cutting-adapter` branch connects the clean manipulation
 SuperMimic runner (`eda7da48`) to UR5e + compliance + DiSECt apple physics.
@@ -16,7 +16,22 @@ categories of 64. Actual physical replay, terminal resets, source learning
 updates and checkpoint reload have passed. Complete apple cutting success
 remains the task outcome to establish.
 
-Training configuration: A6000 GPU 1, 256 environments, fresh source default networks,
+The first long run stopped at iteration 3,117 and saved its checkpoint:
+0/6,529 successful episodes. Frozen checkpoint3000 runs a complete 500-step
+episode and times out, minimum/final goal-z errors 10.14/18.96 mm. WM inputs
+now encode native gain saturation and disabled motion axes in both current
+and historical actions. Equivalent native controls therefore produce identical
+predicted physical transitions. New WM fitting uses the changed input contract.
+
+Current checks: complete 34 bounded native control profiles, each for the
+original 500-step horizon, with a 1,500 s wall cap. Profiles cover the four
+gain controls' corners and midpoint, with zero or stride-8 alternating lateral
+motion. Record first termination, minimum goal error, force and released
+springs. Establish a feasible full-start trajectory under the existing force
+limit before restarting long training. The six measured force-limit misses
+also require held-out model prediction checks after refitting.
+
+Training configuration retained: A6000 GPU 1, 256 environments, fresh source default networks,
 1,000 WM-only iterations and 10,000 total iterations, with a 48-hour wall cap.
 The source optimizer, batches, horizons, scheduler and clipping are unchanged.
 The question is whether stage resets and the source learned-model/BPTT loop

@@ -202,7 +202,9 @@ physics and replay restart with the source warmup.
 `--iterations N` follows the source runner: execute N additional iterations
 in this invocation, including after resume.
 
-The current full-size apple run uses a 256-state-per-category training bank:
+The full-size apple configuration uses a 256-state-per-category training bank.
+The first run is stopped for the checks in [PLAN](PLAN.md). The revised WM action
+features require fresh fitting; resume checks reject the older input contract.
 
 ```bash
 .venv/bin/python scripts/collect_cutting_resets.py \
