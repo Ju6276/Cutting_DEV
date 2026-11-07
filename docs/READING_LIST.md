@@ -50,6 +50,24 @@ Priority: **A** decides novelty or the paper's framing; **B** method background;
 | C | Yu et al. *MOPO: Model-based Offline Policy Optimization*. [arXiv:2005.13239](https://arxiv.org/abs/2005.13239) | Uncertainty-penalized model rewards. |
 | C | *Learning on the Fly: Rapid Policy Adaptation via Differentiable Simulation*. RA-L. [arXiv:2508.21065](https://arxiv.org/abs/2508.21065) | Differentiable simulation plus residual dynamics; RA-L format reference. |
 
+## Object and material data
+
+DiSECt material parameters are not only Young's modulus and Poisson ratio; the
+cut-spring parameters must be fitted to a knife force profile. Literature moduli
+alone therefore do not define a DiSECt food.
+
+| Source | Contents | Status |
+|---|---|---|
+| DiSECt dataset ([repo](https://github.com/NVlabs/DiSECt), 96 MB, CC BY-NC 4.0) | Meshes plus ANSYS LS-DYNA simulated knife forces and nodal motion: prism, cylinder (jello), sphere (apple). Configs in `examples/config/`. | Used; prism is our L1 object. |
+| SliceIt OSX dataset (link in `SliceIt/disect/README.md`, CC BY-NC 4.0) | Real UR5e knife-force recordings with calibrated DiSECt configs for cucumber (E 2.6 MPa), potato (2.0 MPa) and tomato (40 kPa), `examples/config/osx/`. | Not downloaded yet. |
+| Sawhney et al. *Playing with Food*. [arXiv:2101.02252](https://arxiv.org/abs/2101.02252) | Real robot cutting of multiple foods with force, audio, images and proprioception; publicly downloadable. | Check food list and F/T frame. |
+| Luo, Yuan (robocutting). [arXiv:2607.04367](https://arxiv.org/abs/2607.04367) | Force, velocity and displacement from trial cuts on 14 foods with a UR5e. | Release not confirmed. |
+| Lenz et al. *DeepMPC*. RSS 2015 | 1488 PR2 cutting examples over 20 materials. | Release and modalities not confirmed. |
+| Zhang et al. *Leveraging Multimodal Haptic Sensory Data for Robust Cutting*. [arXiv:1909.12460](https://arxiv.org/abs/1909.12460) | More than 20 foods, joint-torque knife force estimates. | Release not confirmed. |
+| *CulinaryCut-VLAP*. [arXiv:2601.06451](https://arxiv.org/abs/2601.06451) | Simulated MPM cutting data with force annotations, 7 fruits. | Simulated, not measured. |
+| Jia lab, Iowa State (via DiSECt) | Real apple and potato knife forces with laser-scanned meshes. | Provided to DiSECt; not public. |
+| GenVegeFruits3D ([LIRIS](https://datasets.liris.cnrs.fr/genvegefruits3d-version1)) | Meshes for 100 fruit and vegetable categories. | Geometry only; partial release. |
+
 ## Still to do
 
 - Citation tracking: papers that cite SliceIt, DiSECt and RoboNinja.
