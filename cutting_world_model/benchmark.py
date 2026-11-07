@@ -7,6 +7,8 @@ import time
 import numpy as np
 import torch
 
+from .task_heads import reward_settings, without_reward_settings
+
 
 def write_json(path, data):
     path = Path(path)
@@ -87,7 +89,8 @@ def episode_metrics(row, totals):
         'knife_gross_work_j': totals['knife_gross_work'],
         'safety_margin': totals['safety_margin'],
         'cut_fraction': row['released_springs'] / row['total_cut_springs'],
-        'mean_jerk': totals['jerkiness'] / row['steps'] if row['steps'] else 0.,
+        'mean_jerk': (None if totals['jerkiness'] is None
+                      else totals['jerkiness'] / row['steps'] if row['steps'] else 0.),
     }
 
 
@@ -140,8 +143,11 @@ class WorldModelPolicy:
 
         saved = torch.load(checkpoint, map_location='cpu', weights_only=False)
         metadata = ControlStateSpec.metadata_from_frame(env.metadata, copy_frame(env.current))
-        if metadata != saved['metadata']:
+        # The benchmark scores every method with its own reward; a policy trained with
+        # another force penalty is still evaluated on the same physical task.
+        if without_reward_settings(metadata) != without_reward_settings(saved['metadata']):
             raise ValueError('Checkpoint and physical task metadata differ')
+        self.training_reward = reward_settings(saved['metadata']['environment']) or 'sliceit'
         self.spec = ControlStateSpec(metadata).to(env.device)
         self.policy = SliceItPolicy().to(env.device).eval()
         self.weights = saved['learner']['policy']
@@ -243,8 +249,11 @@ def evaluate(env, policy, output, episodes, deadline, clock=time.monotonic):
                            success=bool(info['success'][0]), collision=bool(info['collision'][0]),
                            outside=bool(info['outside'][0]), terminated=bool(terminated[0]),
                            truncated=bool(truncated[0]))
-                for key in ('material_impulse', 'knife_work', 'knife_gross_work', 'jerkiness'):
+                for key in ('material_impulse', 'knife_work', 'knife_gross_work'):
                     totals[key] += float(info[key][0])
+                # Jerk is observed only with jerkiness_as_obs; otherwise mean_jerk is None.
+                totals['jerkiness'] = (None if 'jerkiness' not in info or totals['jerkiness'] is None
+                                       else totals['jerkiness'] + float(info['jerkiness'][0]))
                 totals['safety_margin'] = max(totals['safety_margin'], float(info['safety_margin'][0]))
                 row.update(episode_metrics(row, totals))
                 row['completed'] = row['terminated'] or row['truncated']

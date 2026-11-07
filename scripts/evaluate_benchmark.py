@@ -106,6 +106,7 @@ def main():
         if args.method == 'supermimic':
             policy = WorldModelPolicy(args.checkpoint, env)
             manifest['policy_updates'] = policy.updates
+            manifest['policy_training_reward'] = policy.training_reward
         elif args.method == 'sac':
             policy = SACPolicy(args, env)
             manifest['sac_actor'] = policy.process.metadata

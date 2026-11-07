@@ -194,3 +194,18 @@ def test_summary_mean_and_std_over_mixed_outcomes(tmp_path):
     assert summary['success_rate'] == .5 and summary['collision_rate'] == .5
     assert summary['return']['mean'] == pytest.approx((4. - 23.) / 2)
     assert summary['return']['std'] == pytest.approx(13.5)
+
+
+def test_missing_jerk_observation_reports_no_mean_jerk(tmp_path):
+    clock = Clock()
+
+    class NoJerk(PhysicalEpisode):
+        def step(self, action):
+            frame, reward, terminated, truncated, info = super().step(action)
+            info.pop('jerkiness')
+            return frame, reward, terminated, truncated, info
+
+    report = evaluate(NoJerk(clock, 'success'), ConstantPolicy(), tmp_path, 1, 100., clock)
+    row = report['episodes'][0]
+    assert row['completed'] and row['mean_jerk'] is None
+    assert 'mean_jerk' not in report['summary'] and row['knife_work_j'] == pytest.approx(.008)

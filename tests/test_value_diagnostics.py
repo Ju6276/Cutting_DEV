@@ -57,3 +57,19 @@ def test_replay_counts_match_actual_sampler_masks_after_ring_overwrite():
     assert torch.equal(before, buffer.valid)
     reuse = sampled_reuse_metrics(torch.tensor([0, 0, 1, 13]))
     assert reuse == {'sample_draws': 4, 'sample_unique': 3, 'sample_repeated_fraction': .25}
+
+
+def test_recorded_rewards_are_reexpressed_under_the_checkpoint_force_penalty():
+    from test_task_heads import force_observation, heads, linear_heads
+    from cutting_world_model.value_diagnostics import reward_under
+    source, linear = heads(), linear_heads()
+    observation, _ = force_observation(source, seed=5)
+    flags = torch.tensor([False, True, False, False, False]), torch.tensor([False, False, True, False, False])
+    false = torch.zeros(5, dtype=torch.bool)
+    recorded = source.reward(observation, flags[0], flags[1], false)
+    torch.testing.assert_close(reward_under(linear, source, recorded, observation),
+                               linear.reward(observation, flags[0], flags[1], false))
+    assert reward_under(source, heads(), recorded, observation) is recorded
+    import pytest
+    with pytest.raises(ValueError, match='next observation'):
+        reward_under(linear, source, recorded, observation[:4])

@@ -18,7 +18,8 @@ from cutting_world_model.policy import SliceItPolicy, SliceItCritic
 from cutting_world_model.provenance import git_revision
 from cutting_world_model.control_state import ControlStateSpec
 from cutting_world_model.lifecycle import finalize_training
-from cutting_world_model.trainer import CRITIC_TARGETS, OnlineLearner
+from cutting_world_model.task_heads import FORCE_PENALTIES, reward_settings, without_reward_settings
+from cutting_world_model.trainer import ACTOR_OBJECTIVES, CRITIC_TARGETS, OnlineLearner
 from cutting_world_model.tracking import ExperimentTracker
 from cutting_world_model.world_model import CuttingWorldModel
 from third_party.supermimic.schedule import cosine_lr
@@ -64,7 +65,18 @@ def main():
                         help='Real-target critic updates on refilled replay before the next policy update')
     parser.add_argument('--critic-microbatch', type=int,
                         help='Storage chunk for real-target critic minibatches (default: --microbatch)')
+    parser.add_argument('--actor-objective', choices=ACTOR_OBJECTIVES, default='model',
+                        help="'model': imagined-objective gradient (+ optional BC); "
+                             "'bc': the BC term alone at the same scale (needs --actor-bc-alpha)")
+    parser.add_argument('--force-penalty', choices=FORCE_PENALTIES, default='sliceit',
+                        help="'sliceit': source -sigmoid(s/2-3); 'linear': -s/--force-penalty-scale")
+    parser.add_argument('--force-penalty-scale', type=float,
+                        help='Force (N) at which the linear penalty reaches -1 (required for linear)')
     args = parser.parse_args()
+    if args.actor_objective == 'bc' and args.actor_bc_alpha is None:
+        parser.error("--actor-objective bc requires --actor-bc-alpha")
+    if (args.force_penalty == 'linear') != (args.force_penalty_scale is not None):
+        parser.error('--force-penalty-scale is required for, and only for, the linear penalty')
     if args.wm_only_updates < 0:
         parser.error("--wm-only-updates must be nonnegative")
     if args.critic_reset and (args.critic_target == 'imagined' or not args.resume):
@@ -92,7 +104,9 @@ def run(args, output, status, started):
     torch.set_num_threads(2)
     torch.manual_seed(args.seed)
     device = 'cuda:0'
-    env = GPUEnvironment(args.backend_root, args.worlds)
+    reward = ({'force_penalty': 'linear', 'force_penalty_scale': args.force_penalty_scale}
+              if args.force_penalty == 'linear' else None)
+    env = GPUEnvironment(args.backend_root, args.worlds, reward=reward)
     frame = env.current
     one = {k: v[0].cpu().numpy() for k, v in frame.items()}
     metadata = ControlStateSpec.metadata_from_frame(env.metadata, one)
@@ -106,12 +120,18 @@ def run(args, output, status, started):
                             critic_target=args.critic_target,
                             critic_microbatch=args.critic_microbatch,
                             actor_horizon=args.actor_horizon,
-                            actor_bc_alpha=args.actor_bc_alpha)
+                            actor_bc_alpha=args.actor_bc_alpha,
+                            actor_objective=args.actor_objective)
     schedule = OnlineSchedule(worlds=args.worlds)
     if args.resume:
         saved = torch.load(args.resume, map_location=device, weights_only=False)
-        if saved['metadata'] != metadata:
+        if without_reward_settings(saved['metadata']) != without_reward_settings(metadata):
             raise ValueError('Checkpoint and physical task metadata differ')
+        # The critic estimates returns of the reward it was fitted on; a reward change
+        # keeps the WM and policy but requires a fresh critic.
+        if (reward_settings(saved['metadata']['environment'])
+                != reward_settings(metadata['environment']) and not args.critic_reset):
+            raise ValueError('Checkpoint reward differs; a reward change requires --critic-reset')
         learner.restore(saved['learner'], reset_critic=args.critic_reset)
         if learner.critic_prefit_pending and args.critic_prefit_rounds < 1:
             raise ValueError('Checkpoint has a pending critic pre-fit; set --critic-prefit-rounds')
@@ -138,7 +158,8 @@ def run(args, output, status, started):
         'replay_capacity_per_world': schedule.replay_capacity,
         'critic_variant': learner.critic_variant(),
         'critic_microbatch': learner.critic_microbatch, 'actor_horizon': learner.actor_horizon,
-        'actor_bc_alpha': learner.actor_bc_alpha,
+        'actor_bc_alpha': learner.actor_bc_alpha, 'actor_objective': learner.actor_objective,
+        'reward': reward_settings(metadata['environment']) or 'sliceit',
         'replay_snapshot': 'replay.pt rewritten with every checkpoint',
     }
     write_json(output / 'manifest.json', manifest)

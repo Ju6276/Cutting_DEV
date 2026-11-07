@@ -76,3 +76,52 @@ def test_source_terminal_priority_controls_success_bonus(collision, fail_on_rewa
     baseline = head.reward(obs, colliding, torch.tensor([False]), outside)
     reward = head.reward(obs, colliding, success, outside)
     torch.testing.assert_close(reward - baseline, torch.tensor([100. if expected_success else 0.]))
+
+
+def linear_heads(scale=50.):
+    head = heads()
+    return SliceItHeads({**head.env, "force_penalty": "linear", "force_penalty_scale": scale},
+                        head.controller)
+
+
+def force_observation(head, seed=3):
+    torch.manual_seed(seed)
+    wrench = torch.rand(5, 3, 6, dtype=torch.float64) * 30.
+    zero = torch.zeros(5, 6, dtype=torch.float64)
+    return head.observation(zero, zero, zero, zero, wrench), wrench
+
+
+def test_linear_force_penalty_replaces_only_the_force_term():
+    source, linear = heads(), linear_heads()
+    observation, wrench = force_observation(source)
+    false = torch.zeros(5, dtype=torch.bool)
+    s = torch.linalg.vector_norm(wrench[..., [0, 2, 4]].mean(dim=-2), dim=-1)
+    torch.testing.assert_close(source.force_norm(observation), s)
+    expected = source.reward(observation, false, false, false) + (torch.sigmoid(s / 2 - 3) - s / 50.) / 4
+    torch.testing.assert_close(linear.reward(observation, false, false, false), expected)
+    torch.testing.assert_close(linear.weighted_force_reward(observation), -s / 50. / 4)
+    torch.testing.assert_close(source.weighted_force_reward(observation), -torch.sigmoid(s / 2 - 3) / 4)
+
+
+def test_force_penalty_configuration_is_validated():
+    base = heads()
+    with pytest.raises(ValueError, match="force_penalty must be"):
+        SliceItHeads({**base.env, "force_penalty": "quadratic"}, base.controller)
+    with pytest.raises(ValueError, match="positive force_penalty_scale"):
+        SliceItHeads({**base.env, "force_penalty": "linear"}, base.controller)
+    with pytest.raises(ValueError, match="positive force_penalty_scale"):
+        SliceItHeads({**base.env, "force_penalty": "linear", "force_penalty_scale": 0.}, base.controller)
+    with pytest.raises(ValueError, match="linear force penalty only"):
+        SliceItHeads({**base.env, "force_penalty_scale": 50.}, base.controller)
+    assert SliceItHeads({**base.env, "force_penalty": "sliceit"}, base.controller).force_penalty == "sliceit"
+
+
+def test_reward_settings_split_reward_from_physical_task():
+    from cutting_world_model.task_heads import reward_settings, without_reward_settings
+    base = heads()
+    metadata = {"environment": dict(base.env), "controller": base.controller}
+    linear = {**metadata, "environment": {**base.env, "force_penalty": "linear", "force_penalty_scale": 50.}}
+    assert reward_settings(metadata["environment"]) == {}
+    assert reward_settings(linear["environment"]) == {"force_penalty": "linear", "force_penalty_scale": 50.}
+    assert without_reward_settings(linear) == metadata
+    assert "force_penalty" in linear["environment"]  # the input is not modified

@@ -429,3 +429,57 @@ def test_behavior_regularization_gradient_is_scaled_td3bc_term():
     assert saved['actor_bc_alpha'] == 2.5
     with pytest.raises(ValueError, match='behavior regularization'):
         control_learner(critic_target='real_wm')[0].restore(saved)
+
+
+def _policy_gradient_at_bc(learner):
+    """Records whether the policy had gradients when the BC term was added."""
+    seen = {}
+    original = learner.behavior_regularization
+
+    def wrapped(buffer, mean_abs_objective):
+        seen['before'] = [None if p.grad is None else p.grad.clone() for p in learner.policy.parameters()]
+        seen['mean_abs'] = float(mean_abs_objective)
+        return original(buffer, mean_abs_objective)
+
+    learner.behavior_regularization = wrapped
+    return seen
+
+
+@pytest.mark.parametrize('objective', ['model', 'bc'])
+def test_bc_objective_removes_only_the_model_gradient(objective):
+    learner, replay = control_learner(critic_target='real', actor_bc_alpha=2.5, actor_objective=objective)
+    seen = _policy_gradient_at_bc(learner)
+    metrics = learner.improve_policy(replay)
+    model_gradient = [g for g in seen['before'] if g is not None and bool(g.abs().sum() > 0)]
+    if objective == 'bc':
+        assert not model_gradient
+    else:
+        assert model_gradient
+    # The imagined objective is still evaluated for the BC scale and diagnostics.
+    assert seen['mean_abs'] > 0 and metrics['actor_bc_scale'] == pytest.approx(
+        seen['mean_abs'] / (2.5 * learner.actor_horizon))
+    assert 'imag_objective' in metrics and 'critic_loss' in metrics
+    saved = deepcopy(learner.checkpoint())
+    assert saved['actor_objective'] == objective
+    other = 'model' if objective == 'bc' else 'bc'
+    with pytest.raises(ValueError, match='actor objective differs'):
+        control_learner(critic_target='real', actor_bc_alpha=2.5, actor_objective=other)[0].restore(saved)
+    control_learner(critic_target='real', actor_bc_alpha=2.5, actor_objective=objective)[0].restore(saved)
+
+
+def test_bc_objective_requires_alpha_and_old_checkpoints_are_model():
+    with pytest.raises(ValueError, match="requires actor_bc_alpha"):
+        control_learner(critic_target='real', actor_objective='bc')
+    with pytest.raises(ValueError, match='actor_objective must be'):
+        control_learner(critic_target='real', actor_bc_alpha=2.5, actor_objective='mixed')
+    learner, replay = control_learner(critic_target='real', actor_bc_alpha=2.5)
+    learner.improve_policy(replay)
+    saved = deepcopy(learner.checkpoint())
+    del saved['actor_objective']
+    control_learner(critic_target='real', actor_bc_alpha=2.5)[0].restore(deepcopy(saved))
+    with pytest.raises(ValueError, match='actor objective differs'):
+        control_learner(critic_target='real', actor_bc_alpha=2.5, actor_objective='bc')[0].restore(saved)
+    # A critic reset may switch the objective, as it may switch the horizon.
+    start, _ = control_learner(critic_target='real', actor_bc_alpha=2.5, actor_objective='bc')
+    start.restore(deepcopy(saved), reset_critic=True)
+    assert start.actor_objective == 'bc'

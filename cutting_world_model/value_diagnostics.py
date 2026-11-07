@@ -29,6 +29,24 @@ def complete_episode_returns(rewards, terminated, truncated, gamma):
 
 
 @torch.no_grad()
+def reward_under(heads, recorded_heads, rewards, next_observations):
+    """Recorded rewards re-expressed under ``heads``' force penalty.
+
+    The reward variants differ only in the force term, a function of the observation
+    after each transition, so r' = r - w f_recorded(o_(t+1)) + w f(o_(t+1)).
+    """
+    rewards = torch.as_tensor(rewards)
+    if next_observations.shape[:-1] != rewards.shape:
+        raise ValueError('One next observation per recorded reward is required')
+    if heads.env.get('force_penalty') == recorded_heads.env.get('force_penalty') and \
+            heads.env.get('force_penalty_scale') == recorded_heads.env.get('force_penalty_scale'):
+        return rewards
+    observation = next_observations.to(device=rewards.device, dtype=torch.float64)
+    delta = heads.weighted_force_reward(observation) - recorded_heads.weighted_force_reward(observation)
+    return rewards + delta.to(rewards.dtype)
+
+
+@torch.no_grad()
 def value_return_metrics(values, returns):
     """Compare nonterminal-state predictions with observed behavior-policy returns."""
     values = torch.as_tensor(values).detach().double()

@@ -3,14 +3,21 @@ import torch
 
 from cutting_gpu_backend.environment import CuttingBatch
 from .kinematics import SerialKinematics, observation_velocity
-from .task_heads import SliceItHeads, pose_error, TASK_INTERFACE_REVISION
+from .task_heads import REWARD_KEYS, SliceItHeads, pose_error, TASK_INTERFACE_REVISION
 
 
 class GPUEnvironment:
-    def __init__(self, backend_root, worlds=1, reference_trajectory=None):
+    def __init__(self, backend_root, worlds=1, reference_trajectory=None, reward=None):
+        """``reward`` optionally selects the force penalty, e.g. {'force_penalty': 'linear',
+        'force_penalty_scale': 50.}; None keeps the source SliceIt reward and metadata."""
         self.physics = CuttingBatch(backend_root, worlds, reference_trajectory=reference_trajectory)
         self.worlds, self.device = worlds, self.physics.device
         self.metadata = dict(self.physics.task)
+        if reward:
+            unknown = set(reward) - set(REWARD_KEYS)
+            if unknown:
+                raise ValueError('Unknown reward settings: ' + ', '.join(sorted(unknown)))
+            self.metadata['environment'] = {**self.metadata['environment'], **reward}
         self.metadata['task_interface_revision'] = TASK_INTERFACE_REVISION
         self.metadata['physical_backend'] = 'mujoco_warp_disect'
         self.metadata['state_layout'] = 'coupled_recurrent_v1'

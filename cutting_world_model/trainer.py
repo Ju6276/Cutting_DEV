@@ -33,6 +33,7 @@ def discount_weights(ro, gamma):
 
 
 CRITIC_TARGETS = ('imagined', 'real', 'real_wm')
+ACTOR_OBJECTIVES = ('model', 'bc')
 
 
 @torch.no_grad()
@@ -58,7 +59,7 @@ def masked_gae_targets(rewards, done_next, values, valid, gamma, lam):
 class OnlineLearner:
     def __init__(self, wm, policy, critic, microbatch=64, wm_cfg=None, policy_cfg=None,
                  wm_only_updates=500, critic_target='imagined', critic_microbatch=None,
-                 actor_horizon=None, actor_bc_alpha=None):
+                 actor_horizon=None, actor_bc_alpha=None, actor_objective='model'):
         if type(wm_only_updates) is not int or wm_only_updates < 0:
             raise ValueError('wm_only_updates must be a nonnegative integer')
         if critic_target not in CRITIC_TARGETS:
@@ -74,6 +75,13 @@ class OnlineLearner:
             raise ValueError('actor_bc_alpha must be positive')
         # TD3+BC-style behavior regularization of the actor toward recorded clean actions.
         self.actor_bc_alpha = actor_bc_alpha
+        # 'model': gradient of the imagined objective (plus the optional BC term); 'bc': the
+        # BC term alone with the same scale, an ablation without the model-based gradient.
+        if actor_objective not in ACTOR_OBJECTIVES:
+            raise ValueError('actor_objective must be one of ' + ', '.join(ACTOR_OBJECTIVES))
+        if actor_objective == 'bc' and actor_bc_alpha is None:
+            raise ValueError("actor_objective 'bc' requires actor_bc_alpha")
+        self.actor_objective = actor_objective
         # Storage-only chunking of real-target critic minibatches; effective minibatches are unchanged.
         self.critic_microbatch = critic_microbatch or microbatch
         # Critic optimizer history after a deliberate critic reinitialization (variant 'real').
@@ -204,13 +212,17 @@ class OnlineLearner:
                 self.progress(phase="policy", samples=part.start, batch_size=cfg.batch_size)
                 goal = starts.xi[part]
                 weight = (part.stop - part.start) / cfg.batch_size
-                ro = self.imagine(starts.state[part], starts.hist_states[:, part], goal)
-                terminal = self.critic_values(ro.states[-1], goal) if cfg.use_critic else None
-                objective = policy_objective(ro, terminal, cfg.gamma)
-                loss = -objective * weight / self.actor_horizon
+                # The 'bc' ablation evaluates the same imagined objective (for the BC scale and
+                # diagnostics) without building or applying its gradient.
+                with torch.set_grad_enabled(self.actor_objective == 'model'):
+                    ro = self.imagine(starts.state[part], starts.hist_states[:, part], goal)
+                    terminal = self.critic_values(ro.states[-1], goal) if cfg.use_critic else None
+                    objective = policy_objective(ro, terminal, cfg.gamma)
+                    loss = -objective * weight / self.actor_horizon
                 if not torch.isfinite(loss):
                     raise FloatingPointError('Non-finite policy objective')
-                loss.backward()
+                if self.actor_objective == 'model':
+                    loss.backward()
                 with torch.no_grad():
                     values = self.critic_values(ro.states.detach(), goal.expand(len(ro.states), -1, -1))
                     targets = gae_targets(ro.rewards.detach(), ro.dhat[1:].detach(), values,
@@ -466,6 +478,7 @@ class OnlineLearner:
                 'updates': self.updates,
                 'critic_variant': self.critic_variant(),
                 'actor_horizon': self.actor_horizon, 'actor_bc_alpha': self.actor_bc_alpha,
+                'actor_objective': self.actor_objective,
                 'training_stage': {'wm_only_updates': self.wm_only_updates,
                                    'wm_updates': self.wm_updates,
                                    'optimizer_steps': self.optimizer_steps,
@@ -491,6 +504,9 @@ class OnlineLearner:
             raise ValueError('Checkpoint actor imagination horizon differs')
         if not reset_critic and data.get('actor_bc_alpha') != self.actor_bc_alpha:
             raise ValueError('Checkpoint actor behavior regularization differs')
+        # Checkpoints written before the option existed used the model-based actor objective.
+        if not reset_critic and data.get('actor_objective', 'model') != self.actor_objective:
+            raise ValueError('Checkpoint actor objective differs')
         reset_update = variant.get('reset_update')
         prefit_rounds = variant.get('prefit_rounds', 0)
         if reset_update is not None and (type(reset_update) is not int or reset_update < 0

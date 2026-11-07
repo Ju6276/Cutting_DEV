@@ -21,6 +21,29 @@
 - Run 1 training stays on ROS 11321/Gazebo 11355. Frozen SAC evaluation uses
   separate ROS 11323/Gazebo 11357 and the source ten-episode deterministic evaluator.
 
+## Approved runs — 2026-11-07, A6000 GPU 0 and GPU 1 in parallel
+
+Both start from policy62/WM562 (`critic_mask_validation_20261104/training/last.pt`,
+iteration 1561) with the final baseline `--critic-target real --actor-horizon 8
+--actor-bc-alpha 0.25 --critic-reset --critic-prefit-rounds 100`, 1024 worlds,
+and stop at `--max-iterations 860` (iteration 2421, the end of ablation a,
+390 policy updates). Checkpoints at 150/200/250/300 updates and the final one
+receive 8-episode frozen evaluation and `scripts/value_eval.py`. Budget: 12 h wall
+per run; expected 7–9 h with both GPUs busy. One seed each.
+
+- **bc_only** (`--actor-objective bc`), GPU 0. Question: does the model-based
+  gradient contribute beyond behavior cloning toward replay actions? Decision:
+  if bc_only matches ablation a in success, steps, return and force metrics at
+  every frozen checkpoint, the h8 policy's quality is attributed to BC and the
+  paper must not claim a model-based improvement for this task; if it is slower,
+  weaker or fails, the model gradient contributes.
+- **linear_force** (`--force-penalty linear --force-penalty-scale 50`), GPU 1.
+  Question: does a non-saturating force penalty lower contact forces? Metric:
+  peak force, knife work, safety margin and steps against ablation a, all scored
+  with the benchmark's SliceIt reward. Decision: if peak force and safety margin
+  drop clearly at matched success, consider the linear penalty for the final
+  benchmark (then for every method); if only steps grow, report the trade-off.
+
 ## Current implementation
 
 The world model predicts 36 coordinates: joint position/velocity, observed wrench
