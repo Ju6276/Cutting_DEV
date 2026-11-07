@@ -1,4 +1,5 @@
 """Critic-target variants: source imagined targets and recorded-replay targets."""
+import math
 from copy import deepcopy
 
 import pytest
@@ -350,6 +351,37 @@ def test_model_state_samples_are_wm_predictions_of_recorded_states_with_real_tar
     (data, metrics) = learner.real_critic_data(replay)
     assert len(data[2]) == learner.pcfg.batch_size * learner.pcfg.horizon
     assert 0 < metrics['critic_model_state_fraction'] < 1
+
+
+def one_step_failure_replay(model, frame, episodes=6):
+    """Only episodes that terminate after their first transition (e.g. force-limit collisions)."""
+    replay = OnlineReplay(model.spec.state_dim, 'cpu')
+    goal = torch.tensor([.06, 0., -.05, 0., 0., 0., 1.])
+    state = model.spec.pack(frame)
+    for e in range(episodes):
+        action = torch.full((6,), .01 * e)
+        with torch.no_grad():
+            next_state, _, _ = model.step(state[None], action[None], goal[None])
+        replay.add(state, action, action, goal, -100.6, next_state[0], True, False)
+    return replay.buffer
+
+
+def test_real_wm_keeps_recorded_samples_when_no_window_has_a_model_state():
+    data = {}
+    for target in ('real', 'real_wm'):
+        learner, _ = make_learner(target, horizon=8)
+        metadata, frame = fixture()
+        replay = one_step_failure_replay(learner.wm, frame)
+        torch.manual_seed(5)
+        data[target] = learner.real_critic_data(replay)
+    (states, goals, targets), metrics = data['real_wm']
+    assert len(targets) == learner.pcfg.batch_size * learner.pcfg.horizon
+    torch.testing.assert_close(targets, torch.full_like(targets, -100.6))
+    for left, right in zip(data['real'][0], data['real_wm'][0]):
+        assert torch.equal(left, right)
+    assert metrics['critic_model_state_candidates'] == 0 and metrics['critic_model_state_fraction'] == 0
+    assert 'critic_model_state_value_target_mae' not in metrics
+    assert all(math.isfinite(v) for v in metrics.values())
 
 
 def test_actor_horizon_shortens_imagination_and_is_recorded():

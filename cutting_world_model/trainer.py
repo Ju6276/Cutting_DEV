@@ -385,6 +385,8 @@ class OnlineLearner:
         mask = valid[1:]
         goals = batch.xi[None].expand(steps - 1, -1, -1)
         states = predicted[mask]
+        if not len(states):  # every window ends after its first transition: no WM state to add
+            return states, goals[mask], targets[1:][mask], targets.new_zeros(0)
         values = torch.cat([self.critic_values(states[part], goals[mask][part])
                             for part in chunks(len(states), self.critic_microbatch)])
         return states, goals[mask], targets[1:][mask], values
@@ -434,9 +436,12 @@ class OnlineLearner:
         if self.critic_target == 'real_wm':
             error = (values - targets).abs()
             metrics.update(critic_model_state_fraction=float(model_state.float().mean()),
-                           critic_model_state_value_target_mae=float(error[model_state].mean()),
-                           critic_recorded_state_value_target_mae=float(error[~model_state].mean()),
                            critic_model_state_candidates=model_count)
+            # Each MAE only over a non-empty subset of the kept samples.
+            if model_state.any():
+                metrics['critic_model_state_value_target_mae'] = float(error[model_state].mean())
+            if (~model_state).any():
+                metrics['critic_recorded_state_value_target_mae'] = float(error[~model_state].mean())
         return (states, goals, targets), metrics
 
     def reset_critic(self, critic_state, optimizer_state):
