@@ -95,6 +95,12 @@ Open decisions: material ranges (proposal: centered on the DiSECt calibrated
 values, e.g. Young's modulus ×0.5–×2, to be checked against the literature);
 whether the policy observes an object identifier; budgets after P0 timing.
 
+## Proposed — real-robot calibration (awaiting approval)
+
+Steps R0–R4 (software path, F/T calibration, controller real2sim, material
+calibration, closed-loop evaluation) and open hardware items are in
+[REAL2SIM](REAL2SIM.md).
+
 ## Current implementation
 
 The world model predicts 36 coordinates: joint position/velocity, observed wrench
