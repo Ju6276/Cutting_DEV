@@ -21,6 +21,7 @@ class CuttingBatch:
     def __init__(self, root, worlds=1, scene='runs/disect_source_v4/scene.pt', reference_trajectory=None):
         root = Path(root)
         self.worlds = worlds
+        self.scene = scene
         self.device = torch.device('cuda:0')
         self.dtype = torch.float64
         wp.config.kernel_cache_dir = os.environ.get(

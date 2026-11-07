@@ -1,4 +1,6 @@
+import json
 import os
+from pathlib import Path
 import sys
 
 import pytest
@@ -51,3 +53,32 @@ def test_linear_reward_environment_changes_only_the_force_term():
         rest_s = reward_s.double() - source.heads.weighted_force_reward(frame_s['observation'].double())
         torch.testing.assert_close(rest_l, rest_s, atol=1e-4, rtol=0)
         assert linear.heads.force_penalty == 'linear' and source.heads.force_penalty == 'sliceit'
+
+
+@pytest.mark.skipif(not torch.cuda.is_available() or not os.environ.get('CUTTING_BACKEND_ROOT'), reason='CUDA backend assets')
+@pytest.mark.parametrize('config', ['public_prism', 'public_prism_fixed_bottom'])
+def test_benchmark_contract_matches_its_scene(config):
+    root = os.environ['CUTTING_BACKEND_ROOT']
+    sys.path.insert(0, root)
+    from cutting_world_model.benchmark import benchmark_scene, check_contract, physical_contract
+    from cutting_world_model.gpu_env import GPUEnvironment
+    contract = json.loads((Path(__file__).parents[1] / 'configs' / config / 'benchmark.json').read_text())
+    env = GPUEnvironment(root, 1, scene=benchmark_scene(contract))
+    check_contract(contract, physical_contract(root, env))
+
+
+@pytest.mark.skipif(not torch.cuda.is_available() or not os.environ.get('CUTTING_BACKEND_ROOT'), reason='CUDA backend assets')
+def test_fixed_bottom_scene_holds_only_its_bottom_layer():
+    root = os.environ['CUTTING_BACKEND_ROOT']
+    sys.path.insert(0, root)
+    from cutting_world_model.gpu_env import GPUEnvironment
+    free = GPUEnvironment(root, 1)
+    fixed = GPUEnvironment(root, 1, scene='runs/disect_source_v4_fixed_bottom/scene.pt')
+    q = fixed.physics.material.state.particle_q.clone()
+    static = fixed.physics.material.model.particle_inv_mass == 0
+    assert int(static.sum()) == 104 and not (free.physics.material.model.particle_inv_mass == 0).any()
+    # Bottom layer only, outside the 1 cm band around the cut plane x = 0.
+    assert float(q[static, 1].max()) < 0.002 and float(q[static, 0].abs().min()) > 0.01
+    for _ in range(8):
+        fixed.step(torch.zeros(1, 6, device='cuda'), reference=True)
+    assert torch.equal(fixed.physics.material.state.particle_q[static], q[static])

@@ -7,6 +7,7 @@ import sys
 import numpy as np
 import torch
 
+from disect_headless import import_disect_cutting
 from provenance import git_revision
 
 
@@ -19,8 +20,8 @@ def main():
     parser.add_argument('--warmup-steps', type=int, default=0)
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=False)
-    sys.path.insert(0, str(args.disect_root.resolve()))
-    from disect.cutting import CuttingSim, load_settings
+    cutting = import_disect_cutting(args.disect_root.resolve())
+    CuttingSim, load_settings = cutting.CuttingSim, cutting.load_settings
     settings = load_settings(str(args.config.resolve()))
     settings.sim_dt = 1e-5
     settings.sim_substeps = 500

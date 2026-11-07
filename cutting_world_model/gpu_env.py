@@ -7,10 +7,13 @@ from .task_heads import REWARD_KEYS, SliceItHeads, pose_error, TASK_INTERFACE_RE
 
 
 class GPUEnvironment:
-    def __init__(self, backend_root, worlds=1, reference_trajectory=None, reward=None):
+    def __init__(self, backend_root, worlds=1, reference_trajectory=None, reward=None, scene=None):
         """``reward`` optionally selects the force penalty, e.g. {'force_penalty': 'linear',
-        'force_penalty_scale': 50.}; None keeps the source SliceIt reward and metadata."""
-        self.physics = CuttingBatch(backend_root, worlds, reference_trajectory=reference_trajectory)
+        'force_penalty_scale': 50.}; None keeps the source SliceIt reward and metadata.
+        ``scene`` is an exported DiSECt scene relative to ``backend_root``; None keeps the
+        source prism. The scene is not part of the task metadata."""
+        scene = {} if scene is None else {'scene': scene}
+        self.physics = CuttingBatch(backend_root, worlds, reference_trajectory=reference_trajectory, **scene)
         self.worlds, self.device = worlds, self.physics.device
         self.metadata = dict(self.physics.task)
         if reward:

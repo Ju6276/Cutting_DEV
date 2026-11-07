@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from cutting_world_model.benchmark import (
-    ConstantPolicy, ReferencePolicy, WorldModelPolicy, check_contract, evaluate, file_digest,
+    ConstantPolicy, ReferencePolicy, WorldModelPolicy, benchmark_scene, check_contract, evaluate, file_digest,
     physical_contract, write_json,
 )
 from cutting_world_model.provenance import git_revision
@@ -99,7 +99,9 @@ def main():
     try:
         sys.path.insert(0, str(args.backend_root.resolve()))
         from cutting_world_model.gpu_env import GPUEnvironment
-        env = GPUEnvironment(args.backend_root, worlds=1)
+        manifest['scene'] = benchmark_scene(manifest['contract'])
+        write_json(args.output / 'manifest.json', manifest)
+        env = GPUEnvironment(args.backend_root, worlds=1, scene=manifest['scene'])
         actual = physical_contract(args.backend_root, env)
         check_contract(manifest['contract'], actual)
         write_json(args.output / 'task.json', env.metadata)

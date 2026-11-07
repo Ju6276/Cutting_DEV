@@ -27,15 +27,31 @@ def check_contract(expected, actual, path='benchmark'):
         raise ValueError(f'{path}: expected {expected!r}, got {actual!r}')
 
 
+# Benchmark name -> exported DiSECt scene (relative to the backend root).
+BENCHMARK_SCENES = {
+    'public-prism-ur5e-v1': 'runs/disect_source_v4/scene.pt',
+    # Same prism with the bottom layer static (include box y < 0.002 instead of y < -0.002).
+    'public-prism-fixed-bottom-ur5e-v1': 'runs/disect_source_v4_fixed_bottom/scene.pt',
+}
+
+
+def benchmark_scene(contract):
+    if contract.get('name') not in BENCHMARK_SCENES:
+        raise ValueError(f"Unknown benchmark {contract.get('name')!r}")
+    return BENCHMARK_SCENES[contract['name']]
+
+
 def physical_contract(backend_root, env):
     root = Path(backend_root)
-    scene = torch.load(root / 'runs/disect_source_v4/scene.pt',
-                       weights_only=False, map_location='cpu')
+    names = [name for name, path in BENCHMARK_SCENES.items() if path == env.physics.scene]
+    if len(names) != 1:
+        raise ValueError(f'Scene {env.physics.scene!r} belongs to no benchmark')
+    scene = torch.load(root / env.physics.scene, weights_only=False, map_location='cpu')
     with np.load(root / 'runs/source/episode_000.npz') as capture:
         reset = {key: capture[key][0].tolist()
                  for key in ('joint_q', 'joint_qd', 'target_pose')}
     return {
-        'name': 'public-prism-ur5e-v1',
+        'name': names[0],
         'reset_mode': 'fixed_export',
         'task': {key: value for key, value in env.physics.task.items() if key != 'robot_xml'},
         'controller_parameters': json.loads(
@@ -45,7 +61,7 @@ def physical_contract(backend_root, env):
                  'cut_springs': env.physics.material.springs},
         'reset': reset,
         'asset_content': {
-            'scene_sha256': file_digest(root / 'runs/disect_source_v4/scene.pt'),
+            'scene_sha256': file_digest(root / env.physics.scene),
             'robot_model_sha256': file_digest(root / 'runs/model_coupled/robot.mjb'),
             'robot_xml_sha256': hashlib.sha256(env.physics.task['robot_xml'].encode()).hexdigest(),
         },

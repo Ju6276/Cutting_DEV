@@ -4,7 +4,8 @@ import numpy as np
 import pytest
 import torch
 
-from cutting_world_model.benchmark import ConstantPolicy, ReferencePolicy, check_contract, evaluate
+from cutting_world_model.benchmark import (BENCHMARK_SCENES, ConstantPolicy, ReferencePolicy, benchmark_scene,
+                                           check_contract, evaluate)
 
 
 class Clock:
@@ -209,3 +210,10 @@ def test_missing_jerk_observation_reports_no_mean_jerk(tmp_path):
     row = report['episodes'][0]
     assert row['completed'] and row['mean_jerk'] is None
     assert 'mean_jerk' not in report['summary'] and row['knife_work_j'] == pytest.approx(.008)
+
+
+def test_benchmark_names_select_distinct_scenes():
+    assert len(set(BENCHMARK_SCENES.values())) == len(BENCHMARK_SCENES)
+    assert benchmark_scene({'name': 'public-prism-ur5e-v1'}) == 'runs/disect_source_v4/scene.pt'
+    with pytest.raises(ValueError, match='Unknown benchmark'):
+        benchmark_scene({'name': 'public-prism-ur5e-v0'})
