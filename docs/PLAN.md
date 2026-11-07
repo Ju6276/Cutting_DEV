@@ -28,8 +28,22 @@ original 500-step horizon, with a 1,500 s wall cap. Profiles cover the four
 gain controls' corners and midpoint, with zero or stride-8 alternating lateral
 motion. Record first termination, minimum goal error, force and released
 springs. Establish a feasible full-start trajectory under the existing force
-limit before restarting long training. The six measured force-limit misses
-also require held-out model prediction checks after refitting.
+limit before restarting joint training.
+
+The shared-4090 probe reached step 461 at its wall budget: 16 force-limit
+failures, 18 unfinished profiles, zero successes. The remaining 18 profiles
+restart from the full initial state on A6000 with a 1,800 s cap, preserving
+their original actions and the 500-step endpoint. Record:
+`runs/apple_debug_remaining_20261107`.
+
+WM refit: `ceea500`, 256 worlds, fresh seed 0, original 1,000 WM-only iterations
+with a four-hour cap. Networks, update schedule, optimizer, loss and physical
+contract match the stopped run. At the endpoint, automatically compare old
+WM1000/WM3000 and new WM1000 on the same saved 16-world, 32-step physical
+trajectories: H1/H8/H16/H32 position error and the six force-limit events.
+The pipeline ends after this comparison; joint policy/critic training stays
+stopped. Run: `manipulation_apple_actionfix_wm1000_20261107`,
+[W&B](https://wandb.ai/ju-dong6276-technical-university-of-munich/cutting-manipulation/runs/j8s839kj).
 
 Training configuration retained: A6000 GPU 1, 256 environments, fresh source default networks,
 1,000 WM-only iterations and 10,000 total iterations, with a 48-hour wall cap.

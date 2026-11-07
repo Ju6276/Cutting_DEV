@@ -46,7 +46,7 @@ The frozen policy times out after 500 steps; its closest goal-z error is
 **10.14 mm**. WM inputs now encode the controller's existing action saturation,
 removing false motion predictions for physically equivalent commands.
 Next: finish the native control-profile feasibility check before restarting
-long training; see [PLAN](docs/PLAN.md).
+joint training. The corrected WM is being refitted separately; see [PLAN](docs/PLAN.md).
 
 2026-11-05 prism experiment: the shared evaluator executes policy62 successfully in **20 steps /
 1.00 s**, peak material force **30.66 N**. The source SAC adapter completes

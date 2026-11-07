@@ -30,7 +30,12 @@ Checkpoint reload action error 0; native reward maximum error 5.96e-8,
 terminal mismatch 0/64, physical overflow/divergence 0. Record:
 `runs/model_action_checks/connected_updates`. 4090 full suites: 168 root pass /
 5 skips in 229.37 s; 24 backend pass in 3.97 s. Next: complete the native
-control-profile feasibility check before restarting long training.
+control-profile feasibility check before restarting joint training.
+
+Native 34-profile check on the shared 4090 ends at its wall budget after
+461 steps / 1,472.99 s: 16 completed force-limit failures, 18 unfinished,
+zero successes. The remaining profiles' minimum reached goal-z error is
+9.85713 mm. Record: `runs/apple_debug_20261107/physics_report.json`.
 
 ## 2026-11-07 — frozen manipulation actor action bounds
 
