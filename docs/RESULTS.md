@@ -1,5 +1,26 @@
 # Results
 
+## 2026-11-07 — BladeMaster forward trajectory and reaction interface
+
+BladeMaster `4b2d983` (clean), tamsGPU7 RTX 4090, Warp 1.18.0. Command:
+`PYTHONPATH=. .venv/bin/python runs/forward_port_20261107/check.py`.
+Existing `banana_config()` with `external_tool=True`, 6 mm grid, 62.5 us
+material step, 1 ms coupling interval. Knife edge descends 36 mm at 20 mm/s,
+holds 0.1 s, withdraws and holds 0.1 s. Complete 3.8 s trajectory / 60,800
+material substeps; 1,452 particles, final components 726/726. Peak force
+0.812934 N; peak moment 0.015079 N m; final detached mean force [0, 0, 0] N;
+minimum det(F) 0.989212; GPU errors [0, 0, 0]. First execution including JIT
+and graph construction takes 40.249 s on the shared GPU.
+
+Seven existing coupling checks pass in 0.83 s: equal/opposite impulse,
+interval accumulation versus single substeps, moment-reference power
+invariance, and recorded poses in held/predicted modes with/without graphs.
+
+Outputs: input `knife_trajectory.csv`, interval reaction `reaction.csv`,
+particle history `particles.npz`, `manifest.json` and `report.json`, under
+`BladeMaster-Warp-forward-check-20261107/runs/forward_port_20261107` on GPU7;
+copied to the Mac BladeMaster repository's `runs/forward_port_20261107`.
+
 ## 2026-11-07 — apple action-feature correction and complete policy evaluation
 
 Training code `0c76934`, evaluator `6f6b68a`. The 256-world source run stopped

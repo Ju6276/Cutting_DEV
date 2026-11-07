@@ -1,5 +1,33 @@
 # Current plan
 
+## BladeMaster forward backend — 2026-11-07
+
+Add the existing [BladeMaster-Lab](https://github.com/Ju6276/BladeMaster-Lab)
+forward solver as a physics-backend candidate. Commit `4b2d983` executes a
+complete 3.8 s banana downstroke/withdrawal on RTX 4090: 1,452 particles become
+two 726-particle connected components, peak reaction 0.812934 N, peak moment
+0.015079 N m, zero GPU errors. `ExternalToolPort` accepts position, xyzw
+orientation and linear/angular velocity; it returns interval-average force
+and torque about the supplied tool origin. The current forward core matches
+this committed version. The unfinished differentiable solver is separate.
+
+Next steps, in order:
+
+1. Adapt the existing UR5e/compliance environment to this pose/twist/wrench
+   interface. Preserve the six force/moment components and their reference
+   frame/origin; the DiSECt bridge's scalar-force conversion is a different
+   interface. Execute one complete robot cut and withdrawal before training.
+2. Select and record one supported geometry/material/knife task. The verified
+   scene is the existing banana, not the DiSECt apple. Check timestep/grid
+   sensitivity of its force output; earlier BladeMaster force checks show
+   grid dependence. Keep physical formulas fixed during the adapter work.
+3. Add that physical-task contract to the common evaluator and compare fixed
+   control, SAC and learned-WM/BPTT within it. Record throughput before choosing
+   parallel-world counts. The learned WM uses forward physical transitions;
+   this integration does not require physical-solver derivatives.
+
+Keep the active DiSECt apple WM refit on its existing physics contract.
+
 ## Apple manipulation adapter — 2026-11-07
 
 The `feat/apple-cutting-adapter` branch connects the clean manipulation
