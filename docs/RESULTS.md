@@ -1121,3 +1121,64 @@ gradient into actions whose force consequences the WM under-predicts; the
 critic's values on WM states were calibrated (model-state MAE 8–13 during V2).
 C3's value failure comes from bootstrapping on WM endpoint states outside the
 recorded-state critic's support once imagination stops terminating.
+
+## 2026-11-07 — Source SAC collapse in the unified environment
+
+`runs/sac_gpu_training_20261105` (GPU7, one environment, SliceIt tf2rl SAC with
+the source yaml settings; the checkpoint's actor and critic optimizers record
+learning rate 0.01, not the 1e-3 run-argument default; prioritized replay,
+auto-alpha) succeeded on every episode up to environment step 87394.
+From step 87395 every episode collides at step 1 (58–75 N, return −100.6091, no
+spring released) until the run was stopped at step 95037. Frozen evaluation on
+a fresh environment (`metrics_eval_20261106/sac_{85000,90000}`, 8 episodes each):
+
+| Checkpoint | Success | Steps | Return | Peak force | Released springs |
+|---|---:|---:|---:|---:|---:|
+| ckpt-17, step 85000 | 8/8 | 18 | 92.026 | 49.6 N | 287/304 |
+| ckpt-18, step 90000 | 0/8 (collision) | 1 | −100.609 | 74.5 N | 0 |
+
+Measured: the 90000 policy outputs `[1, −1, 1, 1, −1, −1]`, saturated in all
+six dimensions; training samples with exploration noise give identical returns.
+Both checkpoints have only finite weights. Between them, Adam second-moment
+estimates jump about 600× for one actor layer (0.18 → 109.7 norm) and about
+200× for one critic layer (1.1 → 230.5). TensorBoard scalars at step 87000
+(the last summary before the collapse) are ordinary: critic loss 7.5, alpha
+0.010, mean log-prob 5.9. Inferred, not verified: one or more large gradient
+spikes pushed the tanh-squashed actor into saturation, where its gradient
+vanishes, and the following one-step collision data cannot pull it back. The
+triggering batch is not recoverable from the logs.
+
+The SAC baseline result for the single prism is the step-85000 checkpoint,
+reported together with this collapse. A new SAC run is deferred to the parallel
+multi-environment stage (see PLAN).
+
+## 2026-11-07 — Original DiSECt gradients and the static bottom layer
+
+`backends/mujoco/scripts/disect_gradcheck.py` on GPU7 with the official
+NVlabs/DiSECt meshes (GitHub LFS, revision ff90165) and the three upstream
+configs. Objective: mean knife force over a 0.6 s slicing trajectory (the
+trajectory-optimization objective), backward gradient with respect to the
+SlicingMotion parameters; central finite differences along one fixed random
+direction in relative parameter coordinates. Bottom rule: `free` uses the
+include box y < −0.002, `fixed` y < 0.002. Results in
+`Cutting_DEV_metrics/runs/disect_gradcheck_20261107`.
+
+| Object (config) | Bottom | Static particles | Mean / peak force | Released | Backward gradient | Analytic vs FD (ε = 1e-3) | FD (ε = 1e-2) |
+|---|---|---:|---|---:|---|---|---:|
+| Prism (`ansys_prism`) | free | 0/1187 | 7.37 / 13.73 N | 188/304 | NaN | — | 0.418 |
+| Prism | fixed | 104/1187 | 7.88 / 13.98 N | 193/304 | finite | 0.022 vs −0.168 | 0.156 |
+| Apple sphere (`ansys_sphere_apple`) | free | 0/704 | 10.97 / 21.03 N | 131/244 | NaN | — | 0.216 |
+| Apple sphere | fixed | 77/704 | 16.13 / 37.58 N | 133/244 | finite | −0.957 vs −1.065 | −0.371 |
+| Jello cylinder (`ansys_cylinder_jello`) | free | 0/937 | 1.01 / 1.93 N | 129/238 | NaN | — | −0.017 |
+| Jello cylinder | fixed | 98/937 | 1.32 / 2.80 N | 132/238 | finite | −0.130 vs −0.106 | −0.025 |
+
+Measured: all three meshes rest at y = 0.0008 m. The upstream prism and jello
+configs use y < −0.002 and therefore make no particle static; only the apple
+config (y < 0.002) fixes its bottom layer. SliceIt's `public_prism.json`
+inherits y < −0.002. With a free bottom the forward pass is finite for every
+object and every backward gradient is NaN; with the bottom layer static every
+backward gradient is finite. A 0.05 s free-prism run already gives NaN
+gradients. For the apple and jello the analytic directional derivative agrees
+with the ε = 1e-3 finite difference within 10–25%. For the prism the finite
+difference changes sign between ε = 1e-2 and 1e-3, so this check cannot judge
+the prism gradient; a step-size sweep or float64 is needed.

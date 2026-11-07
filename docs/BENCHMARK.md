@@ -14,6 +14,23 @@ identities of the material export, compiled robot and robot XML. The 4090 and
 A6000 prepared assets match. Each episode restores the entire initialized
 physical frame, including controller/filter memory and material state.
 
+The contract's `name` selects the exported scene (`BENCHMARK_SCENES` in
+`cutting_world_model/benchmark.py`); pass another contract with `--contract`.
+`configs/public_prism_fixed_bottom/benchmark.json`
+(`public-prism-fixed-bottom-ur5e-v1`) is the same prism re-exported from
+`configs/public_prism_fixed_bottom/disect_scene.json`, whose static include box is
+y < 0.002 instead of the source y < −0.002: 104 bottom-layer particles outside the
+1 cm band around the cut plane are static; the source scene has none. The two
+contracts differ only in name, `static_vertices` and scene hash. Export, from the
+original DiSECt checkout (meshes are resolved relative to it):
+
+```bash
+cd $SLICEIT_ROOT/disect && MPLBACKEND=Agg python \
+  <repo>/backends/mujoco/scripts/export_disect_scene.py --disect-root . \
+  --config <repo>/configs/public_prism_fixed_bottom/disect_scene.json \
+  --output <repo>/backends/mujoco/runs/disect_source_v4_fixed_bottom --steps 200
+```
+
 The policy period is 0.05 s, robot step 0.001 s, coupling period 0.002 s, and
 material step 0.00001 s. The original action bounds, reward weights, workspace,
 force limits and success counter remain in the shared task heads.
@@ -242,5 +259,7 @@ success needs that difference stated.
 3. Train the original SAC in this fixed GPU environment, then evaluate SAC,
    constant control and the WM policy with the commands above. Compare success,
    force, duration, real transitions and wall time at saved checkpoints.
-4. DiSECt trajectory optimization: resolve the nonfinite prism adjoint (or agree
-   on a different optimizer) before an optimized trajectory can be compared.
+4. DiSECt trajectory optimization: the nonfinite adjoint comes from the free
+   bottom (RESULTS 2026-11-07); with the bottom layer static the backward pass is
+   finite for prism, apple and jello. The prism gradient still needs a
+   finite-difference step sweep before an optimized trajectory can be compared.

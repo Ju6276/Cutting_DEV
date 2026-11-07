@@ -44,6 +44,57 @@ per run; expected 7–9 h with both GPUs busy. One seed each.
   drop clearly at matched success, consider the linear penalty for the final
   benchmark (then for every method); if only steps grow, report the trade-off.
 
+## Diagnostic — 2026-11-08, GPU7: static vs free prism bottom
+
+Question: does making the prism's bottom layer static (needed for finite DiSECt
+gradients, RESULTS 2026-11-07) change the MuJoCo benchmark? Setting: the source
+scene and the fixed-bottom re-export (`public-prism-fixed-bottom-ur5e-v1`), each
+with the reference trajectory (4 episodes), policy62 (4), SAC step 85000 (4) and
+constant-zero (1). Metric: success, steps, return, peak/mean material force,
+released springs, knife work and impulse. Existing episodes already show no
+horizontal drift of the free prism (bottom layer moves about 1 mm down, also
+under constant-zero). Decision: if every metric agrees within run-to-run noise,
+later benchmarks (multi-object stage) use static bottoms for all objects and the
+existing single-prism results stand; otherwise report both settings.
+
+## Proposed — multi-object parallel stage (awaiting approval)
+
+Current state: SuperMimic trains with 1024 identical worlds (one scene, one reset
+state); SAC uses one environment. `BatchedDiSECt` packs copies of one exported
+scene with a fixed per-world stride, so per-world material parameters need only
+per-world writes of the replicated arrays, while different meshes per world are
+not supported. Plan: one `BatchedDiSECt` per object, worlds grouped by object.
+
+Precedent: Isaac Lab `MultiAssetSpawnerCfg` assigns one asset variant per
+environment at scene creation; ManiSkill3 places different objects in each
+parallel sub-scene; Rudin et al. 2021 lay all terrains out in one mesh and move
+robots between them instead of swapping terrain at reset; RoboNinja (RSS 2023)
+trains on 300 generated multi-material objects and tests on 50 in-distribution
+and 50 out-of-distribution ones. Sampling: object assignment fixed per world
+group (equal group sizes); continuous parameters (material, initial poses)
+sampled uniformly at every reset; adaptive schemes (PLR, Jiang et al. 2021;
+ADR, OpenAI 2019) are later, separate changes.
+
+Steps, one change each:
+
+- **P0 — per-world materials are correct.** No training. Sweep material values
+  across worlds with the reference trajectory and compare each world with a
+  separate single-world run. Decision: per-world force and released springs
+  match the single runs within GPU float noise.
+- **P1 — parallel SAC, single prism.** 1024 worlds, no randomization, SAC
+  learning rate 3e-4 (SAC paper default), environment-step budget matched to
+  SuperMimic. Decision: 8/8 success and return ≥ 90 without saturation collapse
+  (compare the one-environment step-85000 checkpoint).
+- **P2 — randomized single prism.** Material and initial-pose ranges sampled per
+  reset; held-out parameter ranges for testing; SAC and SuperMimic.
+- **P3 — three objects.** Prism, apple sphere, jello cylinder with static
+  bottoms, worlds grouped by object; held-out parameters (or one object) for
+  out-of-distribution tests.
+
+Open decisions: material ranges (proposal: centered on the DiSECt calibrated
+values, e.g. Young's modulus ×0.5–×2, to be checked against the literature);
+whether the policy observes an object identifier; budgets after P0 timing.
+
 ## Current implementation
 
 The world model predicts 36 coordinates: joint position/velocity, observed wrench
