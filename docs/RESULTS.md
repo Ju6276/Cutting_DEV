@@ -1182,3 +1182,21 @@ gradients. For the apple and jello the analytic directional derivative agrees
 with the ε = 1e-3 finite difference within 10–25%. For the prism the finite
 difference changes sign between ε = 1e-2 and 1e-3, so this check cannot judge
 the prism gradient; a step-size sweep or float64 is needed.
+
+## 2026-11-08 — real_wm crash on one-step-only batches (fixed)
+
+Found in review (Codex) and reproduced: when every sampled window terminates
+after its first transition, `real_wm` has no WM-predicted state and
+`model_state_targets` raised `torch.cat(): expected a non-empty list of Tensors`
+(trainer line 388); `real` on the same data returns all targets −100.6. The fix
+keeps the batch's recorded samples, adds no model samples and reports the
+model/recorded-state MAE only over non-empty subsets; failed trajectories, reward
+and thresholds are unchanged. `real` and `real_wm` now produce identical critic
+data on such batches (`test_real_wm_keeps_recorded_samples_when_no_window_has_a_model_state`).
+The bug stops a run with an exception; it does not explain the earlier critic
+value growth. Runs that finished without this exception (V5 and the rest) are
+unaffected. Review notes kept for the method discussion: `real` targets are
+λ-returns that bootstrap the critic, not complete-episode returns; `real_wm`
+assigns recorded-state targets to WM-predicted states, which assumes the two are
+close and can bias the critic where the WM mispredicts position, force or
+termination.
