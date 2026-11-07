@@ -59,7 +59,7 @@ alone therefore do not define a DiSECt food.
 | Source | Contents | Status |
 |---|---|---|
 | DiSECt dataset ([repo](https://github.com/NVlabs/DiSECt), 96 MB, CC BY-NC 4.0) | Meshes plus ANSYS LS-DYNA simulated knife forces and nodal motion: prism, cylinder (jello), sphere (apple). Configs in `examples/config/`. | Used; prism is our L1 object. |
-| SliceIt OSX dataset (link in `SliceIt/disect/README.md`, CC BY-NC 4.0) | Real UR5e knife-force recordings with calibrated DiSECt configs for cucumber (E 2.6 MPa), potato (2.0 MPa) and tomato (40 kPa), `examples/config/osx/`. | Not downloaded yet. |
+| SliceIt OSX dataset (link in `SliceIt/disect/README.md`, CC BY-NC 4.0) | Real knife-force profiles (`calibrated/*.npy`) referenced by `examples/config/osx/` for cucumber (E 2.6 MPa), potato (2.0 MPa) and tomato (40 kPa). The three configs share default cut-spring parameters (ke 200, softness 200, surface softness 300), so they are not fitted DiSECt materials. | Google Drive link returned "page not found" on 2026-11-07; ask the authors. A cucumber mesh is in `catkin_ws/src/o2ac_gazebo/models/cucumber`. |
 | Sawhney et al. *Playing with Food*. [arXiv:2101.02252](https://arxiv.org/abs/2101.02252) | Real robot cutting of multiple foods with force, audio, images and proprioception; publicly downloadable. | Check food list and F/T frame. |
 | Luo, Yuan (robocutting). [arXiv:2607.04367](https://arxiv.org/abs/2607.04367) | Force, velocity and displacement from trial cuts on 14 foods with a UR5e. | Release not confirmed. |
 | Lenz et al. *DeepMPC*. RSS 2015 | 1488 PR2 cutting examples over 20 materials. | Release and modalities not confirmed. |
