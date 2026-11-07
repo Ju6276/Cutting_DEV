@@ -124,7 +124,8 @@ def main():
         if args.method == 'manipulation-supermimic':
             from cutting_world_model.manipulation import ManipulationPolicy
             policy = ManipulationPolicy(args.manipulation_python, args.manipulation_source_root,
-                                        args.checkpoint, actual)
+                                        args.checkpoint, actual,
+                                        action_bounds=env.metadata['action_bounds'])
             manifest['policy_updates'] = policy.updates
         elif args.method == 'supermimic':
             policy = WorldModelPolicy(args.checkpoint, env)

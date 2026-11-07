@@ -1,9 +1,38 @@
 import numpy as np
+import pytest
 import torch
 
 from cutting_world_model.manipulation import CuttingEnvironment, CuttingMDP
 from cutting_world_model.control_state import ControlStateSpec
 from test_state_spec import fixture
+
+
+def test_frozen_manipulation_actor_uses_native_bounds_and_rejects_nonfinite(monkeypatch):
+    import cutting_world_model.manipulation as module
+
+    raw = [[-4., -.2, .3, 2., 0., 8.]]
+
+    class Client:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def request(self, operation, **kwargs):
+            if operation == 'init':
+                return {'policy_updates': 2000}
+            return {'action': raw}
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(module, 'JsonProcess', Client)
+    bounds = [[-1., -.5, -1., 0., -.25, -2.], [1., .5, 1., .75, .25, 2.]]
+    policy = module.ManipulationPolicy('python', '.', 'checkpoint', {}, action_bounds=bounds)
+    frame = {'observation': torch.zeros(1, 24)}
+    torch.testing.assert_close(policy.act(frame), torch.tensor([[-1., -.2, .3, .75, 0., 2.]]))
+    for invalid in (float('nan'), float('inf'), -float('inf')):
+        raw[0][0] = invalid
+        with pytest.raises(ValueError, match='Non-finite'):
+            policy.act(frame)
 
 
 def mdp_fixture():

@@ -274,7 +274,8 @@ class CuttingMetricsLogger:
 
 
 class ManipulationPolicy:
-    def __init__(self, python, source_root, checkpoint, contract):
+    def __init__(self, python, source_root, checkpoint, contract, *, action_bounds):
+        self.action_bounds = action_bounds
         worker = Path(__file__).resolve().parents[1] / 'scripts/manipulation_policy_worker.py'
         self.client = JsonProcess([python, worker, '--source-root', source_root,
                                    '--checkpoint', checkpoint], environment=clean_python_environment())
@@ -294,7 +295,11 @@ class ManipulationPolicy:
     def act(self, frame):
         observation = frame['observation']
         reply = self.client.request('act', observation=observation.cpu().tolist())
-        return torch.as_tensor(reply['action'], device=observation.device, dtype=torch.float32)
+        action = torch.as_tensor(reply['action'], device=observation.device, dtype=torch.float32)
+        if not torch.isfinite(action).all():
+            raise ValueError('Non-finite manipulation policy action')
+        low, high = action.new_tensor(self.action_bounds)
+        return torch.maximum(torch.minimum(action, high), low)
 
     def unchanged(self):
         return self.client.request('unchanged')['unchanged']

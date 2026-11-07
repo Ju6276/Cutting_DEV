@@ -1,5 +1,19 @@
 # Results
 
+## 2026-11-07 — frozen manipulation actor action bounds
+
+Base `0c76934` + evaluation adapter fix. `evaluate_benchmark.py --method
+manipulation-supermimic --checkpoint .../model_003000.pt` previously failed
+before step 1 because the unsquashed actor exceeded the native action range.
+Evaluation now applies the existing environment bounds and rejects nonfinite
+outputs before saturation. Training and physical task settings are unchanged.
+
+4090 tamsgpu7: `PYTHONPATH=. .venv/bin/python -m pytest tests -q` passes
+167 tests / 5 skips in 180.74 s; the backend suite passes 24 in 3.62 s.
+The added check covers finite out-of-range actions and NaN/positive/negative
+infinity. Records: `runs/manipulation_checks/action_eval_all.log` and
+`action_eval_backend.log`.
+
 ## 2026-11-06 — manual checkpoint scheduling
 
 Base `4364586` + checkpoint callback fix. The callback now lets the source
