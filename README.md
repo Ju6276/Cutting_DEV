@@ -46,7 +46,7 @@ check separates the physical-state and terminal-classification gradients.
 The last measured critic return MAE is **153.42**; critic weights stayed frozen in this probe.
 
 [Fixed benchmark](docs/BENCHMARK.md) · [Results](docs/RESULTS.md) · [Current work](docs/PLAN.md) ·
-[Methods and differences](docs/METHOD.md) · [Source versions](docs/SOURCES.md)
+[Methods and differences](docs/METHOD.md) · [Source versions](docs/SOURCES.md) · [Reading list](docs/READING_LIST.md)
 
 The two original Git histories are retained. Third-party licenses are listed
 in [NOTICE](NOTICE.md). Data, credentials and environments stay outside Git.
