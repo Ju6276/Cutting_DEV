@@ -26,7 +26,7 @@ Next steps, in order:
    parallel-world counts. The learned WM uses forward physical transitions;
    this integration does not require physical-solver derivatives.
 
-Keep the active DiSECt apple WM refit on its existing physics contract.
+The DiSECt apple WM refit and fixed-data diagnostics are complete. Joint training stays stopped while its physical-task contract is resolved.
 
 ## Apple manipulation adapter — 2026-11-07
 
@@ -51,27 +51,37 @@ now encode native gain saturation and disabled motion axes in both current
 and historical actions. Equivalent native controls therefore produce identical
 predicted physical transitions. New WM fitting uses the changed input contract.
 
-Current checks: complete 34 bounded native control profiles, each for the
-original 500-step horizon, with a 1,500 s wall cap. Profiles cover the four
-gain controls' corners and midpoint, with zero or stride-8 alternating lateral
-motion. Record first termination, minimum goal error, force and released
-springs. Establish a feasible full-start trajectory under the existing force
-limit before restarting joint training.
+The 34 native control profiles are complete: 16 force-limit failures and 18
+500-step timeouts, zero successes. The lowest reached goal-z error among the
+18 timeout profiles is 9.85692 mm. At the midpoint action, position spring
+and source force feedback balance at about 43.4 N and a 9.87 mm goal offset.
 
-The shared-4090 probe reached step 461 at its wall budget: 16 force-limit
-failures, 18 unfinished profiles, zero successes. The remaining 18 profiles
-restart from the full initial state on A6000 with a 1,800 s cap, preserving
-their original actions and the 500-step endpoint. Record:
-`runs/apple_debug_remaining_20261107`.
+A two-world force-definition comparison uses identical scene and actions.
+Source feedback stalls; signed cutting-axis net reaction reaches the goal in
+22 steps and releases 244/244 springs. At that endpoint the source scalar
+force is still 91.19 N. This comparison remains in `runs/`; production force,
+material, controller gains and the 50 N limit are unchanged. Select the
+physical-task contract before restarting policy training: retain the source
+force definition and establish a compliant trajectory, or explicitly create
+a separate net-reaction task while keeping the SliceIt baseline.
 
-WM refit: `ceea500`, 256 worlds, fresh seed 0, original 1,000 WM-only iterations
-with a four-hour cap. Networks, update schedule, optimizer, loss and physical
-contract match the stopped run. At the endpoint, automatically compare old
-WM1000/WM3000 and new WM1000 on the same saved 16-world, 32-step physical
-trajectories: H1/H8/H16/H32 position error and the six force-limit events.
-The pipeline ends after this comparison; joint policy/critic training stays
-stopped. Run: `manipulation_apple_actionfix_wm1000_20261107`,
-[W&B](https://wandb.ai/ju-dong6276-technical-university-of-munich/cutting-manipulation/runs/j8s839kj).
+The source-default 1,000-iteration WM-only refit finished in 8,419.91 s:
+656,384 physical transitions, 1,186 WM updates, zero policy updates. It misses
+all six protected force-limit events. Its initial-policy gain data have mean
+0.040 and standard deviation 0.059; the protected trained-actor actions reach
+0.45–1.0. The fixed-action input correction remains in the production code.
+
+Frozen-actor data fitting uses recorded native transitions and the original
+WM loss/network/Adam settings. Evaluate training and held-out terminal events
+separately from mean force error; the completed fixed-data results are in
+[RESULTS](RESULTS.md). The diagnostic weights stay outside policy training.
+Do not launch another initial-policy-only refit to repair trained-actor errors.
+
+Next: resolve the force contract, execute a complete physical trajectory under
+that contract, then address the measured terminal-state prediction error on
+matched actor data before resuming the source joint learner. Keep the original
+success and force thresholds for the selected task; any force-definition
+variant is named separately in METHOD and benchmark results.
 
 Training configuration retained: A6000 GPU 1, 256 environments, fresh source default networks,
 1,000 WM-only iterations and 10,000 total iterations, with a 48-hour wall cap.

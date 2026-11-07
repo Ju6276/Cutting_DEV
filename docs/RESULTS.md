@@ -1,5 +1,56 @@
 # Results
 
+## 2026-11-07 — apple force definition and controller equilibrium
+
+Backend `ceea500`, A6000 GPU 1. `python /dataHDD/dong/tmp/apple_probe_remaining.py`:
+the remaining 18 native profiles finish all 500 steps, with 18 timeouts and
+zero successes in 1,676.03 s; minimum goal-z error 9.85692 mm. Together with
+the 16 force-limit failures, all 34 tested profiles fail.
+
+`python /dataHDD/dong/tmp/apple_controller_balance.py`: midpoint native gains
+settle at goal-z error 9.87035 mm, spring contribution -43.42938 N and measured
+force contribution +43.40724 N. Increasing the stiffness action to 0.75/1.0
+causes native force-limit termination at step 2, peaks 51.515/57.599 N.
+
+`python /dataHDD/dong/tmp/apple_force_definition_probe.py`: two identical
+worlds, midpoint actions, source sum-of-magnitudes versus signed cutting-axis
+reaction. Source feedback holds at 9.87066 mm / 195 released springs; the
+reaction variant succeeds at step 22 / 1.1 s, goal error 0.50769 mm and
+244/244 released springs. At that endpoint its cutting-axis reaction is
+2.18798 N and source force proxy is 91.18855 N. Production feedback and the
+50 N threshold stay unchanged. Records: `runs/apple_controller_balance_20261107`
+and `runs/apple_force_definition_20261107`; force formulas are in METHOD.
+
+## 2026-11-07 — completed WM refit and matched-actor data fitting
+
+Code `ceea500`, upstream `eda7da48`, A6000 GPU 1. `train_manipulation.py
+--worlds 256 --iterations 1000 --max-hours 4 --seed 0 --reset-bank
+runs/manipulation_reset/train_256/bank.pt`: 656,384 physical transitions,
+1,186 WM updates, zero policy updates, 8,419.91 s; physical overflow and
+divergence 0. `apple_compare_refit.py` misses all 6 protected force-limit
+events. H16 position error is 12.1583 mm, versus 17.6833 mm for old WM1000
+and 2.53879 mm for old WM3000. The refit's effective gain means/stds are
+0.040/0.059; tested trained-actor gains span 0.45–1.0 on the active axes.
+Record: `runs/manipulation_apple_actionfix_wm1000_20261107`.
+
+`apple_policy_data_replay.py` saves 128 x 64 native transitions from frozen
+actor3000 with source noise 0.1. `apple_saved_data_fit.py` restores corrected
+WM1000 and its Adam state, then fits 1,000 updates on worlds 0–47; worlds
+48–63 are held out. The source H8 loss, batch 2,048, network and optimizer
+parameters are unchanged; this fixed-data fitting schedule is separate from
+the online learner. No policy/critic updates or force-definition changes.
+Exact training data: force MAE 1.76961 -> 0.18503 N, missed events 88 -> 27
+of 93. Held-out data: 1.79813 -> 0.29564 N, misses 20 -> 9 of 23, false
+events 0 -> 2. Protected old trace: misses 6 -> 4 of 6. Fit time 113.94 s.
+The fitted force regression still misclassifies native threshold events on
+its training data. Records: `runs/apple_policy_data_replay_20261107/replay.pt`,
+`runs/apple_saved_data_before_20261107`, `runs/apple_saved_data_fit_20261107`.
+
+4090 checks on unchanged production code `ceea500`: root 168 passed /
+5 skipped in 261.52 s; backend 24 passed in 3.69 s. Logs:
+`runs/model_action_checks/20261107_debug_root.log` and
+`20261107_debug_backend.log`.
+
 ## 2026-11-07 — BladeMaster forward trajectory and reaction interface
 
 BladeMaster `4b2d983` (clean), tamsGPU7 RTX 4090, Warp 1.18.0. Command:

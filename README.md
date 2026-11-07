@@ -45,8 +45,11 @@ after the current iteration; normal completion and SIGTERM also save.
 The frozen policy times out after 500 steps; its closest goal-z error is
 **10.14 mm**. WM inputs now encode the controller's existing action saturation,
 removing false motion predictions for physically equivalent commands.
-Next: finish the native control-profile feasibility check before restarting
-joint training. The corrected WM is being refitted separately; see [PLAN](docs/PLAN.md).
+All 34 native control profiles fail: 16 force limits and 18 timeouts. The
+1,000-iteration WM refit is complete. Fitting on frozen-actor data reduces
+held-out force MAE to **0.296 N**, with **9/23** force-limit events still missed.
+Joint training is stopped; the next task is the force-contract and terminal
+prediction correction described in [PLAN](docs/PLAN.md).
 
 2026-11-05 prism experiment: the shared evaluator executes policy62 successfully in **20 steps /
 1.00 s**, peak material force **30.66 N**. The source SAC adapter completes
