@@ -200,3 +200,12 @@ prerequisite for the same-WM MPC comparison.
   last check. Last recorded snapshot: 46044 environment steps, 43747 updates,
   2297 episodes; the 72 h deadline from 2026-11-03 has passed.
 - Routes: `runs/operations/MACHINES.md` on the Mac (outside Git).
+
+### WM–MPPI episode video completed (2026-11-08)
+
+The seed-0 frozen WM562 H16 episode reached the task goal in 43 steps / 2.15 s,
+with material peak 13.25 N. The recorder shares the benchmark control loop;
+video uses original UR5e visual meshes, the DiSECt surface including virtual cut
+vertices, and measured force traces. Start/contact/end frames and raw-data
+alignment checked. Output: `runs/videos_20261108/wm_mppi/`; commands in RUNNING,
+numbers in RESULTS. Physical task and controller settings unchanged.

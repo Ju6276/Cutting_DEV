@@ -186,7 +186,7 @@ class WorldModelPolicy:
 
 
 @torch.no_grad()
-def evaluate(env, policy, output, episodes, deadline, clock=time.monotonic):
+def evaluate(env, policy, output, episodes, deadline, clock=time.monotonic, on_frame=None):
     """Each recorded transition ends at the physical terminal frame, before reset."""
     if env.worlds != 1 or episodes < 1:
         raise ValueError('Frozen benchmark uses one world and at least one episode')
@@ -233,6 +233,8 @@ def evaluate(env, policy, output, episodes, deadline, clock=time.monotonic):
                    'terminated': False, 'truncated': False,
                    'total_cut_springs': int(frame['cut_spring_ke'].shape[-1])}
             row.update(episode_metrics(row, totals))
+            if on_frame is not None:
+                on_frame(frame, None)
             while clock() < deadline:
                 tick = clock()
                 action = policy.act(frame)
@@ -273,6 +275,8 @@ def evaluate(env, policy, output, episodes, deadline, clock=time.monotonic):
                 totals['safety_margin'] = max(totals['safety_margin'], float(info['safety_margin'][0]))
                 row.update(episode_metrics(row, totals))
                 row['completed'] = row['terminated'] or row['truncated']
+                if on_frame is not None:
+                    on_frame(frame, info)
                 policy.observe(frame)
                 write_json(output / 'progress.json', {**report, 'current_episode': row,
                                                       'wall_seconds': clock() - started})

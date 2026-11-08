@@ -558,3 +558,27 @@ The finite-horizon running/terminal-cost formulation follows
 [Williams et al. (2017)](https://arxiv.org/abs/1707.02342); solver controls and
 the terminal callback are implemented by
 [pytorch_mppi](https://github.com/UM-ARM-Lab/pytorch_mppi#parameter-tuning-and-hints).
+
+## Recorded geometry and offline video
+
+The recorder observes the benchmark's reset and completed physical transitions.
+It stores raw joint/particle states and forces, plus world-frame material, knife,
+robot-body and collision-geometry poses. URDF joint names select the MuJoCo qpos
+addresses. Display frames interpolate joint angles and positions; recorded force
+peaks and spring-release counts are held until their measured boundary.
+
+DiSECt `cutting/visualizer.py` and `dflex/render.py` evaluate virtual cut vertices
+as `(1-t)*particle[i] + t*particle[j]`, then render both `tri_indices` and
+`cut_tri_indices`. The offline renderer uses the same construction. The prism
+export contains 608 virtual vertices and 1338 cut triangles.
+
+| Source component | Video implementation |
+|---|---|
+| MuJoCo physics import discards URDF visuals and keeps collision meshes | Offline video loads the original URDF visual meshes, local origins, scales and COLLADA material colors onto recorded body poses. `--robot-geometry collision` selects the physics meshes for inspection. |
+| Robot `knife_and_adapter` appearance differs from the coupled DiSECt knife | Hide that appearance mesh by default and draw the recorded DiSECt knife. `--show-robot-tool` displays both. |
+| DiSECt particle and virtual-vertex surface | Same surface topology and edge interpolation, with smooth normals and optional triangle edges. |
+| Material contact plane | Add a board thickness and support below the plane for display. |
+
+One EGL window owns both views. Force traces use measured control-step peaks;
+playback speed uses recorded simulation timestamps, independently of solver wall
+time. Render dependencies are isolated in `requirements-render.txt`.

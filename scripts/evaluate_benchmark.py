@@ -50,9 +50,10 @@ class SACPolicy:
         self.process.close()
 
 
-def main():
+def argument_parser(default_method=None):
     parser = argparse.ArgumentParser()
-    parser.add_argument('--method', choices=('constant-zero', 'reference', 'supermimic', 'sac', 'wm-mppi'), required=True)
+    parser.add_argument('--method', choices=('constant-zero', 'reference', 'supermimic', 'sac', 'wm-mppi'),
+                        required=default_method is None, default=default_method)
     parser.add_argument('--backend-root', type=Path, default=ROOT / 'backends/mujoco')
     parser.add_argument('--contract', type=Path, default=ROOT / 'configs/public_prism/benchmark.json')
     parser.add_argument('--checkpoint', type=Path)
@@ -73,6 +74,42 @@ def main():
     parser.add_argument('--mpc-noise-std', type=float, default=.5)
     parser.add_argument('--mpc-discount', type=float, default=.99)
     parser.add_argument('--mpc-terminal-value', choices=('none', 'critic'), default='none')
+    return parser
+
+
+def make_controller(args, env, manifest):
+    if args.method == 'supermimic':
+        policy = WorldModelPolicy(args.checkpoint, env)
+        manifest['policy_updates'] = policy.updates
+        manifest['policy_training_reward'] = policy.training_reward
+    elif args.method == 'wm-mppi':
+        from cutting_world_model.mpc import MPPIConfig, MPPIPolicy
+        config = MPPIConfig(args.mpc_horizon, args.mpc_samples, args.mpc_refinements,
+                            args.mpc_temperature, args.mpc_noise_std, args.mpc_discount,
+                            args.mpc_terminal_value)
+        policy = MPPIPolicy(args.checkpoint, env, config)
+        manifest['planner'] = policy.manifest
+    elif args.method == 'sac':
+        policy = SACPolicy(args, env)
+        manifest['sac_actor'] = policy.process.metadata
+    elif args.method == 'reference':
+        from cutting_gpu_backend.reference import KnifeTrajectory
+        trajectory = KnifeTrajectory.load(args.trajectory) if args.trajectory else None
+        env.physics.set_reference_trajectory(trajectory)
+        trajectory = env.physics.reference_trajectory
+        manifest['trajectory'] = {
+            'path': str(args.trajectory.resolve()) if args.trajectory else None,
+            'sha256': file_digest(args.trajectory) if args.trajectory else None,
+            'values_sha256': trajectory.digest(), 'intervals': len(trajectory.linear_velocity),
+            'duration_seconds': trajectory.duration, 'source': trajectory.metadata}
+        policy = ReferencePolicy()
+    else:
+        policy = ConstantPolicy()
+    return policy
+
+
+def main():
+    parser = argument_parser()
     args = parser.parse_args()
     if args.episodes < 1 or not 0 < args.wall_seconds < float('inf'):
         parser.error('Episodes and finite wall budget must be positive')
@@ -112,33 +149,7 @@ def main():
         actual = physical_contract(args.backend_root, env)
         check_contract(manifest['contract'], actual)
         write_json(args.output / 'task.json', env.metadata)
-        if args.method == 'supermimic':
-            policy = WorldModelPolicy(args.checkpoint, env)
-            manifest['policy_updates'] = policy.updates
-            manifest['policy_training_reward'] = policy.training_reward
-        elif args.method == 'wm-mppi':
-            from cutting_world_model.mpc import MPPIConfig, MPPIPolicy
-            config = MPPIConfig(args.mpc_horizon, args.mpc_samples, args.mpc_refinements,
-                                args.mpc_temperature, args.mpc_noise_std, args.mpc_discount,
-                                args.mpc_terminal_value)
-            policy = MPPIPolicy(args.checkpoint, env, config)
-            manifest['planner'] = policy.manifest
-        elif args.method == 'sac':
-            policy = SACPolicy(args, env)
-            manifest['sac_actor'] = policy.process.metadata
-        elif args.method == 'reference':
-            from cutting_gpu_backend.reference import KnifeTrajectory
-            trajectory = KnifeTrajectory.load(args.trajectory) if args.trajectory else None
-            env.physics.set_reference_trajectory(trajectory)
-            trajectory = env.physics.reference_trajectory
-            manifest['trajectory'] = {
-                'path': str(args.trajectory.resolve()) if args.trajectory else None,
-                'sha256': file_digest(args.trajectory) if args.trajectory else None,
-                'values_sha256': trajectory.digest(), 'intervals': len(trajectory.linear_velocity),
-                'duration_seconds': trajectory.duration, 'source': trajectory.metadata}
-            policy = ReferencePolicy()
-        else:
-            policy = ConstantPolicy()
+        policy = make_controller(args, env, manifest)
         manifest['setup_seconds'] = time.monotonic() - started
         write_json(args.output / 'manifest.json', manifest)
         report = evaluate(env, policy, args.output, args.episodes, started + args.wall_seconds)

@@ -176,3 +176,43 @@ Complete reference cutting uses `scripts/benchmark_gpu_env.py --worlds 1
 --wall-seconds 600 --output runs/reference`. Frozen policy evaluation records
 task success, force, released springs and timing. Value accuracy additionally
 uses complete physical discounted returns; recorded results are in RESULTS.
+
+## Record and render a physical episode
+
+`record_episode.py` uses the benchmark controller factory, contract and evaluation
+loop. It saves raw states/actions in `episode_000.npz`, measured world-frame
+geometry in `episode.npz`, and the benchmark report. WM–MPPI also saves every
+planning call in `planning.json`. The video run uses the selected H16 planner:
+
+```bash
+.venv/bin/python scripts/record_episode.py --method wm-mppi \
+  --checkpoint runs/mpc_assets/policy62_wm562.pt --label wm_mppi \
+  --seed 0 --wall-seconds 600 --mpc-horizon 16 --mpc-samples 512 \
+  --mpc-refinements 4 --mpc-temperature 0.1 --mpc-noise-std 0.5 \
+  --mpc-discount 0.99 --mpc-terminal-value none \
+  --output runs/videos_20261108/wm_mppi
+```
+
+`--method supermimic` records a frozen actor; `--case N` retains the predefined
+perturbation case interface for that method. Rendering runs separately with
+VTK, numpy, Pillow, pycollada and ffmpeg (`requirements-render.txt`); the GPU7 environment is
+`/dataHDD/dong/Envs/render-20261108`. It needs no physics packages:
+
+```bash
+/dataHDD/dong/Envs/render-20261108/bin/python scripts/render_episode.py \
+  --recording runs/videos_20261108/wm_mppi --title 'Learned WM + MPPI' \
+  --source-root /opt/ros/noetic/share \
+  --source-root /dataHDD/dong/Projects/SliceIt/catkin_ws/src \
+  --speed 0.1 --fps 30
+```
+
+Add `--preview` for three PNGs before encoding. URDF visual meshes and their
+material colors attach to the recorded robot body poses; `--robot-geometry
+collision` selects the simplified physics meshes. The video shows a whole-arm view,
+a cutting close-up and measured force traces. Playback speed is derived from
+recorded simulation timestamps. Control-step force peaks and spring releases
+are held at their last measured value; geometry alone is interpolated. Robot
+mesh `knife_and_adapter` is hidden in the display, leaving the recorded DiSECt
+contact knife; `--show-robot-tool` restores the robot mesh. `--wireframe` shows
+material triangles, including DiSECt's interpolated virtual cut vertices and
+cut triangles. The board support is display geometry.

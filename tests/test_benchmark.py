@@ -217,3 +217,17 @@ def test_benchmark_names_select_distinct_scenes():
     assert benchmark_scene({'name': 'public-prism-ur5e-v1'}) == 'runs/disect_source_v4/scene.pt'
     with pytest.raises(ValueError, match='Unknown benchmark'):
         benchmark_scene({'name': 'public-prism-ur5e-v0'})
+
+
+def test_recording_callback_observes_actual_reset_and_terminal_boundary(tmp_path):
+    clock = Clock()
+    env = PhysicalEpisode(clock, 'success')
+    captured = []
+    def capture(frame, info):
+        captured.append((float(frame['sim_time'][0, 0]),
+                         None if info is None else float(info['peak_force'][0])))
+    report = evaluate(env, ConstantPolicy(), tmp_path, 1, 100., clock, on_frame=capture)
+    assert captured == [(0., None), (.05, 7.), (.062, 14.)]
+    assert report['episodes'][0]['success']
+    with np.load(tmp_path / 'episode_000.npz') as recorded:
+        np.testing.assert_array_equal(recorded['sim_time'][:, 0], [x[0] for x in captured])

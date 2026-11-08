@@ -1628,3 +1628,19 @@ and the three episode/report/planning files under `runs/mpc_selection_20261108`.
 
 Checks on the final code: root suite 217 passed / 5 skipped; backend 28 passed.
 The planner configuration is fixed for the next common algorithm comparison.
+
+## 2026-11-08 — WM–MPPI physical episode and UR5e video
+
+Source: `601c074` + recording changes (dirty); frozen WM562, seed 0, H16,
+512 samples, four refinements, temperature 0.1, terminal value disabled.
+Command: `scripts/record_episode.py --method wm-mppi` with the flags in
+RUNNING, output `runs/videos_20261108/wm_mppi` on GPU7.
+
+43 control steps / 2.150 s reached the task goal; return 78.5619, material peak
+13.2475 N, mean 3.8385 N, released springs 288/304. No force-limit or workspace
+termination. Zero optimizer updates; frozen weights unchanged. Recorded force,
+joint states and timestamps equal the raw benchmark arrays exactly; re-exported
+geometry arrays match exactly. VTK video: 1920×966, 30 FPS, 0.1× and 1× simulation
+speed, whole-arm and close-up views. UR5e uses its original URDF visual meshes;
+608 virtual cut vertices and 1338 cut triangles complete the material surface.
+Checks: root 219 passed / 5 skipped; backend 28 passed.
