@@ -3,7 +3,8 @@
 Every method executes in **UR5e + MuJoCo Warp + the SliceIt compliance controller
 + DiSECt**, using `GPUEnvironment`. The current case is
 `public-prism-ur5e-v1`: one prism, one material configuration, one initial state
-and one cutting target. The existing Gazebo SAC training continues separately.
+and one cutting target. The Gazebo SAC run (run 1) is separate and not part of
+this benchmark.
 
 ## Fixed inputs
 
@@ -34,6 +35,50 @@ cd $SLICEIT_ROOT/disect && MPLBACKEND=Agg python \
 The policy period is 0.05 s, robot step 0.001 s, coupling period 0.002 s, and
 material step 0.00001 s. The original action bounds, reward weights, workspace,
 force limits and success counter remain in the shared task heads.
+
+## Task definitions
+
+This section is the single definition of success, failure and force quantities;
+other documents refer to it.
+
+- **Force-limit termination.** At every 2 ms coupling substep, the filtered
+  sensor wrench in the hand frame (the observation wrench) is compared component
+  by component with `max_force_torque` = [50, 50, 50 N, 10, 10, 10 N·m]; any
+  exceedance ends the episode (`environment.py`, collision check). It is not a
+  guarantee on the material contact force.
+- **Material contact force.** DiSECt's summed contact-force magnitude
+  (`feedback['force_magnitude']`); its maximum is `material_peak_force_n`. It is
+  not used for termination and can exceed 50 N in an episode that ends in success
+  (SAC step 85000, static bottom: 50.29 N; RESULTS 2026-11-08).
+- **World-model force fields.** `wrench_history` and `peak_wrench` (running
+  maximum since reset) are the observed sensor wrench, not the material force.
+- **Success.** The goal-pose counter: knife-tip error within
+  `goal_threshold` = [0.04 m, 0.002 m, 0.04 rad] for more than
+  `successes_threshold` = 10 control steps, counted cumulatively, with no
+  collision. It does not test material separation (`cut_fraction` is reported
+  separately) or knife exit.
+- **Workspace failure.** Tip error beyond `workspace_limit` = [0.05 m, 0.1 m,
+  0.1745 rad]. **Time limit:** 500 control steps.
+- **Terminal reasons** are reported separately: success, force limit, workspace,
+  time limit. A combined metric (for example "success and material peak below a
+  bound") must get its own name and must not replace success.
+- **Force reporting.** Report the material peak force, the sensor wrench used for
+  control and termination (`safety_margin`), and limit exceedances (count,
+  magnitude, duration) separately.
+
+## Method names
+
+Results of different entries are never pooled.
+
+| Name | What it is |
+|---|---|
+| SliceIt SAC, Gazebo (run 1) | Original SliceIt training in Gazebo + DiSECt; separate setting |
+| SAC, unified environment | Original tf2rl SAC and settings (one environment, lr 0.01) trained in this benchmark; step-85000 checkpoint reported (collapse at 90000, RESULTS 2026-11-07) |
+| SAC, parallel (planned) | Changed worlds and learning rate (PLAN, multi-object stage); a new configuration |
+| `source` | SuperMimic-Reproduced configuration: imagined critic targets, actor horizon 32, no BC |
+| Current working baseline | `real` critic targets, actor horizon 8, BC 0.25, resumed from policy62/WM562 with critic reset and 100 pre-fit rounds |
+| V5 | `real_wm` critic targets, actor horizon 8, BC 0.25 |
+| Reference / constant zero | Prescribed knife trajectory; zero action |
 
 ## Methods
 
@@ -250,16 +295,4 @@ Inference: even a converged DiSECt solution targets blade bottom at the board
 (knife y about 0.030 m) rather than the SliceIt goal pose; comparing it on task
 success needs that difference stated.
 
-## Next measurements
-
-1. Frozen WM: compare train and held-out full physical episodes at H1, H8 and
-   the complete action sequence, with policy/critic and their optimizers frozen.
-2. Fit the critic against new complete physical returns after resolving the
-   demonstrated model/target error; then check joint updates.
-3. Train the original SAC in this fixed GPU environment, then evaluate SAC,
-   constant control and the WM policy with the commands above. Compare success,
-   force, duration, real transitions and wall time at saved checkpoints.
-4. DiSECt trajectory optimization: the nonfinite adjoint comes from the free
-   bottom (RESULTS 2026-11-07); with the bottom layer static the backward pass is
-   finite for prism, apple and jello. The prism gradient still needs a
-   finite-difference step sweep before an optimized trajectory can be compared.
+Current work is listed in [PLAN](PLAN.md).

@@ -1009,6 +1009,36 @@ Independent review covers task/reset identity, terminal frames, saved exception
 prefixes and source replay ordering. Artifacts: `runs/fixed_benchmark_20261105`
 and `runs/sac_gpu_bridge_check_20261105`.
 
+## 2026-11-05 — Code review and task/source comparison (moved from ANALYSIS.md)
+
+Frozen state: tag `freeze-20261105-pre-critic` (code `bc9302c`). Read-only review
+of `cutting_world_model/` against SuperMimic-Reproduced `ba61053`
+(`world_model.py`, `state_spec.py`, `wm_trainer.py`, `imagination/rollout.py`,
+`imagination/policy_trainer.py`, `policy/nets.py`); no training.
+
+Implementation check: the H8 autoregressive WM loss, residual integration
+(`qd' = qd + dqd`, `q' = q + dt qd' + dq`), GAE recursion, SHAC-style policy
+objective and critic update order match the source; no implementation error was
+found. Both the source and the local model pass the termination BCE gradient
+through the predicted state into the dynamics. One error-path bug in the
+diagnostic script `runs/wm_frozen_fit_20261105/run.py` (outside Git) was fixed
+(`frozen` and `learner.optimizer_steps` undefined in the never-reached
+`TimeoutError` branch); results unchanged; md5 in that run's `PATCHES.txt`.
+
+| Aspect | SuperMimic source | Cutting task | Consequence |
+|---|---|---|---|
+| Reward | Dense, smooth tracking terms | Step reward in [-1, -0.25]; terminal +100 / -100 | Return is dominated by terminal events |
+| Terminal criterion | Height 0.25 m, tilt 0.8 | goal-z < 2 mm for > 10 cumulative steps; workspace-x 5 cm; force limits | Predicted events depend on errors below WM accuracy |
+| Terminal-head input | Root height/tilt, state components | FK pose errors of predicted joints; success counter (step function) | BCE gradient acts on the predicted pose |
+| Imagination length | 32 × 0.02 s = 0.64 s inside long episodes | 32 × 0.05 s = 1.6 s; a successful cut lasts 1.0 s (20 steps) | Rollouts extend past the real episode end |
+
+The measured critic findings this review relied on are in the 2026-11-04 and
+2026-11-05 entries above (critic accurate on physical futures, held-out MAE
+5.17–10.70; on model futures 46–2800). Its inferred causes (missed success
+terminals continuing imagination; BCE gradient biasing the predicted pose) were
+later tested in part: critic-target variants (2026-11-05/06) and the loss-term
+gradient decomposition (2026-11-08).
+
 ## 2026-11-05/06 — Critic-target variants from policy62/WM562
 
 Code: branch commits `7ac4ef0` (critic_target real, replay snapshots),
@@ -1280,7 +1310,7 @@ set has success terminals only; force-limit collisions are not covered.
 
 ## 2026-11-08 — BC-only and linear force penalty against ablation (a)
 
-A6000, code `1f9ed91`, both from policy62/WM562 with the final baseline settings
+A6000, code `1f9ed91`, both from policy62/WM562 with the current working baseline settings
 (`real`, actor horizon 8, BC 0.25, 1024 worlds, critic reset with 100 pre-fit
 rounds, iteration 2421). Reference: ablation (a) at matched length,
 `critic_abl_a250_20261106` (same settings, model objective, SliceIt reward).
@@ -1312,10 +1342,14 @@ policy62 (start): 8/8, 20 steps, return 90.81, peak 30.66 N.
 **bc_only** — measured: at every checkpoint it stays at the policy62 behaviour
 (20–21 steps, return 90.5–90.9, peak 29–31 N), while ablation (a) cuts in 17–19
 steps with return 91.4–92.7 and peak force 26–46 N. Decision (PLAN rule): bc_only
-is slower and has lower return, so the model-based gradient contributes in this
-task; it shortens the cut (higher SliceIt return) and mostly raises the peak
-force. One seed; the steps difference (2–4) is far above the within-checkpoint
-spread (deterministic episodes).
+is slower and has lower return. Scope of the conclusion: in this fixed task, from
+the same start policy and with one seed, adding the actor objective through the
+WM (imagined reward plus critic value, by BPTT) changes behaviour: the cut is
+shorter (higher SliceIt return) and most checkpoints have a higher peak force.
+This does not show better sample efficiency or accurate WM prediction, and does
+not tell whether the higher force is predicted by the WM or results from model
+error (PLAN, WM reliability check). The steps difference (2–4) is far above the
+within-checkpoint spread (deterministic episodes).
 
 **linear_force** — measured: at update 150 the peak force is lower (21.7 N vs
 38.5 N) but the cut is slower (23 vs 18 steps); at updates 200–300 the peak force
@@ -1397,9 +1431,10 @@ within 2 mm of the lowest one; rotation = best-fit (Kabsch) rotation of that lay
 | Apple sphere, static (upstream) | 77 | not finished (60 steps) | 60 | 47.31 N | 208/244 | 0.11 mm | 0.016° |
 
 Measured: no object rolls (≤ 0.18°) or slides out of the cut (≤ 1.8 mm). The
-jello cuts like the prism. The apple (E = 3 MPa, 75× the prism) cannot be cut by
-the reference trajectory within the 50 N task limit: free, its force rises to
-44 N with 2 springs released and it collides at step 18; static, it releases 208
-springs and then stalls at 47.3 N for the remaining steps. For P3 the free bottom
-is usable for prism and jello; the apple needs a decision (material, force limit
-or a different reference) before it can join the object set.
+jello cuts like the prism. With the reference control, the apple (E = 3 MPa,
+75× the prism) does not complete the task: free, its force rises to 44 N with
+2 springs released and the force-limit check ends the episode at step 18; static,
+it releases 208 springs and then stalls at 47.3 N for the remaining steps. This
+concerns the reference control only; it does not show that no controller can cut
+the apple. Material and force limit are not changed to admit it; how the apple
+enters the object set is an open decision (PLAN).

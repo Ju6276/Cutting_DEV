@@ -1,10 +1,10 @@
 # Reading list
 
-Papers to read for an RA-L submission that combines a cutting benchmark with a
-force-constrained, multi-object policy. Each entry says why it matters here.
-arXiv identifiers were checked against the arXiv API on 2026-11-07. Notes marked
-"partial" are based on an incomplete read and must be checked against the full
-text before the paper relies on them.
+Literature and data entry points for the RA-L paper (research question in
+[PLAN](PLAN.md)). Each entry says why it matters here. Detailed reading notes,
+novelty judgements and corrections are in [NOVELTY](NOVELTY.md); this list does
+not repeat them. arXiv identifiers were checked against the arXiv API on
+2026-11-07. Notes marked "partial" are based on an incomplete read.
 
 Priority: **A** decides novelty or the paper's framing; **B** method background;
 **C** context.
@@ -70,8 +70,4 @@ alone therefore do not define a DiSECt food.
 
 ## Still to do
 
-- Citation tracking: papers that cite SliceIt, DiSECt and RoboNinja.
-- Full reads of the robocutting paper, Kuo et al. and the second half of
-  TopoCut before any novelty claim.
-- Search for cross-object force-aware cutting policies and for real-robot
-  validation of cutting simulators with F/T sensors.
+Open reading items are tracked in [NOVELTY](NOVELTY.md) ("Still open").

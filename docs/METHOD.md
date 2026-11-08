@@ -2,7 +2,8 @@
 
 Source revision: SuperMimic-Reproduced `ba610534`; SliceIt `1e79abad`;
 robot utilities `ddc85eca`; DiSECt `db7de0f`. Complete dependency pins and
-source patches are listed in [SOURCES](SOURCES.md).
+source patches are listed in [SOURCES](SOURCES.md). Method and baseline names used
+in results are defined in [BENCHMARK](BENCHMARK.md) ("Method names").
 
 | Module | Source design | Cutting implementation |
 |---|---|---|
@@ -41,6 +42,17 @@ implementation; a short fit is a data/interface check, not a model-selection res
 Sources: [world model](https://github.com/CuboiLeo/SuperMimic-Reproduced/blob/ba6105349069bf040f1fdad60873d13138d505a2/src/supermimic/world_model/world_model.py),
 [training loop](https://github.com/CuboiLeo/SuperMimic-Reproduced/blob/ba6105349069bf040f1fdad60873d13138d505a2/src/supermimic/training/loop.py),
 [SliceIt](https://github.com/omron-sinicx/sliceit).
+
+## External implementation evidence
+
+[ndm-gym](https://github.com/Frank-ZY-Dou/ndm-gym/tree/0171f5eadee50492d6ff30fa04b55e16cc11b61e)
+provides full-update equivalence checks, independent physical evaluation and
+500 world-model-only iterations; all three are applied here. Its RunningNorm
+critic and analytic soft termination are separate method choices, not adopted.
+The current implementation keeps the Cuboi learned terminal head and static
+scales; SliceIt physical thresholds and reward stay fixed. Analytic termination
+alone cannot restore a force-limit event that the dynamics model failed to
+predict.
 
 ## Control-history candidate
 
@@ -350,7 +362,7 @@ whole rollouts.
 
 `source` (`--critic-target imagined`, default) fits the critic on GAE targets
 computed along the 32-step WM-imagined rollouts of each policy update. Measured
-(ANALYSIS, RESULTS): full-episode WM position error 5–7 mm exceeds the 2 mm
+(RESULTS 2026-11-05): full-episode WM position error 5–7 mm exceeds the 2 mm
 goal-z threshold, imagined terminal events are wrong, and the policy62 critic
 has held-out return MAE ~153. Run C1 (`runs/critic_real_c1_20261105`, outside
 Git) fitted a fresh source critic on recorded windows of the same data: held-out

@@ -8,8 +8,10 @@
   commands in `docs/RUNNING.md`; exclude assets, runs, credentials and environments
   from Git. Document source modifications in METHOD and preserve licenses.
 
-- Migrate SuperMimic-Reproduced `ba610534` to the existing SliceIt Gazebo + DiSECt
-  UR5e robot/compliance task. Keep the original SAC baseline independent.
+- Main setting: SuperMimic-Reproduced `ba610534` adapted to the SliceIt UR5e +
+  FDCC + DiSECt task in the unified MuJoCo Warp environment (`docs/BENCHMARK.md`).
+  The original SliceIt SAC in Gazebo stays an independent baseline. PLAN is the
+  single current task list; task and metric definitions live only in BENCHMARK.
 - The SuperMimic source configuration stays runnable as the `source` baseline
   variant: training objectives, update cadence, effective batch sizes, optimizer
   settings and network widths unchanged. Method changes enter as named variants,

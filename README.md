@@ -15,38 +15,67 @@ gradients pass through the learned world model.
 ## Run
 
 GPU training uses Linux, Python 3.12, NVIDIA CUDA and prepared robot/material
-assets. Gazebo collection and SAC use the separate ROS Noetic environment.
-Installation and asset preparation: [RUNNING](docs/RUNNING.md).
+assets; Gazebo collection and the original SAC use the separate ROS Noetic
+environment. Installation and asset preparation: [RUNNING](docs/RUNNING.md).
 
 ```bash
 python3.12 -m venv .venv
 .venv/bin/python -m pip install -r requirements-gpu.txt
-# After preparing the assets described in RUNNING:
-.venv/bin/python scripts/train_gpu.py --worlds 1024 --wm-only-updates 500 \
-  --max-hours 24 --output runs/training
-.venv/bin/python scripts/evaluate_benchmark.py --method supermimic \
-  --checkpoint runs/training/last.pt \
-  --output runs/evaluation
 ```
 
-W&B is enabled by default; authenticate with `.venv/bin/wandb login`.
-`--wandb-mode offline` records locally. SIGUSR1 requests an atomic checkpoint
-after the current iteration; normal completion and SIGTERM also save.
+**Current working baseline** (`real` critic target, actor horizon 8, BC 0.25).
+It is not trained from scratch: it resumes policy62/WM562 (iteration 1561 of the
+source-configuration run `critic_mask_validation_20261104`), discards the critic,
+pre-fits a fresh critic for 100 rounds on the refilled replay, then trains:
+
+```bash
+.venv/bin/python scripts/train_gpu.py --worlds 1024 \
+  --resume runs/critic_mask_validation_20261104/training/last.pt \
+  --critic-target real --actor-horizon 8 --actor-bc-alpha 0.25 \
+  --critic-reset --critic-prefit-rounds 100 \
+  --microbatch 64 --critic-microbatch 8192 --max-iterations 860 --max-hours 12 \
+  --output runs/current_baseline/training
+```
+
+**`source` configuration** (SuperMimic-Reproduced settings: imagined critic
+targets, actor horizon 32, no BC; the script defaults), from scratch:
+
+```bash
+.venv/bin/python scripts/train_gpu.py --worlds 1024 --wm-only-updates 500 \
+  --max-hours 24 --output runs/source/training
+```
+
+Frozen evaluation of either checkpoint (definitions in [BENCHMARK](docs/BENCHMARK.md)):
+
+```bash
+.venv/bin/python scripts/evaluate_benchmark.py --method supermimic \
+  --checkpoint RUN/training/last.pt --output RUN/evaluation
+```
+
+W&B is enabled by default; `--wandb-mode offline` records locally. SIGUSR1
+requests an atomic checkpoint after the current iteration; normal completion and
+SIGTERM also save.
 
 ## Current result
 
-2026-11-05: the shared evaluator executes policy62 successfully in **20 steps /
-1.00 s**, peak material force **30.66 N**. The source SAC adapter completes
-real physical transitions, learning updates and checkpoint/replay reload.
+Single prism (`public-prism-ur5e-v1`), frozen 8 episodes, one seed
+([RESULTS](docs/RESULTS.md) 2026-11-05/06 and 2026-11-08):
 
-With policy/critic frozen, 100 additional WM rounds reduce held-out full-trajectory
-position RMSE **19.42 → 7.15 mm**, but miss all **32** successful terminal events.
-Predicted final height remains **6.52–16.39 mm** from the target. The next model
-check separates the physical-state and terminal-classification gradients.
-The last measured critic return MAE is **153.42**; critic weights stayed frozen in this probe.
+| Policy | Success | Steps | Return | Peak material force |
+|---|---:|---:|---:|---:|
+| policy62 (source configuration, start point) | 8/8 | 20 | 90.81 | 30.66 N |
+| Current working baseline, updates 150–300 | 8/8 | 17–18 | 92.2–92.7 | 35.0–46.4 N |
+| Current working baseline, last | 8/8 | 19 | 91.37 | 26.10 N |
+| SAC in the unified environment (source settings, one environment), step 85000 | 8/8 | 18 | 92.03 | 49.6 N |
 
-[Fixed benchmark](docs/BENCHMARK.md) · [Results](docs/RESULTS.md) · [Current work](docs/PLAN.md) ·
-[Methods and differences](docs/METHOD.md) · [Source versions](docs/SOURCES.md) · [Reading list](docs/READING_LIST.md)
+The world model misses all 32 held-out success events and its predicted end
+position is 6.5–16.4 mm from the target (goal threshold 2 mm). Next: the world-model
+reliability check in [PLAN](docs/PLAN.md).
+
+[Current plan](docs/PLAN.md) · [Benchmark and definitions](docs/BENCHMARK.md) ·
+[Results](docs/RESULTS.md) · [Methods and variants](docs/METHOD.md) ·
+[Literature](docs/NOVELTY.md) · [Reading list](docs/READING_LIST.md) ·
+[Real robot (draft)](docs/REAL2SIM.md) · [Source versions](docs/SOURCES.md)
 
 The two original Git histories are retained. Third-party licenses are listed
 in [NOTICE](NOTICE.md). Data, credentials and environments stay outside Git.

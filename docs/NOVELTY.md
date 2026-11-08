@@ -1,10 +1,11 @@
 # Novelty check — force-aware world model for force-limited cutting
 
-Status: deep read, 2026-11-08 (first pass the same day). Framing under test
-(user, 2026-11-08): a reliable force-aware world model (state, force and
-cutting-event predictions consistent) with BPTT policy learning; multi-material
-evaluation shows that one policy cuts several objects under the 50 N limit.
-Robot-methods paper (RA-L/ICRA/IROS).
+Status: deep read, 2026-11-08 (first pass the same day); review corrections
+integrated. Literature evidence and candidate gaps only; it does not add
+development tasks. The research question is in [PLAN](PLAN.md): how WM errors in
+cutting force and failure events affect BPTT policy learning, and how model-side
+policy improvement can carry over to physical execution (single-cut task first,
+multi-material as an experimental condition). Robot-methods paper (RA-L/ICRA/IROS).
 
 Labels: **T** paper text; **C** code; **I** inference; **A/S** abstract or search
 snippet only. Claims marked "spot-checked" were re-read in the source by the
@@ -103,81 +104,79 @@ All are real-robot and argue cutting simulation is unavailable [T].
   gradient into the world model helps (mask head, not termination) [T, partial];
   HarmonyDream (2310.00344) balances WM loss terms [A].
 
-## Corrections after review (2026-11-08)
+## 6. Other learned models in cutting and material removal
 
-- "No world model / MBRL in cutting" was too broad. DeepMPC and Mitsioni are
-  learned-model control; TopoCut ([2509.19712](https://arxiv.org/abs/2509.19712)) trains a model that
-  predicts the next topology from the current topology and action, used for
-  representation and imitation (not BPTT policy optimization); in material
-  removal, Learning to Shape by Grinding ([2308.02150](https://arxiv.org/abs/2308.02150)) is a
-  cutting-surface-aware MBRL. Candidate gap, still to verify: compliant food
-  cutting where learned state-and-force dynamics improve a policy by BPTT, with
-  force risk and physical control effect validated.
-- Multi-material is an experimental condition, not a contribution: SliceIt §IV-A
-  states training on one calibrated configuration of tomato/cucumber/potato with
-  parameter noise and testing on carrot (the released code's noise default is a
-  separate reproduction note).
-- Events derived from predicted state already exist in our code:
-  `imagine()` (`cutting_world_model/trainer.py:164`) ends imagination on predicted
-  `peak_wrench` above the limit and on the task predicates of the predicted state
-  (absorbing, reward counted once), and keeps the learned termination
-  probability. Removing the classifier would not fix an under-predicted force,
-  and the hard predicates give no gradient across the boundary.
-- "50 N hard limit" is not the current definition. The episode ends when any
-  component of the filtered sensor wrench exceeds the limit
-  (`environment.py:234`); the material contact force is reported separately and
-  reached 50.29 N in a successful SAC episode (RESULTS, static vs free bottom).
-  Success is the goal-pose counter, not material separation or knife exit. Report
-  material peak force, the sensor signal used for control and termination, and
-  limit exceedances (count, magnitude, duration) separately.
-- The BCE-gradient diagnostic (93 successes, 3 workspace failures, no force-limit
-  failures) shows that the terminal loss dominates dynamics updates; it does not
-  show that it causes missed force peaks. DreamerV3's actor uses REINFORCE, so
-  its stop-gradient placement does not carry over to BPTT directly.
+- **TopoCut** ([2509.19712](https://arxiv.org/abs/2509.19712)) trains a model that predicts the next
+  topology from the current topology and action and uses it for representation
+  and imitation (discrete diffusion policy), not for BPTT policy optimization;
+  no knife force or force limit found [A].
+- **Learning to Shape by Grinding** ([2308.02150](https://arxiv.org/abs/2308.02150)): cutting-surface-aware
+  model-based RL in robotic grinding (material removal, not food slicing) [A].
+- With DeepMPC and Mitsioni (section 3), learned-model control of cutting exists;
+  "no world model or MBRL in cutting" is not a valid claim.
+
+## 7. Our own implementation, for comparison with the above
+
+- Events from predicted state already exist: `imagine()`
+  (`cutting_world_model/trainer.py:164`) ends imagination when the predicted
+  `peak_wrench` exceeds the limit or the task predicates fire on the predicted
+  state (absorbing; reward counted once), and also keeps the learned terminal
+  probability. Hard predicates give no gradient across the boundary, and an
+  under-predicted force still yields a wrong event; removing the classifier alone
+  does not address that.
+- Task definitions (force-limit check on the filtered sensor wrench, material
+  force reported separately, success = goal-pose counter) are in
+  [BENCHMARK](BENCHMARK.md) "Task definitions"; this document does not redefine them.
 
 ## Assessment
 
-Already done (cannot be claimed): the setting and force-limit collision terminal
-(SliceIt); learned cutting dynamics + MPC on many and unseen materials (DeepMPC,
-Mitsioni); WM + BPTT + learned cost head + Lagrangian (LAMBDA); force-peak
-prediction in a WM (visuotactile lifting).
+Already done (cannot be claimed): the setting and a force-limit terminal
+(SliceIt); several calibrated foods in training with an unseen test object
+(SliceIt §IV-A); learned cutting dynamics + MPC on many and unseen materials
+(DeepMPC, Mitsioni); learned topology dynamics for cutting (TopoCut); WM + BPTT +
+learned cost head + Lagrangian (LAMBDA); force-peak prediction in a WM
+(visuotactile lifting).
 
-Not found in any of the above:
-1. A world model whose force and event predictions are **consistent with its
-   state predictions by construction** (all prior: independent heads, or a
-   non-differentiable hand-coded threshold). LAMBDA states the state→cost prior
-   as an open question.
-2. A **hard terminal** force constraint in world-model policy learning (all prior:
-   CMDP budgets or input bounds; Mitsioni discards limit hits).
-3. A mechanism for why WM policies violate force budgets despite force heads
-   (the lifting paper shows the symptom, no mechanism); our measured BCE gradient
-   dominance (RESULTS 2026-11-08) is a candidate mechanism, untested causally.
-4. One amortized policy across materials in cutting with violation rate, success
-   and time over seeds (SliceIt: one carrot, force only; Mitsioni: per-episode
-   planning).
+Candidate gap, to be verified rather than assumed from searches that found
+nothing: compliant food cutting in which learned state-and-force dynamics
+improve a policy by BPTT, with force risk and the physical control effect
+validated. Points not found in the papers read:
+1. Force and event predictions tied to the state prediction (prior work uses
+   independent heads or a non-differentiable hand-coded threshold; LAMBDA calls
+   the state→cost prior an open question).
+2. A force-limit termination inside world-model policy learning (prior: CMDP
+   budgets or input bounds; Mitsioni discards limit hits).
+3. An account of why WM policies exceed force budgets despite force heads (the
+   lifting paper shows the symptom). Our BCE-gradient diagnostic (RESULTS
+   2026-11-08; 93 successes, 3 workspace failures, no force-limit failures)
+   shows that the terminal loss dominates dynamics updates; it does not show that
+   this causes missed force peaks.
 
-Risks: reads as "SliceIt + SuperMimic" unless the consistency mechanism is
-principled and beats a LAMBDA-style Lagrangian and a same-WM MPC; simulation-only
-results invite "why not use the differentiable simulator"; the T-RO cutting
-experiment is unread.
+Risks: reads as "SliceIt + SuperMimic" unless the mechanism is clear and the
+gain holds against SAC and a same-WM MPC; simulation-only results limit claims on
+real cutting force and cross-material reliability; the T-RO cutting experiment is
+unread. DreamerV3's actor uses REINFORCE, so its stop-gradient placement does not
+transfer directly to BPTT.
 
-## Baselines and ablations this implies
+## Candidate comparisons (depend on the final claim; not current tasks)
 
-- SAC (SliceIt code reward, our multi-material randomization stated as stronger
-  than their release).
-- Same WM + MPC (CEM/MPPI on GPU) with predicted force event as constraint or
-  penalty; optionally a Mitsioni-faithful position-only LSTM + shooting MPC.
-- LAMBDA-style augmented-Lagrangian force constraint on our WM (estimated
-  ~100–150 LOC).
+Current tasks are only those in [PLAN](PLAN.md). Candidates, each needing its own
+plan and an estimate of integration and validation cost:
+
+- SAC with the SliceIt code reward (state any multi-material randomization that
+  goes beyond their release).
+- The same WM + MPC (CEM/MPPI) with the predicted force event as constraint or
+  penalty; optionally a Mitsioni-style position-only LSTM + shooting MPC.
+- A LAMBDA-style augmented-Lagrangian force constraint on our WM.
 - Ablations: learned event head vs events derived from predicted state/force;
   with vs without event-loss gradient into the dynamics; fixed −100 vs adaptive λ.
-- DiSECt trajectory optimization as a per-object open-loop reference (mean and
-  peak force).
-- Metrics: WM force-peak error vs a persistence baseline, event Brier/AUROC and
-  calibration, success = cut AND max force < 50 N, violation rate, time, seeds.
+- DiSECt trajectory optimization as a per-object open-loop reference.
+- Metrics follow BENCHMARK; possible additions: WM force-peak error with
+  persistence as a reference point, event calibration (Brier/AUROC).
 
 ## Still open
 
 - IEEE version of Mitsioni T-RO 2023 (cutting section).
 - Google Scholar "cited by" pass on SliceIt and DiSECt.
-- Full reads of LEQ and Segmentation Dreamer appendices.
+- Full reads of TopoCut's model section, the grinding paper, LEQ and
+  Segmentation Dreamer appendices.

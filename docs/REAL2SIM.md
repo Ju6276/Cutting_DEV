@@ -14,7 +14,7 @@ measured, not assumed. Nothing here runs before the open items are settled.
 | Diana7 | Available; not used in the first pass (see "Later"). |
 | ATI Mini45 | Available. **Open:** calibration (SI-145-5: ±145 N Fx/Fy, ±290 N Fz, 1/16 N resolution; SI-290-10: ±290/580 N, 1/8 N), interface (Net F/T or DAQ), ROS version. Either range covers the 50 N task force limit. |
 | Knife and mount | **Open:** CAD or measured geometry and mass, to replace the simulated knife frame and tool payload. |
-| Object placement | The benchmark keeps a free bottom (PLAN, decisions 2026-11-08): specimens rest on the board without clamping. **Open:** board material and friction, and a lateral stop if specimens slide. |
+| Object placement | The benchmark keeps a free bottom (PLAN, "Decisions in force"): specimens rest on the board without clamping. **Open:** board material and friction, and a lateral stop if specimens slide. |
 | Foods / specimens | **Open:** proposal below. |
 
 ## Steps (one change each)
@@ -93,11 +93,16 @@ it comes from.
 
 ### R4 — Closed-loop evaluation on the real robot
 
-- Run the reference trajectory, then frozen policies (SuperMimic final baseline,
-  SAC step 85000) on calibrated materials, with the 50 N force limit enforced in
-  hardware and in the controller, a workspace bound and an emergency stop.
-- Metrics as in the simulation: success (cut through), steps/time, peak and mean
-  force, knife work. Compare with the simulation of the same calibrated material.
+- Run the reference trajectory, then frozen policies (the current working
+  baseline and SAC from the unified environment, step 85000; names as in
+  BENCHMARK) on calibrated materials, with a workspace bound and an emergency
+  stop. **Open:** how the force limit is detected and enforced on the real robot
+  (sensor, filter, rate, stop mechanism, reaction time); no hardware guarantee is
+  assumed until this is measured.
+- Metrics follow BENCHMARK "Task definitions" (success = goal-pose counter,
+  terminal reasons separately); material separation is recorded as its own
+  measurement, not as success. Also steps/time, sensor peak and mean force,
+  limit exceedances. Compare with the simulation of the same calibrated material.
 
 ## Later
 

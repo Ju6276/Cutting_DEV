@@ -78,15 +78,16 @@ They remain outside Git.
 
 ## GPU training and evaluation — run 3
 
-```bash
-.venv/bin/python scripts/train_gpu.py --worlds 1024 --wm-only-updates 500 \
-  --max-hours 24 --output runs/training
-.venv/bin/python scripts/evaluate_benchmark.py --method supermimic \
-  --checkpoint runs/training/last.pt --output runs/evaluation
-```
+The commands for the current working baseline (resumed from policy62/WM562 with
+critic reset and 100 pre-fit rounds) and for the `source` configuration (script
+defaults, from scratch) are in [README](../README.md#run); the two must not be
+confused. Without variant flags, `train_gpu.py` runs `source`: imagined critic
+targets, 32-step policy rollout, no BC (`--critic-target imagined`, `--actor-horizon`
+unset = 32, `--actor-bc-alpha` unset = off). Variant flags are documented in
+[METHOD](METHOD.md).
 
-The maximum eight-step WM fit, 32-step policy rollout, effective batches
-2048/4096 and original task rewards are defined in the source configuration.
+The maximum eight-step WM fit, effective batches 2048/4096 and original task
+rewards are defined in the source configuration.
 Training collects new physical transitions, updates WM, then policy/critic.
 The first 500 WM rounds leave policy/critic unchanged.
 
@@ -96,7 +97,7 @@ SIGUSR1 saves after the current iteration. Completion/SIGTERM writes
 `last.pt` and `progress.json`. Frozen evaluation performs zero optimizer updates.
 
 The shared fixed-environment evaluation commands are in [BENCHMARK](BENCHMARK.md).
-The currently open critic issue is described in [PLAN](PLAN.md).
+The current task list is in [PLAN](PLAN.md).
 Checkpoints from before the absorbing-terminal repair are usable for frozen
 evaluation, while training requires the current terminal-rule metadata.
 
