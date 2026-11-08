@@ -21,7 +21,7 @@ from cutting_world_model.lifecycle import finalize_training
 from cutting_world_model.task_heads import FORCE_PENALTIES, reward_settings, without_reward_settings
 from cutting_world_model.trainer import ACTOR_OBJECTIVES, CRITIC_TARGETS, OnlineLearner
 from cutting_world_model.tracking import ExperimentTracker
-from cutting_world_model.world_model import CuttingWorldModel
+from cutting_world_model.world_model import TERMINAL_GRADIENTS, CuttingWorldModel
 from third_party.supermimic.schedule import cosine_lr
 from train_coupled import write_json, append_json, learning_status
 
@@ -68,6 +68,10 @@ def main():
     parser.add_argument('--actor-objective', choices=ACTOR_OBJECTIVES, default='model',
                         help="'model': imagined-objective gradient (+ optional BC); "
                              "'bc': the BC term alone at the same scale (needs --actor-bc-alpha)")
+    parser.add_argument('--wm-terminal-gradient', choices=TERMINAL_GRADIENTS, default='dynamics',
+                        help="'dynamics': source, the terminal BCE also trains the dynamics through the "
+                             "predicted state; 'head': in WM fitting the BCE trains only the terminal head "
+                             "(policy BPTT unchanged). A resume must keep the checkpoint's route")
     parser.add_argument('--force-penalty', choices=FORCE_PENALTIES, default='sliceit',
                         help="'sliceit': source -sigmoid(s/2-3); 'linear': -s/--force-penalty-scale")
     parser.add_argument('--force-penalty-scale', type=float,
@@ -121,7 +125,8 @@ def run(args, output, status, started):
                             critic_microbatch=args.critic_microbatch,
                             actor_horizon=args.actor_horizon,
                             actor_bc_alpha=args.actor_bc_alpha,
-                            actor_objective=args.actor_objective)
+                            actor_objective=args.actor_objective,
+                            wm_terminal_gradient=args.wm_terminal_gradient)
     schedule = OnlineSchedule(worlds=args.worlds)
     if args.resume:
         saved = torch.load(args.resume, map_location=device, weights_only=False)
@@ -159,6 +164,7 @@ def run(args, output, status, started):
         'critic_variant': learner.critic_variant(),
         'critic_microbatch': learner.critic_microbatch, 'actor_horizon': learner.actor_horizon,
         'actor_bc_alpha': learner.actor_bc_alpha, 'actor_objective': learner.actor_objective,
+        'wm_terminal_gradient': learner.wm.terminal_gradient,
         'reward': reward_settings(metadata['environment']) or 'sliceit',
         'replay_snapshot': 'replay.pt rewritten with every checkpoint',
     }
