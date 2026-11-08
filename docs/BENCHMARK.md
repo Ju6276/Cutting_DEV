@@ -50,8 +50,12 @@ other documents refer to it.
   (`feedback['force_magnitude']`); its maximum is `material_peak_force_n`. It is
   not used for termination and can exceed 50 N in an episode that ends in success
   (SAC step 85000, static bottom: 50.29 N; RESULTS 2026-11-08).
-- **World-model force fields.** `wrench_history` and `peak_wrench` (running
-  maximum since reset) are the observed sensor wrench, not the material force.
+- **World-model force fields.** Both are the observed sensor wrench, not the
+  material force. `wrench_history` is the filtered wrench queue.
+  `peak_wrench` is reset to zero at the start of every control step and holds,
+  per component, the maximum absolute sensor wrench over that step's 2 ms coupling
+  substeps (`CuttingBatch.step`); a normal step covers 0.05 s, a step that ends
+  early covers less. It is not a maximum since reset.
 - **Success.** The goal-pose counter: knife-tip error within
   `goal_threshold` = [0.04 m, 0.002 m, 0.04 rad] for more than
   `successes_threshold` = 10 control steps, counted cumulatively, with no
@@ -88,7 +92,7 @@ Results of different entries are never pooled.
 | SliceIt SAC | Original tf2rl Wave actor; Python 3.8 inference process | Frozen checkpoint evaluation and training adapter |
 | SuperMimic-style policy | Current learned policy; ten observation frames and fixed target pose | Frozen checkpoint evaluation |
 | Prescribed reference | Scene knife velocity (0, -0.05, 0) m/s in the DiSECt frame for 1.3 s, then hold | `--method reference` |
-| DiSECt trajectory optimization | Knife velocity trajectory from `optimize_slicing.py` parameters | `--method reference --trajectory FILE`; the gradient optimizer currently produces no update (below) |
+| DiSECt trajectory optimization | Knife velocity trajectory from `optimize_slicing.py` parameters | `--method reference --trajectory FILE`; the static-bottom optimization pipeline has run (10 updates, RESULTS 2026-11-08), the free-bottom benchmark task is not completed by it; parked |
 
 The constant baseline uses `reference=False`, as do both learned policies.
 The two trajectory methods use the **reference control branch** (`reference=True`),

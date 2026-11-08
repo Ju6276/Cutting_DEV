@@ -68,8 +68,11 @@ Single prism (`public-prism-ur5e-v1`), frozen 8 episodes, one seed
 | Current working baseline, last | 8/8 | 19 | 91.37 | 26.10 N |
 | SAC in the unified environment (source settings, one environment), step 85000 | 8/8 | 18 | 92.03 | 49.6 N |
 
-The world model misses all 32 held-out success events and its predicted end
-position is 6.5–16.4 mm from the target (goal threshold 2 mm). Next: the world-model
+In the fixed-data experiment where WM562 is fitted 100 more rounds with the
+policy frozen (`wm_frozen_fit_20261105`, RESULTS 2026-11-05), the world model
+misses all 32 held-out success events and its predicted end position is
+6.5–16.4 mm from the target (goal threshold 2 mm); this is not measured for every
+checkpoint in the table. Next: the world-model
 reliability check in [PLAN](docs/PLAN.md).
 
 [Current plan](docs/PLAN.md) · [Benchmark and definitions](docs/BENCHMARK.md) ·

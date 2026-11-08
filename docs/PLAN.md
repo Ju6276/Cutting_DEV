@@ -61,10 +61,18 @@ No policy training. Each step's outcome selects the next.
 - Use boundary: the supplement is stratified by terminal reason and serves only
   diagnosis. Its proportions are not policy success or exceedance rates; those
   come only from unperturbed frozen evaluations.
-- Development vs final test: the supplement is collected with two disjoint seed
-  sets. The development set is used in this plan. The final test set is stored
-  unopened and evaluated only after the method is fixed, so that model changes
-  made after looking at held-out results are not reported as independent tests.
+- Perturbations, not seeds alone, create distinct trajectories: the same initial
+  state and a deterministic policy give the same trajectory under any seed. The
+  collection script fixes and records the perturbation distribution, the steps at
+  which it is applied and the random stream per episode.
+- Development vs final test: two disjoint random streams. A complete episode
+  belongs to exactly one set. The development set is used in this plan. The final
+  test set is stored unopened and evaluated only after the method is fixed, so
+  that model changes made after looking at held-out results are not reported as
+  independent tests.
+- The 2 h wall budget includes the Step-2 prefix replays and branches. At the
+  budget the collection stops and reports its coverage; no extra runs are added
+  to fill a category.
 
 **Step 1 — Three-way terminal check (labels before models).** On the same
 development trajectories, for WM562 and later for both arms of Step 3:
@@ -81,14 +89,24 @@ misses, false alarms, timing offset in steps.
 **Step 2 — Force prediction and its relation to policy choices.** On the same
 physical trajectories and actions: WM-predicted vs simulated sensor wrench and
 `peak_wrench` at 1 and 8 steps; signed peak error with underestimation reported
-separately; peak timing; force-limit misses. Persistence (last measured force)
-is a reference point, not an acceptance criterion. Main case: the ablation-(a)
+separately; peak timing; force-limit misses. `peak_wrench` is the per-step
+maximum (BENCHMARK), so its targets and the persistence reference (previous
+step's measured value) are per control step. Persistence is a reference point,
+not an acceptance criterion. Main case: the ablation-(a)
 trajectories, with the WM checkpoint those policies were trained with.
-To relate errors to choices: at the same recorded states, compare the ablation-(a)
-action with the policy62 action by WM-predicted H8 return/force and by the
-physically executed return/force (replay the recorded action prefix — frozen
-episodes are deterministic — then execute the alternative actions; verify the
-replayed prefix reproduces the recorded states before using it).
+To relate errors to choices: at the same recorded states, branch on the first
+action (ablation-(a) action vs policy62 action). After the first action each
+branch continues closed loop with its own policy for 7 more steps; the WM
+rollout and the physical execution use the same rule. Reported separately per
+branch: the 8-step sum of rewards, the terminal critic value at the end, peak
+sensor wrench, material peak force and terminal reason. If a branch terminates
+early, both WM and physics stop that branch at its terminal (absorbing, as in
+`imagine()`); the WM's predicted terminal and the physical terminal are compared
+as in Step 1. Physical branches restore the recorded episode by replaying its
+action prefix with fixed inputs; FP32 atomic accumulation makes repeated runs
+differ slightly, so the replayed prefix is checked on the complete physical
+state, controller memory and observation history against the spread of actual
+repeated runs (measured first), not for bitwise identity.
 - Record the model errors and whether the policy's preferred actions are rated
   better by the WM than by physics. Neither "WM worse than persistence → the
   policy exploits model error" nor "WM better than persistence → only the reward
@@ -110,17 +128,22 @@ initialization, optimizer state, data order, learning rate and 100 rounds as
 - Primary metric: held-out 8-step knife-tip position error and joint error.
   Secondary: peak-force error (underestimation), Step-1 terminal metrics per
   reason, state error vs BCE over rounds, state/BCE gradient ratio on the
-  dynamics. Overall `term_acc` is not a criterion. Uncertainty: 95% bootstrap
-  intervals over development episodes.
-- Adopt for a joint-training plan: primary metric better at both +50 and +100
-  with intervals excluding zero, and no secondary terminal metric worse beyond
-  its interval.
-- Reject A: primary metric not better at either checkpoint. The next topic is
-  the source of the prediction error (coverage, history inputs, integration
-  audit; RESULTS 2026-11-04 open item).
-- Mixed (primary better, a terminal metric worse beyond its interval, or only one
-  checkpoint better): no joint training; report, then examine terminal
-  representation and data coverage. No B/C stacking.
+  dynamics. Overall `term_acc` is not a criterion.
+- Statistics: per development episode, the paired difference A − original of
+  each metric (windows of one episode are averaged first, never resampled as
+  independent samples); 95% bootstrap interval over episodes. Each metric is
+  classified as improved (interval below zero for an error), worsened (above
+  zero) or inconclusive (spans zero). Inconclusive is not "A has no effect".
+- Adopt for a joint-training plan: primary metric improved at both +50 and +100,
+  and neither peak-force underestimation nor any per-reason terminal metric
+  worsened.
+- Reject A: primary metric worsened, or inconclusive at both checkpoints with
+  no secondary improvement. The next topic is the source of the prediction error
+  (coverage, history inputs, integration audit; RESULTS 2026-11-04 open item).
+  The report states whether the evidence was inconclusive or negative.
+- Mixed — no joint training: primary improved but peak-force underestimation or
+  a terminal metric worsened, or improvement at only one checkpoint. Report, then
+  examine force/terminal representation and data coverage. No B/C stacking.
 
 **Budget.** Steps 1–2 are evaluation only. Step 3 is two fixed-data fits of
 about 20 min each (WM562→662 took 1166 s). One GPU (GPU7 or A6000).
