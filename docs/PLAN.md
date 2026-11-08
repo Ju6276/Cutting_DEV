@@ -103,9 +103,12 @@ Steps, one change each:
   (compare the one-environment step-85000 checkpoint).
 - **P2 — randomized single prism.** Material and initial-pose ranges sampled per
   reset; held-out parameter ranges for testing; SAC and SuperMimic.
-- **P3 — three objects.** Prism, apple sphere, jello cylinder with static
-  bottoms, worlds grouped by object; held-out parameters (or one object) for
-  out-of-distribution tests.
+- **P3 — three objects.** Prism, apple sphere, jello cylinder with free
+  bottoms (decision 2026-11-08), worlds grouped by object; held-out parameters
+  (or one object) for out-of-distribution tests. Before training, check with the
+  reference trajectory that the free sphere and cylinder neither roll nor slide
+  out of the cut (the apple export currently has a static bottom and needs a
+  free-bottom re-export).
 
 Open decisions: material ranges (proposal: centered on the DiSECt calibrated
 values, e.g. Young's modulus ×0.5–×2, to be checked against the literature);
