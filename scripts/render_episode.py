@@ -104,9 +104,13 @@ def main():
     board = polydata(ground, np.array([[0, 1, 2], [0, 2, 3]]))
 
     centre = d['particles'][0].mean(0)
-    views = []
+    # One window with two viewports: actors are shared within one OpenGL context.
+    win = vtk.vtkRenderWindow()
+    win.SetOffScreenRendering(1)
+    win.SetSize(2 * w, h)
     for close in (False, True):
         ren = vtk.vtkRenderer()
+        ren.SetViewport(0.5 if close else 0., 0., 1. if close else 0.5, 1.)
         ren.SetBackground(*BG)
         for a in robot:
             ren.AddActor(a)
@@ -122,13 +126,9 @@ def main():
             cam.SetPosition(*(centre * 0.5 + np.array([1.4, -1.6, 1.0])))
         cam.SetViewUp(0, 0, 1)
         cam.SetViewAngle(35)
-        win = vtk.vtkRenderWindow()
-        win.SetOffScreenRendering(1)
-        win.SetSize(w, h)
         win.AddRenderer(ren)
-        grab = vtk.vtkWindowToImageFilter()
-        grab.SetInput(win)
-        views.append((win, grab))
+    grab = vtk.vtkWindowToImageFilter()
+    grab.SetInput(win)
     try:
         font = ImageFont.truetype('DejaVuSans.ttf', 20)
         small = ImageFont.truetype('DejaVuSans.ttf', 15)
@@ -147,16 +147,12 @@ def main():
         knife_poly.Modified()
         for k, a in enumerate(robot):
             a.SetUserMatrix(matrix(d['geom_pos'][i][k], d['geom_mat'][i][k]))
-        images = []
-        for win, grab in views:
-            win.Render()
-            grab.Modified()
-            grab.Update()
-            img = grab.GetOutput()
-            arr = np.frombuffer(numpy_from(img), dtype=np.uint8).reshape(h, w, -1)[::-1, :, :3]
-            images.append(Image.fromarray(arr))
+        win.Render()
+        grab.Modified()
+        grab.Update()
+        arr = np.frombuffer(numpy_from(grab.GetOutput()), dtype=np.uint8).reshape(h, 2 * w, -1)[::-1, :, :3]
         canvas = Image.new('RGB', (2 * w, h + 70), tuple(int(255 * c) for c in BG))
-        canvas.paste(images[0], (0, 40)), canvas.paste(images[1], (w, 40))
+        canvas.paste(Image.fromarray(np.ascontiguousarray(arr)), (0, 40))
         draw = ImageDraw.Draw(canvas)
         draw.text((12, 8), title, fill=(25, 35, 50), font=font)
         status = (f"t = {d['sim_time'][i] - t0:.3f} s  (0.1x playback)  |  released springs "
