@@ -104,16 +104,12 @@ def frame_indices(times, fps, speed):
     return np.where(targets - times[left] < times[right] - targets, left, right)
 
 
-def robot_actors(d, show_tool):
+def robot_actors(d):
     entries = []
-    hidden = []
     names = d['geom_mesh'] if 'geom_mesh' in d else [''] * len(d['geoms'])
     bodies = d['geom_body'] if 'geom_body' in d else [''] * len(d['geoms'])
     for k, g in enumerate(d['geoms']):
         mesh_name = str(names[k])
-        if not show_tool and 'knife' in mesh_name.lower():
-            hidden.append(mesh_name)
-            continue
         kind = int(d['geom_type'][k])
         if kind == 7:
             src = polydata(d[f'mesh_vert_{g}'], d[f'mesh_face_{g}'])
@@ -144,10 +140,10 @@ def robot_actors(d, show_tool):
             elif 'cam' in str(bodies[k]) or 'gripper' in mesh_name:
                 color = (.25, .29, .34)
         entries.append((k, actor(src, color, float(rgba[3]), specular=.35), None))
-    return entries, hidden
+    return entries
 
 
-def visual_actors(d, task, roots, show_tool):
+def visual_actors(d, task, roots):
     import collada
 
     packages = {}
@@ -156,7 +152,7 @@ def visual_actors(d, task, roots, show_tool):
             packages[ET.parse(package).getroot().findtext('name')] = package.parent
     urdf = ET.fromstring(task['robot_xml'])
     links = {link.get('name'): link for link in urdf.findall('link')}
-    entries, hidden, sources, included = [], [], [], set()
+    entries, sources, included = [], [], set()
     for k, body in enumerate(d['geom_body']):
         if body in included:
             continue
@@ -177,9 +173,6 @@ def visual_actors(d, task, roots, show_tool):
             rgba = np.fromstring(color_tag.get('rgba'), sep=' ') if color_tag is not None else np.array([.7,.7,.7,1.])
             if mesh is not None:
                 uri = mesh.get('filename')
-                if not show_tool and 'knife' in Path(uri).stem.lower():
-                    hidden.append(uri)
-                    continue
                 if not uri.startswith('package://'):
                     raise ValueError(f'Expected a ROS package mesh URI, got {uri}')
                 package, relative = uri[len('package://'):].split('/', 1)
@@ -234,7 +227,7 @@ def visual_actors(d, task, roots, show_tool):
                 else:
                     raise ValueError(f'Unsupported visual geometry on {body}')
             entries.append((k, a, local))
-    return entries, hidden, sources
+    return entries, sources
 
 
 def material_vertices(d, index):
@@ -250,6 +243,14 @@ def scene(d, width, height, edges, robot):
     material = polydata(material_vertices(d, 0), np.concatenate((d['tri'], d['cut_tri'])))
     knife = polydata(d['knife'][0], d['knife_tri'])
     center = (d['particles'].min(axis=(0, 1)) + d['particles'].max(axis=(0, 1))) / 2
+    close_points = [d['particles'].reshape(-1, 3), d['knife'].reshape(-1, 3)]
+    for k, name in enumerate(d['geom_mesh']):
+        if 'knife' in str(name).lower():
+            vertices = d[f'mesh_vert_{d["geoms"][k]}']
+            rotations = d['geom_mat'][:, k].reshape(-1, 3, 3)
+            points = np.einsum('tij,vj->tvi', rotations, vertices) + d['geom_pos'][:, k, None]
+            close_points.append(points.reshape(-1, 3))
+    close_points = np.concatenate(close_points)
     ground = d['ground']
     board_center = ground.mean(0)
     board_top = board_center[2]
@@ -271,7 +272,7 @@ def scene(d, width, height, edges, robot):
         for _, a, _ in robot:
             ren.AddActor(a)
         ren.AddActor(actor(material, (.86, .63, .31), specular=.12, edges=edges))
-        ren.AddActor(actor(knife, (.34, .43, .51), specular=.65))
+        ren.AddActor(actor(knife, (.16, .48, .73), specular=.65))
         ren.AddActor(board)
         if not close:
             ren.AddActor(floor)
@@ -281,12 +282,20 @@ def scene(d, width, height, edges, robot):
                               max(.001, board_top - .012)], (.76, .79, .82)))
         camera = ren.GetActiveCamera()
         if close:
-            focal = center + [0, 0, .018]
+            focal = (close_points.min(0) + close_points.max(0)) / 2
             camera.SetFocalPoint(*focal)
             camera.SetPosition(*(focal + [.25, -.36, .19]))
             camera.ParallelProjectionOn()
-            span = np.ptp(d['particles'].reshape(-1, 3), axis=0).max()
-            camera.SetParallelScale(max(.075, span * .85))
+            direction = np.array([.25, -.36, .19])
+            direction /= np.linalg.norm(direction)
+            right = np.cross([0, 0, 1], direction)
+            right /= np.linalg.norm(right)
+            up = np.cross(direction, right)
+            relative = close_points - focal
+            half_height = np.abs(relative @ up).max()
+            half_width = np.abs(relative @ right).max()
+            aspect = .6 * width / height
+            camera.SetParallelScale(1.12 * max(half_height, half_width / aspect))
         else:
             focal = np.array([center[0] * .5, center[1] * .52, .27])
             camera.SetFocalPoint(*focal)
@@ -317,6 +326,8 @@ def overlay(image, d, report, i, speed, fonts, title):
     big, normal, small = fonts
     draw.text((30, 15), title, fill=INK, font=big)
     draw.text((30, 57), 'UR5e  /  compliant control  /  DiSECt material simulation', fill=MUTED, font=normal)
+    legend = 'Gray: mounted URDF tool   |   Blue: DiSECt contact blade'
+    draw.text((width - draw.textlength(legend, font=small) - 30, 66), legend, fill=MUTED, font=small)
     for x, label in ((30, 'ROBOT VIEW'), (int(width * .4) + 24, 'CUTTING CLOSE-UP')):
         draw.rounded_rectangle((x - 10, header + 10, x + draw.textlength(label, font=small) + 10,
                                 header + 41), radius=5, fill=(247, 249, 251))
@@ -371,7 +382,6 @@ def main():
     parser.add_argument('--output', type=Path)
     parser.add_argument('--preview', action='store_true', help='render start, midpoint and final PNGs only')
     parser.add_argument('--wireframe', action='store_true')
-    parser.add_argument('--show-robot-tool', action='store_true', help='also display the robot asset knife mesh')
     parser.add_argument('--robot-geometry', choices=('visual', 'collision'), default='visual')
     parser.add_argument('--source-root', type=Path, action='append', default=[], help='ROS package search root for URDF visual meshes')
     args = parser.parse_args()
@@ -387,9 +397,9 @@ def main():
         if not args.source_root or 'body_pos' not in d:
             parser.error('Visual geometry needs --source-root and body poses from the current recorder')
         task = json.loads((args.recording / 'task.json').read_text())
-        robot, hidden, sources = visual_actors(d, task, args.source_root, args.show_robot_tool)
+        robot, sources = visual_actors(d, task, args.source_root)
     else:
-        robot, hidden = robot_actors(d, args.show_robot_tool)
+        robot = robot_actors(d)
     win, renderers, material, knife = scene(d, width, height, args.wireframe, robot)
     fonts = (font(30, True), font(21), font(16))
     grab = vtk.vtkWindowToImageFilter()
@@ -443,7 +453,7 @@ def main():
         'command': sys.argv, 'recording': str(args.recording), 'fps': args.fps,
         'playback_speed': args.speed, 'video_frames': len(indices),
         'simulation_seconds': float(d['sim_time'][-1] - d['sim_time'][0]),
-        'hidden_robot_meshes': hidden, 'preview_only': args.preview,
+        'preview_only': args.preview,
         'robot_geometry': args.robot_geometry, 'visual_mesh_sources': sources,
     }, indent=2) + '\n')
     print(output, flush=True)

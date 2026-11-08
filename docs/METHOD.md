@@ -575,10 +575,22 @@ export contains 608 virtual vertices and 1338 cut triangles.
 | Source component | Video implementation |
 |---|---|
 | MuJoCo physics import discards URDF visuals and keeps collision meshes | Offline video loads the original URDF visual meshes, local origins, scales and COLLADA material colors onto recorded body poses. `--robot-geometry collision` selects the physics meshes for inspection. |
-| Robot `knife_and_adapter` appearance differs from the coupled DiSECt knife | Hide that appearance mesh by default and draw the recorded DiSECt knife. `--show-robot-tool` displays both. |
+| Robot `knife_and_adapter` includes blade, handle and mounting adapter; DiSECt uses a separate rectangular contact blade | Render the complete gray URDF tool and blue DiSECt contact blade at their recorded poses. Frame the close-up to include the mount. |
 | DiSECt particle and virtual-vertex surface | Same surface topology and edge interpolation, with smooth normals and optional triangle edges. |
 | Material contact plane | Add a board thickness and support below the plane for display. |
 
 One EGL window owns both views. Force traces use measured control-step peaks;
 playback speed uses recorded simulation timestamps, independently of solver wall
 time. Render dependencies are isolated in `requirements-render.txt`.
+
+The URDF tool is fixed to the gripper frame. The DiSECt contact blade follows
+SliceIt's separate velocity coupling, with motion projected onto the cutting
+plane. At reset, `b_bot_knife_sim` receives the source's vertical shift
+`spine_height / 2 - 0.0043` (25.2 mm for this blade); during stepping, transformed
+tool velocities drive DiSECt. DiSECt contact-force magnitudes are summed and
+returned along its cutting axis through the sensor filter to FDCC. This is a
+motion/force signal connection between simulators; it is not a MuJoCo fixed
+joint connecting the DiSECt blade to the robot. Source implementations are
+SliceIt `disect_slicing.py:reset`, `fzi_cartesian_compliance_controller.py`
+knife publishing, and `cutting/ros_visualizer.py:update_knife_pose` /
+`step_simulation`; the port is `cutting_gpu_backend/coupling.py`.

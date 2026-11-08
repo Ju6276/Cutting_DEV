@@ -1644,3 +1644,21 @@ geometry arrays match exactly. VTK video: 1920×966, 30 FPS, 0.1× and 1× simul
 speed, whole-arm and close-up views. UR5e uses its original URDF visual meshes;
 608 virtual cut vertices and 1338 cut triangles complete the material surface.
 Checks: root 219 passed / 5 skipped; backend 28 passed.
+
+## 2026-11-09 — Knife mounting and video coordinates
+
+Audited implementation: `be7ddd6`, data `runs/videos_20261108/wm_mppi`; 44 recorded
+control boundaries. Independent raw DiSECt-pose to MuJoCo-world reconstruction
+matches the recorded knife vertices to **1.25e-8 m**. Blade-origin motion relative
+to the gripper frame spans **0.38434 mm** over the episode. The reset blade-center
+offset from `b_bot_knife_sim` is **25.2 mm**, from the source coupling's
+`spine_height / 2 - 0.0043` convention (METHOD).
+
+The renderer hid the complete `knife_and_adapter` mesh, including handle and
+mount. Restore that URDF mesh and label the gray mounted tool and blue DiSECt
+contact blade separately. The close-up includes the mount. Re-render the same
+episode at 0.1× and 1× simulation speed using the RUNNING commands; all recorded
+physical states, force traces and task results remain the same.
+4090 checks: root **219 passed / 5 skipped**, backend **28 passed**. Start,
+midpoint and final frames show the mount; the 0.1× video has 647 frames at
+1920×966 / 30 FPS (21.567 s).

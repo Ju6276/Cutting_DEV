@@ -211,8 +211,9 @@ material colors attach to the recorded robot body poses; `--robot-geometry
 collision` selects the simplified physics meshes. The video shows a whole-arm view,
 a cutting close-up and measured force traces. Playback speed is derived from
 recorded simulation timestamps. Control-step force peaks and spring releases
-are held at their last measured value; geometry alone is interpolated. Robot
-mesh `knife_and_adapter` is hidden in the display, leaving the recorded DiSECt
-contact knife; `--show-robot-tool` restores the robot mesh. `--wireframe` shows
+are held at their last measured value; geometry alone is interpolated. The full
+gray URDF tool includes its handle and mounting adapter; the blue overlay shows
+the recorded DiSECt contact blade. Both views preserve their recorded poses,
+and the close-up includes the mounting adapter. `--wireframe` shows
 material triangles, including DiSECt's interpolated virtual cut vertices and
 cut triangles. The board support is display geometry.
