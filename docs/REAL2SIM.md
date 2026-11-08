@@ -14,7 +14,7 @@ measured, not assumed. Nothing here runs before the open items are settled.
 | Diana7 | Available; not used in the first pass (see "Later"). |
 | ATI Mini45 | Available. **Open:** calibration (SI-145-5: ±145 N Fx/Fy, ±290 N Fz, 1/16 N resolution; SI-290-10: ±290/580 N, 1/8 N), interface (Net F/T or DAQ), ROS version. Either range covers the 50 N task force limit. |
 | Knife and mount | **Open:** CAD or measured geometry and mass, to replace the simulated knife frame and tool payload. |
-| Object fixture | **Open:** a board fixture that holds the specimen's bottom (the simulation now uses a static bottom layer; RESULTS 2026-11-07). |
+| Object placement | The benchmark keeps a free bottom (PLAN, decisions 2026-11-08): specimens rest on the board without clamping. **Open:** board material and friction, and a lateral stop if specimens slide. |
 | Foods / specimens | **Open:** proposal below. |
 
 ## Steps (one change each)
@@ -69,7 +69,7 @@ first repeated real measurements (real repeat spread is the reference).
   close to the jello config) plus two foods with different stiffness (proposal:
   potato and apple, which have published compression data and DiSECt
   calibrations). Cut specimens with a mould to the simulated prism dimensions and
-  fix them in the board fixture.
+  rest them on the board unclamped, as in the free-bottom benchmark.
 - **Measurements per material.**
   1. Slow indentation/compression with the robot and the Mini45, giving an
      elastic-modulus prior. Food is viscoelastic and moduli depend on geometry
@@ -80,8 +80,9 @@ first repeated real measurements (real repeat spread is the reference).
   error, as in DiSECt (Heiden et al., RSS 2021: apple MAE 0.253 N, potato
   0.379 N on the Jamdagni and Jia data). SliceIt reports that one real slice per
   food item suffices for its fit. Here: fit on one speed, validate on held-out
-  speeds and on the slicing motions. Use the static-bottom setup (finite
-  gradients for prism, apple and jello).
+  speeds and on the slicing motions. Gradient fitting needs a static bottom (free
+  bottom gives NaN adjoints); fitting with a static bottom against free-resting
+  real specimens is a mismatch to report, or a gradient-free fit is needed.
 - **Variability.** Real repetitions define the noise band. The randomization
   ranges for the multi-object stage (PLAN, P2/P3) come from the fitted
   parameter spread across specimens, not from guessed multipliers.
@@ -101,8 +102,7 @@ it comes from.
 ## Later
 
 - Diana7: a second platform for transfer, or a second arm holding the object.
-  Holding with a compliant arm adds its own dynamics (Mitsioni et al., 2019);
-  the board fixture is the first choice.
+  Holding with a compliant arm adds its own dynamics (Mitsioni et al., 2019).
 - Skin or hard-core objects (low priority, per the user).
 
 ## References

@@ -44,6 +44,19 @@ per run; expected 7–9 h with both GPUs busy. One seed each.
   drop clearly at matched success, consider the linear penalty for the final
   benchmark (then for every method); if only steps grow, report the trade-off.
 
+## Decisions — 2026-11-08
+
+- **Benchmark bottom stays free** (user decision after the static/free comparison):
+  `public-prism-ur5e-v1` remains the benchmark; the fixed-bottom contract is kept
+  only as a diagnostic. Consequence: the original DiSECt adjoint is NaN with a free
+  bottom (RESULTS 2026-11-07), so gradient-based DiSECt trajectory optimization and
+  material fitting cannot run in the benchmark setting as is. Proposal (not
+  approved): optimize or fit with a static bottom and evaluate the resulting
+  trajectory in the free benchmark, reporting that mismatch.
+- **Naming.** The final SuperMimic-style baseline is `real` + actor horizon 8 + BC
+  0.25. V5 is `real_wm` + horizon 8 + BC 0.25. They are separate methods; their
+  results are reported separately and never pooled.
+
 ## Diagnostic — 2026-11-08, GPU7: static vs free prism bottom
 
 Question: does making the prism's bottom layer static (needed for finite DiSECt

@@ -1199,7 +1199,11 @@ unaffected. Review notes kept for the method discussion: `real` targets are
 λ-returns that bootstrap the critic, not complete-episode returns; `real_wm`
 assigns recorded-state targets to WM-predicted states, which assumes the two are
 close and can bias the critic where the WM mispredicts position, force or
-termination.
+termination. Choosing `real` removes that pairing only from the critic's training
+samples: the actor still unrolls the WM, updates through BPTT and queries the
+critic at predicted states, so WM prediction error still enters policy learning.
+Changing the pairing is an algorithm-design change, not a code fix; it stays
+documented with `real_wm` (V5) kept as a separate, labelled method.
 
 ## 2026-11-08 — Static vs free prism bottom in the MuJoCo benchmark
 
