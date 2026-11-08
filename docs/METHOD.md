@@ -527,7 +527,11 @@ the WM; this is more information than the policy's 24-component observation.
 The accumulated task cost is the negative discounted survival-weighted reward.
 Hard task endings absorb the rollout, keeping the terminal transition's reward
 once; learned terminal probabilities supply the same survival weighting as
-`OnlineLearner.imagine`. The first adapter has no terminal value or BC cost.
+`OnlineLearner.imagine`. `--mpc-terminal-value none` uses the finite-horizon
+reward alone. `critic` adds `gamma**H * survival_H * V(state_H, goal)`, with
+the checkpoint's frozen critic, canonical state scaling and pose-error inputs
+used by `OnlineLearner.critic_values`. Absorbed candidates do not query the
+critic and have zero terminal value. There is no BC cost.
 The optimizer adds its upstream importance-sampling correction
 `lambda * sum(U * Sigma_inverse * noise)` to sampled trajectory costs. This
 correction is separate from the benchmark's executed reward. The returned
@@ -538,13 +542,19 @@ its score can differ from those of the samples.
 |---|---|---|
 | Prediction | Supplied dynamics callback | Frozen existing WM and exact task decoding |
 | Control | Upstream sampling, bounded perturbations and importance weights | Unchanged; reset to the action-bound midpoint, shift the previous plan thereafter |
-| Horizon | Working actor H8 | First integration trial H8 (0.4 s) |
-| Objective | Actor includes critic bootstrap and BC | Finite-horizon task return plus upstream MPPI sampling correction; no critic |
+| Horizon | Working actor H8 | Development-selected H16 (0.8 s) |
+| Objective | Actor includes critic bootstrap and BC | Finite-horizon task return, optional frozen critic, and upstream MPPI sampling correction |
 | Execution | Six-dimensional compliance/motion action | Same action mapper and physical benchmark |
 
 Solver settings are explicit CLI arguments: horizon, number of samples,
 refinements, temperature, normalized noise standard deviation and discount.
 They do not change the physical task. The frozen single-world adapter replans
 after each measured transition and clears both history and plan on reset.
-`planning.json` contains every call's duration, predicted return, predicted
-sensor limit ratio, survival and task ending. BENCHMARK supplies executed metrics.
+`planning.json` contains every call's duration, predicted reward and terminal
+value separately, effective sample count, predicted sensor limit ratio, survival
+and task ending. BENCHMARK supplies executed metrics. Temperature and repeated
+MPPI refinements use the upstream optimizer controls; no task parameters change.
+The finite-horizon running/terminal-cost formulation follows
+[Williams et al. (2017)](https://arxiv.org/abs/1707.02342); solver controls and
+the terminal callback are implemented by
+[pytorch_mppi](https://github.com/UM-ARM-Lab/pytorch_mppi#parameter-tuning-and-hints).

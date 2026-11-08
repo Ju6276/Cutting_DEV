@@ -7,6 +7,7 @@ import torch
 from cutting_world_model.control_state import ControlStateSpec
 from cutting_world_model.mpc import MPPIConfig, MPPIPolicy, ModelRollout
 from cutting_world_model.world_model import CuttingWorldModel
+from cutting_world_model.policy import SliceItCritic
 from test_control_state import compact_fixture
 
 
@@ -44,13 +45,16 @@ def test_rollout_counts_terminal_reward_once_and_keeps_candidates_independent():
     torch.testing.assert_close(single[0], first[1])
 
 
-def test_mppi_uses_six_task_bounds_physical_history_and_frozen_checkpoint(tmp_path, monkeypatch):
+@pytest.mark.parametrize('terminal_value', ['none', 'critic'])
+def test_mppi_uses_six_task_bounds_physical_history_and_frozen_checkpoint(tmp_path, monkeypatch, terminal_value):
     pytest.importorskip('pytorch_mppi')
     metadata, frame = compact_fixture()
     metadata['action_bounds'] = [[0., 0., 0., 0., -1., -1.], [1.] * 6]
     model = CuttingWorldModel(metadata, hidden=(16, 16))
     path = tmp_path / 'checkpoint.pt'
-    torch.save({'metadata': metadata, 'learner': {'world_model': model.state_dict(), 'updates': 62}}, path)
+    critic = SliceItCritic(model.spec.state_dim)
+    torch.save({'metadata': metadata, 'learner': {'world_model': model.state_dict(),
+               'critic': critic.state_dict(), 'updates': 62}}, path)
     monkeypatch.setattr('cutting_world_model.mpc.CuttingWorldModel',
                         lambda metadata: CuttingWorldModel(metadata, hidden=(16, 16)))
     current = {key: torch.as_tensor(np.asarray(value)[None], dtype=torch.float32)
@@ -58,7 +62,8 @@ def test_mppi_uses_six_task_bounds_physical_history_and_frozen_checkpoint(tmp_pa
     current['target_pose'] = current['previous_ee_pose'].clone()
     current['observation'] = current['observation'].double()
     env = SimpleNamespace(worlds=1, metadata=metadata, current=current, device=torch.device('cpu'))
-    policy = MPPIPolicy(path, env, MPPIConfig(horizon=3, samples=32, refinements=2))
+    policy = MPPIPolicy(path, env, MPPIConfig(horizon=3, samples=32, refinements=2,
+                                            terminal_value=terminal_value))
     policy.reset(current)
     assert policy.state.dtype == next(model.parameters()).dtype
     low, high = policy.spec.action_low, policy.spec.action_high
@@ -84,6 +89,25 @@ def test_mppi_uses_six_task_bounds_physical_history_and_frozen_checkpoint(tmp_pa
     assert policy.plans[-1]['episode'] == 1
 
 
+def test_terminal_value_uses_survival_discount_and_excludes_absorbed_states():
+    metadata, frame = compact_fixture()
+    model = CuttingWorldModel(metadata, hidden=(16, 16))
+
+    def critic(state, goal, error):
+        assert len(state) == 1 and torch.isfinite(state).all()
+        return state.new_full((1,), 7.)
+
+    rollout = ModelRollout(model, .99, critic)
+    start = rollout.initial(model.spec.pack(frame)[None], torch.zeros(1, 7))
+    augmented = start.repeat(2, 1)
+    augmented[:, -3] = torch.tensor([.8, 0.])
+    augmented[1, :-3] = float('nan')
+    cost = rollout.terminal_cost(augmented, 3)
+    torch.testing.assert_close(cost, torch.tensor([-.99 ** 3 * .8 * 7, 0.]))
+    stored = augmented[None, :, None].repeat(1, 1, 3, 1)
+    torch.testing.assert_close(rollout.final_cost(stored, None), cost)
+
+
 def test_mppi_rejects_nonfinite_model_predictions():
     metadata, frame = compact_fixture()
     model = CuttingWorldModel(metadata, hidden=(16, 16))
@@ -95,7 +119,8 @@ def test_mppi_rejects_nonfinite_model_predictions():
 
 
 @pytest.mark.parametrize('kwargs', [{'samples': 0}, {'horizon': -1}, {'refinements': 0},
-                                   {'temperature': float('nan')}, {'noise_std': 0.}, {'discount': 1.1}])
+                                   {'temperature': float('nan')}, {'noise_std': 0.}, {'discount': 1.1},
+                                   {'terminal_value': 'bad'}])
 def test_mppi_rejects_invalid_solver_configuration(kwargs):
     with pytest.raises(ValueError):
         MPPIConfig(**kwargs)

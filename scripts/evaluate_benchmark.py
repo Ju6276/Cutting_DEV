@@ -72,6 +72,7 @@ def main():
     parser.add_argument('--mpc-temperature', type=float, default=1.)
     parser.add_argument('--mpc-noise-std', type=float, default=.5)
     parser.add_argument('--mpc-discount', type=float, default=.99)
+    parser.add_argument('--mpc-terminal-value', choices=('none', 'critic'), default='none')
     args = parser.parse_args()
     if args.episodes < 1 or not 0 < args.wall_seconds < float('inf'):
         parser.error('Episodes and finite wall budget must be positive')
@@ -118,7 +119,8 @@ def main():
         elif args.method == 'wm-mppi':
             from cutting_world_model.mpc import MPPIConfig, MPPIPolicy
             config = MPPIConfig(args.mpc_horizon, args.mpc_samples, args.mpc_refinements,
-                                args.mpc_temperature, args.mpc_noise_std, args.mpc_discount)
+                                args.mpc_temperature, args.mpc_noise_std, args.mpc_discount,
+                                args.mpc_terminal_value)
             policy = MPPIPolicy(args.checkpoint, env, config)
             manifest['planner'] = policy.manifest
         elif args.method == 'sac':

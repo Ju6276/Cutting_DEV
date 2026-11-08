@@ -160,6 +160,32 @@ weights and a short-horizon preference for zero over a repeated policy action
 with a fixed development budget before the main comparison; no WM or task
 change follows from this trial. The A control pair continues independently.
 
+### Authorized MPPI configuration selection (2026-11-08)
+
+The user requested adjusting the connected planner. Hypothesis: the H8-only
+objective and diffuse importance weights explain slow progress. Keep WM562,
+physical task, reward, action bounds and termination unchanged. Use upstream
+MPPI refinement/temperature controls and its terminal-cost callback; the optional
+terminal cost is the same checkpoint's frozen critic, with the actor's discount
+and absorbing/survival rule. Source: Williams et al. (2017) and pytorch_mppi.
+
+1. On the saved first-trial states (start, contact and stalled endpoint), compare
+   H8/16/32, temperatures 1/0.1/0.03, four refinements, 512 samples, noise std 0.5;
+   also H8 with the frozen critic. Inspect predicted progress/endings, return,
+   effective sample count and planner time. Five-minute GPU budget, no fitting.
+2. Select one configuration at a time for physical evaluation through the common
+   benchmark. At most three development episodes, 600 s each; prefer task
+   completion without force-limit/workspace endings, then executed return.
+   Reject configurations with invalid actions/predictions; repair interface errors.
+3. Repeat the selected configuration on two new planner seeds (up to 1200 s
+   total), retaining every outcome. These are controller-development repeats;
+   training-seed comparisons remain in the later paper protocol.
+
+Outputs: source revision, full solver settings, physical outcome/force/progress,
+unchanged weights and per-call predicted reward/value/timing. Stop this selection
+round after its budget; a remaining task failure gets a concrete cause and next
+action, not an automatic change to the WM or physical task.
+
 ### Four-week delivery target (2026-11-08 to 2026-12-08)
 
 1. Week 1: close the A control decision; establish MPPI, SAC and fixed-controller

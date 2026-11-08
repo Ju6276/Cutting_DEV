@@ -10,6 +10,8 @@ import torch
 from .benchmark import copy_frame, synchronize
 from .control_state import ControlStateSpec
 from .world_model import CuttingWorldModel
+from .policy import SliceItCritic
+from .task_heads import pose_error
 
 
 @dataclass(frozen=True)
@@ -20,6 +22,7 @@ class MPPIConfig:
     temperature: float = 1.
     noise_std: float = .5
     discount: float = .99
+    terminal_value: str = 'none'
 
     def __post_init__(self):
         for name in ('horizon', 'samples', 'refinements'):
@@ -30,6 +33,8 @@ class MPPIConfig:
                 raise ValueError(f'{name} must be finite and positive')
         if not math.isfinite(self.discount) or not 0 < self.discount <= 1:
             raise ValueError('discount must be in (0, 1]')
+        if self.terminal_value not in ('none', 'critic'):
+            raise ValueError('terminal_value must be none or critic')
 
 
 class ModelRollout:
@@ -38,11 +43,12 @@ class ModelRollout:
     MPPI evaluates running_cost after dynamics. Carrying the transition cost
     preserves the old success counter and survival weight used for its reward.
     """
-    def __init__(self, wm, discount):
+    def __init__(self, wm, discount, critic=None):
         self.wm = wm
         self.spec = wm.spec
         self.discount = discount
         self.goal = None
+        self.critic = critic
 
     def initial(self, state, goal):
         if state.shape[0] != 1 or goal.shape != (1, 7):
@@ -80,6 +86,24 @@ class ModelRollout:
     def running_cost(state, action, t):
         return state[..., -1]
 
+    def terminal_cost(self, augmented, steps):
+        survival = augmented[:, -3]
+        value = torch.zeros_like(survival)
+        active = survival > 0
+        if self.critic is not None and bool(active.any()):
+            state = augmented[active, :-3]
+            goal = self.goal.expand(len(state), -1)
+            error = pose_error(goal, self.spec.field(state, 'previous_ee_pose'))
+            value[active] = self.critic(self.spec.canonical(state), goal, error)
+        cost = -(self.discount ** steps) * survival * value
+        if not bool(torch.isfinite(cost).all()):
+            raise FloatingPointError('Non-finite terminal critic prediction in MPPI')
+        return cost
+
+    def final_cost(self, states, actions):
+        # Upstream deterministic MPPI stores (1, candidates, horizon, state).
+        return self.terminal_cost(states[0, :, -1], states.shape[-2])
+
 
 class MPPIPolicy:
     def __init__(self, checkpoint, env, config):
@@ -102,7 +126,14 @@ class MPPIPolicy:
         self.wm.requires_grad_(False)
         self.spec = self.wm.spec
         self.config = config
-        self.rollout = ModelRollout(self.wm, config.discount)
+        self.critic = None
+        self.critic_weights = None
+        if config.terminal_value == 'critic':
+            self.critic = SliceItCritic(self.spec.state_dim).to(env.device).eval()
+            self.critic_weights = saved['learner']['critic']
+            self.critic.load_state_dict(self.critic_weights)
+            self.critic.requires_grad_(False)
+        self.rollout = ModelRollout(self.wm, config.discount, self.critic)
         self.plans = []
         self.episode = -1
         # All six optimizer coordinates are centered in [-1, 1]; the affine
@@ -114,13 +145,14 @@ class MPPIPolicy:
             lambda_=config.temperature, u_min=-torch.ones(6, device=env.device),
             u_max=torch.ones(6, device=env.device),
             U_init=torch.zeros(config.horizon, 6, device=env.device),
+            terminal_state_cost=self.rollout.final_cost if self.critic is not None else None,
             step_dependent_dynamics=True)
         self.manifest = {
             **asdict(config), 'implementation': 'UM-ARM-Lab/pytorch_mppi',
             'package_version': distribution.version,
             'upstream_revision': revision,
             'wm_policy_updates': saved['learner']['updates'],
-            'terminal_value': 'none', 'terminal_weighting': 'task_absorption_and_learned_survival',
+            'terminal_weighting': 'task_absorption_and_learned_survival',
             'initial_plan': 'action_bounds_midpoint', 'action_coordinates': 'normalized_minus1_plus1',
             'information': list(self.spec.base_fields),
         }
@@ -149,15 +181,20 @@ class MPPIPolicy:
             predicted_return -= prediction[0, -1]
             ratio = (self.spec.field(prediction[:, :-3], 'peak_wrench') / self.spec.force_limits).max()
             peak_ratio = torch.maximum(peak_ratio, torch.where(previous_survival > 0, ratio, 0.))
+        terminal_return = -self.rollout.terminal_cost(prediction, self.config.horizon)[0]
         synchronize(self.state.device)
         self.plans.append({
             'episode': self.episode, 'step': self.step,
             'planning_seconds': time.monotonic() - started,
             'predicted_task_return': float(predicted_return),
+            'predicted_terminal_return': float(terminal_return),
+            'predicted_total_return': float(predicted_return + terminal_return),
             'predicted_sensor_limit_ratio': float(peak_ratio),
             'predicted_end_survival': float(prediction[0, -3]),
             'predicted_task_terminated': bool(prediction[0, -2]),
             'sample_cost_min_with_mppi_correction': float(self.planner.cost_total.min()),
+            'sample_cost_std_with_mppi_correction': float(self.planner.cost_total.std(unbiased=False)),
+            'effective_candidates': float(1 / self.planner.omega.square().sum()),
         })
         self.step += 1
         return self.spec.execute(self.rollout.task_action(normalized))[None]
@@ -166,5 +203,9 @@ class MPPIPolicy:
         self.state = self.spec.pack_batch_transition(frame, self.state)
 
     def unchanged(self):
-        return all(torch.equal(value.cpu(), self.weights[name])
-                   for name, value in self.wm.state_dict().items())
+        wm_same = all(torch.equal(value.cpu(), self.weights[name])
+                      for name, value in self.wm.state_dict().items())
+        critic_same = self.critic is None or all(
+            torch.equal(value.cpu(), self.critic_weights[name])
+            for name, value in self.critic.state_dict().items())
+        return wm_same and critic_same

@@ -94,19 +94,24 @@ Install the optional planner into the prepared GPU environment:
 .venv/bin/python -m pip install -r requirements-mpc.txt
 .venv/bin/python scripts/evaluate_benchmark.py --method wm-mppi \
   --checkpoint RUN/training/last.pt --episodes 1 --wall-seconds 600 \
-  --mpc-horizon 8 --mpc-samples 512 --mpc-refinements 1 \
-  --mpc-temperature 1 --mpc-noise-std 0.5 --mpc-discount 0.99 \
+  --mpc-horizon 16 --mpc-samples 512 --mpc-refinements 4 \
+  --mpc-temperature 0.1 --mpc-noise-std 0.5 --mpc-discount 0.99 \
+  --mpc-terminal-value none \
   --output runs/wm_mppi
 ```
 
 This controller loads the frozen WM from the checkpoint, with zero learning
 updates. It chooses the same six-dimensional task action by online planning;
-one physical world and many WM candidates are distinct axes. The first trial's
-H8/discount match the current actor; 512 candidates, one refinement and 0.5
-normalized noise standard deviation are explicit engineering settings, and
-temperature 1 is the upstream default. These settings are not a tuned baseline.
-The short-horizon objective has no terminal critic. METHOD lists the objective
-and observation-access differences from the BPTT policy.
+one physical world and many WM candidates are distinct axes. The command passes
+the development-selected planner settings explicitly: H16 (0.8 s), 512 candidates,
+four refinements, temperature 0.1 and normalized noise standard deviation 0.5.
+It uses discounted reward without a terminal critic. Configuration selection
+and physical outcomes are in RESULTS; METHOD lists objective and
+observation-access differences from the BPTT policy.
+
+`--mpc-terminal-value critic` additionally loads the checkpoint's value network;
+`none` is the default. The frozen critic's predictions are reported separately
+from predicted rewards. Configuration selection and its budget are in PLAN.
 
 `report.json` and episode NPZs use the existing physical metrics;
 `planning.json` additionally records every planning call's time and predictions.
@@ -118,7 +123,7 @@ and observation-access differences from the BPTT policy.
 | Constant zero | Six zero actions through the same compliance action mapper | Fixed-control baseline |
 | SliceIt SAC | Original tf2rl Wave actor; Python 3.8 inference process | Frozen checkpoint evaluation and training adapter |
 | SuperMimic-style policy | Current learned policy; ten observation frames and fixed target pose | Frozen checkpoint evaluation |
-| WM + MPPI | Frozen WM and upstream MPPI; six-dimensional task actions replanned every control step | `--method wm-mppi`; H8 integration trial |
+| WM + MPPI | Frozen WM and upstream MPPI; six-dimensional task actions replanned every control step | `--method wm-mppi`; H16 development configuration above |
 | Prescribed reference | Scene knife velocity (0, -0.05, 0) m/s in the DiSECt frame for 1.3 s, then hold | `--method reference` |
 | DiSECt trajectory optimization | Knife velocity trajectory from `optimize_slicing.py` parameters | `--method reference --trajectory FILE`; the static-bottom optimization pipeline has run (10 updates, RESULTS 2026-11-08), the free-bottom benchmark task is not completed by it; parked |
 
