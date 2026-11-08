@@ -59,6 +59,15 @@ def pack_model(source, worlds):
     return result
 
 
+# Per-world material scales relative to the exported scene. Each scale multiplies the listed
+# model arrays (and divides the inverse arrays); Poisson's ratio and spring softness stay fixed.
+MATERIAL_SCALES = {
+    'youngs_modulus': {'scaled': ('tet_mu', 'tet_lambda'), 'inverse': ()},
+    'density': {'scaled': ('particle_mass',), 'inverse': ('particle_inv_mass',)},
+    'cut_spring_stiffness': {'scaled': ('cut_spring_stiffness',), 'inverse': ()},
+}
+
+
 class BatchedDiSECt(DiSECt):
     def __init__(self, scene_path, worlds):
         if worlds < 1:
@@ -77,6 +86,10 @@ class BatchedDiSECt(DiSECt):
             setattr(self, name, getattr(self, name)[None].repeat(worlds, 1))
         for name in ('body_ft_s', 'body_f_ext_s'):
             setattr(self.state, name, torch.zeros((self.model.link_count, 6), device=self.position.device))
+        self.base_material = {name: getattr(self.model, name).reshape(worlds, -1).clone()
+                              for spec in MATERIAL_SCALES.values()
+                              for name in spec['scaled'] + spec['inverse']}
+        self.material_scales = {key: torch.ones(worlds, device=self.position.device) for key in MATERIAL_SCALES}
         self.save_reset_state()
 
     def state_field(self, name):
@@ -90,6 +103,34 @@ class BatchedDiSECt(DiSECt):
                                 ('cut_edge_contact_coord', 'cut_edge_contact_dist', 'cut_edge_contact_normal')}
         self.initial_motion = {k: getattr(self, k).clone() for k in
                                ('position', 'rotation', 'linear_velocity', 'angular_velocity')}
+
+    @torch.no_grad()
+    def set_material_scales(self, mask, **scales):
+        """Scale the exported material of the worlds in ``mask``; takes effect at their next reset.
+
+        Each value is a float or a [worlds] tensor relative to the exported scene. The cut springs'
+        reset stiffness (the state the integrator weakens) is rescaled by the same factor.
+        """
+        unknown = set(scales) - set(MATERIAL_SCALES)
+        if unknown:
+            raise ValueError('Unknown material scales: ' + ', '.join(sorted(unknown)))
+        device = self.position.device
+        mask = torch.as_tensor(mask, device=device, dtype=torch.bool).expand(self.worlds)
+        for key, value in scales.items():
+            value = torch.as_tensor(value, device=device, dtype=torch.float32).expand(self.worlds)
+            if not bool((torch.isfinite(value) & (value > 0))[mask].all()):
+                raise ValueError(f'{key} scale must be positive and finite')
+            spec = MATERIAL_SCALES[key]
+            if key == 'cut_spring_stiffness':
+                reset_ke = self.initial_state['cut_spring_ke'].reshape(self.worlds, -1)
+                reset_ke[mask] *= (value / self.material_scales[key])[mask, None]
+            for name in spec['scaled']:
+                getattr(self.model, name).reshape(self.worlds, -1)[mask] = (
+                    self.base_material[name][mask] * value[mask, None])
+            for name in spec['inverse']:
+                getattr(self.model, name).reshape(self.worlds, -1)[mask] = (
+                    self.base_material[name][mask] / value[mask, None])
+            self.material_scales[key][mask] = value[mask]
 
     @torch.no_grad()
     def reset(self, mask):
