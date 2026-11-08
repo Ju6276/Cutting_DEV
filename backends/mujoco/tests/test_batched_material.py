@@ -55,8 +55,9 @@ def test_material_scales_match_independent_scaled_worlds():
     torch.testing.assert_close(m.tet_mu.reshape(3, -1)[1], 2 * base['tet_mu'][1], atol=0, rtol=0)
     torch.testing.assert_close(m.tet_lambda.reshape(3, -1)[0], base['tet_lambda'][0], atol=0, rtol=0)
     torch.testing.assert_close(m.particle_mass.reshape(3, -1)[2], 1.5 * base['particle_mass'][2], atol=0, rtol=0)
+    # float32 division by a tensor vs a Python scalar may differ in the last bit.
     torch.testing.assert_close(m.particle_inv_mass.reshape(3, -1)[2], base['particle_inv_mass'][2] / 1.5,
-                               atol=0, rtol=0)
+                               atol=0, rtol=1e-6)
     assert torch.equal(m.particle_inv_mass.reshape(3, -1)[2] == 0, base['particle_inv_mass'][2] == 0)
     torch.testing.assert_close(batch.state_field('cut_spring_ke')[2], .5 * reset_ke[2], atol=0, rtol=0)
     torch.testing.assert_close(batch.state_field('cut_spring_ke')[0], reset_ke[0], atol=0, rtol=0)
