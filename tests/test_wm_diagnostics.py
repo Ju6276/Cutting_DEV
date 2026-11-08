@@ -30,4 +30,5 @@ def test_adam_preconditioner_and_cosines():
     scale = adam_preconditioner(learner.wopt, params)
     assert scale.numel() == sum(p.numel() for p in params) and bool((scale > 0).all())
     cos = cosine_matrix({'a': torch.tensor([1., 0.]), 'b': torch.tensor([1., 1.]), 'c': torch.tensor([-1., 0.])})
-    assert abs(cos['a']['b'] - 2 ** -.5) < 1e-12 and cos['a']['c'] == -1 and cos['b']['b'] == 1
+    assert abs(cos['a']['b'] - 2 ** -.5) < 1e-12 and abs(cos['a']['c'] + 1) < 1e-12
+    assert abs(cos['b']['b'] - 1) < 1e-12
