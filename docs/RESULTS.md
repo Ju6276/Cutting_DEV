@@ -1509,3 +1509,45 @@ the dynamics away from accurate positions (state loss rises after +50 while BCE
 stays near 0.08); with the BCE isolated, both the state loss and the BCE fall
 much further on the same data. The WM's main force failure is the onset force
 spike at force-limit terminals, which no checkpoint predicts.
+
+## 2026-11-08 — WM reliability check, Step 2 (WM vs physics on policy branches)
+
+`scripts/wm_branch_check.py` (A6000 GPU0, `runs/wm_route_compare_20261108/branch_dev.json`,
+36 min). For the unperturbed dev episode of each ablation-(a) checkpoint
+(updates 150/200/250/300/last; 88 recorded states in total), two 8-step branches
+from every state, each closed loop with its own policy: A = the ablation-(a)
+policy, B = policy62. WM side: that checkpoint's own WM under the
+`OnlineLearner.imagine` rule (task terminals absorb); physical side: the recorded
+state restored from a replay of the action prefix. Same critic (that checkpoint's)
+for the terminal value on both sides; zero once a terminal is reached. Replay
+check: maximum state difference to the recording 0.0017–0.0086 against a
+repeat-run spread of 0.0043–0.0083 with identical inputs.
+
+| Quantity (mean over 88 states, A − B) | WM | Physics |
+|---|---:|---:|
+| 8-step reward sum | +0.07 | +0.14 |
+| Terminal critic value | +11.82 | +1.39 |
+| Reward sum + terminal value | +11.88 | +1.53 |
+
+- Sign agreement of (reward + value) differences between WM and physics: 54/88.
+- Force: the WM's 8-step peak sensor force per branch differs from physics by
+  +0.08 N on average (mean absolute 1.58 N, range −7.4 to +4.5 N). Over the first
+  three states (contact phase) A reaches 35.8 N physically vs 35.5 N predicted,
+  B 31.3 vs 32.0 N. Per checkpoint the WM's force increase of A over B matches
+  physics (e.g. update 200: +1.58 vs +1.61 N; update 250: +2.04 vs +1.66 N).
+  Physical maxima A/B: 38/33, 45/36, 46/36, 35/35, 26/30 N (updates 150…last).
+- Terminals: identical pattern for both branches; of 40 branches that end
+  physically in success within 8 steps, the WM predicts 14 successes, 8
+  workspace failures and 18 no terminal.
+
+Measured: on these trajectories the WM predicts the higher force of the faster
+policies about as large as physics, so the force increase is not explained by a
+WM force under-prediction here; physically the faster branch also gets a slightly
+higher reward, i.e. the SliceIt objective accepts the higher force. The WM rates
+the faster branch much better than physics (+11.9 vs +1.5), almost entirely
+through the critic value of the imagined end states (+11.8 vs +1.4). Inferred,
+not tested: imagined end-state errors (position, missed or wrong terminals;
+Steps 1/3) inflate the bootstrap value and so the actor's preference. The PLAN's
+causal follow-up (does the preference change with a corrected WM?) is not run.
+Limits: five deterministic trajectories, one seed, no force-limit events in these
+branches (the onset-spike failure of Steps 1/3 is a separate finding).
