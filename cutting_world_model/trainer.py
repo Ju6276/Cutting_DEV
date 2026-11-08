@@ -377,16 +377,18 @@ class OnlineLearner:
         """
         valid = batch.valid_steps
         steps = valid.shape[0]
+        mask = valid[1:]
+        if not bool(mask.any()):
+            # Window of one step, or every window ends after its first transition: no WM state.
+            return (batch.states.new_zeros((0, batch.states.shape[-1])),
+                    batch.xi.new_zeros((0, batch.xi.shape[-1])), targets.new_zeros(0), targets.new_zeros(0))
         state, predictions = batch.states[0], []
         for t in range(steps - 1):
             state, _, _ = self.wm.predict(state, batch.a_exec[t], batch.xi)
             predictions.append(state)
         predicted = torch.stack(predictions)  # predicted[j] estimates states[j + 1]
-        mask = valid[1:]
         goals = batch.xi[None].expand(steps - 1, -1, -1)
         states = predicted[mask]
-        if not len(states):  # every window ends after its first transition: no WM state to add
-            return states, goals[mask], targets[1:][mask], targets.new_zeros(0)
         values = torch.cat([self.critic_values(states[part], goals[mask][part])
                             for part in chunks(len(states), self.critic_microbatch)])
         return states, goals[mask], targets[1:][mask], values

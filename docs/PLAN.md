@@ -44,6 +44,11 @@ per run; expected 7–9 h with both GPUs busy. One seed each.
   drop clearly at matched success, consider the linear penalty for the final
   benchmark (then for every method); if only steps grow, report the trade-off.
 
+Outcome (RESULTS 2026-11-08): bc_only stays at policy62 behaviour (20–21 steps)
+while (a) cuts in 17–19 steps, so the model gradient contributes. linear_force
+gives no clear peak-force reduction at matched success and its final checkpoint
+fails 8/8 (workspace); not adopted, the SliceIt reward stays.
+
 ## Decisions — 2026-11-08
 
 - **Benchmark bottom stays free** (user decision after the static/free comparison):
