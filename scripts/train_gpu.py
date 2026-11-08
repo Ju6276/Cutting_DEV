@@ -72,11 +72,16 @@ def main():
                         help="'dynamics': source, the terminal BCE also trains the dynamics through the "
                              "predicted state; 'head': in WM fitting the BCE trains only the terminal head "
                              "(policy BPTT unchanged). A resume must keep the checkpoint's route")
+    parser.add_argument('--change-wm-terminal-gradient', action='store_true',
+                        help='With --resume: start --wm-terminal-gradient from a checkpoint written '
+                             'with the other route (e.g. variant A from policy62/WM562)')
     parser.add_argument('--force-penalty', choices=FORCE_PENALTIES, default='sliceit',
                         help="'sliceit': source -sigmoid(s/2-3); 'linear': -s/--force-penalty-scale")
     parser.add_argument('--force-penalty-scale', type=float,
                         help='Force (N) at which the linear penalty reaches -1 (required for linear)')
     args = parser.parse_args()
+    if args.change_wm_terminal_gradient and not args.resume:
+        parser.error('--change-wm-terminal-gradient requires --resume')
     if args.actor_objective == 'bc' and args.actor_bc_alpha is None:
         parser.error("--actor-objective bc requires --actor-bc-alpha")
     if (args.force_penalty == 'linear') != (args.force_penalty_scale is not None):
@@ -137,7 +142,8 @@ def run(args, output, status, started):
         if (reward_settings(saved['metadata']['environment'])
                 != reward_settings(metadata['environment']) and not args.critic_reset):
             raise ValueError('Checkpoint reward differs; a reward change requires --critic-reset')
-        learner.restore(saved['learner'], reset_critic=args.critic_reset)
+        learner.restore(saved['learner'], reset_critic=args.critic_reset,
+                        change_wm_terminal_gradient=args.change_wm_terminal_gradient)
         if learner.critic_prefit_pending and args.critic_prefit_rounds < 1:
             raise ValueError('Checkpoint has a pending critic pre-fit; set --critic-prefit-rounds')
         schedule = OnlineSchedule.resume(saved.get('schedule', {}), worlds=args.worlds)
@@ -165,6 +171,7 @@ def run(args, output, status, started):
         'critic_microbatch': learner.critic_microbatch, 'actor_horizon': learner.actor_horizon,
         'actor_bc_alpha': learner.actor_bc_alpha, 'actor_objective': learner.actor_objective,
         'wm_terminal_gradient': learner.wm.terminal_gradient,
+        'wm_terminal_gradient_changed_at_resume': args.change_wm_terminal_gradient,
         'reward': reward_settings(metadata['environment']) or 'sliceit',
         'replay_snapshot': 'replay.pt rewritten with every checkpoint',
     }
