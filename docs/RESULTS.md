@@ -1200,3 +1200,34 @@ unaffected. Review notes kept for the method discussion: `real` targets are
 assigns recorded-state targets to WM-predicted states, which assumes the two are
 close and can bias the critic where the WM mispredicts position, force or
 termination.
+
+## 2026-11-08 — Static vs free prism bottom in the MuJoCo benchmark
+
+GPU7, `Cutting_DEV_metrics/runs/fixed_bottom_20261108`. Source scene
+(`public-prism-ur5e-v1`, no static particle) against the fixed-bottom re-export
+(`public-prism-fixed-bottom-ur5e-v1`, 104 static bottom particles), same frozen
+policies. Episodes within one scene repeat to ≤ 0.02 N and ≤ 1 released spring,
+so every difference below is systematic.
+
+| Policy | Bottom | Success | Steps | Return | Peak force | Mean force | Released | Knife work | Impulse |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Reference (4 ep.) | free | 4/4 | 40 | 80.29 | 9.97 N | 3.92 N | 288 | 0.314 J | 7.83 Ns |
+| Reference | static | 4/4 | 40 | 79.46 | 11.24 N | 4.88 N | 302 | 0.354 J | 9.76 Ns |
+| policy62 (4 ep.) | free | 4/4 | 20 | 90.82 | 30.66 N | 7.23 N | 288 | 0.885 J | 7.23 Ns |
+| policy62 | static | 4/4 | 21 | 89.98 | 30.82 N | 8.40 N | 298 | 0.940 J | 8.82 Ns |
+| SAC step 85000 (4 ep.) | free | 4/4 | 18 | 92.03 | 49.62 N | 7.99 N | 287 | 1.289 J | 7.19 Ns |
+| SAC step 85000 | static | 4/4 | 18 | 91.57 | 50.29 N | 9.41 N | 298 | 1.331 J | 8.47 Ns |
+| Constant zero (1 ep., 500 steps) | free | no | 500 | −193.83 | 5.83 N | 2.01 N | 280 | 0.136 J | 50.2 Ns |
+| Constant zero | static | no | 500 | −221.33 | 6.03 N | 3.46 N | 291 | 0.167 J | 86.5 Ns |
+
+Measured: with a static bottom, mean material force rises 16–25% for the three
+cutting policies, impulse 18–25%, peak force 1–13%, and 10–14 more springs are
+released; success and the ordering of methods by steps and peak force are
+unchanged (policy62 needs one more step). SAC's peak material force reaches
+50.29 N, above the 50 N limit value, without a force-limit termination (the
+limit applies to the filtered sensor wrench). This contradicts the earlier
+inference from the free prism's 1 mm vertical settling that the bottom condition
+is negligible: although the free prism does not slide, the boundary condition
+changes the forces. Decision (PLAN rule): the settings differ beyond noise, so
+both are reported; a benchmark change to static bottoms requires re-evaluating
+all methods in the static setting.

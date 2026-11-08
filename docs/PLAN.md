@@ -56,6 +56,9 @@ horizontal drift of the free prism (bottom layer moves about 1 mm down, also
 under constant-zero). Decision: if every metric agrees within run-to-run noise,
 later benchmarks (multi-object stage) use static bottoms for all objects and the
 existing single-prism results stand; otherwise report both settings.
+Outcome (RESULTS 2026-11-08): mean force +16–25% and impulse +18–25% with a static
+bottom; success and method ordering unchanged. Both settings are reported; the
+choice of setting for the multi-object stage is open.
 
 ## Proposed — multi-object parallel stage (awaiting approval)
 
