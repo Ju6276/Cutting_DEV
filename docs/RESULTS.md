@@ -1325,3 +1325,31 @@ workspace after 39 steps (benchmark value MAE 143.2 on those failing episodes).
 Decision (PLAN rule): no clear peak-force or safety-margin reduction at matched
 success, and the run ends in a workspace failure, so the linear penalty is not
 adopted; the SliceIt reward stays. Why the final policy fails is not analysed.
+
+## 2026-11-08 — DiSECt trajectory-optimization pipeline test (parked)
+
+Approved bounded test, GPU7, `Cutting_DEV_metrics/runs/disect_opt_test_20261108`.
+`backends/mujoco/scripts/disect_optimize.py` (the GPU9 optimize.py with a bottom
+override) on SliceIt's `public_prism.json` with a static bottom (104 particles),
+0.6 s, MDMM: minimize mean knife force subject to the blade reaching the bottom
+at 0.6 s; 10 iterations, about 100 s each. The initial and iteration-10 motions
+were exported with `scripts/export_disect_trajectory.py` and executed with
+`evaluate_benchmark.py --method reference --trajectory` in the free-bottom
+benchmark (one episode each).
+
+| | DiSECt mean / peak force | DiSECt released at 0.6 s | End blade height | Benchmark (free bottom) |
+|---|---|---:|---:|---|
+| Initial motion | 8.03 / 14.93 N | 199/304 | +11.9 mm | truncated at 500 steps; 127 released at 0.6 s, 218 at the end; peak 13.2 N |
+| Iteration 10 | 9.76 / 16.70 N | 239/304 | +3.1 mm | truncated at 500 steps; 161 released at 0.6 s, 261 at the end; peak 14.6 N |
+
+Measured: the pipeline runs end to end. The optimizer first satisfies the
+bottom-height constraint by pressing faster (mean force 8.0 → 11.4 N by
+iteration 4), then lowers the force again (9.8 N at iteration 10); 10 iterations
+do not reduce the force below the initial motion. In the benchmark neither
+trajectory finishes the cut: the exported motion ends after 0.6 s (4.8–5.7 cm
+down) and the knife then holds, so both episodes truncate at 25 s; within the
+first 0.6 s the robot-executed knife releases fewer springs than DiSECt's free
+knife (127 vs 199; 161 vs 239). Not separated: the compliance controller's
+tracking lag and the free bottom both contribute to that gap. Making this a
+baseline needs a full-cut horizon and a transfer step; per the user's priority
+the DiSECt baseline is parked here.
