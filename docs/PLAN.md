@@ -185,6 +185,12 @@ or resumed checkpoints.
    resume joint policy/critic training yet. The last measured critic return MAE
    is 153.42; after the model event/return correction, compare a fresh critic to
    complete physical returns before joint updates.
+   **Outcome 2026-11-08** (RESULTS, "World-model loss-term gradients"): the
+   terminal BCE gradient on the dynamics MLP is 5–14× the state-loss gradient
+   and sets the update direction (cosine with the total 0.98–1.00 raw); the two
+   directions are near orthogonal, so the problem is imbalance, not conflict.
+   A repair (e.g. stop the BCE gradient into the predicted state, or rebalance)
+   is a method change and needs an approved plan; not started.
 5. **Model-based comparison.** Connect DiSECt's knife trajectory optimizer to
    the same robot/controller evaluation. Its free-knife optimization results
    remain a separate experiment until that adapter executes the same task.
