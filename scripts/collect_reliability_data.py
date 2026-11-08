@@ -54,6 +54,8 @@ def main():
                         help='labels whose episodes are perturbed after the unperturbed one')
     parser.add_argument('--sigmas', type=float, nargs='+', default=[0.3, 0.6, 1.0])
     parser.add_argument('--start-steps', type=int, nargs='+', default=[0, 5, 10])
+    parser.add_argument('--modes', nargs='+', choices=('iid', 'persistent'), default=['iid', 'persistent'],
+                        help="'iid': fresh N(0, I) each step; 'persistent': one N(0, I) direction per episode")
     parser.add_argument('--worlds', type=int, default=32)
     parser.add_argument('--final-every', type=int, default=3, help='every n-th perturbed episode goes to final')
     parser.add_argument('--target-per-reason', type=int, nargs=2, default=[30, 15], metavar=('DEV', 'FINAL'))
@@ -83,7 +85,9 @@ def main():
                 'perturbed_policies': args.perturbed_policies, 'sigmas': args.sigmas,
                 'start_steps': args.start_steps, 'final_every': args.final_every,
                 'split_seed_base': SPLIT_SEED, 'targets': dict(zip(('dev', 'final'), args.target_per_reason)),
-                'perturbation': 'clean + sigma * N(0, I) on steps >= start, then the action mapper clips',
+                'modes': args.modes,
+                'perturbation': ('clean + sigma * z on steps >= start, then the action mapper clips; '
+                                 'z ~ N(0, I) per step (iid) or drawn once per episode (persistent)'),
                 'use': 'diagnosis only; proportions are not policy rates'}
     (args.output / 'manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
 
@@ -96,7 +100,7 @@ def main():
         nonlocal perturbed_count
         if unperturbed_queue:
             policy = unperturbed_queue.pop(0)
-            split, sigma, start, seed = 'dev', 0., 0, None
+            split, sigma, start, seed, mode, direction = 'dev', 0., 0, None, None, None
         else:
             split = 'final' if perturbed_count % args.final_every == args.final_every - 1 else 'dev'
             perturbed_count += 1
@@ -104,10 +108,12 @@ def main():
             gen = torch.Generator().manual_seed(seed)
             choice = lambda options: options[int(torch.randint(len(options), (1,), generator=gen))]
             policy, sigma, start = choice(perturbed_ids), choice(args.sigmas), choice(args.start_steps)
+            mode = choice(args.modes)
+            direction = torch.randn(6, generator=gen) if mode == 'persistent' else None
             configs_gen[world] = gen
         counter[split] += 1
         return {'policy': labels[policy], 'policy_index': policy, 'split': split, 'sigma': sigma,
-                'start_step': start, 'seed': seed, 'rows': []}
+                'start_step': start, 'seed': seed, 'mode': mode, 'direction': direction, 'rows': []}
 
     configs_gen = [None] * args.worlds
     for world in range(args.worlds):
@@ -138,7 +144,8 @@ def main():
             perturbed = torch.zeros(args.worlds, dtype=torch.bool)
             for w, c in enumerate(configs):
                 if c['sigma'] > 0 and int(steps[w]) >= c['start_step']:
-                    noise[w] = c['sigma'] * torch.randn(6, generator=configs_gen[w])
+                    z = c['direction'] if c['mode'] == 'persistent' else torch.randn(6, generator=configs_gen[w])
+                    noise[w] = c['sigma'] * z
                     perturbed[w] = True
             action = spec.execute(clean + noise.to(device))
             frame, reward, term, trunc, info = env.step(action)
@@ -163,7 +170,8 @@ def main():
                 np.savez_compressed(args.output / 'episodes' / name, **data)
                 item = {'path': name, 'split': c['split'], 'reason': reason, 'steps': len(rows),
                         'policy': c['policy'], 'sigma': c['sigma'], 'start_step': c['start_step'],
-                        'seed': c['seed'], 'world': w,
+                        'seed': c['seed'], 'mode': c['mode'], 'world': w,
+                        'direction': None if c['direction'] is None else c['direction'].tolist(),
                         'max_material_peak_force': float(data['material_peak_force'].max()),
                         'return': float(data['reward'].sum())}
                 index.write(json.dumps(item) + '\n')
