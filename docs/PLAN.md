@@ -62,6 +62,100 @@ fails 8/8 (workspace); not adopted, the SliceIt reward stays.
   0.25. V5 is `real_wm` + horizon 8 + BC 0.25. They are separate methods; their
   results are reported separately and never pooled.
 
+## Paper direction — 2026-11-08 (user)
+
+Robot-methods paper (RA-L/ICRA/IROS). Research question: in force-limited
+compliant cutting, how do a world model's errors in predicting cutting force and
+failure events affect the policy learned by BPTT, and how can policy improvement
+inside the model carry over to physical execution — faster cuts without more
+force-limit risk? Multi-material is an experimental condition, not a
+contribution (SliceIt). The method follows from the evidence below; B
+(loss reweighting/GradNorm), C (terminal-feature scaling) and multi-cut tasks
+are not pursued now. Comparisons later: SAC, same WM + MPC, WM + BPTT, fixed
+compliance control. Literature: [NOVELTY](NOVELTY.md).
+
+Own evidence so far, stated at its scope: in the fixed task, from the same start
+policy (policy62) and one seed, adding the actor objective through the WM
+reduces completion from 20–21 to 17–19 steps while most checkpoints raise the
+peak force (RESULTS, BC-only vs ablation (a)). This supports a behaviour change
+in this setting only. Faster execution, better sample efficiency and accurate
+WM prediction are separate claims, each needing its own test; seeds come after
+the method is fixed.
+
+## Proposed — WM reliability check (awaiting approval)
+
+Questions, in order; each step's outcome selects the next. No policy training.
+
+**Definitions.** Force-limit termination uses the filtered sensor wrench, any
+component above the limit (`environment.py:234`); the WM's `peak_wrench` is the
+running maximum of that sensor wrench (`environment.py:232`). Material contact
+force is not a WM state field; it is reported separately from the simulator.
+Success is the goal-pose counter (not material separation). The terminal head
+has one output (end/continue), so every terminal metric is split by the true
+terminal reason: success, force limit, workspace.
+
+**Data.** Existing: `wm_frozen_fit_20261105` (train 96 episodes: 93 success,
+3 workspace; held-out 32, all success) and its checkpoints WM562/612/662.
+Run3's 337 force-limit failures all end in the first 1–2 steps, so no data has a
+force-limit failure during cutting, and held-out has no failures at all.
+Supplement (no retraining, GPU7): a small held-out collection from frozen
+policies with complete physical records (states, actions, sensor and material
+force), containing all three terminal reasons. Source to be fixed in the
+implementation review: frozen ablation-(a) checkpoints (the faster, higher-force
+policies), policy62, and action perturbations of policy62 strong enough to reach
+the force limit mid-cut and the workspace bound. Target: at least ~30 episodes
+per terminal reason; report the actual counts.
+
+**Step 1 — Three-way terminal check (labels before models).** On the same
+held-out trajectories, for WM562 and later for both arms of Step 3:
+(1) true state + task predicates (with the previous step's success counter);
+(2) predicted state + task predicates; (3) predicted state + learned terminal
+head. Predictions at 1 step (teacher-forced) and 8 steps (open loop on the
+recorded actions). Metrics per terminal reason: misses, false alarms, timing
+offset (steps).
+Decision: (1) must reproduce every recorded label; otherwise fix labels,
+alignment or the predicate before anything else. (1) right, (2) wrong → the
+error is in the dynamics prediction. (2) right, (3) wrong → the terminal head
+adds the error.
+
+**Step 2 — Force prediction on the same physical trajectories.** Same states and
+actions: WM-predicted vs simulated sensor wrench and `peak_wrench`, at 1 and 8
+steps; peak magnitude (signed error; underestimation separately) and peak time;
+force-limit misses. Reference: persistence (predict the last measured force).
+Main case: the trajectories of the ablation-(a) policies, using the WM
+checkpoint those policies were trained with.
+Decision between the two explanations of "faster but higher force":
+- WM predicts the higher force (error within the persistence reference) → the
+  reward trades force for speed; the next topic is the objective, not the model.
+- WM under-predicts the peak or misses limit events beyond the persistence
+  reference → the policy exploits model error; the next topic is the model
+  (Step 3 tests one candidate cause).
+
+**Step 3 — Original vs A on fixed data.** A: during WM fitting only, the terminal
+BCE reads detached predicted features and updates only the terminal head; the
+state loss alone updates the dynamics. Policy imagination keeps the full path
+action → predicted state → reward and terminal probability (the shared
+`WorldModel.step()` is not changed; a test checks that the actor still receives
+gradients through the terminal probability). Same start (WM562), initialization,
+optimizer state, data order, learning rate and 100 rounds as
+`wm_frozen_fit_20261105`; the only difference is the BCE-to-dynamics gradient.
+Measured at +50 and +100 on held-out and supplement data: multi-step joint and
+knife-tip position error, peak-force error (underestimation), Step-1 terminal
+metrics per reason, whether state error still rises while BCE falls, and the
+state/BCE gradient ratio on the dynamics. Overall `term_acc` is not a criterion.
+Decision:
+- A lowers held-out physical prediction error at both +50 and +100 and no
+  terminal metric gets worse → write a joint-training plan with A (separate
+  approval).
+- Physical error improves, terminal metrics stay poor → terminal representation
+  and data coverage are the next topic (still no B/C stacking).
+- No physical improvement → gradient isolation does not address the main
+  problem; A is dropped and the next topic is the source of the prediction error
+  (e.g. coverage, history inputs, integration audit, RESULTS 2026-11-04).
+
+Budget: Steps 1–2 are evaluation only; Step 3 is two fixed-data fits of about
+20 min each (WM562→662 took 1166 s). Single GPU (GPU7 or A6000).
+
 ## Diagnostic — 2026-11-08, GPU7: static vs free prism bottom
 
 Question: does making the prism's bottom layer static (needed for finite DiSECt
