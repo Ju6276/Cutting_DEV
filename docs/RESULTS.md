@@ -1277,3 +1277,51 @@ position errors by the 2 mm goal threshold (`terminal_features`), so small
 changes of predicted position change the features strongly and the BCE gradient
 flows into the predicted state rather than into the head. Limitation: this data
 set has success terminals only; force-limit collisions are not covered.
+
+## 2026-11-08 — BC-only and linear force penalty against ablation (a)
+
+A6000, code `1f9ed91`, both from policy62/WM562 with the final baseline settings
+(`real`, actor horizon 8, BC 0.25, 1024 worlds, critic reset with 100 pre-fit
+rounds, iteration 2421). Reference: ablation (a) at matched length,
+`critic_abl_a250_20261106` (same settings, model objective, SliceIt reward).
+Frozen 8 episodes per checkpoint, scored with the SliceIt reward; value columns
+from `scripts/value_eval.py` (benchmark / held-out MAE of critic values against
+physical returns). Ablation (a) was evaluated before mean force and safety
+margin were recorded.
+
+| Run | Updates | Success | Steps | Return | Peak force | Safety margin | Value MAE bench / held-out | Imagined − physical (held-out) |
+|---|---|---:|---:|---:|---:|---:|---|---:|
+| (a) model objective | 150 | 8/8 | 18 | 92.15 | 38.46 N | – | 1.98 / 4.14 | −68.7 |
+| | 200 | 8/8 | 17 | 92.65 | 45.52 N | – | 2.67 / 3.69 | −61.1 |
+| | 250 | 8/8 | 17 | 92.74 | 46.36 N | – | 3.08 / 4.42 | −59.9 |
+| | 300 | 8/8 | 17 | 92.59 | 34.99 N | – | 2.17 / 3.85 | −60.8 |
+| | last | 8/8 | 19 | 91.37 | 26.10 N | – | 1.32 / 4.37 | −67.6 |
+| bc_only | 150 | 8/8 | 21 | 90.52 | 29.97 N | 0.588 | 8.87 / 5.48 | −63.7 |
+| | 200 | 8/8 | 20 | 90.87 | 30.55 N | 0.600 | 2.67 / 5.15 | −63.9 |
+| | 250 | 8/8 | 21 | 90.50 | 29.17 N | 0.572 | 10.22 / 5.69 | −46.7 |
+| | 300 | 8/8 | 21 | 90.52 | 29.95 N | 0.587 | 9.01 / 5.38 | −60.5 |
+| | last | 8/8 | 21 | 90.52 | 29.95 N | 0.587 | 9.56 / 5.85 | −41.7 |
+| linear_force (−s/50) | 150 | 8/8 | 23 | 89.24 | 21.73 N | 0.434 | 2.19 / 3.45 | −68.2 |
+| | 200 | 8/8 | 19 | 91.29 | 44.00 N | 0.870 | 4.06 / 2.44 | −64.9 |
+| | 250 | 8/8 | 19 | 91.10 | 41.56 N | 0.823 | 3.55 / 4.40 | −59.5 |
+| | 300 | 8/8 | 20 | 90.47 | 36.80 N | 0.731 | 2.27 / 5.63 | −69.1 |
+| | last | 0/8 (workspace) | 39 | −117.59 | 22.30 N | 0.445 | 143.2 / 4.66 | −40.7 |
+
+policy62 (start): 8/8, 20 steps, return 90.81, peak 30.66 N.
+
+**bc_only** — measured: at every checkpoint it stays at the policy62 behaviour
+(20–21 steps, return 90.5–90.9, peak 29–31 N), while ablation (a) cuts in 17–19
+steps with return 91.4–92.7 and peak force 26–46 N. Decision (PLAN rule): bc_only
+is slower and has lower return, so the model-based gradient contributes in this
+task; it shortens the cut (higher SliceIt return) and mostly raises the peak
+force. One seed; the steps difference (2–4) is far above the within-checkpoint
+spread (deterministic episodes).
+
+**linear_force** — measured: at update 150 the peak force is lower (21.7 N vs
+38.5 N) but the cut is slower (23 vs 18 steps); at updates 200–300 the peak force
+(36.8–44.0 N) is not lower than ablation (a) at matching success while the cut is
+2–3 steps slower; the final checkpoint fails all 8 episodes by leaving the
+workspace after 39 steps (benchmark value MAE 143.2 on those failing episodes).
+Decision (PLAN rule): no clear peak-force or safety-margin reduction at matched
+success, and the run ends in a workspace failure, so the linear penalty is not
+adopted; the SliceIt reward stays. Why the final policy fails is not analysed.
