@@ -103,6 +103,38 @@ All are real-robot and argue cutting simulation is unavailable [T].
   gradient into the world model helps (mask head, not termination) [T, partial];
   HarmonyDream (2310.00344) balances WM loss terms [A].
 
+## Corrections after review (2026-11-08)
+
+- "No world model / MBRL in cutting" was too broad. DeepMPC and Mitsioni are
+  learned-model control; TopoCut ([2509.19712](https://arxiv.org/abs/2509.19712)) trains a model that
+  predicts the next topology from the current topology and action, used for
+  representation and imitation (not BPTT policy optimization); in material
+  removal, Learning to Shape by Grinding ([2308.02150](https://arxiv.org/abs/2308.02150)) is a
+  cutting-surface-aware MBRL. Candidate gap, still to verify: compliant food
+  cutting where learned state-and-force dynamics improve a policy by BPTT, with
+  force risk and physical control effect validated.
+- Multi-material is an experimental condition, not a contribution: SliceIt §IV-A
+  states training on one calibrated configuration of tomato/cucumber/potato with
+  parameter noise and testing on carrot (the released code's noise default is a
+  separate reproduction note).
+- Events derived from predicted state already exist in our code:
+  `imagine()` (`cutting_world_model/trainer.py:164`) ends imagination on predicted
+  `peak_wrench` above the limit and on the task predicates of the predicted state
+  (absorbing, reward counted once), and keeps the learned termination
+  probability. Removing the classifier would not fix an under-predicted force,
+  and the hard predicates give no gradient across the boundary.
+- "50 N hard limit" is not the current definition. The episode ends when any
+  component of the filtered sensor wrench exceeds the limit
+  (`environment.py:234`); the material contact force is reported separately and
+  reached 50.29 N in a successful SAC episode (RESULTS, static vs free bottom).
+  Success is the goal-pose counter, not material separation or knife exit. Report
+  material peak force, the sensor signal used for control and termination, and
+  limit exceedances (count, magnitude, duration) separately.
+- The BCE-gradient diagnostic (93 successes, 3 workspace failures, no force-limit
+  failures) shows that the terminal loss dominates dynamics updates; it does not
+  show that it causes missed force peaks. DreamerV3's actor uses REINFORCE, so
+  its stop-gradient placement does not carry over to BPTT directly.
+
 ## Assessment
 
 Already done (cannot be claimed): the setting and force-limit collision terminal
