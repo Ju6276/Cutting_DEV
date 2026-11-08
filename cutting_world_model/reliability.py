@@ -212,3 +212,32 @@ def paired_bootstrap(rows_a, rows_b, path, lower_is_better=True, samples=10000, 
     outcome = 'improved' if better else 'worsened' if worse else 'inconclusive'
     return {'episodes': len(diffs), 'mean_difference': float(diffs.mean()),
             'interval_95': [float(low), float(high)], 'outcome': outcome}
+
+
+@torch.no_grad()
+def imagine_closed_loop(wm, policy, state, history, goal, horizon):
+    """Closed-loop WM rollout with ``policy`` under the rule of ``OnlineLearner.imagine``:
+    task terminals of the predicted state absorb (reward counted once, state held).
+    ``history`` is the policy's observation history (time, n, obs). Returns rewards (h, n),
+    states (h+1, n, d), the first absorbed step (0 = none) and its predicate reason."""
+    spec = wm.spec
+    n = state.shape[0]
+    absorbed = torch.zeros(n, dtype=torch.bool, device=state.device)
+    first = torch.zeros(n, dtype=torch.long, device=state.device)
+    reason = torch.full((n,), -1, dtype=torch.long, device=state.device)
+    states, rewards = [state], []
+    for step in range(1, horizon + 1):
+        action = policy(history, goal)
+        next_state, reward, _ = wm.predict(state, action, goal)
+        done, why = predicate(spec, next_state, state)
+        reward = torch.where(absorbed, torch.zeros_like(reward), reward)
+        next_state = torch.where(absorbed[:, None], state, next_state)
+        new = done & ~absorbed
+        first = torch.where(new, step, first)
+        reason = torch.where(new, why, reason)
+        absorbed = absorbed | done
+        state = next_state
+        history = torch.cat((history[1:], spec.field(state, 'observation')[None]), 0)
+        states.append(state)
+        rewards.append(reward)
+    return torch.stack(rewards), torch.stack(states), first, reason

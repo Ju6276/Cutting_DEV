@@ -55,3 +55,20 @@ def test_summary_and_paired_bootstrap_outcomes():
     summary = summarize(rows_b + [{'id': 99, 'reason': 'collision', 'H8': {'e': 3.0}}], ['H8/e'])
     assert summary['collision'] == {'episodes': 1, 'H8/e': 3.0}
     assert summary['all']['episodes'] == 21
+
+
+def test_closed_loop_imagination_matches_the_learner_rule():
+    from cutting_world_model.reliability import imagine_closed_loop
+    learner, replay = control_learner()
+    perturbed(learner)
+    torch.manual_seed(5)
+    starts = replay.sample_starts(6, learner.pcfg.history)
+    expected = learner.imagine(starts.state, starts.hist_states, starts.xi)
+    history = learner.wm.spec.field(starts.hist_states, 'observation')
+    rewards, states, first, _ = imagine_closed_loop(learner.wm, learner.policy, starts.state, history,
+                                                    starts.xi, learner.actor_horizon)
+    torch.testing.assert_close(rewards, expected.rewards.detach())
+    torch.testing.assert_close(states, expected.states.detach())
+    # The learner's absorbed steps are those where the terminal probability is set to one.
+    absorbed = expected.dhat[1:].detach() == 1
+    assert torch.equal(first > 0, absorbed.any(0))
