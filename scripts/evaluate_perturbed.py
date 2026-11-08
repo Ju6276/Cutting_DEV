@@ -41,7 +41,6 @@ def run(args):
     policy = SliceItPolicy().to(device).eval()
     policy.load_state_dict(saved['learner']['policy'])
     cases = make_cases(args.cases, args.seed_base)
-    dt = metadata['environment']['agent_control_dt']
     (args.output / 'manifest.json').write_text(json.dumps({
         'git': git_revision(ROOT), 'command': sys.argv, 'checkpoint': str(args.checkpoint),
         'policy_updates': saved['learner'].get('updates'), 'cases': cases}, indent=1) + '\n')
@@ -54,7 +53,7 @@ def run(args):
             index = queue.pop(0)
             active[world] = index
             records[index] = {'noise': CaseNoise(cases[index]), 'steps': 0, 'return': 0.,
-                              'max_force': 0., 'impulse': 0., 'margin': 0.}
+                              'max_force': 0., 'impulse': 0., 'margin': 0., 'seconds': 0.}
         else:
             active[world] = None
 
@@ -70,7 +69,10 @@ def run(args):
             clean = policy(history, frame['target_pose'].float())
             noise = torch.stack([records[a]['noise'](records[a]['steps']) if a is not None else torch.zeros(6)
                                  for a in active]).to(device)
+            before = frame['sim_time'][:, 0].double().clone()
             frame, reward, term, trunc, info = env.step(spec.execute(clean + noise))
+            # Actual simulated time of this step; a force-limit stop ends inside the control step.
+            elapsed = (frame['sim_time'][:, 0].double() - before).cpu()
             history = torch.cat((history[1:], frame['observation'].float()[None]), 0)
             ended = (term | trunc).cpu()
             for world, index in enumerate(active):
@@ -82,13 +84,15 @@ def run(args):
                 rec['max_force'] = max(rec['max_force'], float(info['peak_force'][world]))
                 rec['impulse'] += float(info['material_impulse'][world])
                 rec['margin'] = max(rec['margin'], float(info['safety_margin'][world]))
+                rec['seconds'] += float(elapsed[world])
                 if bool(ended[world]):
                     rows.append({'id': index, 'outcome': outcome(
                         bool(info['success'][world]), bool(info['collision'][world]),
                         bool(info['outside'][world]), bool(trunc[world])),
                         'steps': rec['steps'], 'return': rec['return'],
                         'max_material_force_n': rec['max_force'],
-                        'mean_material_force_n': rec['impulse'] / (rec['steps'] * dt),
+                        'simulation_seconds': rec['seconds'],
+                        'mean_material_force_n': rec['impulse'] / rec['seconds'],
                         'safety_margin': rec['margin'],
                         'released_springs': int(info['released_springs'][world]),
                         **{k: cases[index][k] for k in ('sigma', 'start_step', 'mode')}})
@@ -108,9 +112,23 @@ def run(args):
     print(json.dumps(summary))
 
 
+def load_run(directory):
+    """Cases of one completed run; refuses runs with unfinished cases."""
+    manifest = json.loads((directory / 'manifest.json').read_text())
+    summary = json.loads((directory / 'summary.json').read_text())
+    rows = [json.loads(line) for line in (directory / 'cases.jsonl').read_text().splitlines()]
+    if summary['unfinished_cases'] or len(rows) != len(manifest['cases']):
+        raise ValueError(f'{directory}: not every predefined case finished')
+    if sorted(r['id'] for r in rows) != [c['case'] for c in manifest['cases']]:
+        raise ValueError(f'{directory}: case indices differ from the manifest')
+    return manifest, rows
+
+
 def compare(args):
-    load = lambda d: [json.loads(line) for line in (d / 'cases.jsonl').read_text().splitlines()]
-    a, b = load(args.a), load(args.b)
+    manifest_a, a = load_run(args.a)
+    manifest_b, b = load_run(args.b)
+    if manifest_a['cases'] != manifest_b['cases']:
+        raise ValueError('The two runs used different case configurations or random streams')
     report = {'a': str(args.a), 'b': str(args.b), 'summary_a': summarize_cases(a),
               'summary_b': summarize_cases(b), 'a_minus_b': compare_cases(a, b)}
     args.output.write_text(json.dumps(report, indent=2) + '\n')

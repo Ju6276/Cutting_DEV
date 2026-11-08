@@ -43,3 +43,36 @@ def test_case_paired_comparison():
         pass
     else:
         raise AssertionError('mismatched cases must be rejected')
+
+
+def write_run(directory, cases, rows, unfinished=()):
+    import json
+    directory.mkdir()
+    (directory / 'manifest.json').write_text(json.dumps({'cases': cases}))
+    (directory / 'summary.json').write_text(json.dumps({'unfinished_cases': list(unfinished)}))
+    (directory / 'cases.jsonl').write_text(''.join(json.dumps(r) + '\n' for r in rows))
+
+
+def test_compare_checks_configurations_and_completion(tmp_path):
+    import importlib.util
+    import pytest
+    from pathlib import Path
+    spec = importlib.util.spec_from_file_location(
+        'evaluate_perturbed', Path(__file__).resolve().parents[1] / 'scripts/evaluate_perturbed.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    cases = make_cases(4, 3_000_000)
+    good = rows(['success'] * 4, [30.] * 4)
+    write_run(tmp_path / 'a', cases, good)
+    write_run(tmp_path / 'b', make_cases(4, 4_000_000), good)
+    write_run(tmp_path / 'c', cases, good[:3], unfinished=[3])
+    write_run(tmp_path / 'd', cases, good)
+    manifest, loaded = module.load_run(tmp_path / 'a')
+    assert len(loaded) == 4
+    with pytest.raises(ValueError, match='not every predefined case'):
+        module.load_run(tmp_path / 'c')
+    args = type('Args', (), {'a': tmp_path / 'a', 'b': tmp_path / 'b', 'output': tmp_path / 'out.json'})
+    with pytest.raises(ValueError, match='different case configurations'):
+        module.compare(args)
+    args.b = tmp_path / 'd'
+    module.compare(args)
