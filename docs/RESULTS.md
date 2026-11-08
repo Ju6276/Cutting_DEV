@@ -1193,6 +1193,10 @@ keeps the batch's recorded samples, adds no model samples and reports the
 model/recorded-state MAE only over non-empty subsets; failed trajectories, reward
 and thresholds are unchanged. `real` and `real_wm` now produce identical critic
 data on such batches (`test_real_wm_keeps_recorded_samples_when_no_window_has_a_model_state`).
+Second review finding, fixed the same way: with a one-step critic window
+(`PolicyTrainerCfg.horizon=1`, not `--actor-horizon`) the WM prediction list is
+empty and `torch.stack([])` raised before that check; the check now runs before
+the WM rollout (tests for windows 1 and 8). Runs use window 32 and never hit it.
 The bug stops a run with an exception; it does not explain the earlier critic
 value growth. Runs that finished without this exception (V5 and the rest) are
 unaffected. Review notes kept for the method discussion: `real` targets are
@@ -1235,3 +1239,89 @@ is negligible: although the free prism does not slide, the boundary condition
 changes the forces. Decision (PLAN rule): the settings differ beyond noise, so
 both are reported; a benchmark change to static bottoms requires re-evaluating
 all methods in the static setting.
+
+## 2026-11-08 — World-model loss-term gradients on saved batches
+
+`scripts/wm_loss_gradients.py` (A6000 GPU 1, 292 s, no parameter update) on the
+training split of `wm_frozen_fit_20261105` (96 episodes: 93 successes, 3
+workspace failures, no force-limit collision), 20 identical batches of 2048
+windows × 8 steps (13619 valid steps, 793 terminal labels per batch) for each
+checkpoint. The masked window loss is split exactly into per-field state errors
+and the terminal BCE (test: components sum to the training loss and gradient);
+gradients are taken with respect to the dynamics MLP, which both terms share
+(the BCE reaches it through the predicted next state, whose terminal features
+the separate terminal head reads). Mean over batches (std ≤ 10% of the mean):
+
+| Checkpoint | State loss | Terminal BCE | ‖g_state‖ | ‖g_BCE‖ | ‖g_term head‖ | cos(state, BCE) raw / Adam | cos(BCE, total) raw / Adam | cos(state, total) raw / Adam |
+|---|---:|---:|---:|---:|---:|---|---|---|
+| WM562 (policy62, before fit) | 0.0764 | 0.0961 | 7.30 | 34.5 | 0.29 | −0.07 / −0.05 | 0.98 / 0.90 | 0.14 / 0.39 |
+| fit +10 (WM572) | 0.0184 | 0.0977 | 3.26 | 47.1 | 0.57 | −0.05 / +0.11 | 1.00 / 0.96 | 0.02 / 0.39 |
+| fit +50 (WM612) | 0.0156 | 0.0713 | 1.50 | 12.4 | 0.08 | +0.42 / −0.24 | 0.99 / 0.94 | 0.51 / 0.09 |
+| fit +100 (WM662) | 0.0233 | 0.0446 | 4.15 | 41.9 | 0.25 | +0.27 / −0.08 | 1.00 / 0.96 | 0.36 / 0.20 |
+
+State loss = sum of the field losses (joint_q, joint_qd, wrench_history,
+peak_wrench). Field gradient norms at WM562: joint_q 7.23, wrench_history 1.27,
+peak_wrench 0.93, joint_qd 0.35.
+
+Measured: the terminal BCE's gradient on the shared dynamics MLP is 5–14× the
+state-loss gradient although the two loss values are comparable, and the total
+update direction is almost the BCE direction (cosine 0.98–1.00 raw, 0.90–0.96
+after Adam preconditioning); the state-loss direction has cosine 0.02–0.51 with
+the total. The BCE moves the dynamics, not the terminal head (head gradient
+0.08–0.57 against 12–47). State and BCE gradients are close to orthogonal
+(|cos| ≤ 0.42), so the data show neither strong conflict nor a shared direction;
+the dominant effect is the imbalance. Between fit +50 and +100 the BCE falls
+(0.071 → 0.045) while the joint_q error doubles (0.0056 → 0.0129), as already
+seen in the fixed-data fit. Inferred, not tested: the terminal features divide
+position errors by the 2 mm goal threshold (`terminal_features`), so small
+changes of predicted position change the features strongly and the BCE gradient
+flows into the predicted state rather than into the head. Limitation: this data
+set has success terminals only; force-limit collisions are not covered.
+
+## 2026-11-08 — BC-only and linear force penalty against ablation (a)
+
+A6000, code `1f9ed91`, both from policy62/WM562 with the final baseline settings
+(`real`, actor horizon 8, BC 0.25, 1024 worlds, critic reset with 100 pre-fit
+rounds, iteration 2421). Reference: ablation (a) at matched length,
+`critic_abl_a250_20261106` (same settings, model objective, SliceIt reward).
+Frozen 8 episodes per checkpoint, scored with the SliceIt reward; value columns
+from `scripts/value_eval.py` (benchmark / held-out MAE of critic values against
+physical returns). Ablation (a) was evaluated before mean force and safety
+margin were recorded.
+
+| Run | Updates | Success | Steps | Return | Peak force | Safety margin | Value MAE bench / held-out | Imagined − physical (held-out) |
+|---|---|---:|---:|---:|---:|---:|---|---:|
+| (a) model objective | 150 | 8/8 | 18 | 92.15 | 38.46 N | – | 1.98 / 4.14 | −68.7 |
+| | 200 | 8/8 | 17 | 92.65 | 45.52 N | – | 2.67 / 3.69 | −61.1 |
+| | 250 | 8/8 | 17 | 92.74 | 46.36 N | – | 3.08 / 4.42 | −59.9 |
+| | 300 | 8/8 | 17 | 92.59 | 34.99 N | – | 2.17 / 3.85 | −60.8 |
+| | last | 8/8 | 19 | 91.37 | 26.10 N | – | 1.32 / 4.37 | −67.6 |
+| bc_only | 150 | 8/8 | 21 | 90.52 | 29.97 N | 0.588 | 8.87 / 5.48 | −63.7 |
+| | 200 | 8/8 | 20 | 90.87 | 30.55 N | 0.600 | 2.67 / 5.15 | −63.9 |
+| | 250 | 8/8 | 21 | 90.50 | 29.17 N | 0.572 | 10.22 / 5.69 | −46.7 |
+| | 300 | 8/8 | 21 | 90.52 | 29.95 N | 0.587 | 9.01 / 5.38 | −60.5 |
+| | last | 8/8 | 21 | 90.52 | 29.95 N | 0.587 | 9.56 / 5.85 | −41.7 |
+| linear_force (−s/50) | 150 | 8/8 | 23 | 89.24 | 21.73 N | 0.434 | 2.19 / 3.45 | −68.2 |
+| | 200 | 8/8 | 19 | 91.29 | 44.00 N | 0.870 | 4.06 / 2.44 | −64.9 |
+| | 250 | 8/8 | 19 | 91.10 | 41.56 N | 0.823 | 3.55 / 4.40 | −59.5 |
+| | 300 | 8/8 | 20 | 90.47 | 36.80 N | 0.731 | 2.27 / 5.63 | −69.1 |
+| | last | 0/8 (workspace) | 39 | −117.59 | 22.30 N | 0.445 | 143.2 / 4.66 | −40.7 |
+
+policy62 (start): 8/8, 20 steps, return 90.81, peak 30.66 N.
+
+**bc_only** — measured: at every checkpoint it stays at the policy62 behaviour
+(20–21 steps, return 90.5–90.9, peak 29–31 N), while ablation (a) cuts in 17–19
+steps with return 91.4–92.7 and peak force 26–46 N. Decision (PLAN rule): bc_only
+is slower and has lower return, so the model-based gradient contributes in this
+task; it shortens the cut (higher SliceIt return) and mostly raises the peak
+force. One seed; the steps difference (2–4) is far above the within-checkpoint
+spread (deterministic episodes).
+
+**linear_force** — measured: at update 150 the peak force is lower (21.7 N vs
+38.5 N) but the cut is slower (23 vs 18 steps); at updates 200–300 the peak force
+(36.8–44.0 N) is not lower than ablation (a) at matching success while the cut is
+2–3 steps slower; the final checkpoint fails all 8 episodes by leaving the
+workspace after 39 steps (benchmark value MAE 143.2 on those failing episodes).
+Decision (PLAN rule): no clear peak-force or safety-margin reduction at matched
+success, and the run ends in a workspace failure, so the linear penalty is not
+adopted; the SliceIt reward stays. Why the final policy fails is not analysed.
