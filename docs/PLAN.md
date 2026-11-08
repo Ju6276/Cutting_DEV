@@ -41,128 +41,60 @@ risk?
   reasons as in BENCHMARK ("Task definitions"). The 50 N limit is a check on the
   filtered sensor wrench, not on the material force.
 
-## Next experiment — WM reliability check (running)
+## WM reliability check — closed 2026-11-08
 
-No policy training. Each step's outcome selects the next.
+Answers (RESULTS 2026-11-08, Steps 1–3); this round of diagnosis is finished.
+- Labels, timing and predicate are aligned (route 1 reproduces every label).
+- The terminal BCE disturbs the dynamics: with A (BCE isolated from the dynamics
+  in WM fitting) state prediction is much better (held-out H8 tip error
+  7.88 → 0.28 mm); force-limit and workspace prediction stay poor, confounded by
+  a training split without force-limit and with 3 workspace episodes.
+- "The faster policies cut harder because the WM under-predicts force" is not
+  supported on the five checked trajectories: the WM predicts the higher force,
+  and the SliceIt objective accepts the trade-off.
+- "Terminal-prediction errors affect policy learning" remains untested (missed
+  terminals put critic evaluations on out-of-support imagined states; the actor
+  objective was not compared).
 
-Status 2026-11-08 (RESULTS, "WM reliability check, Steps 1 and 3"): supplement
-collected (dev 202/23/46 success/force-limit/workspace; final 102/13/14, stored
-unopened); Step 1 route 1 reproduces every label; Step 3 outcome **mixed** (state
-prediction much better with A at both checkpoints; terminal-head workspace
-misses and force underestimation worse; force-limit onset spikes missed by every
-WM; the fixed-fit training split has no force-limit and 3 workspace episodes).
-No joint training with A. Step 2 done (RESULTS, "Step 2"): the WM predicts the
-higher force of the faster policies about as large as physics; the value
-comparison is dominated by critic evaluations of imagined states after missed
-terminals and used a proxy objective, so model exploitation is not established.
-Next step awaits the user's decision.
+## Next stage — does A improve the actual cutting control? (awaiting approval)
 
-**Data.**
-- Development data: `wm_frozen_fit_20261105` (train 96 episodes: 93 success,
-  3 workspace; held-out 32, all success) and WM562/612/662. No existing data has a
-  force-limit failure during cutting (run 3's 337 force-limit failures all end in
-  the first 1–2 steps), and the held-out split has no failures.
-- Supplement (GPU7, frozen policies, complete physical records: states, actions,
-  sensor wrench, material force): ablation-(a) checkpoints (the faster,
-  higher-force policies), policy62, and action perturbations of policy62 to reach
-  the force limit mid-cut and the workspace bound. Target about 30 episodes per
-  terminal reason. Budget: at most 400 episodes and 2 h wall in total. If a
-  reason stays below 10 episodes, report the count and mark its metrics as
-  insufficient; do not change thresholds, material or perturbation design to
-  force the count without a new plan.
-- Use boundary: the supplement is stratified by terminal reason and serves only
-  diagnosis. Its proportions are not policy success or exceedance rates; those
-  come only from unperturbed frozen evaluations.
-- Perturbations, not seeds alone, create distinct trajectories: the same initial
-  state and a deterministic policy give the same trajectory under any seed. The
-  collection script fixes and records the perturbation distribution, the steps at
-  which it is applied and the random stream per episode.
-- Development vs final test: two disjoint random streams. A complete episode
-  belongs to exactly one set. The development set is used in this plan. The final
-  test set is stored unopened and evaluated only after the method is fixed, so
-  that model changes made after looking at held-out results are not reported as
-  independent tests.
-- The 2 h wall budget includes the Step-2 prefix replays and branches. At the
-  budget the collection stops and reports its coverage; no extra runs are added
-  to fill a category.
+One question, one route. No new networks, losses or collection; no further
+prediction diagnostics as preconditions. Multi-cut, multi-object, seeds and
+extra algorithms are not preconditions.
 
-**Step 1 — Three-way terminal check (labels before models).** On the same
-development trajectories, for WM562 and later for both arms of Step 3:
-(1) true state + task predicates (with the previous step's success counter);
-(2) predicted state + task predicates; (3) predicted state + learned terminal
-head (one end/continue output). Predictions at 1 step (teacher-forced) and
-8 steps (open loop on recorded actions). Metrics per true terminal reason:
-misses, false alarms, timing offset in steps.
-- (1) must reproduce every recorded label; otherwise fix labels, alignment or
-  predicate first.
-- (1) right, (2) wrong → the error is in the dynamics prediction.
-- (2) right, (3) wrong → the terminal head adds the error.
+**1. WM fit with the existing coverage (informational, not a gate).** Original vs
+A from WM562, identical initialization, seed and 100 rounds, on the fixed-fit
+training split plus two thirds of the dev supplement (stratified by terminal
+reason); evaluated on the fixed-fit held-out split and the remaining third of
+dev. The final supplement set stays sealed. GPU7, about 30 min. Reported, not
+used to stop step 2.
 
-**Step 2 — Force prediction and its relation to policy choices.** On the same
-physical trajectories and actions: WM-predicted vs simulated sensor wrench and
-`peak_wrench` at 1 and 8 steps; signed peak error with underestimation reported
-separately; peak timing; force-limit misses. `peak_wrench` is the per-step
-maximum (BENCHMARK), so its targets and the persistence reference (previous
-step's measured value) are per control step. Persistence is a reference point,
-not an acceptance criterion. Main case: the ablation-(a)
-trajectories, with the WM checkpoint those policies were trained with.
-To relate errors to choices: at the same recorded states, branch on the first
-action (ablation-(a) action vs policy62 action). After the first action each
-branch continues closed loop with its own policy for 7 more steps; the WM
-rollout and the physical execution use the same rule. Reported separately per
-branch: the 8-step sum of rewards, the terminal critic value at the end, peak
-sensor wrench, material peak force and terminal reason. If a branch terminates
-early, both WM and physics stop that branch at its terminal (absorbing, as in
-`imagine()`); the WM's predicted terminal and the physical terminal are compared
-as in Step 1. Physical branches restore the recorded episode by replaying its
-action prefix with fixed inputs; FP32 atomic accumulation makes repeated runs
-differ slightly, so the replayed prefix is checked on the complete physical
-state, controller memory and observation history against the spread of actual
-repeated runs (measured first), not for bitwise identity.
-- Record the model errors and whether the policy's preferred actions are rated
-  better by the WM than by physics. Neither "WM worse than persistence → the
-  policy exploits model error" nor "WM better than persistence → only the reward
-  is responsible" is concluded from prediction error alone.
-- If preferred actions are rated better in the model but are worse or more
-  force-risky physically, model exploitation is supported; a further causal
-  check (does the preference change after the model is corrected?) is planned
-  then. If model and physics agree on the higher force, the speed/force
-  trade-off of the objective is the next topic.
+**2. Joint-training comparison (the decision run).** Current working baseline vs
+working baseline + A (`--wm-terminal-gradient head`), both resumed from
+policy62/WM562 with critic reset and 100 pre-fit rounds, `real` + h8 + BC 0.25,
+1024 worlds, `--max-iterations 860` (iteration 2421, as ablation (a) and
+bc_only); rewards, force limit and critic settings unchanged; one seed.
+A6000 GPU 0 and 1 in parallel, 12 h wall each. Primary outcomes, physical
+execution: frozen 8-episode evaluation at updates 150/200/250/300/last (success,
+steps, force-limit failures, material peak and mean force, safety margin) and the
+noisy training episodes (success, force-limit and workspace failure rates per
+20 vector steps). WM prediction errors explain the result; they do not decide it.
 
-**Step 3 — Original vs A on fixed data.** A: during WM fitting only, the
-terminal BCE reads detached predicted features and updates only the terminal
-head; the state loss alone updates the dynamics. Policy imagination keeps the
-full path action → predicted state → reward and terminal probability; the shared
-`WorldModel.step()` is not changed, and a test checks that the actor still
-receives gradients through the terminal probability. Same start (WM562),
-initialization, optimizer state, data order, learning rate and 100 rounds as
-`wm_frozen_fit_20261105`; the only difference is the BCE-to-dynamics gradient.
-- Primary metric: held-out 8-step knife-tip position error and joint error.
-  Secondary: peak-force error (underestimation), Step-1 terminal metrics per
-  reason, state error vs BCE over rounds, state/BCE gradient ratio on the
-  dynamics. Overall `term_acc` is not a criterion.
-- Statistics: per development episode, the paired difference A − original of
-  each metric (windows of one episode are averaged first, never resampled as
-  independent samples); 95% bootstrap interval over episodes. Each metric is
-  classified as improved (interval below zero for an error), worsened (above
-  zero) or inconclusive (spans zero). Inconclusive is not "A has no effect".
-- Adopt for a joint-training plan: primary metric improved at both +50 and +100,
-  and neither peak-force underestimation nor any per-reason terminal metric
-  worsened.
-- Reject A: primary metric worsened, or inconclusive at both checkpoints with
-  no secondary improvement. The next topic is the source of the prediction error
-  (coverage, history inputs, integration audit; RESULTS 2026-11-04 open item).
-  The report states whether the evidence was inconclusive or negative.
-- Mixed — no joint training: primary improved but peak-force underestimation or
-  a terminal metric worsened, or improvement at only one checkpoint. Report, then
-  examine force/terminal representation and data coverage. No B/C stacking.
+**3. Decision.**
+- Keep A: across the frozen checkpoints A is at least as successful as the
+  baseline and has fewer force-limit failures in training episodes or lower
+  peak/mean force at no more steps, at 3 or more of the 5 checkpoints, without a
+  collapse (0/8) at any checkpoint. Then: mechanism ablations and the SAC /
+  same-WM + MPC comparisons, each with its own plan.
+- Drop A: otherwise. The candidate ends; no further small repairs on this line.
+  The mixed record of the fixed-data comparison stays as it is.
 
-**Budget.** Steps 1–2 are evaluation only. Step 3 is two fixed-data fits of
-about 20 min each (WM562→662 took 1166 s). One GPU (GPU7 or A6000).
+**Paper writing starts now** on task, related work, the unified environment and
+existing results; the method claim waits for step 3.
 
 ## Conditional and later (not current tasks)
 
-- **Joint training with A**, only if Step 3 adopts it; separate plan.
+- **After the A decision:** mechanism ablations and comparisons (below), each with its own plan.
 - **Comparisons:** SAC (parallel configuration, P1 below), the same WM with MPC,
   WM + BPTT, fixed compliance control. Other candidates in NOVELTY (Lagrangian
   constraint, other MPC variants, ablations) depend on the final claim and need
