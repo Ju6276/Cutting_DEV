@@ -107,8 +107,10 @@ def main():
                             (b[key] if key in ('released', 'force', 'sensor') else (1 - w) * a[key] + w * b[key])
                             for key in a})
     display.append(steps[-1])
-    geoms = [g for g in range(mj.ngeom) if mj.geom_type[g] in (mujoco.mjtGeom.mjGEOM_MESH, mujoco.mjtGeom.mjGEOM_BOX,
-                                                               mujoco.mjtGeom.mjGEOM_CYLINDER)]
+    kinds = {int(mujoco.mjtGeom.mjGEOM_MESH), int(mujoco.mjtGeom.mjGEOM_BOX), int(mujoco.mjtGeom.mjGEOM_CYLINDER)}
+    geoms = [g for g in range(mj.ngeom) if int(mj.geom_type[g]) in kinds]
+    if not geoms:
+        raise RuntimeError('No robot geoms selected for rendering')
     poses_pos, poses_mat = [], []
     for row in display:
         data.qpos[:len(row['joint_q'])] = row['joint_q']
@@ -117,7 +119,7 @@ def main():
         poses_mat.append(data.geom_xmat[geoms].copy())
     meshes = {}
     for g in geoms:
-        if mj.geom_type[g] == mujoco.mjtGeom.mjGEOM_MESH:
+        if int(mj.geom_type[g]) == int(mujoco.mjtGeom.mjGEOM_MESH):
             m = mj.geom_dataid[g]
             v0, nv, f0, nf = mj.mesh_vertadr[m], mj.mesh_vertnum[m], mj.mesh_faceadr[m], mj.mesh_facenum[m]
             meshes[f'mesh_vert_{g}'] = mj.mesh_vert[v0:v0 + nv].copy()
