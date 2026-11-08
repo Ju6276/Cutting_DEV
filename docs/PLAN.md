@@ -191,15 +191,15 @@ algorithm and completed mechanism evidence. Main comparative claims follow the
 control experiments. DiSECt trajectory optimization stays parked; it is not a
 prerequisite for the same-WM MPC comparison.
 
-## Last recorded machine snapshot (2026-11-08)
+## Last recorded machine snapshot (2026-11-09)
 
-- A6000 GPU 0: `a_pair_base_20261108`, then the reference perturbed evaluation;
-  GPU 1: `a_pair_head_20261108` (code `80c9c22`, script
-  `/dataHDD/dong/tmp/a_pair_20261108.sh`). GPU7: WM–MPPI selection and checks completed; its jobs have exited.
-- Run 1 (SliceIt SAC, Gazebo, tamsGPU9): unreachable ("no route to host") in the
-  last check. Last recorded snapshot: 46044 environment steps, 43747 updates,
-  2297 episodes; the 72 h deadline from 2026-11-03 has passed.
-- Routes: `runs/operations/MACHINES.md` on the Mac (outside Git).
+- A6000 GPU 0: a_pair_base_20261108; GPU 1: a_pair_head_20261108.
+  Both run frozen code 7c1ab92 in Cutting_DEV_wmterm and retain all active paths.
+- GPU7: canonical Cutting_DEV main; inactive experiment checkouts and data
+  consolidated. No new planner/collection/training job is started during cleanup.
+- GPU9 is retired from the working plan.
+- Machine routes, storage and protected dependencies:
+  server runs/operations/MACHINES.md. Development now uses Remote SSH.
 
 ### WM–MPPI episode video completed (2026-11-08)
 
@@ -209,3 +209,20 @@ video uses original UR5e visual meshes, the DiSECt surface including virtual cut
 vertices, and measured force traces. Start/contact/end frames and raw-data
 alignment checked. Output: `runs/videos_20261108/wm_mppi/`; commands in RUNNING,
 numbers in RESULTS. Physical task and controller settings unchanged.
+
+
+## Current operation — remote repository consolidation (2026-11-09)
+
+The user requested cleaning the repositories and GPU storage first, moving
+source and experiment files off the Mac, and using Remote SSH afterward.
+GPU7 main is the development entry. Archive inactive experiment checkouts and
+preserve their uncommitted changes. Keep the A6000 A pair and every path it uses
+in place while running. GPU9 is retired from the working plan.
+
+After consolidation, the next MPC question is task feasibility across different
+objects/materials or cutting conditions, with additional interaction data where
+the WM lacks coverage. The current WM562/MPPI result establishes completion of
+the existing prism goal-pose task. It does not supply apple or multi-material
+training coverage. Choose the next task and dataset scope before launching new
+collection or fitting. A broad SAC/policy/reference comparison is not the next
+GPU7 job. No new MPC, collection or training batch is started during cleanup.

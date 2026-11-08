@@ -217,3 +217,30 @@ the recorded DiSECt contact blade. Both views preserve their recorded poses,
 and the close-up includes the mounting adapter. `--wireframe` shows
 material triangles, including DiSECt's interpolated virtual cut vertices and
 cut triangles. The board support is display geometry.
+
+## Remote-only development and storage
+
+Open GPU7 in VS Code Remote SSH and use /dataHDD/dong/Projects/Cutting_DEV
+(branch main). The Mac holds no project checkout or experiment files.
+GPU9 is no longer a run target.
+
+GPU7 storage:
+
+- Code: /dataHDD/dong/Projects/Cutting_DEV.
+- Runs: /dataHDD/dong/Experiments/Cutting_DEV/runs; the checkout's runs links here.
+- Prepared robot/material assets: /dataHDD/dong/Assets/Cutting_DEV/prepared;
+  backends/mujoco/runs links here.
+- Planner Python: /dataHDD/dong/Envs/cutting-mppi-20261108/bin/python.
+  This environment imports the base GPU packages through its existing
+  cutting-base.pth; keep the main checkout's base .venv link.
+- Rendering Python: /dataHDD/dong/Envs/render-20261108/bin/python.
+- Archived experiment checkouts:
+  /dataHDD/dong/Archive/cutting_cleanup_20261109/code.
+- Migrated Mac files and uncommitted BladeMaster work:
+  /dataHDD/dong/Archive/mac_cutting_20261109/Code.
+
+Source the existing runs/sac_env.sh before GPU commands. For MPC commands
+above, use the planner Python explicitly. Machine addresses, protected active
+paths and the migration inventory are in the server's runs/operations/MACHINES.md.
+A6000's running A comparison keeps its frozen checkout, assets and base
+environment until its process exits.

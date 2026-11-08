@@ -35,3 +35,7 @@
   `PYTHONPATH=. .venv/bin/python -m pytest tests -q` passes on the 4090.
 - Docs state runnable commands, implementation, numeric results and next work.
   Remove replaced implementations; Git preserves their history.
+
+- Development uses Remote SSH on GPU7. Keep project source, weights, datasets,
+  caches and videos on the servers; do not download project copies to the Mac
+  unless explicitly requested. GPU9 is retired from the working plan.
