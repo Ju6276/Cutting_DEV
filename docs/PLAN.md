@@ -52,9 +52,10 @@ prediction much better with A at both checkpoints; terminal-head workspace
 misses and force underestimation worse; force-limit onset spikes missed by every
 WM; the fixed-fit training split has no force-limit and 3 workspace episodes).
 No joint training with A. Step 2 done (RESULTS, "Step 2"): the WM predicts the
-higher force of the faster policies about as large as physics, but rates the
-faster branch far better than physics (+11.9 vs +1.5) through the critic value
-of imagined end states. Next step awaits the user's decision; options: causal check with a corrected WM, force-onset coverage, objective trade-off.
+higher force of the faster policies about as large as physics; the value
+comparison is dominated by critic evaluations of imagined states after missed
+terminals and used a proxy objective, so model exploitation is not established.
+Next step awaits the user's decision.
 
 **Data.**
 - Development data: `wm_frozen_fit_20261105` (train 96 episodes: 93 success,

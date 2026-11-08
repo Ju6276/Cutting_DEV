@@ -1540,14 +1540,28 @@ repeat-run spread of 0.0043–0.0083 with identical inputs.
   physically in success within 8 steps, the WM predicts 14 successes, 8
   workspace failures and 18 no terminal.
 
-Measured: on these trajectories the WM predicts the higher force of the faster
-policies about as large as physics, so the force increase is not explained by a
-WM force under-prediction here; physically the faster branch also gets a slightly
-higher reward, i.e. the SliceIt objective accepts the higher force. The WM rates
-the faster branch much better than physics (+11.9 vs +1.5), almost entirely
-through the critic value of the imagined end states (+11.8 vs +1.4). Inferred,
-not tested: imagined end-state errors (position, missed or wrong terminals;
-Steps 1/3) inflate the bootstrap value and so the actor's preference. The PLAN's
-causal follow-up (does the preference change with a corrected WM?) is not run.
-Limits: five deterministic trajectories, one seed, no force-limit events in these
-branches (the onset-spike failure of Steps 1/3 is a separate finding).
+Measured (force): on these trajectories the WM predicts the higher force of the
+faster policies about as large as physics (contact peaks up to 46 N, inside the
+data the WM was trained on); the force increase is not explained by a WM force
+under-prediction here, and physically the faster branch also gets a slightly
+higher reward, i.e. the SliceIt objective accepts the higher force.
+
+Correction of the value comparison (decomposition of the same output): the mean
++11.8 vs +1.4 is dominated by outliers. On the 48 states where no branch reaches
+a terminal on either side, the A − B terminal value has median +3.8 (WM) vs +2.8
+(physics), means +9.9 vs +2.6. The large differences (up to +84) come from states
+where the WM continues while physics has already terminated (missed success); the
+critic then evaluates imagined states outside its support with values of −105 to
+−324 on both branches, and their A − B difference is not a meaningful preference.
+Per episode, the mean (WM − physics) gap ranges from +2.8 to +16.7. The earlier
+statement "the WM rates the faster branch much better than physics" is therefore
+not supported as stated; what is supported is that missed terminals put critic
+evaluations on out-of-support imagined states.
+
+Method limits: the compared quantity (undiscounted 8-step reward with hard
+absorption + critic value) is a proxy, not the actor's objective (discount,
+survival from the learned terminal probability); the actor follows gradients,
+so a two-policy ranking is indirect evidence about its updates; five
+deterministic trajectories with correlated states, no intervals; replay
+deviation up to 1.8× the repeat spread (update 200). No force-limit events occur
+in these branches (the onset-spike failure of Steps 1/3 is separate).
