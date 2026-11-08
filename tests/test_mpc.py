@@ -56,9 +56,11 @@ def test_mppi_uses_six_task_bounds_physical_history_and_frozen_checkpoint(tmp_pa
     current = {key: torch.as_tensor(np.asarray(value)[None], dtype=torch.float32)
                for key, value in frame.items()}
     current['target_pose'] = current['previous_ee_pose'].clone()
+    current['observation'] = current['observation'].double()
     env = SimpleNamespace(worlds=1, metadata=metadata, current=current, device=torch.device('cpu'))
     policy = MPPIPolicy(path, env, MPPIConfig(horizon=3, samples=32, refinements=2))
     policy.reset(current)
+    assert policy.state.dtype == next(model.parameters()).dtype
     low, high = policy.spec.action_low, policy.spec.action_high
     torch.testing.assert_close(policy.rollout.task_action(-torch.ones(6)), low)
     torch.testing.assert_close(policy.rollout.task_action(torch.ones(6)), high)

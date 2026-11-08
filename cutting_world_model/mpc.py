@@ -126,7 +126,7 @@ class MPPIPolicy:
         }
 
     def reset(self, frame):
-        self.state = self.spec.pack_batch(frame)
+        self.state = self.spec.pack_batch(frame).to(next(self.wm.parameters()))
         self.planner.U.zero_()
         self.episode += 1
         self.step = 0
