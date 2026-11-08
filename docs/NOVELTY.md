@@ -2,7 +2,8 @@
 
 Status: paper and source review, 2026-11-08; contact-dynamics source inspection
 included. Literature evidence and candidate gaps only; it does not add
-development tasks. The research question is in [PLAN](PLAN.md): how WM errors in
+development tasks. The research argument and algorithm are in [PAPER](PAPER.md);
+current work is in [PLAN](PLAN.md). The question is how WM errors in
 cutting force and failure events affect BPTT policy learning, and how model-side
 policy improvement can carry over to physical execution (single-cut task first,
 multi-material as an experimental condition). Robot-methods paper (RA-L/ICRA/IROS).
@@ -222,11 +223,13 @@ All are real-robot and argue cutting simulation is unavailable [T].
   interval and 2 ms coupling checks in BENCHMARK make this distinction relevant
   [I]. Early episode termination alone does not identify which physical or
   controller event produced the peak; use the contact and force trace [I].
-- Preserve the planned model-versus-physics action ranking: both predicting a
-  higher force supports an objective tradeoff; a model-favoured action with a
-  worse physical outcome supports a model-error explanation. Causal attribution
-  then needs a model intervention [I]. These are interpretations of PLAN's
-  existing checks, not additional approved experiments.
+- The completed Step 2 model-versus-physics branches capture the higher force
+  on the five checked successful trajectories. Missed success events instead
+  cause critic queries beyond the physical ending. The compared score is a
+  proxy for the actor objective; a causal control effect remains open (RESULTS,
+  2026-11-08) [I]. PLAN now proposes a paired control experiment with A. These
+  literature implications explain that experiment rather than adding another
+  prediction-diagnostic stage.
 
 ## Assessment
 

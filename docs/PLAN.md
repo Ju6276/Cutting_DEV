@@ -1,127 +1,127 @@
 # Current plan
 
-The single current task list. Completed experiments, numbers and failed results
-are in [RESULTS](RESULTS.md); task and metric definitions in
-[BENCHMARK](BENCHMARK.md); implementation and named variants in
-[METHOD](METHOD.md); literature in [NOVELTY](NOVELTY.md).
+The single current task list. The research thesis, connected algorithm and paper
+experiments are in [PAPER](PAPER.md). Measurements live in [RESULTS](RESULTS.md),
+task and metric definitions in [BENCHMARK](BENCHMARK.md), implementation and
+sources in [METHOD](METHOD.md), literature evidence in [NOVELTY](NOVELTY.md).
 
-## Research question and scope
+## Destination and current stage
 
-Robot-methods paper (RA-L/ICRA/IROS). In force-limited compliant cutting, how do
-a world model's errors in predicting cutting force and failure events affect the
-policy learned by BPTT through it, and how can policy improvement inside the
-model carry over to physical execution — faster cuts without more force-limit
-risk?
+Develop a world-model-based method for force-limited compliant cutting whose
+policy improvements carry over to physical execution. The paper follows one
+chain: **robot/material interaction data → motion/force model and task events →
+BPTT policy optimization → executed cutting performance**.
 
-- Scope now: the single-cut task. Multi-material/shape evaluation follows as an
-  experimental condition (not a contribution; SliceIt already trains on several
-  calibrated foods).
-- The method follows from the evidence of the next experiment; no new network or
-  loss family is fixed in advance.
-- Own evidence at its scope: in the fixed task, from the same start policy
-  (policy62) and one seed, adding the actor objective through the WM reduced
-  completion from 20–21 to 17–19 steps while most checkpoints raised the peak
-  material force (RESULTS 2026-11-08). This is a behaviour change in this setting.
-  Faster execution, better sample efficiency and accurate WM prediction are
-  separate claims, each needing its own test. Seeds come after the method is
-  fixed.
-- Not pursued now: loss reweighting/GradNorm (B), terminal-feature rescaling (C),
-  multi-cut tasks, additional algorithms, real-robot extension.
+Current stage: test whether the implemented terminal-supervision intervention A
+improves actual control, on the existing single-cut task. Position prediction
+already improved in the fixed-data comparison. This control comparison is the
+next missing link. Multi-cut tasks, loss reweighting B, feature rescaling C and
+new contact-model architectures are outside this stage.
 
 ## Decisions in force
 
-- **Benchmark bottom stays free** (`public-prism-ur5e-v1`); the fixed-bottom
-  contract is a diagnostic only (RESULTS 2026-11-08: mean material force
-  +16–25% with a static bottom).
-- **Names.** Methods are named as in BENCHMARK ("Method names") and never pooled:
-  SliceIt SAC in Gazebo; SAC in the unified environment (step 85000 reported);
-  a future parallel SAC configuration; `source`; the current working baseline
-  (`real` + h8 + BC 0.25 from policy62/WM562); V5 (`real_wm` + h8 + BC 0.25).
-- **Definitions.** Success, force-limit termination, material force and terminal
-  reasons as in BENCHMARK ("Task definitions"). The 50 N limit is a check on the
-  filtered sensor wrench, not on the material force.
+- Benchmark: free-bottom `public-prism-ur5e-v1`. Fixed-bottom results remain in
+  RESULTS; they do not change the main task.
+- Current working baseline: `real` critic + h8 + BC 0.25, continued from
+  policy62/WM562 with a fresh critic and 100 pre-fit rounds. Candidate: the same
+  configuration with `--wm-terminal-gradient head` (A).
+- Source, working baseline, V5, Gazebo SAC and unified-environment SAC keep their
+  separate BENCHMARK names. Task, reward, material, action bounds and force-limit
+  definitions stay fixed.
+- Physics advances the robot and material; actor gradients pass through the
+  learned model. Successful goal-pose completion and material separation retain
+  their separate BENCHMARK measurements.
+- Method development uses one training seed. Multi-seed confirmation follows a
+  fixed method and comparison protocol.
 
-## WM reliability check — closed 2026-11-08
+## Completed evidence — WM diagnosis closed 2026-11-08
 
-Answers (RESULTS 2026-11-08, Steps 1–3); this round of diagnosis is finished.
-- Labels, timing and predicate are aligned (route 1 reproduces every label).
-- The terminal BCE disturbs the dynamics: with A (BCE isolated from the dynamics
-  in WM fitting) state prediction is much better (held-out H8 tip error
-  7.88 → 0.28 mm); force-limit and workspace prediction stay poor, confounded by
-  a training split without force-limit and with 3 workspace episodes.
-- "The faster policies cut harder because the WM under-predicts force" is not
-  supported on the five checked trajectories: the WM predicts the higher force,
-  and the SliceIt objective accepts the trade-off.
-- "Terminal-prediction errors affect policy learning" remains untested (missed
-  terminals put critic evaluations on out-of-support imagined states; the actor
-  objective was not compared).
+- True-state task predicates reproduce every checked recorded label.
+- Isolating terminal BCE from dynamics fitting changes held-out H8 tip error
+  from 7.88 to 0.28 mm after 100 rounds. The fixed training split has no
+  force-limit and only 3 workspace endings; those predictions remain poor.
+- On five checked successful policy trajectories, the WM captures the higher
+  force of faster actions. The reward accepts this trade-off.
+- Missed endings put critic evaluations beyond the physical episode. Their
+  causal effect on actor learning remains to be tested by the control pair.
 
-## Next stage — does A improve the actual cutting control? (awaiting approval)
+These results motivate the method experiment in PAPER. They are not a queue of
+local metrics that must all improve before control can be evaluated.
 
-One question, one route. No new networks, losses or collection; no further
-prediction diagnostics as preconditions. Multi-cut, multi-object, seeds and
-extra algorithms are not preconditions.
+## Next experiment — baseline vs baseline + A (proposed; awaiting approval)
 
-**1. WM fit with the existing coverage (informational, not a gate).** Original vs
-A from WM562, identical initialization, seed and 100 rounds, on the fixed-fit
-training split plus two thirds of the dev supplement (stratified by terminal
-reason); evaluated on the fixed-fit held-out split and the remaining third of
-dev. The final supplement set stays sealed. GPU7, about 30 min. Reported, not
-used to stop step 2.
+This draft replaces the next-stage draft at `5678c97`. No new run is authorized
+by this document update.
 
-**2. Joint-training comparison (the decision run).** Current working baseline vs
-working baseline + A (`--wm-terminal-gradient head`), both resumed from
-policy62/WM562 with critic reset and 100 pre-fit rounds, `real` + h8 + BC 0.25,
-1024 worlds, `--max-iterations 860` (iteration 2421, as ablation (a) and
-bc_only); rewards, force limit and critic settings unchanged; one seed.
-A6000 GPU 0 and 1 in parallel, 12 h wall each. Primary outcomes, physical
-execution: frozen 8-episode evaluation at updates 150/200/250/300/last (success,
-steps, force-limit failures, material peak and mean force, safety margin) and the
-noisy training episodes (success, force-limit and workspace failure rates per
-20 vector steps). WM prediction errors explain the result; they do not decide it.
+**Question.** Does isolating terminal supervision during WM fitting improve the
+cutting policy learned through the WM, with the task and actor objective fixed?
 
-**3. Decision.**
-- Keep A: across the frozen checkpoints A is at least as successful as the
-  baseline and has fewer force-limit failures in training episodes or lower
-  peak/mean force at no more steps, at 3 or more of the 5 checkpoints, without a
-  collapse (0/8) at any checkpoint. Then: mechanism ablations and the SAC /
-  same-WM + MPC comparisons, each with its own plan.
-- Drop A: otherwise. The candidate ends; no further small repairs on this line.
-  The mixed record of the fixed-data comparison stays as it is.
+**Hypothesis.** Better physical prediction near task endings improves executed
+control. A changes the fitting gradient route; it is not a new force objective.
 
-**Paper writing starts now** on task, related work, the unified environment and
-existing results; the method claim waits for step 3.
+**Pair.** Both arms resume policy62/WM562, reset the critic and pre-fit it for
+100 rounds; use `real` + h8 + BC 0.25, 1024 worlds, the same seed and update
+budget. A changes only `--wm-terminal-gradient head`. Both retain the normal
+online collection and WM update loop. The extra offline 100-round refit from
+previous PLAN is removed: its outputs were not inputs to this joint comparison,
+and fixed-data evidence already exists. The final supplement set remains sealed.
 
-## Conditional and later (not current tasks)
+**Budget.** Retain the previous proposed budget: A6000 GPU 0 and 1, one arm per
+GPU, 12 h wall each; `--max-iterations 860` (end iteration 2421). Existing
+checkpoint/progress/timeout handling applies. No automatic extension.
 
-- **After the A decision:** mechanism ablations and comparisons (below), each with its own plan.
-- **Comparisons:** SAC (parallel configuration, P1 below), the same WM with MPC,
-  WM + BPTT, fixed compliance control. Other candidates in NOVELTY (Lagrangian
-  constraint, other MPC variants, ablations) depend on the final claim and need
-  their own plans.
-- **Multi-object stage** (after the WM check). One `BatchedDiSECt` per object,
-  worlds grouped by object; continuous parameters sampled per reset (precedents
-  in RESULTS/NOVELTY).
-  - P0 per-world materials: passed (RESULTS 2026-11-08).
-  - Scenes exported and stable placement checked for free prism, jello cylinder
-    and apple sphere (no rolling ≤ 0.18°, no sliding ≤ 1.8 mm). The reference
-    control completes the task for prism and jello; for the free apple it ends in
-    force-limit termination at step 18 (peak 51.29 N, 3/244 springs released).
-    This does not show that no controller can cut the apple. Material and force
-    limit are not changed to admit it; how the apple enters is an open decision.
-  - P1 parallel SAC on the single prism (1024 worlds, lr 3e-4, step budget
-    matched); P2 randomized prism with held-out ranges; P3 objects.
-  - Open: material ranges (from literature or calibration), whether the policy
-    observes an object identifier.
-- **Real robot:** [REAL2SIM](REAL2SIM.md), draft awaiting the user's review.
-- **Parked:** DiSECt trajectory optimization (pipeline test, RESULTS 2026-11-08;
-  its adjoint needs a static bottom).
+**Measurements.** Frozen 8-episode evaluation at updates 150/200/250/300/last,
+plus training curves and terminal-reason counts per 20 vector steps. Report all
+checkpoints, with the fixed-budget final checkpoint as the primary comparison:
 
-## Run and machine status (2026-11-08)
+- Physical success and each failure reason first; completion steps and return.
+- Sensor limit metrics, material peak/mean force and cut fraction separately.
+- WM prediction evidence explains the mechanism; it is not the outcome gate.
 
-- A6000 GPU 0/1 and GPU7: idle.
-- Run 1 (SliceIt SAC, Gazebo, tamsGPU9): GPU9 is unreachable ("no route to host"
-  on 2026-11-08), so its live state is unknown. Last recorded snapshot: 46044
-  environment steps, 43747 updates, 2297 episodes; its 72 h execution deadline
-  from 2026-11-03 has passed.
-- Machine routes: `runs/operations/MACHINES.md` on the Mac (outside Git).
+The frozen task measures execution from the fixed start. Noisy training episodes
+show on-policy failure exposure; their rates are not held-out generalization
+rates. Repeated frozen episodes are not independent training seeds.
+
+**Decision.** Evaluate task performance and force risk together under the existing
+reward. A consistent control benefit supports advancing the candidate to the
+main comparisons. Equal control outcomes with better prediction support only a
+model-fitting improvement. Worse outcomes reject A for this learning setup.
+Mixed outcomes are reported as mixed; close this candidate round and reconsider
+the method claim before requesting another run. The former “win at 3 of 5
+checkpoints” rule is removed; correlated checkpoints do not establish a general
+advantage. No claim of simultaneous faster and lighter cutting is assumed.
+
+An implementation error that invalidates the pair is repaired and its affected
+arm rerun within a separately recorded budget. Another imperfect local metric
+alone does not create a new blocking stage.
+
+## Paper evidence after this decision
+
+PAPER specifies the purpose of these comparisons; each needs a concrete run plan.
+
+1. Select the method supported by control evidence and finish its mechanism
+   ablations, reusing completed source/critic/BC-only results where applicable.
+2. Compare it with SAC, same-WM MPC and fixed compliance control in the unified
+   task. Match information and action access; account for warm-start data and
+   model fitting when comparing cost. Prescribed trajectories remain separately
+   labeled because they bypass the policy action mapper.
+3. Test material variation and then held-out shapes/materials. Multi-object
+   per-world parameters passed P0. Free prism, jello cylinder and apple sphere
+   placement checks are complete. Reference control completes prism/jello;
+   apple ends at the force limit. Choose material ranges and object access in
+   that stage's plan, keeping the main task definitions.
+4. Once method and protocol are fixed, run independent seeds and the real-robot
+   study in [REAL2SIM](REAL2SIM.md). The robot plan still needs user review.
+
+Paper drafting can already cover task, platform, source method, connected
+algorithm and completed mechanism evidence. Main comparative claims follow the
+control experiments. DiSECt trajectory optimization stays parked; it is not a
+prerequisite for the same-WM MPC comparison.
+
+## Last recorded machine snapshot (2026-11-08)
+
+- A6000 GPU 0/1 and GPU7: recorded idle. Refresh before scheduling approved work.
+- Run 1 (SliceIt SAC, Gazebo, tamsGPU9): unreachable ("no route to host") in the
+  last check. Last recorded snapshot: 46044 environment steps, 43747 updates,
+  2297 episodes; the 72 h deadline from 2026-11-03 has passed.
+- Routes: `runs/operations/MACHINES.md` on the Mac (outside Git).
