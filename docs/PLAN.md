@@ -70,26 +70,75 @@ and fixed-data evidence already exists. The final supplement set remains sealed.
 GPU, 12 h wall each; `--max-iterations 860` (end iteration 2421). Existing
 checkpoint/progress/timeout handling applies. No automatic extension.
 
-**Measurements.** Frozen 8-episode evaluation at updates 150/200/250/300/last,
-plus training curves and terminal-reason counts per 20 vector steps. Report all
-checkpoints, with the fixed-budget final checkpoint as the primary comparison:
+**Measurements.** (Amendment proposed 2026-11-08 by Claude, for Codex/user
+review: noise reference and outcomes with statistical power.)
 
-- Physical success and each failure reason first; completion steps and return.
-- Sensor limit metrics, material peak/mean force and cut fraction separately.
-- WM prediction evidence explains the mechanism; it is not the outcome gate.
+*Why an amendment.* From the fixed start the frozen task is near its ceiling:
+policy62 already succeeds 8/8 in 20 steps and the working baseline 8/8 in
+17–19; frozen peak force varies between 26 and 46 N across checkpoints of one
+run. Eight deterministic frozen episodes per checkpoint cannot separate the arms,
+and with one seed an arm difference may be training noise.
 
-The frozen task measures execution from the fixed start. Noisy training episodes
-show on-policy failure exposure; their rates are not held-out generalization
-rates. Repeated frozen episodes are not independent training seeds.
+1. **Perturbed frozen evaluation (primary).** For each arm and checkpoint
+   (updates 150/200/250/300/last), the frozen policy runs 256 episodes from the
+   benchmark start with action perturbations from fixed random streams, identical
+   for every arm and checkpoint (same scheme as the reliability supplement:
+   sigma 0.3/0.6/1.0, first perturbed step 0/5/10, i.i.d. or one persistent
+   direction per episode; stream seeds disjoint from the supplement's).
+   Reported per checkpoint: success, force-limit and workspace rates with 95%
+   intervals (episode-paired bootstrap between arms, since streams are shared),
+   steps to success, material peak/mean force and sensor safety margin of
+   successful episodes. This measures control robustness and force-limit risk,
+   the paper's outcome; it is not a WM diagnostic. Needs a small evaluation
+   entry reusing the collector's perturbation code (one policy, no dev/final
+   split, fixed episode count).
+2. **Training episodes (primary, on-policy).** Terminal-reason rates per 20
+   vector steps and over the last 100 vector steps (1024 worlds, thousands of
+   episodes); not held-out generalization rates.
+3. **Unperturbed frozen 8 episodes (reported).** Success, steps, return,
+   material peak/mean force, cut fraction — the fixed-start task result.
+4. **Noise reference.** The completed run `critic_abl_a250_20261106` has the
+   baseline arm's configuration (same start, flags and iteration budget; older
+   code commit with identical default behavior). Measurements 1–3 are also taken
+   on its checkpoints. The baseline-vs-replicate difference estimates run-to-run
+   variation. If the new baseline arm reproduces that run bitwise, training is
+   deterministic and this reference is zero; the report says so and relies on the
+   intervals of measurement 1 alone.
+5. WM prediction errors on the arms' own data explain the result; they do not
+   decide it.
 
-**Decision.** Evaluate task performance and force risk together under the existing
-reward. A consistent control benefit supports advancing the candidate to the
-main comparisons. Equal control outcomes with better prediction support only a
-model-fitting improvement. Worse outcomes reject A for this learning setup.
-Mixed outcomes are reported as mixed; close this candidate round and reconsider
-the method claim before requesting another run. The former “win at 3 of 5
-checkpoints” rule is removed; correlated checkpoints do not establish a general
-advantage. No claim of simultaneous faster and lighter cutting is assumed.
+**Budget addition.** Perturbed evaluation: 15 checkpoints (A, baseline,
+replicate) × 256 episodes, about 2 h on one GPU after training (400 supplement
+episodes took 651 s with 32 worlds).
+
+**Decision.** Primary comparison at the final checkpoint, with 250/300 as
+support; all checkpoints reported.
+- **Benefit:** A − baseline improves the perturbed success rate or lowers the
+  force-limit rate with an interval excluding zero, by more than the
+  baseline − replicate difference, with no other failure rate worse beyond its
+  interval, and no collapse (unperturbed 0/8) at any checkpoint. Training-episode
+  rates point the same way. Then A advances to the main comparisons.
+- **No benefit:** differences within intervals or within the replicate
+  difference, with better prediction → A is reported as a model-fitting
+  improvement only, not a control method.
+- **Worse:** A − baseline worse beyond both → A is rejected for this setup.
+- **Mixed:** reported as mixed; this candidate round closes.
+No claim of simultaneous faster and lighter cutting is assumed; force is
+compared at comparable success.
+
+**Expected limitation, stated before the run.** Every WM missed the contact-onset
+force spikes of the force-limit episodes (A included). A changes the fitting
+route, not the force representation, so a reduction of force-limit failures is
+not the expected main effect; an effect is more plausible near task endings
+(success timing, workspace). A null result on force-limit risk is therefore an
+anticipated outcome, not a reason for a new repair stage.
+
+**If A is not a control method.** The method claim falls back to the working
+baseline (`real` critic + h8 + BC on the WM/BPTT framework) with the mechanism
+evidence as analysis, and the paper's comparisons (SAC, same-WM MPC, fixed
+compliance) proceed with it. A further model change is proposed only against the
+measured failure that limits control (currently the onset force spike), with
+its own plan and literature basis (NOVELTY section 7).
 
 An implementation error that invalidates the pair is repaired and its affected
 arm rerun within a separately recorded budget. Another imperfect local metric
