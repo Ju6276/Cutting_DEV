@@ -48,7 +48,7 @@ new contact-model architectures are outside this stage.
 These results motivate the method experiment in PAPER. They are not a queue of
 local metrics that must all improve before control can be evaluated.
 
-## Next experiment — baseline vs baseline + A (proposed; awaiting approval)
+## Next experiment — baseline vs baseline + A (running since 2026-11-08 21:43)
 
 This draft replaces the next-stage draft at `5678c97`. No new run is authorized
 by this document update.
@@ -156,7 +156,9 @@ prerequisite for the same-WM MPC comparison.
 
 ## Last recorded machine snapshot (2026-11-08)
 
-- A6000 GPU 0/1 and GPU7: recorded idle. Refresh before scheduling approved work.
+- A6000 GPU 0: `a_pair_base_20261108`, then the reference perturbed evaluation;
+  GPU 1: `a_pair_head_20261108` (code `80c9c22`, script
+  `/dataHDD/dong/tmp/a_pair_20261108.sh`). GPU7 idle.
 - Run 1 (SliceIt SAC, Gazebo, tamsGPU9): unreachable ("no route to host") in the
   last check. Last recorded snapshot: 46044 environment steps, 43747 updates,
   2297 episodes; the 72 h deadline from 2026-11-03 has passed.
