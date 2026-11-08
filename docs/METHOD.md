@@ -491,3 +491,25 @@ benchmark's SliceIt reward and the force/work/safety metrics.
 `scripts/value_eval.py` compares a critic with returns of its own reward,
 recomputing the force term of the recorded SliceIt rewards from the recorded
 next observations.
+
+Not adopted (RESULTS 2026-11-08); kept as a named variant for the record.
+
+## Variant `wm_terminal_gradient=head` (variant A, under test)
+
+Source route (`dynamics`): the terminal head reads `terminal_features` of the
+predicted next state, so the terminal BCE of the WM fitting loss also trains the
+dynamics MLP through that state (as in SuperMimic-Reproduced). With `head`, the
+fitting loss (`window_loss`, `masked_window_loss`, through `fit_predict`) feeds the
+terminal head the detached predicted state: the BCE trains only the head and the
+state loss alone trains the dynamics. Forward values are unchanged. Policy
+imagination uses `predict`/`step`, which is identical for both routes, so the
+actor keeps the path action → predicted state → reward and terminal probability
+(`tests/test_wm_terminal_gradient.py`). `wm_diagnostics.window_loss_components`
+follows the configured route; set it to `dynamics` to measure the source BCE
+gradient.
+
+`--wm-terminal-gradient {dynamics,head}`; default `dynamics`. Checkpoints record
+the route; checkpoints without the field used `dynamics`. `train_gpu.py` resumes
+only with the same route; `OnlineLearner.restore(...,
+change_wm_terminal_gradient=True)` starts the other route from a saved WM, used by
+the fixed-data comparison in PLAN.

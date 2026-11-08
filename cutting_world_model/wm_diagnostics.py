@@ -36,7 +36,9 @@ def window_loss_components(wm, states, actions, goal, done, valid_steps):
         valid = valid_steps[t]
         input_state = torch.where(valid[:, None], state, states[0])
         action = torch.where(valid[:, None], actions[t], 0.)
-        predicted, _, logits = wm.predict(input_state, action, goal)
+        # Same route as the fitting loss (wm.terminal_gradient); set it to 'dynamics' to
+        # measure the source BCE gradient on the dynamics.
+        predicted, _, logits = wm.fit_predict(input_state, action, goal)
         target = torch.where(valid[:, None], states[t + 1], states[0])
         compared = torch.where(valid[:, None], predicted, target)
         sq = spec.error_vector(compared, target).square()

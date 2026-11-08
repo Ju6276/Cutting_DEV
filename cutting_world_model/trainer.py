@@ -59,7 +59,8 @@ def masked_gae_targets(rewards, done_next, values, valid, gamma, lam):
 class OnlineLearner:
     def __init__(self, wm, policy, critic, microbatch=64, wm_cfg=None, policy_cfg=None,
                  wm_only_updates=500, critic_target='imagined', critic_microbatch=None,
-                 actor_horizon=None, actor_bc_alpha=None, actor_objective='model'):
+                 actor_horizon=None, actor_bc_alpha=None, actor_objective='model',
+                 wm_terminal_gradient='dynamics'):
         if type(wm_only_updates) is not int or wm_only_updates < 0:
             raise ValueError('wm_only_updates must be a nonnegative integer')
         if critic_target not in CRITIC_TARGETS:
@@ -89,6 +90,8 @@ class OnlineLearner:
         self.critic_prefit_rounds = 0
         self.critic_prefit_pending = False
         self.wm, self.policy, self.critic = wm, policy, critic
+        # WM-fitting variant; see world_model.TERMINAL_GRADIENTS. Policy imagination is unchanged.
+        wm.terminal_gradient = wm_terminal_gradient
         self.microbatch = microbatch
         self.wcfg, self.pcfg = wm_cfg or WMTrainerCfg(), policy_cfg or PolicyTrainerCfg()
         self.wopt = torch.optim.Adam(wm.parameters(), lr=self.wcfg.lr, weight_decay=self.wcfg.weight_decay)
@@ -486,14 +489,19 @@ class OnlineLearner:
                 'critic_variant': self.critic_variant(),
                 'actor_horizon': self.actor_horizon, 'actor_bc_alpha': self.actor_bc_alpha,
                 'actor_objective': self.actor_objective,
+                'wm_terminal_gradient': self.wm.terminal_gradient,
                 'training_stage': {'wm_only_updates': self.wm_only_updates,
                                    'wm_updates': self.wm_updates,
                                    'optimizer_steps': self.optimizer_steps,
                                    'world_model_config': asdict(self.wcfg),
                                    'policy_config': asdict(self.pcfg)}}
 
-    def restore(self, data, reset_critic=False):
-        """Load a checkpoint; ``reset_critic`` (variant 'real') keeps this learner's fresh critic."""
+    def restore(self, data, reset_critic=False, change_wm_terminal_gradient=False):
+        """Load a checkpoint; ``reset_critic`` (variant 'real') keeps this learner's fresh critic.
+
+        ``change_wm_terminal_gradient`` starts this learner's WM-fitting variant from a
+        checkpoint written with the other one (e.g. a fixed-data comparison from WM562).
+        """
         if data.get('imagination_terminal_rule') != 'task_absorbing_v1':
             raise ValueError('Checkpoint imagination terminal rule differs')
         # Checkpoints written before the variant existed were trained on imagined targets.
@@ -514,6 +522,11 @@ class OnlineLearner:
         # Checkpoints written before the option existed used the model-based actor objective.
         if not reset_critic and data.get('actor_objective', 'model') != self.actor_objective:
             raise ValueError('Checkpoint actor objective differs')
+        # Checkpoints written before the option existed used the source route.
+        saved_route = data.get('wm_terminal_gradient', 'dynamics')
+        if saved_route != self.wm.terminal_gradient and not change_wm_terminal_gradient:
+            raise ValueError('Checkpoint WM terminal-gradient route differs: %s, configured %s'
+                             % (saved_route, self.wm.terminal_gradient))
         reset_update = variant.get('reset_update')
         prefit_rounds = variant.get('prefit_rounds', 0)
         if reset_update is not None and (type(reset_update) is not int or reset_update < 0
