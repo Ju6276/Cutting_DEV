@@ -1592,3 +1592,39 @@ terminal critic (METHOD).
   rolling out the closed-loop policy. The result motivates planner configuration
   selection before the algorithm comparison.
 - Final 4090 checks: root suite 214 passed / 5 skipped; backend suite 28 passed.
+
+## 2026-11-08 — WM–MPPI completes the fixed task after configuration selection
+
+Code `060ebca`, GPU7 RTX 4090, frozen WM562 and the same free-prism benchmark.
+Seed 0 ran the pending code at `1eb0c1c` + dirty; seeds 1/2 ran clean `060ebca`.
+Command: `.venv/bin/python scripts/evaluate_benchmark.py --method wm-mppi
+--checkpoint runs/mpc_assets/policy62_wm562.pt --episodes 1 --wall-seconds 600
+--seed SEED --mpc-horizon 16 --mpc-samples 512 --mpc-refinements 4
+--mpc-temperature 0.1 --mpc-noise-std 0.5 --mpc-discount 0.99
+--mpc-terminal-value none --output runs/mpc_selection_20261108/RUN`.
+
+| Planner seed | Outcome | Steps / simulated seconds | Return | Material peak / mean N | Released springs | Planning s/call | Total wall s |
+|---|---|---|---:|---|---|---:|---:|
+| 0 | Goal reached | 42 / 2.10 | 79.293 | 13.425 / 3.877 | 288/304 | 0.640 | 196.70 |
+| 1 | Goal reached | 46 / 2.30 | 77.563 | 15.752 / 3.667 | 288/304 | 0.567 | 182.26 |
+| 2 | Goal reached | 36 / 1.80 | 82.172 | 16.257 / 4.316 | 287/304 | 0.550 | 135.48 |
+
+All three reached the original goal-pose counter, with no force-limit/workspace
+ending. Final height error: 0.648/0.627/0.898 mm; lateral position error:
+−25.82/−22.38/−22.32 mm (the existing task allows 40 mm laterally and 2 mm in
+height). Maximum normalized sensor limit ratio: 0.269/0.314/0.324. WM weights
+unchanged, zero network optimizer updates. Planning costs exceed the simulated
+50 ms control period. GPU7 also carried another evaluation during part of the run.
+
+Selection: 12 configurations on saved states 0/20/183 took 33.56 s: H8/16/32 ×
+temperature 1/0.1/0.03, plus H8 with the frozen critic at those temperatures;
+all used 512 samples, four refinements and seed 0. H16/0.1 without the critic
+was the first physical development candidate; seeds 1/2 then repeated its fixed
+configuration. No reward, material, force limit or task threshold changed.
+The frozen critic was rejected: some candidate terminal returns were 221–283,
+above this task's attainable return upper bound of 100. Its values were neither
+clipped nor used in the executed controller. Outputs: `probe.json`, `summary.json`
+and the three episode/report/planning files under `runs/mpc_selection_20261108`.
+
+Checks on the final code: root suite 217 passed / 5 skipped; backend 28 passed.
+The planner configuration is fixed for the next common algorithm comparison.

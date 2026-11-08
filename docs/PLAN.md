@@ -133,58 +133,22 @@ alone does not create a new blocking stage.
 
 ## Paper evidence after this decision
 
-### Authorized MPPI integration trial (2026-11-08)
+### WM–MPPI configuration selection completed (2026-11-08)
 
-The user requested connecting an existing MPC implementation and trying it in
-the current environment. Work is isolated on `codex/wm-mppi`; the A control pair
-continues on its existing code. Use upstream `pytorch_mppi` (SOURCES), frozen
-policy62/WM562 weights, the free-prism benchmark and the original six-action
-interface. Question: does the adapter execute a full closed-loop episode, and
-what behavior and planning cost does this initial configuration produce?
+Current planner: frozen WM562, H16, 512 samples, four refinements, temperature
+0.1, noise std 0.5, discount 0.99, no terminal critic. The physics, task reward,
+action bounds and force limits retain the benchmark settings.
 
-First configuration: H8, 512 samples, one MPPI refinement, temperature 1,
-normalized noise std 0.5, discount 0.99; no terminal critic. One frozen physical
-episode on GPU7 (4090), seed 0, 600 s wall budget; progress is written after each
-physical step, with timeout preserving the executed prefix. No policy training.
-Check reward/terminal accounting and history reset before the physical run.
-Then report outcome, force metrics, progress, planning and physics time. A
-completed failed episode is a measured controller result, not an integration
-pass or a reason to retune the task. Source/API errors are fixed and retested.
+GPU7 planner seeds 0/1/2 completed the original goal-pose task in 42/46/36 steps;
+material peaks 13.42/15.75/16.26 N, with no force-limit or workspace ending.
+The previous H8 configuration exhausted its 600 s budget. Full measurements,
+selection evidence and the rejected frozen-critic candidate are in RESULTS.
+The executable command is in BENCHMARK.
 
-Trial result: 183 physical steps within the 600 s budget, no task completion;
-259/304 springs released, final tip 4.71 mm above the goal, material peak 5.83 N.
-The loop executes and WM weights stay fixed. The initial H8 configuration is
-too slow to finish within this budget. A fixed-state cost check finds broad MPPI
-weights and a short-horizon preference for zero over a repeated policy action
-(RESULTS). The next MPC stage selects horizon, terminal cost and temperature
-with a fixed development budget before the main comparison; no WM or task
-change follows from this trial. The A control pair continues independently.
-
-### Authorized MPPI configuration selection (2026-11-08)
-
-The user requested adjusting the connected planner. Hypothesis: the H8-only
-objective and diffuse importance weights explain slow progress. Keep WM562,
-physical task, reward, action bounds and termination unchanged. Use upstream
-MPPI refinement/temperature controls and its terminal-cost callback; the optional
-terminal cost is the same checkpoint's frozen critic, with the actor's discount
-and absorbing/survival rule. Source: Williams et al. (2017) and pytorch_mppi.
-
-1. On the saved first-trial states (start, contact and stalled endpoint), compare
-   H8/16/32, temperatures 1/0.1/0.03, four refinements, 512 samples, noise std 0.5;
-   also H8 with the frozen critic. Inspect predicted progress/endings, return,
-   effective sample count and planner time. Five-minute GPU budget, no fitting.
-2. Select one configuration at a time for physical evaluation through the common
-   benchmark. At most three development episodes, 600 s each; prefer task
-   completion without force-limit/workspace endings, then executed return.
-   Reject configurations with invalid actions/predictions; repair interface errors.
-3. Repeat the selected configuration on two new planner seeds (up to 1200 s
-   total), retaining every outcome. These are controller-development repeats;
-   training-seed comparisons remain in the later paper protocol.
-
-Outputs: source revision, full solver settings, physical outcome/force/progress,
-unchanged weights and per-call predicted reward/value/timing. Stop this selection
-round after its budget; a remaining task failure gets a concrete cause and next
-action, not an automatic change to the WM or physical task.
+The planner is ready for the common algorithm comparison. That stage fixes
+information access, development cases and compute/data budgets for SAC,
+WM–MPPI, BPTT policy and fixed control; it records planning time separately from
+physical stepping. The A control pair retains its own decision rule above.
 
 ### Four-week delivery target (2026-11-08 to 2026-12-08)
 
@@ -231,8 +195,7 @@ prerequisite for the same-WM MPC comparison.
 
 - A6000 GPU 0: `a_pair_base_20261108`, then the reference perturbed evaluation;
   GPU 1: `a_pair_head_20261108` (code `80c9c22`, script
-  `/dataHDD/dong/tmp/a_pair_20261108.sh`). GPU7: isolated WM–MPPI integration
-  checks and the bounded episode above.
+  `/dataHDD/dong/tmp/a_pair_20261108.sh`). GPU7: WM–MPPI selection and checks completed; its jobs have exited.
 - Run 1 (SliceIt SAC, Gazebo, tamsGPU9): unreachable ("no route to host") in the
   last check. Last recorded snapshot: 46044 environment steps, 43747 updates,
   2297 episodes; the 72 h deadline from 2026-11-03 has passed.
