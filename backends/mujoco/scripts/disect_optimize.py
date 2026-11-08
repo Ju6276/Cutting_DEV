@@ -28,6 +28,7 @@ def revision(path):
 
 
 BOTTOM_MAX_Y = {'free': -0.002, 'fixed': 0.002}
+SCRIPT_DIR = Path(__file__).resolve().parent  # resolved before main() changes directory
 
 
 def write_json(path, value):
@@ -65,7 +66,7 @@ def main():
     if args.bottom != 'config':
         settings.static_vertices.include[0]['max'][1] = BOTTOM_MAX_Y[args.bottom]
     start_time = time.monotonic()
-    manifest = {'git': revision(Path(__file__).resolve().parent), 'bottom': args.bottom, 'disect_git': revision(args.disect_root),
+    manifest = {'git': revision(SCRIPT_DIR), 'bottom': args.bottom, 'disect_git': revision(args.disect_root),
                 'command': sys.argv, 'config': settings, 'iterations': args.iterations,
                 'wall_seconds': args.wall_seconds, 'memory_fraction': args.memory_fraction,
                 'optimizer': {'method': 'MDMM', 'lr': 0.01, 'scale': 10000., 'damping': 100.},
