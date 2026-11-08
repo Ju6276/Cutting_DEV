@@ -366,22 +366,33 @@ def one_step_failure_replay(model, frame, episodes=6):
     return replay.buffer
 
 
-def test_real_wm_keeps_recorded_samples_when_no_window_has_a_model_state():
+@pytest.mark.parametrize('horizon, one_step', [(8, True), (1, True), (1, False)])
+def test_real_wm_keeps_recorded_samples_when_no_window_has_a_model_state(horizon, one_step):
+    # One-step failures (any window) or a one-step critic window (any data): no WM state exists.
     data = {}
     for target in ('real', 'real_wm'):
-        learner, _ = make_learner(target, horizon=8)
+        learner, replay = make_learner(target, horizon=horizon)
         metadata, frame = fixture()
-        replay = one_step_failure_replay(learner.wm, frame)
+        if one_step:
+            replay = one_step_failure_replay(learner.wm, frame)
         torch.manual_seed(5)
         data[target] = learner.real_critic_data(replay)
     (states, goals, targets), metrics = data['real_wm']
     assert len(targets) == learner.pcfg.batch_size * learner.pcfg.horizon
-    torch.testing.assert_close(targets, torch.full_like(targets, -100.6))
+    if one_step:
+        torch.testing.assert_close(targets, torch.full_like(targets, -100.6))
     for left, right in zip(data['real'][0], data['real_wm'][0]):
         assert torch.equal(left, right)
     assert metrics['critic_model_state_candidates'] == 0 and metrics['critic_model_state_fraction'] == 0
     assert 'critic_model_state_value_target_mae' not in metrics
     assert all(math.isfinite(v) for v in metrics.values())
+
+
+def test_real_wm_update_completes_with_a_one_step_critic_window():
+    learner, replay = make_learner('real_wm', horizon=1)
+    metrics = learner.improve_policy(replay)
+    assert metrics['critic_model_state_candidates'] == 0
+    assert all(math.isfinite(v) for v in metrics.values() if isinstance(v, float))
 
 
 def test_actor_horizon_shortens_imagination_and_is_recorded():
