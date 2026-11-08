@@ -41,9 +41,17 @@ risk?
   reasons as in BENCHMARK ("Task definitions"). The 50 N limit is a check on the
   filtered sensor wrench, not on the material force.
 
-## Next experiment — WM reliability check (awaiting approval)
+## Next experiment — WM reliability check (running)
 
 No policy training. Each step's outcome selects the next.
+
+Status 2026-11-08 (RESULTS, "WM reliability check, Steps 1 and 3"): supplement
+collected (dev 202/23/46 success/force-limit/workspace; final 102/13/14, stored
+unopened); Step 1 route 1 reproduces every label; Step 3 outcome **mixed** (state
+prediction much better with A at both checkpoints; terminal-head workspace
+misses and force underestimation worse; force-limit onset spikes missed by every
+WM; the fixed-fit training split has no force-limit and 3 workspace episodes).
+No joint training with A. Step 2 running.
 
 **Data.**
 - Development data: `wm_frozen_fit_20261105` (train 96 episodes: 93 success,

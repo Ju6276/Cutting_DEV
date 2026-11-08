@@ -1438,3 +1438,74 @@ it releases 208 springs and then stalls at 47.3 N for the remaining steps. This
 concerns the reference control only; it does not show that no controller can cut
 the apple. Material and force limit are not changed to admit it; how the apple
 enters the object set is an open decision (PLAN).
+
+## 2026-11-08 — WM reliability check, Steps 1 and 3 (route A vs original)
+
+Code: branch `wm-terminal-gradient` (`79bf25c`…`86a81a2`): variant
+`wm_terminal_gradient=head` (METHOD), `scripts/wm_fixed_fit.py`,
+`scripts/wm_reliability_eval.py`, `scripts/collect_reliability_data.py`. A6000.
+Root suite 199 passed / 5 skipped and backend suite 28 passed on GPU7 (4090).
+Definitions as in BENCHMARK; `peak_wrench` errors are per control step.
+
+**Supplementary data** (`runs/wm_reliability_supplement_20261108`, GPU0, 651 s,
+episode limit 400 reached): one unperturbed episode each of policy62 and the
+ablation-(a) checkpoints (updates 150/200/250/300/last), then policy62 with
+per-episode perturbations (sigma 0.3/0.6/1.0; first perturbed step 0/5/10;
+i.i.d. or one persistent direction per episode). Coverage — dev: 202 success,
+23 force limit, 46 workspace; final (stored unopened): 102 / 13 / 14. Of the 23
+dev force-limit terminals, 16 occur at step 1–2 (contact onset) and 7 later. A
+probe before the collection gave 1 mid-cut force-limit terminal in 65 episodes:
+within the action bounds, force-limit terminations occur mostly at contact
+onset. Proportions are diagnostic only.
+
+**Step 1, route 1** (true state + task predicate with the previous success
+counter): 0 label or reason mismatches on the fixed-fit train (96) and held-out
+(32) episodes and on the 271 dev episodes, for every checkpoint. Labels, timing
+and predicate are aligned.
+
+**Step 3 fits** (`runs/wm_route_compare_20261108`, GPU1): from WM562 on the
+`wm_frozen_fit_20261105` training split, seed 20261105, 100 rounds each,
+dynamics 841 s, head 814 s. The `dynamics` arm reproduces the 2026-11-05 run
+exactly: its +50 held-out metrics are identical to those of the original
+`wm_050.pt`. Fit losses (state / BCE): dynamics +50 0.0159 / 0.0796, +100 0.0296 /
+0.0811 (state loss rises again after +50, as before); head +50 0.0026 / 0.0100,
++100 0.0015 / 0.0049 (both keep falling).
+
+Held-out split (32 successes), means per episode:
+
+| Checkpoint | H1 / H8 tip error | Full open-loop end error | H8 force abs error | Successes missed: predicate on predicted state H1 / H8 | Terminal head H1 / H8 |
+|---|---|---|---|---|---|
+| WM562 | 1.39 / 4.82 mm | 72.0 mm | 1.87 N | 0 / 32 of 32 | 0 / 32 |
+| original +50 | 1.88 / 5.18 mm | 23.1 mm | 1.54 N | 18 / 12 | 1 / 32 |
+| A +50 | 0.25 / 0.40 mm | 1.34 mm | 0.43 N | 0 / 0 | 0 / 0 |
+| original +100 | 3.71 / 7.88 mm | 11.8 mm | 1.03 N | 32 / 29 | 13 / 21 |
+| A +100 | 0.19 / 0.28 mm | 1.09 mm | 0.38 N | 0 / 0 | 0 / 0 |
+
+Dev supplement (episode-paired bootstrap A − original, 95% interval, per terminal
+reason; `eval_dev.json`, `eval_dev_by_reason.json`):
+
+- Primary (H1/H8 tip and joint error): improved at +50 and +100 for success,
+  force-limit and workspace episodes (workspace H8 at +100 inconclusive).
+  Success episodes, H8 tip: 6.66 → 2.31 mm (+50), 8.02 → 2.24 mm (+100).
+- Predicate on predicted state: missed and false terminals mostly improved.
+- Terminal head on workspace terminals: worsened at both checkpoints — A's head
+  detects none of the 46 (H1 miss rate 1.0 vs 0.78 / 0.80).
+- Force: H8 underestimation worsened at +50 (success +0.31 N, workspace
+  +0.64 N); at +100 the H8 absolute force error worsened (success +0.61 N,
+  workspace 1.93 → 8.53 N).
+- Force-limit terminals (23): every WM misses almost all at one step — WM562
+  22/23, original +100 23/23, A +100 19/23. Mean one-step underestimation at those
+  steps: WM562 17.2 N, original +100 20.2 N, A +100 11.6 N.
+- Persistence (last measured per-step peak) as a reference: one-step force error
+  on force-limit steps 31.0 N; WM 13–22 N.
+
+Decision (PLAN rule): **mixed** — the primary metric improved at both
+checkpoints, but force underestimation and the terminal head's workspace misses
+worsened. No joint training with A. Confound (measured): the fixed-fit training
+split has no force-limit episode and 3 workspace episodes, so terminal-head and
+force results on those reasons are limited by data coverage as much as by the
+route. Measured, not yet explained: with the source route the BCE gradient moves
+the dynamics away from accurate positions (state loss rises after +50 while BCE
+stays near 0.08); with the BCE isolated, both the state loss and the BCE fall
+much further on the same data. The WM's main force failure is the onset force
+spike at force-limit terminals, which no checkpoint predicts.
