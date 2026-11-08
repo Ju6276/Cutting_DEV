@@ -151,6 +151,15 @@ Then report outcome, force metrics, progress, planning and physics time. A
 completed failed episode is a measured controller result, not an integration
 pass or a reason to retune the task. Source/API errors are fixed and retested.
 
+Trial result: 183 physical steps within the 600 s budget, no task completion;
+259/304 springs released, final tip 4.71 mm above the goal, material peak 5.83 N.
+The loop executes and WM weights stay fixed. The initial H8 configuration is
+too slow to finish within this budget. A fixed-state cost check finds broad MPPI
+weights and a short-horizon preference for zero over a repeated policy action
+(RESULTS). The next MPC stage selects horizon, terminal cost and temperature
+with a fixed development budget before the main comparison; no WM or task
+change follows from this trial. The A control pair continues independently.
+
 ### Four-week delivery target (2026-11-08 to 2026-12-08)
 
 1. Week 1: close the A control decision; establish MPPI, SAC and fixed-controller

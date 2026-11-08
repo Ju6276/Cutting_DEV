@@ -1565,3 +1565,30 @@ so a two-policy ranking is indirect evidence about its updates; five
 deterministic trajectories with correlated states, no intervals; replay
 deviation up to 1.8× the repeat spread (update 200). No force-limit events occur
 in these branches (the onset-spike failure of Steps 1/3 is separate).
+
+## 2026-11-08 — Frozen WM + upstream MPPI integration
+
+Code `7880446` (run manifest: `2293bc6` + the WM-precision reset fix);
+GPU7 RTX 4090, frozen policy62/WM562 checkpoint after the common critic pre-fit.
+Command: `.venv/bin/python scripts/evaluate_benchmark.py --method wm-mppi --checkpoint
+runs/mpc_assets/policy62_wm562.pt --episodes 1 --wall-seconds 600 --seed 0
+--mpc-horizon 8 --mpc-samples 512 --mpc-refinements 1 --mpc-temperature 1
+--mpc-noise-std 0.5 --mpc-discount 0.99 --output runs/wm_mppi_h8_float_20261108`.
+The original task and physical contract are unchanged; the controller has no
+terminal critic (METHOD).
+
+- Budget ended after 183 steps / 9.15 simulated seconds, without task completion;
+  no force-limit or workspace ending. Tip height 0.130713 m versus goal 0.126 m;
+  259/304 cutting springs released. Prefix return −88.606.
+- Material peak/mean force 5.831/2.623 N; maximum component-wise normalized
+  sensor limit ratio 0.11656. WM weights unchanged, zero optimizer updates.
+- Planning 20.45 s (0.1117 s/call); physical stepping 576.94 s; total 602.95 s.
+  Another frozen evaluation shared GPU7 from approximately 280 s onward.
+- Fixed-state cost check at steps 0/183: 512 H8 candidates around the zero plan,
+  noise std 0.5, temperature 1, seed 0, CPU. Task-cost std 0.225/0.463;
+  effective sample count `1/sum(w**2)` 485/418. Zero-action cost 4.908/2.870,
+  versus 5.622/3.837 for repeating the policy's current action. This checks the
+  finite-horizon scoring and weight scale; the repeated action is distinct from
+  rolling out the closed-loop policy. The result motivates planner configuration
+  selection before the algorithm comparison.
+- Final 4090 checks: root suite 214 passed / 5 skipped; backend suite 28 passed.
