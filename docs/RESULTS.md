@@ -1353,3 +1353,53 @@ knife (127 vs 199; 161 vs 239). Not separated: the compliance controller's
 tracking lag and the free bottom both contribute to that gap. Making this a
 baseline needs a full-cut horizon and a transfer step; per the user's priority
 the DiSECt baseline is parked here.
+
+## 2026-11-08 — P0: per-world material scales
+
+`BatchedDiSECt.set_material_scales` (Young's modulus via the tet Lamé arrays,
+density via particle mass, cut-spring stiffness with the reset spring state),
+checked on GPU7 with `scripts/check_material_scales.py`
+(`Cutting_DEV_metrics/runs/p0_material_scales_20261108`): one 6-world batch of
+the full UR5e/FDCC/DiSECt benchmark runs the reference trajectory; each world is
+compared with a separate single-world environment with the same scale over the
+same 40 control steps.
+
+| World | Batch vs single: peak force / obs. / released | Effect vs unscaled world: peak force / released | Peak force |
+|---|---|---|---:|
+| unscaled | 0.012 N / 2.6e-4 / 1 | – | 9.97 N |
+| E ×2 | 0.009 N / 2.1e-4 / 1 | 0.97 N / 4 | 10.33 N |
+| E ×0.5 | 0.012 N / 2.3e-4 / 1 | 1.40 N / 9 | 9.68 N |
+| density ×1.5 | 0.009 N / 1.8e-4 / 1 | 0.84 N / 4 | 10.03 N |
+| spring k ×0.5 | 0.034 N / 5.3e-4 / 2 | 7.07 N / 23 | 4.08 N |
+| spring k ×2 | 0.021 N / 4.1e-4 / 0 | 22.0 N / 43 | 27.84 N |
+
+A scene re-exported by DiSECt from the config with E ×2, density ×1.5 and both
+cut-spring stiffnesses ×0.5 matches the scaled source arrays exactly for the Lamé
+and spring arrays and to 1.2e-7 relative for the masses. Measured: every world
+matches its single-world run to the level at which two unscaled instances
+already differ (float32 accumulation order: ≤ 0.034 N, ≤ 2 springs), 25–650×
+below the material effects. Decision (PLAN P0 rule): passes. The backend test
+`test_material_scales_match_independent_scaled_worlds` compares cut springs with
+rtol 1e-4 for the same reason (one spring at 2.6e-5 relative in 1 of 5 runs).
+
+## 2026-11-08 — Free-bottom apple and jello under the reference trajectory
+
+`scripts/check_scene_reference.py`, GPU7, `runs/object_precheck_20261108`;
+upstream DiSECt meshes and configs, exported with the repository exporter (apple
+with the static include box lowered to y < −0.002). Bottom layer = particles
+within 2 mm of the lowest one; rotation = best-fit (Kabsch) rotation of that layer.
+
+| Scene | Static | End | Steps | Peak force | Released | Bottom horizontal max | Bottom rotation max |
+|---|---:|---|---:|---:|---:|---:|---:|
+| Prism (benchmark) | 0 | success | 40 | 9.97 N | 288/304 | 0.79 mm | 0.011° |
+| Jello cylinder, free | 0 | success | 39 | 2.29 N | 221/238 | 0.68 mm | 0.007° |
+| Apple sphere, free | 0 | force-limit collision | 18 | 51.29 N | 3/244 | 1.77 mm | 0.18° |
+| Apple sphere, static (upstream) | 77 | not finished (60 steps) | 60 | 47.31 N | 208/244 | 0.11 mm | 0.016° |
+
+Measured: no object rolls (≤ 0.18°) or slides out of the cut (≤ 1.8 mm). The
+jello cuts like the prism. The apple (E = 3 MPa, 75× the prism) cannot be cut by
+the reference trajectory within the 50 N task limit: free, its force rises to
+44 N with 2 springs released and it collides at step 18; static, it releases 208
+springs and then stalls at 47.3 N for the remaining steps. For P3 the free bottom
+is usable for prism and jello; the apple needs a decision (material, force limit
+or a different reference) before it can join the object set.
