@@ -73,8 +73,9 @@ def test_material_scales_match_independent_scaled_worlds():
         single.advance(.004)
         torch.testing.assert_close(batch.state_field('particle_q')[i], single.state_field('particle_q')[0],
                                    atol=1e-6, rtol=1e-5)
+        # Separate GPU instances differ by float32 accumulation order (observed 2.6e-5 relative).
         torch.testing.assert_close(batch.state_field('cut_spring_ke')[i], single.state_field('cut_spring_ke')[0],
-                                   atol=1e-3, rtol=1e-5)
+                                   atol=1e-3, rtol=1e-4)
     q = batch.state_field('particle_qd')
     assert not torch.allclose(q[0], q[1]) and not torch.allclose(q[0], q[2])
     with pytest.raises(ValueError, match='Unknown material'):
