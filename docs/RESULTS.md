@@ -1193,6 +1193,10 @@ keeps the batch's recorded samples, adds no model samples and reports the
 model/recorded-state MAE only over non-empty subsets; failed trajectories, reward
 and thresholds are unchanged. `real` and `real_wm` now produce identical critic
 data on such batches (`test_real_wm_keeps_recorded_samples_when_no_window_has_a_model_state`).
+Second review finding, fixed the same way: with a one-step critic window
+(`PolicyTrainerCfg.horizon=1`, not `--actor-horizon`) the WM prediction list is
+empty and `torch.stack([])` raised before that check; the check now runs before
+the WM rollout (tests for windows 1 and 8). Runs use window 32 and never hit it.
 The bug stops a run with an exception; it does not explain the earlier critic
 value growth. Runs that finished without this exception (V5 and the rest) are
 unaffected. Review notes kept for the method discussion: `real` targets are
