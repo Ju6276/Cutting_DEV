@@ -1239,3 +1239,41 @@ is negligible: although the free prism does not slide, the boundary condition
 changes the forces. Decision (PLAN rule): the settings differ beyond noise, so
 both are reported; a benchmark change to static bottoms requires re-evaluating
 all methods in the static setting.
+
+## 2026-11-08 — World-model loss-term gradients on saved batches
+
+`scripts/wm_loss_gradients.py` (A6000 GPU 1, 292 s, no parameter update) on the
+training split of `wm_frozen_fit_20261105` (96 episodes: 93 successes, 3
+workspace failures, no force-limit collision), 20 identical batches of 2048
+windows × 8 steps (13619 valid steps, 793 terminal labels per batch) for each
+checkpoint. The masked window loss is split exactly into per-field state errors
+and the terminal BCE (test: components sum to the training loss and gradient);
+gradients are taken with respect to the dynamics MLP, which both terms share
+(the BCE reaches it through the predicted next state, whose terminal features
+the separate terminal head reads). Mean over batches (std ≤ 10% of the mean):
+
+| Checkpoint | State loss | Terminal BCE | ‖g_state‖ | ‖g_BCE‖ | ‖g_term head‖ | cos(state, BCE) raw / Adam | cos(BCE, total) raw / Adam | cos(state, total) raw / Adam |
+|---|---:|---:|---:|---:|---:|---|---|---|
+| WM562 (policy62, before fit) | 0.0764 | 0.0961 | 7.30 | 34.5 | 0.29 | −0.07 / −0.05 | 0.98 / 0.90 | 0.14 / 0.39 |
+| fit +10 (WM572) | 0.0184 | 0.0977 | 3.26 | 47.1 | 0.57 | −0.05 / +0.11 | 1.00 / 0.96 | 0.02 / 0.39 |
+| fit +50 (WM612) | 0.0156 | 0.0713 | 1.50 | 12.4 | 0.08 | +0.42 / −0.24 | 0.99 / 0.94 | 0.51 / 0.09 |
+| fit +100 (WM662) | 0.0233 | 0.0446 | 4.15 | 41.9 | 0.25 | +0.27 / −0.08 | 1.00 / 0.96 | 0.36 / 0.20 |
+
+State loss = sum of the field losses (joint_q, joint_qd, wrench_history,
+peak_wrench). Field gradient norms at WM562: joint_q 7.23, wrench_history 1.27,
+peak_wrench 0.93, joint_qd 0.35.
+
+Measured: the terminal BCE's gradient on the shared dynamics MLP is 5–14× the
+state-loss gradient although the two loss values are comparable, and the total
+update direction is almost the BCE direction (cosine 0.98–1.00 raw, 0.90–0.96
+after Adam preconditioning); the state-loss direction has cosine 0.02–0.51 with
+the total. The BCE moves the dynamics, not the terminal head (head gradient
+0.08–0.57 against 12–47). State and BCE gradients are close to orthogonal
+(|cos| ≤ 0.42), so the data show neither strong conflict nor a shared direction;
+the dominant effect is the imbalance. Between fit +50 and +100 the BCE falls
+(0.071 → 0.045) while the joint_q error doubles (0.0056 → 0.0129), as already
+seen in the fixed-data fit. Inferred, not tested: the terminal features divide
+position errors by the 2 mm goal threshold (`terminal_features`), so small
+changes of predicted position change the features strongly and the BCE gradient
+flows into the predicted state rather than into the head. Limitation: this data
+set has success terminals only; force-limit collisions are not covered.
