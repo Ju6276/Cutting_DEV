@@ -133,6 +133,44 @@ alone does not create a new blocking stage.
 
 ## Paper evidence after this decision
 
+### Authorized MPPI integration trial (2026-11-08)
+
+The user requested connecting an existing MPC implementation and trying it in
+the current environment. Work is isolated on `codex/wm-mppi`; the A control pair
+continues on its existing code. Use upstream `pytorch_mppi` (SOURCES), frozen
+policy62/WM562 weights, the free-prism benchmark and the original six-action
+interface. Question: does the adapter execute a full closed-loop episode, and
+what behavior and planning cost does this initial configuration produce?
+
+First configuration: H8, 512 samples, one MPPI refinement, temperature 1,
+normalized noise std 0.5, discount 0.99; no terminal critic. One frozen physical
+episode on GPU7 (4090), seed 0, 600 s wall budget; progress is written after each
+physical step, with timeout preserving the executed prefix. No policy training.
+Check reward/terminal accounting and history reset before the physical run.
+Then report outcome, force metrics, progress, planning and physics time. A
+completed failed episode is a measured controller result, not an integration
+pass or a reason to retune the task. Source/API errors are fixed and retested.
+
+### Four-week delivery target (2026-11-08 to 2026-12-08)
+
+1. Week 1: close the A control decision; establish MPPI, SAC and fixed-controller
+   comparisons on the same task. Freeze the method claim after control evidence.
+2. Week 2: selected single-cut material variations and held-out conditions;
+   matched mechanism ablations. Finish the method and experimental-protocol draft.
+3. Week 3: independent seeds after method/protocol freeze; conduct the scoped
+   robot study if hardware, sensing and safety procedures are ready.
+4. Week 4: finish plots, manuscript, reproducibility commands and demonstration;
+   independent review of claims against recorded results.
+
+Target: a complete manuscript and reproducible evidence. Robot availability and
+an end-to-end advantage are the schedule's dependencies. The end of week 1 is a
+decision point: if the candidate has no control benefit, choose a supported
+empirical claim or revise the method and delivery target. Repeated local fixes
+do not extend the same candidate indefinitely. Multi-cut tasks, new simulators
+and visual-policy migration remain outside this four-week scope.
+
+### Comparative evidence
+
 PAPER specifies the purpose of these comparisons; each needs a concrete run plan.
 
 1. Select the method supported by control evidence and finish its mechanism
@@ -158,7 +196,8 @@ prerequisite for the same-WM MPC comparison.
 
 - A6000 GPU 0: `a_pair_base_20261108`, then the reference perturbed evaluation;
   GPU 1: `a_pair_head_20261108` (code `80c9c22`, script
-  `/dataHDD/dong/tmp/a_pair_20261108.sh`). GPU7 idle.
+  `/dataHDD/dong/tmp/a_pair_20261108.sh`). GPU7: isolated WM–MPPI integration
+  checks and the bounded episode above.
 - Run 1 (SliceIt SAC, Gazebo, tamsGPU9): unreachable ("no route to host") in the
   last check. Last recorded snapshot: 46044 environment steps, 43747 updates,
   2297 episodes; the 72 h deadline from 2026-11-03 has passed.

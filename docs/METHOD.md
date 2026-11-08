@@ -513,3 +513,38 @@ the route; checkpoints without the field used `dynamics`. `train_gpu.py` resumes
 only with the same route; `OnlineLearner.restore(...,
 change_wm_terminal_gradient=True)` starts the other route from a saved WM, used by
 the fixed-data comparison in PLAN.
+
+## Frozen world-model MPPI controller
+
+`cutting_world_model/mpc.py` connects the unmodified `pytorch_mppi.MPPI`
+optimizer (revision in SOURCES) to `CuttingWorldModel.predict`. The optimizer
+samples normalized six-dimensional actions in [-1, 1], mapped affinely to the
+task's original bounds. Candidate rollouts use the checkpoint's motion/force
+history, goal, analytic reward and task predicates. No particle or damage fields
+enter the planner. Measured robot joints and the full sensor history initialize
+the WM; this is more information than the policy's 24-component observation.
+
+The accumulated task cost is the negative discounted survival-weighted reward.
+Hard task endings absorb the rollout, keeping the terminal transition's reward
+once; learned terminal probabilities supply the same survival weighting as
+`OnlineLearner.imagine`. The first adapter has no terminal value or BC cost.
+The optimizer adds its upstream importance-sampling correction
+`lambda * sum(U * Sigma_inverse * noise)` to sampled trajectory costs. This
+correction is separate from the benchmark's executed reward. The returned
+weighted-mean action sequence is also evaluated in the WM and logged, because
+its score can differ from those of the samples.
+
+| Component | Upstream / working policy | MPPI adapter |
+|---|---|---|
+| Prediction | Supplied dynamics callback | Frozen existing WM and exact task decoding |
+| Control | Upstream sampling, bounded perturbations and importance weights | Unchanged; reset to the action-bound midpoint, shift the previous plan thereafter |
+| Horizon | Working actor H8 | First integration trial H8 (0.4 s) |
+| Objective | Actor includes critic bootstrap and BC | Finite-horizon task return plus upstream MPPI sampling correction; no critic |
+| Execution | Six-dimensional compliance/motion action | Same action mapper and physical benchmark |
+
+Solver settings are explicit CLI arguments: horizon, number of samples,
+refinements, temperature, normalized noise standard deviation and discount.
+They do not change the physical task. The frozen single-world adapter replans
+after each measured transition and clears both history and plan on reset.
+`planning.json` contains every call's duration, predicted return, predicted
+sensor limit ratio, survival and task ending. BENCHMARK supplies executed metrics.

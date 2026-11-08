@@ -7,6 +7,8 @@ histories. Vendored and patched dependencies retain their upstream licenses:
 - SliceIt task code: `third_party/sliceit/LICENSE`.
 - DiSECt/DFlex: `backends/mujoco/third_party/disect/LICENSE.md`.
 - Controller/KDL implementation: `backends/mujoco/licenses/`.
+- Optional pytorch-mppi and arm-pytorch-utilities: MIT, distributed with their
+  installed packages; revisions are in `requirements-mpc.txt` and SOURCES.
 - External SliceIt, controller, ROS and tf2rl checkouts: licenses in each pinned
   upstream repository. Their source changes are in `integrations/sliceit/patches/`.
 

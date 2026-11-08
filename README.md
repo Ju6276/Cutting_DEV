@@ -52,6 +52,10 @@ Frozen evaluation of either checkpoint (definitions in [BENCHMARK](docs/BENCHMAR
   --checkpoint RUN/training/last.pt --output RUN/evaluation
 ```
 
+Frozen WM + MPPI uses the same evaluation entry with `--method wm-mppi` after
+installing `requirements-mpc.txt`. Settings and the complete command are in
+[BENCHMARK](docs/BENCHMARK.md#world-model-mppi).
+
 W&B is enabled by default; `--wandb-mode offline` records locally. SIGUSR1
 requests an atomic checkpoint after the current iteration; normal completion and
 SIGTERM also save.

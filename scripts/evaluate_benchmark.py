@@ -52,7 +52,7 @@ class SACPolicy:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--method', choices=('constant-zero', 'reference', 'supermimic', 'sac'), required=True)
+    parser.add_argument('--method', choices=('constant-zero', 'reference', 'supermimic', 'sac', 'wm-mppi'), required=True)
     parser.add_argument('--backend-root', type=Path, default=ROOT / 'backends/mujoco')
     parser.add_argument('--contract', type=Path, default=ROOT / 'configs/public_prism/benchmark.json')
     parser.add_argument('--checkpoint', type=Path)
@@ -66,6 +66,12 @@ def main():
     parser.add_argument('--trajectory', type=Path,
                         help='Reference knife trajectory (cutting-knife-velocity-v1 JSON); '
                              'default is the scene constant-velocity reference')
+    parser.add_argument('--mpc-horizon', type=int, default=8)
+    parser.add_argument('--mpc-samples', type=int, default=512)
+    parser.add_argument('--mpc-refinements', type=int, default=1)
+    parser.add_argument('--mpc-temperature', type=float, default=1.)
+    parser.add_argument('--mpc-noise-std', type=float, default=.5)
+    parser.add_argument('--mpc-discount', type=float, default=.99)
     args = parser.parse_args()
     if args.episodes < 1 or not 0 < args.wall_seconds < float('inf'):
         parser.error('Episodes and finite wall budget must be positive')
@@ -109,6 +115,12 @@ def main():
             policy = WorldModelPolicy(args.checkpoint, env)
             manifest['policy_updates'] = policy.updates
             manifest['policy_training_reward'] = policy.training_reward
+        elif args.method == 'wm-mppi':
+            from cutting_world_model.mpc import MPPIConfig, MPPIPolicy
+            config = MPPIConfig(args.mpc_horizon, args.mpc_samples, args.mpc_refinements,
+                                args.mpc_temperature, args.mpc_noise_std, args.mpc_discount)
+            policy = MPPIPolicy(args.checkpoint, env, config)
+            manifest['planner'] = policy.manifest
         elif args.method == 'sac':
             policy = SACPolicy(args, env)
             manifest['sac_actor'] = policy.process.metadata
@@ -136,6 +148,8 @@ def main():
                                                     'wall_seconds': time.monotonic() - started})
         raise
     finally:
+        if policy is not None and hasattr(policy, 'plans'):
+            write_json(args.output / 'planning.json', {'planner': policy.manifest, 'steps': policy.plans})
         report_path = args.output / 'report.json'
         if report_path.exists():
             final_report = json.loads(report_path.read_text())
