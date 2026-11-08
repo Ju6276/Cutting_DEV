@@ -174,7 +174,16 @@ PAPER specifies the purpose of these comparisons; each needs a concrete run plan
 
 1. Select the method supported by control evidence and finish its mechanism
    ablations, reusing completed source/critic/BC-only results where applicable.
-2. Compare it with SAC, same-WM MPC and fixed compliance control in the unified
+2. Same-WM MPC requirements (review 2026-11-09): pair each planner run with the
+   WM and critic of the policy it is compared with (WM562 pairs with policy62;
+   the working baseline and A use their own final WM/critic); fix the terminal
+   value option once for that comparison with the paired critic (the rejected
+   policy62 critic is the imagined-target one with value MAE 153; the working
+   baseline's critic uses `real` targets); state the information difference
+   (the planner uses the full physical history state, the policy its
+   24-component observation history); report planning time per control step
+   (0.55-0.64 s against the 50 ms period) and the lateral goal error for every
+   method. Compare it with SAC, same-WM MPC and fixed compliance control in the unified
    task. Match information and action access; account for warm-start data and
    model fitting when comparing cost. Prescribed trajectories remain separately
    labeled because they bypass the policy action mapper.
