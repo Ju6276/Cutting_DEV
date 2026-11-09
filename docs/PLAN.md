@@ -182,7 +182,7 @@ PAPER specifies the purpose of these comparisons; each needs a concrete run plan
    candidates; it was not the original imagined-target critic. State the
    information difference (the WM uses joint/force/control histories, the policy
    ten frames of 24-component observations plus its goal); report planning time per control step
-   (0.55-0.64 s against the 50 ms period) and the lateral goal error for every
+   (paired WM562 run 0.49 s; WM563 development runs 0.55-0.64 s; control period 50 ms) and the lateral goal error for every
    method. Compare it with SAC, same-WM MPC and fixed compliance control in the unified
    task. Match information and action access; account for warm-start data and
    model fitting when comparing cost. Prescribed trajectories remain separately
