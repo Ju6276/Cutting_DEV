@@ -1712,3 +1712,55 @@ Interpreter: `/dataHDD/dong/Envs/cutting-mppi-20261108/bin/python`.
 Checks: root **225 passed / 5 skipped**, backend **28 passed**.
 Outputs: `runs/mpc_pair_repair_20261109/` (checkpoint audit, manifests, full
 episodes, planning trace, summary and endpoint prediction trace).
+
+## 2026-11-09 — A control pair: working baseline vs baseline + A
+
+A6000, code `80c9c22` (evaluation scripts `7c1ab92`), script
+`/dataHDD/dong/tmp/a_pair_20261108.sh`. Both arms resume policy62/WM562
+(iteration 1561), reset the critic with 100 pre-fit rounds, `real` + h8 + BC 0.25,
+1024 worlds, end at iteration 2421 (390 policy updates); A adds
+`--wm-terminal-gradient head --change-wm-terminal-gradient`. One training seed
+each. Outputs: A6000 `runs/a_pair_base_20261108`, `runs/a_pair_head_20261108`,
+`runs/a_pair_reference_20261108` (perturbed evaluation of the earlier run with
+the baseline configuration, `critic_abl_a250_20261106`) and
+`runs/a_pair_compare_20261109`.
+
+Perturbed robustness (BENCHMARK; 256 fixed cases, all finished), rates
+success / force limit / workspace:
+
+| Policy updates | Baseline | A | Reference run |
+|---|---|---|---|
+| 150 | 0.789 / 0.098 / 0.113 | 0.773 / 0.102 / 0.125 | 0.805 / 0.117 / 0.078 |
+| 200 | 0.793 / 0.098 / 0.109 | 0.742 / 0.094 / 0.164 | 0.805 / 0.129 / 0.066 |
+| 250 | **0.047 / 0.914 / 0.039** | 0.746 / 0.094 / 0.160 | 0.816 / 0.129 / 0.055 |
+| 300 | **0.055 / 0.898 / 0.047** | 0.777 / 0.102 / 0.121 | 0.828 / 0.109 / 0.062 |
+| last | 0.785 / 0.105 / 0.109 | 0.770 / 0.102 / 0.129 | 0.832 / 0.078 / 0.090 |
+
+Case-paired A − baseline at the final checkpoint (pre-stated main quantity):
+success −0.016 [−0.059, 0.031], force limit −0.004 [−0.027, 0.020], workspace
++0.020 [−0.020, 0.059], all inconclusive; peak material force −2.62 N
+[−3.10, −2.14]; on the 181 cases both complete, A needs 7.8 fewer steps
+[−9.5, −6.4] (baseline final mean 31.5 steps). At update 200 A has lower success
+(−0.051 [−0.090, −0.016]) and more workspace endings; at 250/300 A is far better
+because the baseline collapsed.
+
+Unperturbed frozen 8 episodes: baseline 8/8 at updates 150/200 (20 steps), **0/8
+at 250 and 300 (force-limit collision at step 1, peak about 70 N)**, 8/8 at the
+end in 31 steps (return 86.49); A 8/8 at every checkpoint in 20–21 steps
+(return 90.46–91.02, peak 32.0–33.3 N).
+
+Training episodes per 100 iterations (success / force-limit share):
+baseline 0.83–0.94 / 0.06–0.17 before iteration 1961, then 0.00–0.12 /
+0.88–1.00 for iterations 1961–2260, then 0.90–0.91 / 0.09–0.10; A 0.98–1.00 /
+0.00–0.02 throughout; reference run 0.86–0.93 / 0.07–0.14 until 2061, then
+0.99–1.00 / 0.00–0.01.
+
+Decision (pre-stated PLAN rule, main quantity): the final-checkpoint perturbed
+success difference includes zero, so **no clear benefit of A is detected** on
+that quantity; A is not advanced as a control method by the rule. Reported
+alongside (auxiliary, one seed per arm): the baseline arm collapsed into
+step-1 force-limit collisions for about 300 iterations and recovered slower;
+A had no collapse and 0–2% force-limit training episodes, while both runs with
+the baseline configuration (this arm and the reference run) had 6–17% before
+any collapse. Whether A prevents such collapses or this arm's collapse is
+run-to-run variation is not established with one seed per arm.
