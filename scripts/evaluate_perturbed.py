@@ -11,8 +11,9 @@ same for every controller (a policy whose raw output saturates beyond the bounds
 protection from the clipping). Runs recorded before this rule added the perturbation to the
 raw policy output; `compare` refuses to mix the two.
 
-`--method supermimic-batched` (default) runs SuperMimic-style policies in parallel worlds.
-Other methods use the controllers of `evaluate_benchmark.py` in one world, case after case;
+`--method supermimic-batched` (default) and `--method sac` (unified-environment SAC with
+--sac-python/--sliceit-root/--sac-config) run in parallel worlds. `supermimic`, `wm-mppi` and
+`constant-zero` use the controllers of `evaluate_benchmark.py` in one world, case after case;
 their method-specific arguments are passed through. Every case runs to its own end (success,
 force limit, workspace or the 500-step time limit). At the wall budget unfinished cases are
 listed, not dropped silently, and the process exits with status 3. The scene comes from
@@ -39,7 +40,8 @@ from cutting_world_model.task_heads import without_reward_settings
 
 PERTURBATION_POINT = 'executed_action'
 LEGACY_POINT = 'raw_policy_output'
-SINGLE_WORLD_METHODS = ('supermimic', 'sac', 'wm-mppi', 'constant-zero')
+BATCHED_METHODS = ('supermimic-batched', 'sac')
+SINGLE_WORLD_METHODS = ('supermimic', 'wm-mppi', 'constant-zero')
 BACKEND = ROOT / 'backends/mujoco'
 INCOMPLETE_EXIT = 3
 
@@ -105,6 +107,43 @@ def write_manifest(args, cases, extra):
         'perturbation_point': PERTURBATION_POINT, 'cases': cases, **extra}, indent=1, default=str) + '\n')
 
 
+class BatchedSAC:
+    """Unified-environment SAC (SliceIt tf2rl actor in its Python 3.8 process) for all worlds at
+    once. The actor reads only the current observation and acts deterministically, so batching is
+    equivalent to one world at a time up to physics float noise."""
+
+    def __init__(self, args, env):
+        from cutting_world_model.sac_gpu_bridge import SACPolicyProcess
+        self.process = SACPolicyProcess(python=args.sac_python, sliceit_root=args.sliceit_root,
+                                        config=args.sac_config, model_dir=args.checkpoint)
+        self.process.validate_metadata(env.metadata)
+        self.device = env.device
+
+    def __call__(self, frame, history):
+        action = self.process.act(frame['observation'].cpu().numpy(), deterministic=True)
+        return torch.as_tensor(action, device=self.device, dtype=torch.float32)
+
+    def close(self):
+        self.process.close()
+
+
+class BatchedWorldModelPolicy:
+    def __init__(self, args, metadata, device):
+        saved = torch.load(args.checkpoint, map_location='cpu', weights_only=False)
+        if without_reward_settings(saved['metadata']) != without_reward_settings(metadata):
+            raise ValueError('Checkpoint and physical task metadata differ')
+        self.policy = SliceItPolicy().to(device).eval()
+        self.policy.load_state_dict(saved['learner']['policy'])
+        self.history = self.policy.history
+        self.updates = saved['learner'].get('updates')
+
+    def __call__(self, frame, history):
+        return self.policy(history, frame['target_pose'].float())
+
+    def close(self):
+        pass
+
+
 def run_batched(args):
     started = time.monotonic()
     env, scene_info = make_env(args, args.worlds)
@@ -112,14 +151,16 @@ def run_batched(args):
     frame = env.current
     metadata = ControlStateSpec.metadata_from_frame(env.metadata, {k: v[0].cpu().numpy() for k, v in frame.items()})
     spec = ControlStateSpec(metadata).to(device)
-    saved = torch.load(args.checkpoint, map_location='cpu', weights_only=False)
-    if without_reward_settings(saved['metadata']) != without_reward_settings(metadata):
-        raise ValueError('Checkpoint and physical task metadata differ')
-    policy = SliceItPolicy().to(device).eval()
-    policy.load_state_dict(saved['learner']['policy'])
+    if args.method == 'sac':
+        actor = BatchedSAC(args, env)
+        identity = {'sac_actor': actor.process.metadata}
+        history_length = 1
+    else:
+        actor = BatchedWorldModelPolicy(args, metadata, device)
+        identity = {'policy_updates': actor.updates}
+        history_length = actor.history
     cases = make_cases(args.cases, args.seed_base)
-    write_manifest(args, cases, {'policy_updates': saved['learner'].get('updates'), 'worlds': args.worlds,
-                                 **scene_info})
+    write_manifest(args, cases, {**identity, 'worlds': args.worlds, **scene_info})
     queue = list(range(len(cases)))
     active = [None] * args.worlds
     rows, records = [], {}
@@ -134,14 +175,15 @@ def run_batched(args):
 
     for world in range(args.worlds):
         start(world)
-    history = frame['observation'].float()[None].repeat(policy.history, 1, 1)
+    history = frame['observation'].float()[None].repeat(history_length, 1, 1)
     stop_reason = None
-    with torch.no_grad():
+    try:
+      with torch.no_grad():
         while any(a is not None for a in active):
             if time.monotonic() - started > args.wall_seconds:
                 stop_reason = 'wall budget'
                 break
-            clean = policy(history, frame['target_pose'].float())
+            clean = actor(frame, history)
             noise = torch.stack([records[a].noise(records[a].steps) if a is not None else torch.zeros(6)
                                  for a in active]).to(device)
             before = frame['sim_time'][:, 0].double().clone()
@@ -160,6 +202,8 @@ def run_batched(args):
                 mask = ended.to(device)
                 frame = env.reset(mask)
                 history[:, mask] = frame['observation'][mask].float()[None]
+    finally:
+        actor.close()
     return finish(args, rows, cases, started, stop_reason)
 
 
@@ -245,10 +289,13 @@ def main():
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest='mode', required=True)
     r = sub.add_parser('run')
-    r.add_argument('--method', choices=('supermimic-batched',) + SINGLE_WORLD_METHODS,
+    r.add_argument('--method', choices=BATCHED_METHODS + SINGLE_WORLD_METHODS,
                    default='supermimic-batched')
     r.add_argument('--checkpoint', type=Path)
     r.add_argument('--contract', type=Path, default=ROOT / 'configs/public_prism/benchmark.json')
+    r.add_argument('--sac-python', type=Path)
+    r.add_argument('--sliceit-root', type=Path)
+    r.add_argument('--sac-config', type=Path)
     r.add_argument('--cases', type=int, default=256)
     r.add_argument('--seed-base', type=int, default=3_000_000)
     r.add_argument('--worlds', type=int, default=32)
@@ -263,13 +310,15 @@ def main():
         if extra:
             parser.error('unrecognized arguments: ' + ' '.join(extra))
         return compare(args)
-    if args.method == 'supermimic-batched':
+    if args.method in BATCHED_METHODS:
         if extra:
             parser.error('unrecognized arguments: ' + ' '.join(extra))
         if args.checkpoint is None:
             parser.error('--checkpoint is required')
+        if args.method == 'sac' and None in (args.sac_python, args.sliceit_root, args.sac_config):
+            parser.error('SAC requires --sac-python, --sliceit-root and --sac-config')
     args.output.mkdir(parents=True, exist_ok=False)
-    complete = run_batched(args) if args.method == 'supermimic-batched' else run_single(args, extra)
+    complete = run_batched(args) if args.method in BATCHED_METHODS else run_single(args, extra)
     if not complete:
         # Budget stop or unfinished cases: results are written but must not pass as complete.
         sys.exit(INCOMPLETE_EXIT)
