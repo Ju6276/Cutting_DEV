@@ -169,6 +169,68 @@ impulse, and online computation?
   shared with Codex. Evaluation-only items (MPPI, fixed control) fit on GPU7;
   SAC training needs A6000 time.
 
+
+### Evaluation plan for the main comparisons (draft for Codex/user review, 2026-11-09)
+
+Evaluation only; no training. Purpose: development evidence for the main
+comparisons on the fixed prism task. The paper's robustness claims are planned
+with material/geometry variation later; action perturbations are not a main-text
+claim.
+
+**Controllers keep their own interfaces.** Only the task, physics, action mapper
+and evaluation conditions are shared.
+
+| Controller | Checkpoint / source | Input | Output | Notes |
+|---|---|---|---|---|
+| WM + BPTT policy (method) | working baseline `critic_abl_a250_20261106` final (`runs/sm_ckpts/abl_a250_last.pt`); policy62 shown as the common start | ten 24-component observation frames + goal | 6-D raw linear output; 40-50% of components exceed [-1, 1] and are clipped by the environment | 1 ms/step |
+| SAC | unified-environment SAC, step 85000 (`runs/sac_frozen_ckpt85000_20261107`); SliceIt tf2rl Wave actor through the Python 3.8 process bridge, deterministic | current 24-component observation | tanh, inside [-1, 1] | one environment, lr 0.01; collapsed at 90000 (RESULTS 2026-11-07); stand-in until the parallel SAC retrain |
+| Same-WM MPPI | the working baseline's own WM (`--paired-checkpoint`), H16 / 512 / 4 / temperature 0.1 | WM state (joint, force and control histories) | sampled in [-1, 1] | about 0.5 s/step |
+| Fixed control | constant-zero action (fixed compliance gains); prescribed reference trajectory | none | constant / knife reference | the reference bypasses the action mapper (reference branch) |
+
+The environment clips every executed action to the task bounds [-1, 1]
+(`GPUEnvironment.step`); this is part of the task, not of the evaluation.
+
+**Condition 1 — unperturbed frozen task.** Policy: 1 deterministic episode
+(earlier 8-episode runs were identical); SAC 85k: existing 8 episodes (8/8,
+18 steps, 49.6 N); MPPI: planner seeds 0/1/2 with the paired critic as terminal
+value (fixed before the run) and without (reference), done 2026-11-09; fixed
+control: 1 episode each.
+
+**Condition 2 — 256 predefined perturbation cases** (BENCHMARK, robustness under
+action perturbations). Where the perturbation is added — decision for review:
+- *Rule used now (`580597b`): executed action.* Clip the controller's action,
+  add the case perturbation, clip again. The disturbance acts on what the robot
+  executes, independent of each controller's internal output scale.
+- *Alternative: each controller's own output.* Add the perturbation to the raw
+  output, then the environment clips (the A-pair runs used this). For SAC and
+  MPPI both rules give the same executed action (their outputs are already in
+  bounds). They differ only for the WM policy: its saturated outputs (e.g. 1.6)
+  absorb perturbations toward the interior, so this rule favours it.
+- Runs under the two rules are never compared with each other (`compare` checks
+  the recorded rule).
+
+Applied to: policy62, working baseline (parallel worlds, about 10 min each) and
+SAC 85k (one world, about 1-2 h). Not applied to: MPPI (0.5 s/step x 256 cases
+x 30-110 steps is many hours, and 4 of 6 unperturbed seeds already end at the
+force limit), constant-zero (at least 346 steps per episode, about 10 h in one
+world), reference trajectory (no action interface).
+
+**Metrics.** Outcome rates (success, force limit, workspace, time limit); steps;
+material peak and mean force (mean over actual simulated time); impulse; sensor
+safety margin; for unperturbed runs also lateral and height goal error; planning
+or inference time. Comparisons: case-paired bootstrap of controller minus
+working baseline over the 256 cases; intervals describe these frozen controllers
+on this perturbation distribution, not training-seed variation.
+
+**Queue on GPU7** (`/dataHDD/dong/tmp/eval_fixed_p62_20261109.sh`, then
+`eval_perturbed_main_20261109.sh`): reference and constant-zero (unperturbed),
+policy62, working baseline, SAC smoke (2 cases), SAC 256 cases. About 2 h.
+
+**Questions for review.** (a) Executed-action rule vs each controller's own
+output. (b) Is SAC 85k (one environment, lr 0.01) acceptable as the model-free
+stand-in until the parallel retrain? (c) Is a perturbed MPPI evaluation needed,
+given its cost and the unperturbed onset failures?
+
 ### WM–MPPI configuration selection completed (2026-11-08)
 
 Recorded development planner: frozen WM563, H16, 512 samples, four refinements, temperature

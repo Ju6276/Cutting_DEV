@@ -88,16 +88,21 @@ Results of different entries are never pooled.
 
 An evaluation condition, not part of the task. `scripts/evaluate_perturbed.py run
 --checkpoint CKPT --cases 256 --seed-base 3000000 --output DIR` executes a frozen
-policy on 256 cases fixed before any policy runs. Each case adds `sigma * z` to the
-policy's six-dimensional action from its first perturbed step on, before the
-action mapper clips to the bounds: sigma in {0.3, 0.6, 1.0}, first perturbed step
+controller on 256 cases fixed before any controller runs. Each case adds
+`sigma * z` to the executed six-dimensional action from its first perturbed step
+on: the controller's action is clipped to the bounds, the perturbation is added,
+and the result is clipped again (rule `executed_action`, since `580597b`; earlier
+runs, including the A pair, added it to the raw policy output before clipping and
+are not compared with the new rule). sigma in {0.3, 0.6, 1.0}, first perturbed step
 in {0, 5, 10}, `z` drawn per step (i.i.d.) or once per episode (persistent
 direction), each case with its own seeds (`cutting_world_model/perturbed_eval.py`).
 Every case runs to its own end; success, force limit, workspace and time limit are
 all kept. Mean material force divides the summed impulse by the actual simulated
-time (a force-limit stop ends inside a control step). `evaluate_perturbed.py
-compare --a DIR_A --b DIR_B --output FILE` refuses runs with unfinished cases or
-different case configurations and reports case-paired differences with 95%
+time (a force-limit stop ends inside a control step). `--method sac|wm-mppi|supermimic|constant-zero`
+runs the `evaluate_benchmark.py` controllers in one world, passing their own
+arguments through. `evaluate_perturbed.py compare --a DIR_A --b DIR_B --output
+FILE` refuses runs with unfinished cases, different case configurations or
+different perturbation rules and reports case-paired differences with 95%
 bootstrap intervals over cases, plus steps and force on the cases both complete
 successfully. These intervals describe two trained policies on this perturbation
 distribution, not training-seed variation. Report results as robustness under
