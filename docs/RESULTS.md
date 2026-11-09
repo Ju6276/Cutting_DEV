@@ -1805,3 +1805,48 @@ failure seen for every WM in the reliability check); the critic's out-of-range
 values on imagined states and near-degenerate weighting add to it. With WM562
 the same planner completed the task (109 steps, 2026-11-09 pairing entry), so
 the planner outcome depends on the WM checkpoint.
+
+## 2026-11-09 — Main-comparison evaluations: fixed control and perturbed robustness
+
+GPU7; scripts `/dataHDD/dong/tmp/eval_fixed_p62_20261109.sh` (code `def9cfe` +
+the perturbed-evaluation changes up to `d13417c`) and
+`/dataHDD/dong/tmp/eval_perturbed_main_20261109.sh` (code `62feee8`); outputs
+`runs/eval_fixed_p62_20261109`, `runs/eval_perturbed_main_20261109`,
+`runs/main_compare_20261109`. Perturbation rule `executed_action`, contract
+`public-prism-ur5e-v1`, 256 cases, none unfinished. SAC is the
+unified-environment SAC 85k (one environment, lr 0.01; later collapse), run in
+32 parallel worlds (deterministic, current-observation actor). Intervals are over
+cases for these frozen controllers, not over training seeds.
+
+Unperturbed fixed control: prescribed reference trajectory success in 40 steps
+(2.0 s), return 80.29, material peak/mean 9.97/3.92 N, impulse 7.83 N s;
+constant-zero action did not reach the goal within the 840 s wall budget
+(323 steps, 16.15 s simulated, return −137.52, peak 5.83 N, 281/304 springs).
+
+Perturbed robustness (success / force limit / workspace; mean material peak;
+mean impulse; mean safety margin; mean steps of successes):
+
+| Controller | Rates | Peak N | Impulse N s | Safety margin | Steps |
+|---|---|---:|---:|---:|---:|
+| policy62 (common start) | 0.746 / 0.086 / 0.168 | 32.9 | 7.05 | 0.63 | 23.1 |
+| Working baseline (WM + BPTT) | 0.832 / 0.078 / 0.090 | 29.7 | 7.07 | 0.57 | 20.9 |
+| Unified-environment SAC 85k | 0.891 / 0.062 / 0.047 | 45.4 | 6.90 | 0.89 | 19.5 |
+
+Case-paired differences (working baseline minus the other):
+- vs policy62: success +0.086 [0.047, 0.125], workspace −0.078
+  [−0.113, −0.047], force limit inconclusive; peak −3.24 N [−3.61, −2.86];
+  impulse inconclusive. On the 188 cases both complete: 1.7 fewer steps, peak
+  −3.97 N, impulse −0.10 N s (all intervals exclude zero).
+- vs SAC 85k: success −0.059 [−0.105, −0.012], workspace +0.043 [0.020, 0.070],
+  force limit inconclusive; peak −15.7 N [−17.3, −14.0]; impulse inconclusive.
+  On the 202 cases both complete: 1.4 more steps [0.8, 2.5], peak −19.7 N
+  [−20.9, −18.5].
+
+Measured: continuing training through the WM from policy62 made the frozen
+policy more robust to command perturbations (more successes, fewer workspace
+endings, lower peak force). The SAC 85k checkpoint succeeds in more perturbed
+cases and finishes slightly faster, at a much higher peak material force (mean
+45 vs 30 N) and sensor safety margin (0.89 vs 0.57, i.e. closer to the limit).
+Training budget, input history (one frame vs ten frames plus goal) and training
+stability differ, so this is a comparison of these checkpoints, not of the
+algorithms. MPPI: perturbed evaluation not done (deferred for compute budget).
