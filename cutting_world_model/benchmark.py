@@ -8,6 +8,7 @@ import numpy as np
 import torch
 
 from .task_heads import reward_settings, without_reward_settings
+from .checkpoint import checkpoint_identity
 
 
 def write_json(path, data):
@@ -169,6 +170,7 @@ class WorldModelPolicy:
         self.weights = saved['learner']['policy']
         self.policy.load_state_dict(self.weights)
         self.updates = saved['learner']['updates']
+        self.checkpoint_identity = checkpoint_identity(saved)
         self.reset(env.current)
 
     def reset(self, frame):

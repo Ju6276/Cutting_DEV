@@ -1569,7 +1569,9 @@ in these branches (the onset-spike failure of Steps 1/3 is separate).
 ## 2026-11-08 — Frozen WM + upstream MPPI integration
 
 Code `7880446` (run manifest: `2293bc6` + the WM-precision reset fix);
-GPU7 RTX 4090, frozen policy62/WM562 checkpoint after the common critic pre-fit.
+GPU7 RTX 4090, frozen policy62/WM563 checkpoint after 100 real-critic pre-fit
+rounds (iteration 1603). The historical filename below says WM562; checkpoint
+metadata and tensors identify WM563. Original policy62/WM562 is iteration 1561.
 Command: `.venv/bin/python scripts/evaluate_benchmark.py --method wm-mppi --checkpoint
 runs/mpc_assets/policy62_wm562.pt --episodes 1 --wall-seconds 600 --seed 0
 --mpc-horizon 8 --mpc-samples 512 --mpc-refinements 1 --mpc-temperature 1
@@ -1595,7 +1597,7 @@ terminal critic (METHOD).
 
 ## 2026-11-08 — WM–MPPI completes the fixed task after configuration selection
 
-Code `060ebca`, GPU7 RTX 4090, frozen WM562 and the same free-prism benchmark.
+Code `060ebca`, GPU7 RTX 4090, frozen WM563 and the same free-prism benchmark.
 Seed 0 ran the pending code at `1eb0c1c` + dirty; seeds 1/2 ran clean `060ebca`.
 Command: `.venv/bin/python scripts/evaluate_benchmark.py --method wm-mppi
 --checkpoint runs/mpc_assets/policy62_wm562.pt --episodes 1 --wall-seconds 600
@@ -1621,8 +1623,10 @@ temperature 1/0.1/0.03, plus H8 with the frozen critic at those temperatures;
 all used 512 samples, four refinements and seed 0. H16/0.1 without the critic
 was the first physical development candidate; seeds 1/2 then repeated its fixed
 configuration. No reward, material, force limit or task threshold changed.
-The frozen critic was rejected: some candidate terminal returns were 221–283,
-above this task's attainable return upper bound of 100. Its values were neither
+The frozen real-target critic (reset at policy update 62, 100 pre-fit rounds)
+was rejected: some candidate terminal returns were 221–283, above this task's
+attainable return upper bound of 100. These were imagined candidate states.
+The old imagined-target critic MAE does not describe this checkpoint. Its values were neither
 clipped nor used in the executed controller. Outputs: `probe.json`, `summary.json`
 and the three episode/report/planning files under `runs/mpc_selection_20261108`.
 
@@ -1631,7 +1635,7 @@ The planner configuration is fixed for the next common algorithm comparison.
 
 ## 2026-11-08 — WM–MPPI physical episode and UR5e video
 
-Source: `601c074` + recording changes (dirty); frozen WM562, seed 0, H16,
+Source: `601c074` + recording changes (dirty); frozen WM563, seed 0, H16,
 512 samples, four refinements, temperature 0.1, terminal value disabled.
 Command: `scripts/record_episode.py --method wm-mppi` with the flags in
 RUNNING, output `runs/videos_20261108/wm_mppi` on GPU7.

@@ -4,11 +4,13 @@ import importlib.metadata
 import json
 import math
 import time
+from pathlib import Path
 
 import torch
 
 from .benchmark import copy_frame, synchronize
 from .control_state import ControlStateSpec
+from .checkpoint import checkpoint_identity, check_checkpoint_pair
 from .world_model import CuttingWorldModel
 from .policy import SliceItCritic
 from .task_heads import pose_error
@@ -106,7 +108,7 @@ class ModelRollout:
 
 
 class MPPIPolicy:
-    def __init__(self, checkpoint, env, config):
+    def __init__(self, checkpoint, env, config, paired_checkpoint=None):
         from pytorch_mppi import MPPI
 
         distribution = importlib.metadata.distribution('pytorch-mppi')
@@ -117,6 +119,15 @@ class MPPIPolicy:
         if env.worlds != 1:
             raise ValueError('MPPI benchmark requires one physical world')
         saved = torch.load(checkpoint, map_location='cpu', weights_only=False)
+        self.checkpoint_identity = checkpoint_identity(saved)
+        paired_manifest = None
+        if paired_checkpoint is not None:
+            paired = torch.load(paired_checkpoint, map_location='cpu', weights_only=False)
+            groups = check_checkpoint_pair(saved, paired, config.terminal_value == 'critic')
+            paired_manifest = {
+                'path': str(Path(paired_checkpoint).resolve()),
+                'identity': checkpoint_identity(paired), 'equal_weight_groups': groups}
+            del paired
         metadata = ControlStateSpec.metadata_from_frame(env.metadata, copy_frame(env.current))
         if metadata != saved['metadata']:
             raise ValueError('WM checkpoint and benchmark task metadata differ')
@@ -151,10 +162,16 @@ class MPPIPolicy:
             **asdict(config), 'implementation': 'UM-ARM-Lab/pytorch_mppi',
             'package_version': distribution.version,
             'upstream_revision': revision,
-            'wm_policy_updates': saved['learner']['updates'],
+            'policy_updates': self.checkpoint_identity['policy_updates'],
+            'wm_updates': self.checkpoint_identity['wm_updates'],
+            'paired_checkpoint': paired_manifest,
             'terminal_weighting': 'task_absorption_and_learned_survival',
             'initial_plan': 'action_bounds_midpoint', 'action_coordinates': 'normalized_minus1_plus1',
-            'information': list(self.spec.base_fields),
+            'information': {
+                'state_fields': list(self.spec.base_fields),
+                'history_frames': self.spec.history_length,
+                'dynamics_features': self.spec.dynamics_dim,
+            },
         }
 
     def reset(self, frame):

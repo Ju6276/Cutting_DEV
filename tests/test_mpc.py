@@ -54,7 +54,12 @@ def test_mppi_uses_six_task_bounds_physical_history_and_frozen_checkpoint(tmp_pa
     path = tmp_path / 'checkpoint.pt'
     critic = SliceItCritic(model.spec.state_dim)
     torch.save({'metadata': metadata, 'learner': {'world_model': model.state_dict(),
-               'critic': critic.state_dict(), 'updates': 62}}, path)
+               'policy': {'weight': torch.ones(1)},
+               'critic': critic.state_dict(), 'updates': 62,
+               'training_stage': {'wm_updates': 562}}}, path)
+    paired_path = tmp_path / 'paired.pt'
+    saved = torch.load(path, weights_only=False)
+    torch.save(saved, paired_path)
     monkeypatch.setattr('cutting_world_model.mpc.CuttingWorldModel',
                         lambda metadata: CuttingWorldModel(metadata, hidden=(16, 16)))
     current = {key: torch.as_tensor(np.asarray(value)[None], dtype=torch.float32)
@@ -62,8 +67,15 @@ def test_mppi_uses_six_task_bounds_physical_history_and_frozen_checkpoint(tmp_pa
     current['target_pose'] = current['previous_ee_pose'].clone()
     current['observation'] = current['observation'].double()
     env = SimpleNamespace(worlds=1, metadata=metadata, current=current, device=torch.device('cpu'))
-    policy = MPPIPolicy(path, env, MPPIConfig(horizon=3, samples=32, refinements=2,
-                                            terminal_value=terminal_value))
+    config = MPPIConfig(horizon=3, samples=32, refinements=2, terminal_value=terminal_value)
+    policy = MPPIPolicy(path, env, config, paired_path)
+    assert policy.manifest['wm_updates'] == 562
+    assert policy.manifest['policy_updates'] == 62
+    assert policy.manifest['paired_checkpoint']['equal_weight_groups'][:2] == ['world_model', 'policy']
+    saved['learner']['world_model']['dynamics.mlp.net.0.weight'][0, 0] += .001
+    torch.save(saved, paired_path)
+    with pytest.raises(ValueError, match='world_model differs'):
+        MPPIPolicy(path, env, config, paired_path)
     policy.reset(current)
     assert policy.state.dtype == next(model.parameters()).dtype
     low, high = policy.spec.action_low, policy.spec.action_high

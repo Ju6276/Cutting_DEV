@@ -186,7 +186,7 @@ planning call in `planning.json`. The video run uses the selected H16 planner:
 
 ```bash
 .venv/bin/python scripts/record_episode.py --method wm-mppi \
-  --checkpoint runs/mpc_assets/policy62_wm562.pt --label wm_mppi \
+  --checkpoint runs/mpc_assets/policy62_wm563_real_prefit100.pt --label wm_mppi \
   --seed 0 --wall-seconds 600 --mpc-horizon 16 --mpc-samples 512 \
   --mpc-refinements 4 --mpc-temperature 0.1 --mpc-noise-std 0.5 \
   --mpc-discount 0.99 --mpc-terminal-value none \

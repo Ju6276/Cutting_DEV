@@ -135,7 +135,7 @@ alone does not create a new blocking stage.
 
 ### WM–MPPI configuration selection completed (2026-11-08)
 
-Current planner: frozen WM562, H16, 512 samples, four refinements, temperature
+Recorded development planner: frozen WM563, H16, 512 samples, four refinements, temperature
 0.1, noise std 0.5, discount 0.99, no terminal critic. The physics, task reward,
 action bounds and force limits retain the benchmark settings.
 
@@ -177,11 +177,11 @@ PAPER specifies the purpose of these comparisons; each needs a concrete run plan
 2. Same-WM MPC requirements (review 2026-11-09): pair each planner run with the
    WM and critic of the policy it is compared with (WM562 pairs with policy62;
    the working baseline and A use their own final WM/critic); fix the terminal
-   value option once for that comparison with the paired critic (the rejected
-   policy62 critic is the imagined-target one with value MAE 153; the working
-   baseline's critic uses `real` targets); state the information difference
-   (the planner uses the full physical history state, the policy its
-   24-component observation history); report planning time per control step
+   value option once for that comparison with the paired critic. The rejected
+   MPPI critic was real-target with 100 pre-fit rounds, evaluated on imagined
+   candidates; it was not the original imagined-target critic. State the
+   information difference (the WM uses joint/force/control histories, the policy
+   ten frames of 24-component observations plus its goal); report planning time per control step
    (0.55-0.64 s against the 50 ms period) and the lateral goal error for every
    method. Compare it with SAC, same-WM MPC and fixed compliance control in the unified
    task. Match information and action access; account for warm-start data and
@@ -212,7 +212,7 @@ prerequisite for the same-WM MPC comparison.
 
 ### WM–MPPI episode video completed (2026-11-08)
 
-The seed-0 frozen WM562 H16 episode reached the task goal in 43 steps / 2.15 s,
+The seed-0 frozen WM563 H16 episode reached the task goal in 43 steps / 2.15 s,
 with material peak 13.25 N. The recorder shares the benchmark control loop;
 video uses original UR5e visual meshes, the DiSECt surface including virtual cut
 vertices, and measured force traces. Start/contact/end frames and raw-data
@@ -230,8 +230,27 @@ in place while running. GPU9 is retired from the working plan.
 
 After consolidation, the next MPC question is task feasibility across different
 objects/materials or cutting conditions, with additional interaction data where
-the WM lacks coverage. The current WM562/MPPI result establishes completion of
+the WM lacks coverage. The recorded WM563/MPPI result establishes completion of
 the existing prism goal-pose task. It does not supply apple or multi-material
 training coverage. Choose the next task and dataset scope before launching new
 collection or fitting. A broad SAC/policy/reference comparison is not the next
 GPU7 job. No new MPC, collection or training batch is started during cleanup.
+
+### Checkpoint-pair repair — approved debug (2026-11-09)
+
+- Question: does the selected MPPI controller finish with the original WM562
+  paired with policy62, and does the evaluator reject mismatched weights?
+- Cause: the file named policy62_wm562.pt contains WM563 and a real-target
+  critic after 100 pre-fit rounds. Policy weights remain policy62. Read identity
+  from checkpoint metadata and compare actual tensors for paired evaluations.
+- Change: evaluation metadata and an optional exact checkpoint-pair check.
+  Keep physics, rewards, thresholds and H16/512/four-refinement/0.1 settings.
+  Terminal critic remains disabled.
+- Execution: GPU7, one frozen MPPI episode from original policy62/WM562
+  (600 s budget), then one policy62 episode (180 s); seed 0. Progress and
+  terminal report stay under runs/mpc_pair_repair_20261109. No training.
+- Decision: wrong WM/critic labeling must be corrected; a mismatched pair must
+  fail before control execution. Report goal/force/workspace outcome, steps,
+  material force, released springs, endpoint error and planning cost of the
+  paired episodes. A failed physical task is retained and its trajectory
+  inspected without changing task definitions or starting a parameter sweep.

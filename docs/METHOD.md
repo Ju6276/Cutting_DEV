@@ -521,8 +521,11 @@ optimizer (revision in SOURCES) to `CuttingWorldModel.predict`. The optimizer
 samples normalized six-dimensional actions in [-1, 1], mapped affinely to the
 task's original bounds. Candidate rollouts use the checkpoint's motion/force
 history, goal, analytic reward and task predicates. No particle or damage fields
-enter the planner. Measured robot joints and the full sensor history initialize
-the WM; this is more information than the policy's 24-component observation.
+enter the planner. The WM dynamics receives ten frames of 48 control features
+(joints, wrench samples, interval peak wrench, motion command and previous action).
+The rollout additionally carries derived pose/velocity/acceleration, observation
+and success-counter history. The policy receives ten frames of 24 observations
+and the target pose. These are different information interfaces.
 
 The accumulated task cost is the negative discounted survival-weighted reward.
 Hard task endings absorb the rollout, keeping the terminal transition's reward

@@ -57,6 +57,9 @@ def argument_parser(default_method=None):
     parser.add_argument('--backend-root', type=Path, default=ROOT / 'backends/mujoco')
     parser.add_argument('--contract', type=Path, default=ROOT / 'configs/public_prism/benchmark.json')
     parser.add_argument('--checkpoint', type=Path)
+    parser.add_argument('--paired-checkpoint', type=Path,
+                        help='For wm-mppi: require exact WM/policy weights from this policy '
+                             'checkpoint; also require the same critic when enabled')
     parser.add_argument('--episodes', type=int, default=1)
     parser.add_argument('--wall-seconds', type=float, default=600.)
     parser.add_argument('--seed', type=int, default=0)
@@ -78,6 +81,9 @@ def argument_parser(default_method=None):
 
 
 def make_controller(args, env, manifest):
+    paired_checkpoint = getattr(args, 'paired_checkpoint', None)
+    if paired_checkpoint is not None and args.method != 'wm-mppi':
+        raise ValueError('--paired-checkpoint applies to --method wm-mppi')
     if args.method == 'supermimic':
         policy = WorldModelPolicy(args.checkpoint, env)
         manifest['policy_updates'] = policy.updates
@@ -87,7 +93,7 @@ def make_controller(args, env, manifest):
         config = MPPIConfig(args.mpc_horizon, args.mpc_samples, args.mpc_refinements,
                             args.mpc_temperature, args.mpc_noise_std, args.mpc_discount,
                             args.mpc_terminal_value)
-        policy = MPPIPolicy(args.checkpoint, env, config)
+        policy = MPPIPolicy(args.checkpoint, env, config, paired_checkpoint)
         manifest['planner'] = policy.manifest
     elif args.method == 'sac':
         policy = SACPolicy(args, env)
@@ -105,6 +111,8 @@ def make_controller(args, env, manifest):
         policy = ReferencePolicy()
     else:
         policy = ConstantPolicy()
+    if hasattr(policy, 'checkpoint_identity'):
+        manifest['checkpoint_identity'] = policy.checkpoint_identity
     return policy
 
 

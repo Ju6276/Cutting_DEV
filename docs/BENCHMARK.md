@@ -112,7 +112,8 @@ Install the optional planner into the prepared GPU environment:
 ```bash
 .venv/bin/python -m pip install -r requirements-mpc.txt
 .venv/bin/python scripts/evaluate_benchmark.py --method wm-mppi \
-  --checkpoint RUN/training/last.pt --episodes 1 --wall-seconds 600 \
+  --checkpoint RUN/training/last.pt --paired-checkpoint POLICY_RUN/training/last.pt \
+  --episodes 1 --wall-seconds 600 \
   --mpc-horizon 16 --mpc-samples 512 --mpc-refinements 4 \
   --mpc-temperature 0.1 --mpc-noise-std 0.5 --mpc-discount 0.99 \
   --mpc-terminal-value none \
@@ -120,7 +121,12 @@ Install the optional planner into the prepared GPU environment:
 ```
 
 This controller loads the frozen WM from the checkpoint, with zero learning
-updates. It chooses the same six-dimensional task action by online planning;
+updates. For a same-WM comparison, `--paired-checkpoint` checks exact WM and
+policy tensors against the policy checkpoint, plus critic tensors if used.
+A mismatch stops the evaluation. `manifest.json.checkpoint_identity` records
+the loaded WM/policy update counts, critic target/pre-fit and source commit,
+independently of the filename. Omit the pairing option for standalone planning.
+It chooses the same six-dimensional task action by online planning;
 one physical world and many WM candidates are distinct axes. The command passes
 the development-selected planner settings explicitly: H16 (0.8 s), 512 candidates,
 four refinements, temperature 0.1 and normalized noise standard deviation 0.5.
