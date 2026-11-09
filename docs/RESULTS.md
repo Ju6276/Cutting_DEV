@@ -1764,3 +1764,41 @@ A had no collapse and 0–2% force-limit training episodes, while both runs with
 the baseline configuration (this arm and the reference run) had 6–17% before
 any collapse. Whether A prevents such collapses or this arm's collapse is
 run-to-run variation is not established with one seed per arm.
+
+## 2026-11-09 — Same-WM comparison with the working baseline: policy vs WM–MPPI
+
+GPU7, code `3f65d23`, script `/dataHDD/dong/tmp/mpc_baseline_pair_20261109.sh`,
+outputs `runs/mpc_baseline_pair_20261109`. Checkpoint: the working baseline
+`critic_abl_a250_20261106` final (`runs/sm_ckpts/abl_a250_last.pt`, sha256 equal
+to the A6000 original). MPPI uses this checkpoint's own WM;
+`--paired-checkpoint` verified equal WM/policy tensors (and critic when used).
+Planner as selected before (H16, 512 samples, 4 refinements, temperature 0.1,
+noise 0.5, gamma 0.99). Terminal value: the paired `real`-target critic (main,
+fixed before the run) and none (reference). One episode per planner seed.
+
+| Controller | Outcome | Steps | Return | Material peak / mean N | Impulse N s | Planning s/step |
+|---|---|---:|---:|---|---:|---:|
+| Policy (working baseline) | success | 19 | 91.37 | 26.10 / 7.58 | 7.21 | (inference) |
+| MPPI + critic, seed 0 | success | 33 | 84.15 | 18.68 / 5.02 | 8.29 | 0.503 |
+| MPPI + critic, seed 1 | force limit | 2 | −101.06 | 54.49 / 9.35 | 0.80 | 0.520 |
+| MPPI + critic, seed 2 | force limit | 2 | −101.19 | 51.00 / 18.46 | 1.77 | 0.520 |
+| MPPI, no critic, seed 0 | force limit | 1 | −100.60 | 66.11 / 16.82 | 0.67 | 0.527 |
+| MPPI, no critic, seed 1 | success | 37 | 82.48 | 39.73 / 4.66 | 8.62 | 0.491 |
+| MPPI, no critic, seed 2 | force limit | 1 | −100.60 | 55.94 / 17.33 | 0.83 | 0.532 |
+
+Planner logs at the first control step (predictions for the returned plan):
+predicted maximum sensor-limit ratio 0.71–0.99 (below 1) in every run, while
+4 of 6 runs ended by the force limit at step 1–2 with material peaks of
+51–66 N. With the critic, the predicted terminal return was 222.6–229.0, above
+this task's attainable return of 100 (as for the WM563 critic before); the
+effective number of candidates was 1.0–2.0.
+
+Measured: with the working baseline's WM, MPPI completes the task in 2 of 6
+seeds (33 and 37 steps) and ends by the force limit at contact onset in 4; the
+policy trained through the same WM completes it in 19 steps without a limit
+event. Inferred, not tested: the planner selects actions whose predicted force
+lies just below the limit, where the WM under-predicts the onset spike (the
+failure seen for every WM in the reliability check); the critic's out-of-range
+values on imagined states and near-degenerate weighting add to it. With WM562
+the same planner completed the task (109 steps, 2026-11-09 pairing entry), so
+the planner outcome depends on the WM checkpoint.
