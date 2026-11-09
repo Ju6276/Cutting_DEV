@@ -12,19 +12,22 @@ policy improvements carry over to physical execution. The paper follows one
 chain: **robot/material interaction data → motion/force model and task events →
 BPTT policy optimization → executed cutting performance**.
 
-Current stage: test whether the implemented terminal-supervision intervention A
-improves actual control, on the existing single-cut task. Position prediction
-already improved in the fixed-data comparison. This control comparison is the
-next missing link. Multi-cut tasks, loss reweighting B, feature rescaling C and
-new contact-model architectures are outside this stage.
+Current stage (2026-11-09): the A decision is closed (RESULTS, "A control
+pair"): no clear benefit on the pre-stated main quantity, so A is not advanced
+as a control method; its prediction improvement and the observed training
+stability difference go to the analysis. No extra seed pair (user decision).
+Next: the main comparisons with the working baseline (proposal below).
+Multi-cut tasks, loss reweighting B, feature rescaling C and new contact-model
+architectures remain outside this stage.
 
 ## Decisions in force
 
 - Benchmark: free-bottom `public-prism-ur5e-v1`. Fixed-bottom results remain in
   RESULTS; they do not change the main task.
-- Current working baseline: `real` critic + h8 + BC 0.25, continued from
-  policy62/WM562 with a fresh critic and 100 pre-fit rounds. Candidate: the same
-  configuration with `--wm-terminal-gradient head` (A).
+- Method for the main comparisons: the working baseline, `real` critic + h8 +
+  BC 0.25, continued from policy62/WM562 with a fresh critic and 100 pre-fit
+  rounds. A (`--wm-terminal-gradient head`) is reported as analysis, not as the
+  method (decision 2026-11-09).
 - Source, working baseline, V5, Gazebo SAC and unified-environment SAC keep their
   separate BENCHMARK names. Task, reward, material, action bounds and force-limit
   definitions stay fixed.
@@ -48,7 +51,12 @@ new contact-model architectures are outside this stage.
 These results motivate the method experiment in PAPER. They are not a queue of
 local metrics that must all improve before control can be evaluated.
 
-## Next experiment — baseline vs baseline + A (running since 2026-11-08 21:43)
+## Completed — baseline vs baseline + A (2026-11-08 to 2026-11-09)
+
+Outcome in RESULTS (2026-11-09): final-checkpoint perturbed success
+A − baseline −0.016 [−0.059, 0.031], no clear benefit; baseline arm
+collapsed into step-1 force-limit collisions at updates 250/300, A did not.
+The protocol below is kept as the record of what was pre-stated.
 
 This draft replaces the next-stage draft at `5678c97`. No new run is authorized
 by this document update.
@@ -132,6 +140,34 @@ arm rerun within a separately recorded budget. Another imperfect local metric
 alone does not create a new blocking stage.
 
 ## Paper evidence after this decision
+
+### Next stage — main comparisons (proposal, awaiting approval)
+
+Question: with the same task, observations/actions and evaluation, how does
+WM + BPTT policy optimization compare with planning on the same WM, model-free
+SAC and fixed control, in completion, force-limit risk, time, peak force and
+impulse, and online computation?
+
+- **WM + BPTT (method).** Working-baseline checkpoint: `critic_abl_a250_20261106`
+  final (named as the working baseline in README before the A pair). The A
+  pair's baseline arm (same configuration, collapsed at updates 250/300) is
+  reported as a repeat with that variation, not replaced by the better run.
+- **Same-WM MPPI.** Paired with that checkpoint (`--paired-checkpoint`), planner
+  H16 / 512 samples / 4 refinements / temperature 0.1 / noise 0.5 / gamma 0.99.
+  Terminal value: the paired `real`-target critic, fixed once for this comparison
+  because the actor's objective uses it. Planning time reported per step.
+- **SAC.** Unified environment, parallel worlds (stage P1), learning rate 3e-4,
+  environment-transition budget matched to the method's total physical
+  transitions including the run that produced policy62/WM562; needs its own run
+  plan with the compute budget.
+- **Fixed control.** Constant-zero action (fixed compliance gains) and the
+  prescribed reference trajectory, labeled separately (it bypasses the action
+  mapper).
+- **Evaluation.** Unperturbed frozen task and the 256-case perturbation
+  robustness of BENCHMARK for every controller, plus lateral goal error.
+- **Compute.** A6000 is occupied by another user's jobs (2026-11-09); GPU7 is
+  shared with Codex. Evaluation-only items (MPPI, fixed control) fit on GPU7;
+  SAC training needs A6000 time.
 
 ### WM–MPPI configuration selection completed (2026-11-08)
 
