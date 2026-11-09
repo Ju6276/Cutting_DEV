@@ -15,7 +15,8 @@ raw policy output; `compare` refuses to mix the two.
 Other methods use the controllers of `evaluate_benchmark.py` in one world, case after case;
 their method-specific arguments are passed through. Every case runs to its own end (success,
 force limit, workspace or the 500-step time limit). At the wall budget unfinished cases are
-listed, not dropped silently.
+listed, not dropped silently, and the process exits with status 3. The scene comes from
+`--contract` and is checked against it, as in `evaluate_benchmark.py`.
 """
 import argparse
 import importlib.util
@@ -28,6 +29,7 @@ import torch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / 'backends/mujoco')]
+from cutting_world_model.benchmark import benchmark_scene, check_contract, physical_contract
 from cutting_world_model.control_state import ControlStateSpec
 from cutting_world_model.perturbed_eval import (CaseNoise, compare_cases, make_cases, outcome,
                                                 summarize_cases)
@@ -38,6 +40,18 @@ from cutting_world_model.task_heads import without_reward_settings
 PERTURBATION_POINT = 'executed_action'
 LEGACY_POINT = 'raw_policy_output'
 SINGLE_WORLD_METHODS = ('supermimic', 'sac', 'wm-mppi', 'constant-zero')
+BACKEND = ROOT / 'backends/mujoco'
+INCOMPLETE_EXIT = 3
+
+
+def make_env(args, worlds):
+    """Scene selected by the benchmark contract and checked against it, as in evaluate_benchmark."""
+    from cutting_world_model.gpu_env import GPUEnvironment
+    contract = json.loads(args.contract.read_text())
+    scene = benchmark_scene(contract)
+    env = GPUEnvironment(BACKEND, worlds=worlds, scene=scene)
+    check_contract(contract, physical_contract(BACKEND, env))
+    return env, {'contract': contract.get('name'), 'contract_path': str(args.contract), 'scene': str(scene)}
 
 
 def perturbed(spec, action, noise):
@@ -65,7 +79,8 @@ class CaseRecord:
             bool(info['success'][world]), bool(info['collision'][world]),
             bool(info['outside'][world]), bool(trunc[world])),
             'steps': self.steps, 'return': self.ret, 'max_material_force_n': self.max_force,
-            'simulation_seconds': self.seconds, 'mean_material_force_n': self.impulse / self.seconds,
+            'simulation_seconds': self.seconds, 'material_impulse_ns': self.impulse,
+            'mean_material_force_n': self.impulse / self.seconds,
             'safety_margin': self.margin, 'released_springs': int(info['released_springs'][world]),
             **{k: self.case[k] for k in ('sigma', 'start_step', 'mode')}}
 
@@ -80,6 +95,7 @@ def finish(args, rows, cases, started, stop_reason):
                'stop_reason': stop_reason, 'seconds': time.monotonic() - started}
     (args.output / 'summary.json').write_text(json.dumps(summary, indent=2) + '\n')
     print(json.dumps(summary))
+    return not unfinished and stop_reason is None
 
 
 def write_manifest(args, cases, extra):
@@ -90,9 +106,8 @@ def write_manifest(args, cases, extra):
 
 
 def run_batched(args):
-    from cutting_world_model.gpu_env import GPUEnvironment
     started = time.monotonic()
-    env = GPUEnvironment(str((ROOT / 'backends/mujoco').resolve()), args.worlds)
+    env, scene_info = make_env(args, args.worlds)
     device = env.device
     frame = env.current
     metadata = ControlStateSpec.metadata_from_frame(env.metadata, {k: v[0].cpu().numpy() for k, v in frame.items()})
@@ -103,7 +118,8 @@ def run_batched(args):
     policy = SliceItPolicy().to(device).eval()
     policy.load_state_dict(saved['learner']['policy'])
     cases = make_cases(args.cases, args.seed_base)
-    write_manifest(args, cases, {'policy_updates': saved['learner'].get('updates'), 'worlds': args.worlds})
+    write_manifest(args, cases, {'policy_updates': saved['learner'].get('updates'), 'worlds': args.worlds,
+                                 **scene_info})
     queue = list(range(len(cases)))
     active = [None] * args.worlds
     rows, records = [], {}
@@ -144,7 +160,7 @@ def run_batched(args):
                 mask = ended.to(device)
                 frame = env.reset(mask)
                 history[:, mask] = frame['observation'][mask].float()[None]
-    finish(args, rows, cases, started, stop_reason)
+    return finish(args, rows, cases, started, stop_reason)
 
 
 def benchmark_module():
@@ -156,21 +172,21 @@ def benchmark_module():
 
 def run_single(args, extra):
     """Controllers of evaluate_benchmark.py (SAC, WM-MPPI, ...) in one world, case after case."""
-    from cutting_world_model.gpu_env import GPUEnvironment
     started = time.monotonic()
     bench = benchmark_module()
-    passthrough = list(extra) + ['--output', str(args.output / 'unused')]
+    passthrough = list(extra) + ['--output', str(args.output / 'unused'), '--contract', str(args.contract)]
     if args.checkpoint is not None:
         passthrough += ['--checkpoint', str(args.checkpoint)]
     bargs = bench.argument_parser(default_method=args.method).parse_args(passthrough)
-    env = GPUEnvironment(str((ROOT / 'backends/mujoco').resolve()), 1)
+    env, scene_info = make_env(args, 1)
     frame = env.current
     metadata = ControlStateSpec.metadata_from_frame(env.metadata, {k: v[0].cpu().numpy() for k, v in frame.items()})
     spec = ControlStateSpec(metadata).to(env.device)
     controller_manifest = {}
     controller = bench.make_controller(bargs, env, controller_manifest)
     cases = make_cases(args.cases, args.seed_base)
-    write_manifest(args, cases, {'worlds': 1, 'controller': controller_manifest, 'passthrough': list(extra)})
+    write_manifest(args, cases, {'worlds': 1, 'controller': controller_manifest, 'passthrough': list(extra),
+                                 **scene_info})
     rows, stop_reason = [], None
     try:
         with torch.no_grad():
@@ -195,7 +211,7 @@ def run_single(args, extra):
     finally:
         if hasattr(controller, 'close'):
             controller.close()
-    finish(args, rows, cases, started, stop_reason)
+    return finish(args, rows, cases, started, stop_reason)
 
 
 def load_run(directory):
@@ -232,6 +248,7 @@ def main():
     r.add_argument('--method', choices=('supermimic-batched',) + SINGLE_WORLD_METHODS,
                    default='supermimic-batched')
     r.add_argument('--checkpoint', type=Path)
+    r.add_argument('--contract', type=Path, default=ROOT / 'configs/public_prism/benchmark.json')
     r.add_argument('--cases', type=int, default=256)
     r.add_argument('--seed-base', type=int, default=3_000_000)
     r.add_argument('--worlds', type=int, default=32)
@@ -252,7 +269,10 @@ def main():
         if args.checkpoint is None:
             parser.error('--checkpoint is required')
     args.output.mkdir(parents=True, exist_ok=False)
-    run_batched(args) if args.method == 'supermimic-batched' else run_single(args, extra)
+    complete = run_batched(args) if args.method == 'supermimic-batched' else run_single(args, extra)
+    if not complete:
+        # Budget stop or unfinished cases: results are written but must not pass as complete.
+        sys.exit(INCOMPLETE_EXIT)
 
 
 if __name__ == '__main__':

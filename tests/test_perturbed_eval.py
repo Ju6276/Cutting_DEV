@@ -23,7 +23,7 @@ def test_cases_are_fixed_and_noise_does_not_depend_on_the_policy():
 
 def rows(outcomes, force):
     return [{'id': i, 'outcome': o, 'steps': 18 + (o != 'success'), 'max_material_force_n': f,
-             'mean_material_force_n': f / 4, 'safety_margin': f / 50}
+             'mean_material_force_n': f / 4, 'simulation_seconds': 1.0, 'safety_margin': f / 50}
             for i, (o, f) in enumerate(zip(outcomes, force))]
 
 
@@ -117,3 +117,13 @@ def test_compare_refuses_mixed_perturbation_points(tmp_path):
     args = type('Args', (), {'a': tmp_path / 'new', 'b': tmp_path / 'legacy', 'output': tmp_path / 'out.json'})
     with pytest.raises(ValueError, match='different points'):
         module.compare(args)
+
+
+def test_legacy_rows_recover_impulse_from_mean_force_and_time():
+    from cutting_world_model.perturbed_eval import with_impulse
+    legacy = [{'id': 0, 'mean_material_force_n': 6.0, 'simulation_seconds': 0.5}]
+    recorded = [{'id': 1, 'mean_material_force_n': 6.0, 'simulation_seconds': 0.5, 'material_impulse_ns': 2.9}]
+    assert with_impulse(legacy)[0]['material_impulse_ns'] == 3.0
+    assert with_impulse(recorded)[0]['material_impulse_ns'] == 2.9
+    summary = summarize_cases(rows(['success'] * 4, [30.] * 4))
+    assert summary['material_impulse_ns_mean'] == 7.5

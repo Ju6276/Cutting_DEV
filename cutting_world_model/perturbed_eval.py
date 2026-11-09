@@ -57,10 +57,17 @@ def outcome(success, collision, outside, truncated):
     raise ValueError('Episode ended without an outcome')
 
 
+def with_impulse(rows):
+    """Rows recorded before the impulse field: mean force over actual simulated time times that time."""
+    return [r if 'material_impulse_ns' in r else
+            {**r, 'material_impulse_ns': r['mean_material_force_n'] * r['simulation_seconds']} for r in rows]
+
+
 def summarize_cases(rows):
+    rows = with_impulse(rows)
     n = len(rows)
     out = {'cases': n, **{f'{o}_rate': sum(r['outcome'] == o for r in rows) / n for o in OUTCOMES}}
-    for key in ('max_material_force_n', 'mean_material_force_n', 'safety_margin'):
+    for key in ('max_material_force_n', 'mean_material_force_n', 'material_impulse_ns', 'safety_margin'):
         out[key + '_mean'] = sum(r[key] for r in rows) / n
     done = [r for r in rows if r['outcome'] == 'success']
     out['success_steps_mean'] = sum(r['steps'] for r in done) / len(done) if done else None
@@ -74,18 +81,18 @@ def compare_cases(rows_a, rows_b, samples=10000, seed=0):
     ids_b = {r['id'] for r in rows_b}
     if ids_a != ids_b:
         raise ValueError('The two evaluations ran different cases')
-    flag = lambda rows: [{**r, **{o: float(r['outcome'] == o) for o in OUTCOMES}} for r in rows]
+    flag = lambda rows: [{**r, **{o: float(r['outcome'] == o) for o in OUTCOMES}} for r in with_impulse(rows)]
     a, b = flag(rows_a), flag(rows_b)
     result = {'all_cases': {}, 'both_success': {}}
     for key, lower in [('success', False), ('collision', True), ('outside', True), ('truncated', True),
                        ('max_material_force_n', True), ('mean_material_force_n', True),
-                       ('safety_margin', True)]:
+                       ('material_impulse_ns', True), ('safety_margin', True)]:
         result['all_cases'][key] = paired_bootstrap(a, b, key, lower, samples, seed)
     both = {r['id'] for r in a if r['success']} & {r['id'] for r in b if r['success']}
     a2 = [r for r in a if r['id'] in both]
     b2 = [r for r in b if r['id'] in both]
     result['both_success']['cases'] = len(both)
-    for key in ('steps', 'max_material_force_n', 'mean_material_force_n', 'safety_margin'):
+    for key in ('steps', 'max_material_force_n', 'mean_material_force_n', 'material_impulse_ns', 'safety_margin'):
         result['both_success'][key] = paired_bootstrap(a2, b2, key, True, samples, seed)
     return result
 

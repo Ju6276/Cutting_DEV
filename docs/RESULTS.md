@@ -1793,10 +1793,13 @@ predicted maximum sensor-limit ratio 0.71–0.99 (below 1) in every run, while
 this task's attainable return of 100 (as for the WM563 critic before); the
 effective number of candidates was 1.0–2.0.
 
-Measured: with the working baseline's WM, MPPI completes the task in 2 of 6
-seeds (33 and 37 steps) and ends by the force limit at contact onset in 4; the
-policy trained through the same WM completes it in 19 steps without a limit
-event. Inferred, not tested: the planner selects actions whose predicted force
+Measured, per configuration (they are two controllers, not six repeats of one):
+with the paired critic, 1 of 3 planner seeds completes the task (33 steps) and 2
+end by the force limit at contact onset; without a terminal critic, likewise 1
+of 3 (37 steps) and 2 force-limit endings. The policy trained through the same
+WM completes it in 19 steps without a limit event. This describes the current
+fixed MPPI configuration; it does not establish that BPTT is generally better
+than MPC. Inferred, not tested: the planner selects actions whose predicted force
 lies just below the limit, where the WM under-predicts the onset spike (the
 failure seen for every WM in the reliability check); the critic's out-of-range
 values on imagined states and near-degenerate weighting add to it. With WM562

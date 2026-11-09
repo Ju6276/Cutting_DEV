@@ -210,9 +210,9 @@ action perturbations). Where the perturbation is added — decision for review:
   the recorded rule).
 
 Applied to: policy62, working baseline (parallel worlds, about 10 min each) and
-SAC 85k (one world, about 1-2 h). Not applied to: MPPI (0.5 s/step x 256 cases
-x 30-110 steps is many hours, and 4 of 6 unperturbed seeds already end at the
-force limit), constant-zero (at least 346 steps per episode, about 10 h in one
+SAC 85k (one world, about 1-2 h). Not applied to: MPPI (deferred for compute
+budget: 0.5 s/step x 256 cases x 30-110 steps is many hours; reported as not
+evaluated), constant-zero (at least 346 steps per episode, about 10 h in one
 world), reference trajectory (no action interface).
 
 **Metrics.** Outcome rates (success, force limit, workspace, time limit); steps;
@@ -226,10 +226,20 @@ on this perturbation distribution, not training-seed variation.
 `eval_perturbed_main_20261109.sh`): reference and constant-zero (unperturbed),
 policy62, working baseline, SAC smoke (2 cases), SAC 256 cases. About 2 h.
 
-**Questions for review.** (a) Executed-action rule vs each controller's own
-output. (b) Is SAC 85k (one environment, lr 0.01) acceptable as the model-free
-stand-in until the parallel retrain? (c) Is a perturbed MPPI evaluation needed,
-given its cost and the unperturbed onset failures?
+**Decisions after review (Codex, 2026-11-09).**
+- Perturbation rule: executed action, `clip(clip(controller output) + perturbation)`.
+  The final clip still shapes the effective perturbation, so the physical effect
+  is not identical across controllers. This measures robustness to control-command
+  perturbations, not material generalization, sensor noise or external forces.
+  The A pair stays interpreted under the earlier rule; it is not rerun.
+- SAC: named "unified-environment SAC 85k"; one environment, lr 0.01, collapse
+  later in training disclosed. It represents this checkpoint only: training
+  budget, input history (one frame vs ten frames plus goal) and training
+  stability are not matched, so these results do not support "better than SAC"
+  as an algorithm claim.
+- MPPI: the 256-case evaluation is deferred for compute budget and reported as
+  "not evaluated"; unperturbed failures are not a substitute for it. A claim of
+  higher robustness than MPC would need it.
 
 ### WM–MPPI configuration selection completed (2026-11-08)
 
