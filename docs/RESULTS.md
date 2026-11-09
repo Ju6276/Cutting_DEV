@@ -1666,3 +1666,49 @@ physical states, force traces and task results remain the same.
 4090 checks: root **219 passed / 5 skipped**, backend **28 passed**. Start,
 midpoint and final frames show the mount; the 0.1× video has 647 frames at
 1920×966 / 30 FPS (21.567 s).
+
+## 2026-11-09 — Exact checkpoint pairing and full WM562 task
+
+Code `031ffaf`, GPU7 RTX 4090, planner settings unchanged (H16, 512 samples,
+four refinements, temperature 0.1, noise 0.5, gamma 0.99, no terminal critic).
+One seed-0 episode per controller; both load
+`runs/mpc_assets/policy62_wm562_original.pt` (iteration 1561, policy62/WM562).
+The historical MPPI file contains WM563 and a real-target critic after 100
+pre-fit rounds. Tensor comparison rejects that file when paired with WM562.
+The evaluator records actual training identity and verifies exact model/policy
+weights with `--paired-checkpoint`; enabled terminal critics are checked too.
+
+Commands: `scripts/evaluate_benchmark.py --method wm-mppi --checkpoint
+runs/mpc_assets/policy62_wm562_original.pt --paired-checkpoint
+runs/mpc_assets/policy62_wm562_original.pt --episodes 1 --wall-seconds 600
+--seed 0 --mpc-horizon 16 --mpc-samples 512 --mpc-refinements 4
+--mpc-temperature 0.1 --mpc-noise-std 0.5 --mpc-discount 0.99
+--mpc-terminal-value none --output runs/mpc_pair_repair_20261109/wm562_mppi`.
+Actor: same entry/checkpoint, `--method supermimic --episodes 1 --seed 0
+--wall-seconds 180 --output runs/mpc_pair_repair_20261109/policy62`.
+Interpreter: `/dataHDD/dong/Envs/cutting-mppi-20261108/bin/python`.
+
+- MPPI: goal reached in **109 steps / 5.45 s**, return **58.591**;
+  material peak/mean **24.215/2.552 N**, impulse **13.908 N s**;
+  **289/304** springs released; final lateral/height error **−39.484/−1.709 mm**.
+  Planning **0.488 s/control step**, physics **278.89 s**, total **337.39 s**.
+- Policy62: goal reached in **20 steps / 1.00 s**, return **90.815**;
+  material peak/mean **30.658/7.230 N**, impulse **7.230 N s**;
+  **288/304** springs released; final lateral/height error **37.860/−0.338 mm**.
+  Inference **1.00 ms/control step**, physics **52.45 s**, total **57.42 s**.
+- Both: no force-limit/workspace termination, zero learning updates, weights
+  unchanged, identical task contracts. Of 34 recorded reset fields, 32 are
+  bit-identical; particle position/velocity maximum norm differences are
+  **4.17e−9 m / 1.85e−5 m/s**.
+- Endpoint trace: the success counter increments at steps 54–62, 107 and 109.
+  At transition 40→41, actual height error is **−2.072 mm**, WM predicts
+  **−0.962 mm**, and increments the predicted counter while the physical
+  counter remains zero. The 2 mm boundary makes this prediction error relevant
+  to completion timing. The delayed completion is observed with correct pairing.
+- This paired run has lower peak force but higher total force impulse than
+  policy62. The old 13–16 N values belong to WM563. Input interfaces, horizons
+  and terminal-value choices remain as specified in METHOD.
+
+Checks: root **225 passed / 5 skipped**, backend **28 passed**.
+Outputs: `runs/mpc_pair_repair_20261109/` (checkpoint audit, manifests, full
+episodes, planning trace, summary and endpoint prediction trace).

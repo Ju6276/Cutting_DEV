@@ -185,7 +185,7 @@ geometry in `episode.npz`, and the benchmark report. WM–MPPI also saves every
 planning call in `planning.json`. The video run uses the selected H16 planner:
 
 ```bash
-.venv/bin/python scripts/record_episode.py --method wm-mppi \
+/dataHDD/dong/Envs/cutting-mppi-20261108/bin/python scripts/record_episode.py --method wm-mppi \
   --checkpoint runs/mpc_assets/policy62_wm563_real_prefit100.pt --label wm_mppi \
   --seed 0 --wall-seconds 600 --mpc-horizon 16 --mpc-samples 512 \
   --mpc-refinements 4 --mpc-temperature 0.1 --mpc-noise-std 0.5 \

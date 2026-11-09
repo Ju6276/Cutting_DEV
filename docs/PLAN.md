@@ -220,7 +220,7 @@ alignment checked. Output: `runs/videos_20261108/wm_mppi/`; commands in RUNNING,
 numbers in RESULTS. Physical task and controller settings unchanged.
 
 
-## Current operation — remote repository consolidation (2026-11-09)
+## Completed — remote repository consolidation (2026-11-09)
 
 The user requested cleaning the repositories and GPU storage first, moving
 source and experiment files off the Mac, and using Remote SSH afterward.
@@ -236,21 +236,16 @@ training coverage. Choose the next task and dataset scope before launching new
 collection or fitting. A broad SAC/policy/reference comparison is not the next
 GPU7 job. No new MPC, collection or training batch is started during cleanup.
 
-### Checkpoint-pair repair — approved debug (2026-11-09)
+### Completed — checkpoint-pair repair (2026-11-09)
 
-- Question: does the selected MPPI controller finish with the original WM562
-  paired with policy62, and does the evaluator reject mismatched weights?
-- Cause: the file named policy62_wm562.pt contains WM563 and a real-target
-  critic after 100 pre-fit rounds. Policy weights remain policy62. Read identity
-  from checkpoint metadata and compare actual tensors for paired evaluations.
-- Change: evaluation metadata and an optional exact checkpoint-pair check.
-  Keep physics, rewards, thresholds and H16/512/four-refinement/0.1 settings.
-  Terminal critic remains disabled.
-- Execution: GPU7, one frozen MPPI episode from original policy62/WM562
-  (600 s budget), then one policy62 episode (180 s); seed 0. Progress and
-  terminal report stay under runs/mpc_pair_repair_20261109. No training.
-- Decision: wrong WM/critic labeling must be corrected; a mismatched pair must
-  fail before control execution. Report goal/force/workspace outcome, steps,
-  material force, released springs, endpoint error and planning cost of the
-  paired episodes. A failed physical task is retained and its trajectory
-  inspected without changing task definitions or starting a parameter sweep.
+Code `031ffaf`: manifests read actual WM/policy counters and critic training
+identity; `--paired-checkpoint` rejects unequal WM/policy weights and unequal
+critics when used. The historical planner is correctly named WM563, with its
+real-target pre-fit critic. Original WM562 is stored separately.
+
+The original WM562 paired run finishes in 109 steps, peak 24.22 N; policy62
+finishes in 20 steps, peak 30.66 N. Both reach the original goal predicate
+without force-limit/workspace termination. Root 225 passed / 5 skipped,
+backend 28 passed. Endpoint prediction error explains an observed discrepancy
+in goal-entry counting; full numbers and commands are in RESULTS (2026-11-09).
+The next MPC task remains coverage across objects/materials, as specified above.

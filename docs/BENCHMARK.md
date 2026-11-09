@@ -107,11 +107,13 @@ action perturbations; proportions are not task success rates.
 
 ### World-model MPPI
 
-Install the optional planner into the prepared GPU environment:
+GPU7's prepared planner environment contains the dependencies pinned in
+`requirements-mpc.txt`. Use this interpreter (the base physics `.venv` does not
+include the optional planner):
 
 ```bash
-.venv/bin/python -m pip install -r requirements-mpc.txt
-.venv/bin/python scripts/evaluate_benchmark.py --method wm-mppi \
+MPC_PYTHON=/dataHDD/dong/Envs/cutting-mppi-20261108/bin/python
+"$MPC_PYTHON" scripts/evaluate_benchmark.py --method wm-mppi \
   --checkpoint RUN/training/last.pt --paired-checkpoint POLICY_RUN/training/last.pt \
   --episodes 1 --wall-seconds 600 \
   --mpc-horizon 16 --mpc-samples 512 --mpc-refinements 4 \
