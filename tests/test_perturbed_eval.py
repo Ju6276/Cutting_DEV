@@ -76,3 +76,44 @@ def test_compare_checks_configurations_and_completion(tmp_path):
         module.compare(args)
     args.b = tmp_path / 'd'
     module.compare(args)
+
+
+def load_script():
+    import importlib.util
+    from pathlib import Path
+    spec = importlib.util.spec_from_file_location(
+        'evaluate_perturbed_script', Path(__file__).resolve().parents[1] / 'scripts/evaluate_perturbed.py')
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_perturbation_is_added_to_the_executed_action():
+    module = load_script()
+
+    class Spec:
+        @staticmethod
+        def execute(action):
+            return action.clamp(-1., 1.)
+
+    raw = torch.tensor([[1.6, -1.4, 0.2, 1.0, -1.0, 0.0]])
+    noise = torch.tensor([[-0.3, 0.3, 0.3, 0.3, -0.3, 0.5]])
+    result = module.perturbed(Spec, raw, noise)
+    # A saturated raw output (1.6) no longer absorbs a perturbation toward the interior.
+    torch.testing.assert_close(result, torch.tensor([[0.7, -0.7, 0.5, 1.0, -1.0, 0.5]]))
+
+
+def test_compare_refuses_mixed_perturbation_points(tmp_path):
+    import json
+    import pytest
+    module = load_script()
+    cases = make_cases(4, 3_000_000)
+    good = rows(['success'] * 4, [30.] * 4)
+    write_run(tmp_path / 'legacy', cases, good)
+    write_run(tmp_path / 'new', cases, good)
+    manifest = json.loads((tmp_path / 'new' / 'manifest.json').read_text())
+    manifest['perturbation_point'] = module.PERTURBATION_POINT
+    (tmp_path / 'new' / 'manifest.json').write_text(json.dumps(manifest))
+    args = type('Args', (), {'a': tmp_path / 'new', 'b': tmp_path / 'legacy', 'output': tmp_path / 'out.json'})
+    with pytest.raises(ValueError, match='different points'):
+        module.compare(args)
