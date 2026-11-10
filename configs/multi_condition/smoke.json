@@ -1,15 +1,83 @@
 {
-  "description": "Functional smoke configuration: four object groups, small world counts. Not a training distribution.",
+  "description": "Functional smoke configuration: four object groups, small world counts, one force limit (task default). Not a training distribution.",
   "seed": 0,
   "w_speed": 1.0,
   "groups": [
-    {"name": "prism", "scene": "runs/sweep/prism_prism/scene.pt", "worlds": 4, "force_limit_scale": 1.0,
-     "material": {"youngs_modulus": [0.5, 2.0], "density": [0.8, 1.25], "cut_spring_stiffness": [0.5, 2.0]}},
-    {"name": "apple", "scene": "runs/sweep/food_apple_002/scene.pt", "worlds": 4, "force_limit_scale": 3.0,
-     "material": {"youngs_modulus": [0.5, 2.0], "density": [0.8, 1.25], "cut_spring_stiffness": [0.5, 2.0]}},
-    {"name": "potato", "scene": "runs/sweep/food_potato_003/scene.pt", "worlds": 4, "force_limit_scale": 2.0,
-     "material": {"youngs_modulus": [0.5, 2.0], "density": [0.8, 1.25], "cut_spring_stiffness": [0.5, 2.0]}},
-    {"name": "cucumber", "scene": "runs/sweep/food_cucumber_003/scene.pt", "worlds": 4, "force_limit_scale": 1.0,
-     "material": {"youngs_modulus": [0.5, 2.0], "density": [0.8, 1.25], "cut_spring_stiffness": [0.5, 2.0]}}
+    {
+      "name": "prism",
+      "scene": "runs/sweep/prism_prism/scene.pt",
+      "worlds": 4,
+      "material": {
+        "youngs_modulus": [
+          0.5,
+          2.0
+        ],
+        "density": [
+          0.8,
+          1.25
+        ],
+        "cut_spring_stiffness": [
+          0.5,
+          2.0
+        ]
+      }
+    },
+    {
+      "name": "apple",
+      "scene": "runs/sweep/food_apple_002/scene.pt",
+      "worlds": 4,
+      "material": {
+        "youngs_modulus": [
+          0.5,
+          2.0
+        ],
+        "density": [
+          0.8,
+          1.25
+        ],
+        "cut_spring_stiffness": [
+          0.5,
+          2.0
+        ]
+      }
+    },
+    {
+      "name": "potato",
+      "scene": "runs/sweep/food_potato_003/scene.pt",
+      "worlds": 4,
+      "material": {
+        "youngs_modulus": [
+          0.5,
+          2.0
+        ],
+        "density": [
+          0.8,
+          1.25
+        ],
+        "cut_spring_stiffness": [
+          0.5,
+          2.0
+        ]
+      }
+    },
+    {
+      "name": "cucumber",
+      "scene": "runs/sweep/food_cucumber_003/scene.pt",
+      "worlds": 4,
+      "material": {
+        "youngs_modulus": [
+          0.5,
+          2.0
+        ],
+        "density": [
+          0.8,
+          1.25
+        ],
+        "cut_spring_stiffness": [
+          0.5,
+          2.0
+        ]
+      }
+    }
   ]
 }

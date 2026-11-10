@@ -23,18 +23,18 @@ MATERIAL = {'youngs_modulus': (.5, 2.), 'density': (.8, 1.25), 'cut_spring_stiff
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--backend-root', type=Path, default=ROOT / 'backends/mujoco')
-    parser.add_argument('--group', nargs=4, action='append', metavar=('NAME', 'SCENE', 'WORLDS', 'LIMIT_SCALE'),
-                        required=True)
+    parser.add_argument('--group', nargs=3, action='append', metavar=('NAME', 'SCENE', 'WORLDS'), required=True)
+    parser.add_argument('--force-limits', type=float, nargs=6, help='one force/torque limit for every object')
     parser.add_argument('--steps', type=int, default=60)
     parser.add_argument('--seed', type=int, default=1)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
-    groups = [ObjectGroup(n, s, int(w), float(l), material=MATERIAL) for n, s, w, l in args.group]
-    report = {'groups': [{'name': g.name, 'scene': g.scene, 'worlds': g.worlds,
-                          'force_limit_scale': g.force_limit_scale,
+    groups = [ObjectGroup(n, s, int(w), material=MATERIAL) for n, s, w in args.group]
+    report = {'force_limits': args.force_limits,
+              'groups': [{'name': g.name, 'scene': g.scene, 'worlds': g.worlds,
                           'default_gap_m': knife_clearance(args.backend_root, g.scene)} for g in groups]}
     started = time.monotonic()
-    env = MultiConditionEnvironment(args.backend_root, groups, seed=args.seed)
+    env = MultiConditionEnvironment(args.backend_root, groups, seed=args.seed, force_limits=args.force_limits)
     report['init_seconds'] = time.monotonic() - started
     report['frame_keys'] = sorted(env.current)
     report['conditions'] = env.conditions(range(env.worlds))

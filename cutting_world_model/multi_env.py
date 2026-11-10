@@ -7,7 +7,8 @@ one learner sees one batch with the training loop's existing interface (``curren
 per-object arrays (particles, springs) stay inside their group.
 
 Conditions:
-- object and its force-limit scale: fixed per group;
+- object: fixed per group; every object shares one force limit (the hardware limit), so
+  the learner has to infer how hard an object is from its own force feedback;
 - start clearance (knife edge above the object top): fixed per world, set at construction
   by inverse kinematics (``CuttingBatch.initial_lift``);
 - material scales (Young's modulus, density, cut-spring stiffness): log-uniform per
@@ -30,7 +31,6 @@ class ObjectGroup:
     name: str
     scene: str                      # exported scene, relative to the backend root
     worlds: int
-    force_limit_scale: float = 1.
     clearance: tuple = (.005, .03)  # knife edge above the object top (m), per world
     material: dict = field(default_factory=lambda: {k: (1., 1.) for k in MATERIAL_KEYS})
     target_speed: tuple = (.035, .065)  # m/s, per episode
@@ -49,7 +49,7 @@ def knife_clearance(backend_root, scene):
 
 
 class MultiConditionEnvironment:
-    def __init__(self, backend_root, groups, reward=None, seed=0):
+    def __init__(self, backend_root, groups, reward=None, seed=0, force_limits=None):
         if not groups:
             raise ValueError('At least one object group is required')
         self.groups = list(groups)
@@ -64,8 +64,7 @@ class MultiConditionEnvironment:
             clearance = self._uniform(group.clearance, group.worlds)
             lift = clearance - gap
             env = GPUEnvironment(backend_root, group.worlds, reward=reward, scene=group.scene,
-                                 initial_lift=lift,
-                                 force_limit_scale=torch.full((group.worlds,), float(group.force_limit_scale)))
+                                 initial_lift=lift, force_limits=force_limits)
             self.envs.append(env)
             self.lift.append(lift)
             self.slices.append(slice(start, start + group.worlds))
@@ -103,18 +102,18 @@ class MultiConditionEnvironment:
 
     @staticmethod
     def goal(frame):
-        """Task goal of each world: target pose, force-limit scale, target cutting speed."""
-        return torch.cat((frame['target_pose'], frame['force_limit_scale'], frame['target_speed']), -1).float()
+        """Task goal of each world: target pose and target cutting speed."""
+        return torch.cat((frame['target_pose'], frame['target_speed']), -1).float()
 
     @classmethod
     def from_config(cls, backend_root, config, reward=None):
         groups = [ObjectGroup(name=g['name'], scene=g['scene'], worlds=int(g['worlds']),
-                              force_limit_scale=float(g.get('force_limit_scale', 1.)),
                               clearance=tuple(g.get('clearance', (.005, .03))),
                               material={k: tuple(v) for k, v in g.get('material', {}).items()},
                               target_speed=tuple(g.get('target_speed', (.035, .065))))
                   for g in config['groups']]
-        return cls(backend_root, groups, reward=reward, seed=int(config.get('seed', 0)))
+        return cls(backend_root, groups, reward=reward, seed=int(config.get('seed', 0)),
+                   force_limits=config.get('force_limits'))
 
     @torch.no_grad()
     def reset(self, mask=None):
@@ -156,7 +155,6 @@ class MultiConditionEnvironment:
             g = int(self.group_index[w])
             part = self.slices[g]
             rows.append({'group': self.groups[g].name, 'scene': self.groups[g].scene,
-                         'force_limit_scale': float(self.groups[g].force_limit_scale),
                          'start_lift_m': float(self.lift[g][w - part.start]),
                          'target_speed_mps': float(self.target_speed[w]),
                          **{k: float(self.material_scales[k][w]) for k in MATERIAL_KEYS}})

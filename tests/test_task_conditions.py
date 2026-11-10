@@ -45,22 +45,27 @@ def test_reward_weights_unchanged_without_speed_weight():
     assert torch.isfinite(weighted.reward(obs, flags, flags, flags, target_speed=torch.tensor([.05]))).all()
 
 
-def test_per_goal_limits_scale_force_observation_and_collision():
+def test_goal_carries_target_speed_and_one_force_limit():
     metadata, frame = compact_fixture()
-    metadata = dict(metadata, goal_dim=9)
+    metadata = dict(metadata, goal_dim=8)
     spec = ControlStateSpec(metadata)
-    goal7 = torch.as_tensor(np.asarray(frame["previous_ee_pose"]), dtype=torch.float32)[None]
-    goal = torch.cat((goal7.repeat(2, 1), torch.tensor([[1., .05], [3., .05]])), -1)
-    limits = spec.limits(goal)
-    assert torch.allclose(limits[0], spec.force_limits) and torch.allclose(limits[1], 3 * spec.force_limits)
-    wm = CuttingWorldModel(metadata, hidden=(16, 16))
+    pose = torch.as_tensor(np.asarray(frame["previous_ee_pose"]), dtype=torch.float32)[None].repeat(2, 1)
+    goal = torch.cat((pose, torch.tensor([[.035], [.065]])), -1)
+    target, speed = spec.goal_parts(goal)
+    assert torch.equal(target, pose) and torch.allclose(speed, torch.tensor([.035, .065]))
+    assert torch.equal(spec.limits(goal), spec.force_limits)
     state = spec.pack_batch({k: torch.as_tensor(np.asarray(v), dtype=torch.float32)[None].repeat(2, *([1] * np.asarray(v).ndim))
                              for k, v in frame.items() if k in spec.base_fields})
     fields = {name: spec.field(state, name) for name in spec.physical_fields + spec.history_fields}
-    fields = copy.copy(fields)
-    fields['peak_wrench'] = 2 * spec.force_limits.expand(2, -1)   # above 1x, below 3x
-    _, _, done = spec.derive(state, fields, torch.zeros(2, 6), goal)
-    assert bool(done[0]) and not bool(done[1])
-    # The WM dynamics receives the target pose only.
+    fields['peak_wrench'] = 2 * spec.force_limits.expand(2, -1)
+    _, _, done = spec.derive(state, dict(fields), torch.zeros(2, 6), goal)
+    assert bool(done.all())  # the same limit applies to every world
+    wm = CuttingWorldModel(metadata, hidden=(16, 16))
     next_state, reward, logits = wm.step(state, torch.zeros(2, 6), goal)
     assert next_state.shape == state.shape and logits.shape == (2,)
+    try:
+        spec.goal_parts(torch.zeros(2, 9))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError('A 9-dimensional goal must be rejected')

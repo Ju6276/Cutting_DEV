@@ -8,17 +8,24 @@ from .task_heads import REWARD_KEYS, SliceItHeads, pose_error, TASK_INTERFACE_RE
 
 class GPUEnvironment:
     def __init__(self, backend_root, worlds=1, reference_trajectory=None, reward=None, scene=None,
-                 initial_lift=None, force_limit_scale=None):
+                 initial_lift=None, force_limits=None):
         """``reward`` optionally selects the force penalty, e.g. {'force_penalty': 'linear',
         'force_penalty_scale': 50.}; None keeps the source SliceIt reward and metadata.
         ``scene`` is an exported DiSECt scene relative to ``backend_root``; None keeps the
         source prism. The scene is not part of the task metadata."""
-        # initial_lift (m) and force_limit_scale are per-world task conditions (CuttingBatch);
-        # with a force-limit scale the observation normalizes forces by each world's limits.
+        # initial_lift (m, per world): knife start height (CuttingBatch). force_limits (6 values)
+        # replaces the task's force/torque limits for every world (one hardware limit).
         scene = {} if scene is None else {'scene': scene}
         self.physics = CuttingBatch(backend_root, worlds, reference_trajectory=reference_trajectory,
-                                    initial_lift=initial_lift, force_limit_scale=force_limit_scale, **scene)
-        self.limit_scale = None if force_limit_scale is None else self.physics.force_limit_scale
+                                    initial_lift=initial_lift, **scene)
+        if force_limits is not None:
+            limits = [float(v) for v in force_limits]
+            if len(limits) != 6 or min(limits) <= 0:
+                raise ValueError('force_limits needs six positive values')
+            self.physics.task = {**self.physics.task, 'controller': {**self.physics.task['controller'],
+                                                                     'max_force_torque': limits}}
+            self.physics.force_limits = torch.tensor(limits, device=self.physics.device,
+                                                     dtype=self.physics.dtype)[None].repeat(worlds, 1)
         self.target_speed = None  # per-world target cutting speed (m/s), set by a task sampler
         self.worlds, self.device = worlds, self.physics.device
         self.metadata = dict(self.physics.task)
@@ -53,9 +60,7 @@ class GPUEnvironment:
         acceleration = (velocity - self.previous_velocity) / dt
         jerk = (acceleration - self.previous_acceleration) / dt
         observation = self.heads.observation(pose_error(frame['target_pose'], pose), velocity, jerk,
-                                            action, frame['wrench_history'], self.limit_scale)
-        if self.limit_scale is not None:
-            frame['force_limit_scale'] = self.limit_scale[:, None].to(observation).clone()
+                                            action, frame['wrench_history'])
         frame.update(ee_pose=pose, previous_ee_pose=pose, previous_velocity=velocity,
                      previous_acceleration=acceleration, observation=observation,
                      success_counter=self.success_counter[:, None].clone(),
@@ -109,8 +114,7 @@ class GPUEnvironment:
         success = success & ~collision
         if self.environment['termination_on_negative_reward']:
             success.zero_()
-        reward = self.heads.reward(frame['observation'], collision, success, outside, self.limit_scale,
-                                   self.target_speed)
+        reward = self.heads.reward(frame['observation'], collision, success, outside, self.target_speed)
         truncated = (self.step_count >= self.environment['steps_per_episode']) & ~terminated
         self.success_counter = counter
         frame['success_counter'] = counter[:, None].clone()

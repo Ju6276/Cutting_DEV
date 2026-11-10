@@ -20,11 +20,10 @@ from .robot import Robot
 class CuttingBatch:
     @torch.no_grad()
     def __init__(self, root, worlds=1, scene='runs/disect_source_v4/scene.pt', reference_trajectory=None,
-                 initial_lift=None, force_limit_scale=None):
+                 initial_lift=None):
         """``initial_lift`` (m, per world): start the knife this far above the captured start
         along DiSECt +y (vertical), same orientation, by inverse kinematics before the reset
-        state is settled and saved. ``force_limit_scale`` (per world) multiplies the task
-        force/torque limits used by the force-limit termination."""
+        state is settled and saved."""
         root = Path(root)
         self.worlds = worlds
         self.scene = scene
@@ -67,13 +66,8 @@ class CuttingBatch:
         self.target = torch.as_tensor(episode['target_pose'][0], device=self.device, dtype=self.dtype)[None].repeat(worlds, 1)
         self.reference_start = self.frames[self.chain.tip].clone()
         self.set_reference_trajectory(reference_trajectory)
-        nominal = torch.tensor(task['controller']['max_force_torque'], device=self.device, dtype=self.dtype)
-        scale = torch.ones(worlds, device=self.device, dtype=self.dtype) if force_limit_scale is None else \
-            torch.as_tensor(force_limit_scale, device=self.device, dtype=self.dtype).expand(worlds)
-        if not bool((scale > 0).all()):
-            raise ValueError('Force-limit scales must be positive')
-        self.force_limit_scale = scale.clone()
-        self.force_limits = nominal[None] * scale[:, None]
+        self.force_limits = torch.tensor(task['controller']['max_force_torque'], device=self.device,
+                                         dtype=self.dtype)[None].repeat(worlds, 1)
         self.desired_wrench = torch.tensor(task['controller']['desired_force_torque'], device=self.device, dtype=self.dtype)[None].expand(worlds, -1)
         self.coupling.previous_pose_base = knife.clone()
         self.motion_initialized = torch.zeros(worlds, device=self.device, dtype=torch.bool)

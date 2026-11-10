@@ -141,7 +141,7 @@ def run(args, output, status, started):
     one = {k: v[0].cpu().numpy() for k, v in frame.items()}
     metadata = ControlStateSpec.metadata_from_frame(env.metadata, one)
     if conditions is not None:
-        metadata['goal_dim'] = 9
+        metadata['goal_dim'] = 8
         metadata['task_conditions'] = conditions
     goal_dim = int(metadata.get('goal_dim', 7))
     write_json(output / 'task.json', metadata)
