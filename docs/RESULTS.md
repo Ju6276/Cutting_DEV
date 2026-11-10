@@ -1989,3 +1989,33 @@ the passing run. Three CLI help checks, rejection of the removed recording
 option, 87 document file links, five heading links and runtime/data symlinks
 were checked. Logs and cleanup details are in the operation manifest. Core
 physics and learning code is unchanged; no training or new task evaluation ran.
+
+## 2026-11-10 — Route B1 force-risk screen (PLAN Route B)
+
+Code `a3eceda` (`scripts/b1_force_risk.py`, `cutting_world_model/force_risk.py`);
+outputs `runs/route_b1_20261110` on GPU7. No policy updates. Fit data: working-baseline
+replay (933,311 rows, 3,924 force-limit states) plus the 2026-11-05 fixed-data train
+split. Ensemble: five fresh WMs (seeds 1-5, 890 updates each, ~27 min each). Quantile
+head: 0.95 pinball on frozen WM features (20,000 steps). Development: supplement `dev`
+(271 episodes, 23 force-limit). Held-out: supplement `final` (129 episodes, 13
+force-limit), opened once after `frozen.json` was written.
+
+Development selection (episode false-alarm budget 10%; detected / 23, false-alarm
+episodes / 248): mean WM τ 0.65 15, 22; ensemble max τ 0.70 18, 20; ensemble
+mean+2std τ 0.72 19, 21; quantile head τ 0.92 23, 6; phase/global residual q 0.995
+8, 10 / 8, 7. Frozen: B = quantile head, comparator = ensemble mean+2std.
+
+| Held-out (13 force-limit / 116 other episodes) | Detected | False-alarm episodes | Step flag rate, loaded phase | Interval coverage |
+|---|---:|---:|---:|---:|
+| Quantile head (B) | 13 | 11 | 0.027 | 0.909 |
+| Ensemble mean+2std | 9 | 11 | 0.036 | 0.707 |
+| Ensemble max | 9 | 13 | 0.049 | 0.669 |
+| Mean WM | 10 | 14 | 0.040 | 0.409 |
+| Residual phase / global | 3 / 3 | 8 / 5 | 0.031 / 0.018 | 0.993 / 0.993 |
+
+Rule: net additional detections b − c = 4 − 0 = 4 (≥ 4) and B false-alarm episodes
+11 ≤ 11: **advance**. It passes exactly at the minimum. The held-out false-alarm rate
+(11/116 = 9.5%) is well above development (6/248), so the dev operating point did
+not transfer. Events are mostly induced by injected action noise on the fixed prism;
+13 events are screening evidence for an action-conditioned risk head, not a deployment
+rate, and say nothing yet about multi-material conditions or BPTT use.
