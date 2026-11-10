@@ -60,6 +60,33 @@ in PLAN starts fresh; do not silently initialize it from these weights.
 - Historical reliability training/calibration/held-out data named in PLAN remain
   in their existing server locations. This cleanup did not open or move them.
 
+## Data on other servers
+
+**A6000** (`/dataHDD/dong/Projects/Cutting_DEV/runs`, reachable from GPU7 with
+`ssh a6000`; not copied to GPU7):
+
+| Path | Size | Role |
+|---|---:|---|
+| `critic_abl_a250_20261106/training/replay.pt` | 3.2 GB | Working-baseline training replay; PLAN route B1 fit data |
+| `wm_reliability_supplement_20261108` | 8 MB | Supplement episodes: `dev` = route B1 calibration, `final` = B1 held-out screen (sealed) |
+| `wm_reliability_20261108`, `wm_route_compare_20261108` | 1 MB, 1.5 GB | WM reliability evaluations and the fixed-data original-vs-A fits |
+| `a_pair_base_20261108`, `a_pair_head_20261108` | 4.6, 4.2 GB | A control pair: checkpoints at updates 150/200/250/300/last, frozen and perturbed evaluations |
+| `a_pair_reference_20261108`, `a_pair_compare_20261109` | <1 MB | Perturbed evaluation of the reference run; case-paired comparisons (retired protocol) |
+
+**GPU7 (additional):** `runs/main_compare_20261109` holds the case-paired
+comparisons of the retired action-noise protocol (working baseline vs policy62
+and SAC85k). `/dataHDD/dong/Archive/gpu9_20261110` holds GPU9-only code (git
+bundles with all branches, uncommitted patches and untracked files of
+Cutting_DEV_critic, Cutting_DEV_sac, DiSECt and DiSECt-Optimization; GPU9 tmp
+scripts including the 2026-11-04 video renderers), checksum-verified; all of
+that code is superseded by main.
+
+**GPU9** is back online (2026-11-10) but no longer a run target for this project
+(planned for other work). Its original historical data stay there and were not
+copied: `SliceIt/runs` (1.7 GB; Gazebo SAC run 1, stopped at 57722 environment
+steps, final `ckpt-13`) and `CuttingWorldModel/runs` (11 GB; 2026-11-02/03 early
+experiments). GPU7 can reach it with `ssh gpu9`.
+
 ## Cleanup and recoverability
 
 `runs/operations/cleanup_20261110.json` records moves, checkpoint hashes,
@@ -77,4 +104,4 @@ A6000's canonical checkout was observed at `71be9ec`, clean; it was not synced
 or modified in this cleanup. No matching cutting training/evaluation process
 was found in the snapshot. One A6000 was busy, so existing dependencies and
 other jobs were left untouched. Machine notes are snapshots, not live status.
-GPU9 is retired.
+GPU9: see "Data on other servers".
