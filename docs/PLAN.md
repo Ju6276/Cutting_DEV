@@ -54,89 +54,135 @@ distribution is still to be measured. Both facts belong in the paper.
 These are missing features for a new task, not newly discovered failures of the
 already tested fixed-task implementation.
 
-## Route B viability check (proposal, awaiting user/Codex approval, 2026-11-10)
+## Route B — bounded method screening, separate from new-policy training
 
-**Relation to S0-S4.** S0-S4 build the experimental setting (one shared
-controller across conditions, matched-budget SAC). Route B is the candidate
-method contribution inside that setting; B1 and B2 use existing data and models
-and can run while S0/S1 are implemented. If B is supported, its bound enters the
-S3 training comparison as the method's force-limit constraint.
+Scope revised after user/Codex review, 2026-11-10. This is a candidate method
+plan, not implemented functionality or authorization to launch its GPU jobs.
 
-**Why.** The method contribution is open: A had no clear control benefit, and the
-working design (`real` critic + short horizon + BC, designed in this project and
-supported by its ablations) is the method's base but has precedents per
-component. Route B targets a measured failure: every WM missed the contact-onset
-force spike at force-limit events (19-23 of 23 missed, one-step under-prediction
-11-20 N, while nominal trajectories average +0.08 N), and model-based
-optimization exploits it (same-WM MPPI chose predicted limit ratios 0.71-0.99 and
-ended by the force limit in 4 of 6 runs). Literature (NOVELTY section 9):
-pessimistic safety costs in world models (LAMBDA, CAP) and GP force chance
-constraints in MPC (Matschek, Haninger) exist; not found: the measured one-sided
-onset under-prediction and a calibrated onset-aware peak-force bound inside WM
-policy optimization. The decisive question for novelty: does ordinary ensemble
-(epistemic) pessimism already flag the onset under-prediction?
+**Role in S0–S4.** B1 uses historical simulation transitions for predictor
+fitting/evaluation; B2 uses a frozen historical WM to plan new physical
+rollouts. Neither trains a new policy. They screen a force-risk formulation,
+not validate multi-material learning or the final algorithm. S0–S2 continue
+independently. B failing or remaining inconclusive ends this candidate screen;
+it does not stop task integration or force a restart of the entire paper.
 
-**Hypothesis.** The onset error is a bias shared by independently trained WMs,
-so ensemble disagreement does not flag it, while a one-sided bound calibrated on
-real onset events does, and using that bound as the force-limit constraint stops
-the planner from exploiting it.
+The main learning experiment is S3: new shared WM/policy/critic weights and
+new online interaction across the declared material/geometry distribution,
+compared with fresh SAC under the same physical-data budget. policy62 and its
+continuations are historical references, not the default initialization.
+If B is selected, it must enter and be evaluated in this new-policy training.
 
-**Data.** No new collection.
-- Fit: the working-baseline run's replay (`critic_abl_a250_20261106/training/replay.pt`,
-  A6000; training episodes with 7-14% force-limit endings) plus the
-  `wm_frozen_fit_20261105` training split.
-- Calibration: reliability-supplement dev split (23 force-limit endings, 16 at
-  contact onset).
-- Test: reliability-supplement final split (13 force-limit endings), sealed so
-  far; opened only for this check's final numbers.
+**Question and evidence.** Existing checks report that the tested WMs missed
+19–23 of 23 recorded force-limit events; MPPI predicted sub-limit ratios and
+hit the physical limit in 4/6 recorded runs. This motivates testing whether
+calibrated upper predictions help control. It does not prove a universal
+contact bias, intrinsic unpredictability, or that ensemble uncertainty must
+fail. Residual/quantile calibration and uncertainty-aware control have
+precedents (NOVELTY); neither an ensemble's failure nor adding a calibration
+table alone establishes a new method.
 
-**B1 — offline prediction check (no policy training).** Predictors of the next
-control step's peak sensor wrench given state and action (one step before the
-event):
-1. Mean: the working-baseline WM.
-2. Ensemble: 5 WMs trained from independent initializations on the fit data
-   (same architecture, losses and budget as the WM-only stage, capped below),
-   bound = max over members and mean + 2 std.
-3. Quantile head: a tau = 0.95 pinball-loss head on the frozen working-baseline WM
-   features (head only).
-4. Conformal residual: working-baseline prediction plus the 95% quantile of
-   calibration residuals (true - predicted peak), computed separately for the
-   contact-onset phase (no spring released yet and the knife within the
-   object's top band) and the cutting phase. No training.
-Metrics on the test split, per predictor: share of force-limit events flagged
-(bound above the limit one step before), false-alarm rate on nominal steps
-(bound above the limit while the true peak stays below), mean slack of the bound
-on nominal steps, and for the ensemble the member spread at onset vs nominal.
-Decision rule (fixed now):
-- B supported: a calibrated bound (3 or 4) flags at least 80% of test force-limit
-  events at no more than 10% nominal false alarms, while the ensemble bounds flag
-  at most half as many events at matched false-alarm rate.
-- B not supported: the ensemble bounds flag within 20 percentage points of the
-  calibrated bound (pessimism already solves it), or no bound reaches 80% at
-  10% false alarms (the onset spike is not predictable from the WM state; the
-  route is reconsidered, not patched).
+**Quantity and available information.** Predict the next control interval's
+sensor-limit utilization R = max_i(peak_wrench_i / force_limit_i), using the
+state/history at t and candidate action a_t. Components and limits follow
+BENCHMARK, including torque; R > 1 is the existing physical limit event.
+Material-contact force remains a separate metric. Calibrate the scalar maximum,
+not six unrelated 95% bounds interpreted as a joint 95% guarantee.
 
-**B2 — planner check (evaluation only, only if B1 supports B).** Same-WM MPPI on
-the working-baseline WM, settings as before, no terminal critic (its imagined-
-state values are out of range and would confound the force effect). The
-predicted force-limit predicate uses (i) the mean, (ii) the ensemble bound,
-(iii) the calibrated bound; 8 planner seeds each on the nominal task. Metric:
-force-limit endings, success, steps, material peak force. Supported if (iii) has
-fewer force-limit endings than (i) and (ii) without losing completion.
+A phase-dependent bound may use only declared causal robot/force history and
+goal information; any known scene geometry must be explicitly shared under S0.
+Spring release, true damage, future contact labels and future measured wrench
+are unavailable to this controller. They may stratify offline reports, but must
+not select the deployed bound. Freeze an observable phase rule before test
+access; absent such a rule, use the global bound and make no phase-aware claim.
 
-**After B1/B2.** Only if both support B: a training plan that uses the calibrated
-bound as the force-limit constraint in BPTT (Lagrangian or adaptive penalty, as
-CAP), evaluated in the S3 setting against the working baseline, SAC and same-WM
-MPPI. If B fails, the paper positioning is rediscussed before any
-further GPU time.
+**Historical B1 data; no new collection.**
 
-**Implementation.** Ensemble training from fresh initializations on a replay
-file; quantile head on frozen WM features; conformal residual tables; flag
-metrics; a bound option for MPPI's force-limit predicate. Tests for each.
+- Fit: working-baseline replay
+  (`critic_abl_a250_20261106/training/replay.pt`, A6000) and
+  `wm_frozen_fit_20261105` training split. Recorded run-level failure percentages
+  are not a verified composition of the retained replay file.
+- Calibration/development: reliability-supplement dev split (reported 23
+  force-limit endings, including 16 onset events).
+- Held-out screen: reliability-supplement final split (reported 13 force-limit
+  endings), kept sealed until predictors and operating settings are frozen.
+  It is this historical pilot's held-out screen, not the future multi-condition
+  paper test. Do not reuse it to select or revise the method after opening.
 
-**Budget.** B1: ensemble about 5 x 1 h WM fitting plus minutes for the rest
-(GPU7 when free, or A6000 when its other user's jobs end); B2: 24 MPPI episodes,
-about 2 h. Single GPU. No automatic extension.
+Record disjoint episode provenance across fit/calibration/test. Adjacent frames
+are not independent trials. Stratified diagnostic collection does not represent
+deployment event prevalence. A raw residual percentile or pinball head does not
+by itself guarantee coverage: finite-sample conformal ranks and assumptions
+about calibration/test sampling must be specified. Otherwise report empirical
+coverage only. Old-policy calibration cannot certify new policies, imagined
+candidate states, new materials or a whole rollout.
+References: [conformal prediction](https://arxiv.org/pdf/2107.07511),
+[CQR](https://arxiv.org/pdf/1905.03222).
+
+**B1 — one offline screen, no policy updates.** Retain four predictor families:
+
+1. Existing mean WM as the historical reference.
+2. Five independently initialized WMs on the declared fit data. Record each
+   member's fitting budget, data sampling and uncertainty construction.
+   A deterministic-member spread is not all forms of predictive uncertainty.
+3. A 0.95 pinball-loss head on frozen causal WM state/action features.
+4. A one-sided residual correction, global or using the predeclared observable
+   phase, on the existing WM.
+
+Give ensemble and single-model predictors the same held-out calibration
+opportunity. Max-member and mean-plus-two-standard-deviations remain heuristic
+references, not guaranteed bounds. Choose variants/operating settings on dev
+only, with the proposed 10% nominal false-alarm budget treated as a development
+choice rather than a task threshold or safety guarantee. Freeze one setting
+per family; do not tune them to match false alarms on the test set.
+
+Report event counts/recall, achieved false-alarm rate and upper-bound slack;
+show contact-relevant nominal steps separately so easy free-motion steps do
+not hide false alarms. Uncertainty summaries use episodes as the sampling unit,
+not independent adjacent frames. Report empirical bound coverage separately
+from event recall. With 13 held-out failures, one event is about 7.7 percentage
+points: this is screening evidence, not proof of a reliable deployment rate.
+
+Remove the old "80% recall, ensemble less than half" pass rule. Advance a
+candidate only if the frozen comparison supports a useful recall/false-alarm
+tradeoff over the mean and a reasonably calibrated comparator; declare
+inconclusive results as such. If a standard ensemble is sufficient, prefer the
+simpler justified method and narrow the novelty claim. Poor results show a
+limit of these predictors/data, not that the force event is unlearnable.
+No extra fitting rounds or new test sets are automatically added.
+
+**B2 — optional planner screen, no policy training.** Use the same frozen
+working WM for motion prediction, the same nominal task and no terminal critic
+in all arms. Compare the mean-only planner, calibrated ensemble risk estimate
+and selected single-model bound, with eight paired planning seeds per arm.
+
+Retain the physical task reward, success and termination definitions. Specify
+the upper bound as an explicit planning risk constraint or cost, including its
+strength and all-candidates-infeasible behavior, before execution. Do not merely
+replace the absorption predicate while retaining an inconsistent reward:
+`mpc.py` obtains reward from `wm.predict()` before computing absorption.
+Keep risk cost, task reward and physical endings separately logged. The
+constraint/cost formula is still an implementation choice to be fixed; it is
+not silently selected by this document.
+
+Report every ending, completion, duration, sensor-limit exceedance, material
+peak/impulse and planning time. Reduced force through stalled/incomplete cuts
+is not a control benefit. Eight planner seeds are a pilot, not training seeds.
+B2 can support a planning mechanism; it cannot establish BPTT learning benefit.
+
+**Bridge to S3.** If retained, B is an explicitly named variant alongside the
+working objective. Before its S3 run, define its differentiable risk objective,
+action-gradient path and how calibration is refreshed/invalidated as the WM
+and interaction distribution change. A hard Boolean stop alone supplies no
+useful pathwise force gradient. Reuse the procedure on S3 training/development
+data, not old prism residual constants as if they transfer automatically.
+Keep the new multi-condition test split unused for fitting/calibration.
+An additive bound does not itself repair the mean dynamics or its gradients.
+
+**Bounded allocation.** Original proposed caps remain: B1 at most five GPU
+hours for fitting, B2 at most two hours/24 physical rollouts, on one available
+GPU. Log all costs; incomplete fitting is incomplete, not model failure. No
+automatic extensions or broader diagnostic queue. This revision launches
+nothing and does not make B a prerequisite for S0–S2.
 
 ## Ordered implementation and experimental stages
 
@@ -213,11 +259,15 @@ re-running a broad physics validation campaign.
 ### S3 — matched-distribution learning comparison
 
 Train WM + BPTT and SAC on the same final training distribution and physical
-interaction budget. The recommended clean comparison starts both learning
-procedures from fresh networks. If a staged curriculum or existing checkpoint
-is reused instead, declare it and count all pretraining/continuation exposure
-for both sides; do not compare a warm-started method with a fresh SAC while
-ignoring its history.
+interaction budget. The planned main comparison starts both from fresh networks,
+including a fresh WM and critic for the WM method. Its WM-only collection and
+later joint updates sample the declared distribution. policy62 is not the
+default warm start. This trains a new shared controller; it is not another
+evaluation or continuation of the old fixed-prism policy.
+
+Any later proposal to reuse a checkpoint/curriculum must be an explicit
+protocol revision with all pretraining exposure counted for both sides. It
+must not silently replace this fresh-training comparison.
 
 For WM + BPTT, the current working recipe is the starting method:
 physical-trajectory critic, H8 and replay BC 0.25. Do not silently add A, change
@@ -273,9 +323,11 @@ No generic “real critic versus imagined critic” experiment precedes building
 new task distribution by default. A targeted ablation is selected only when it
 tests the final method claim.
 
-Current work is this scoped plan and implementation assessment. No new long run
-is launched until a concrete S0 specification and run settings/budget exist.
-Low early reward does not automatically justify changing the task or model.
+The immediate implementation track is S0–S2, independent of B's outcome.
+Its S3 training requires a concrete S0 distribution and run settings/budget.
+Any historical B pilot requires its separately frozen configuration within
+the cap above; this document edit launches neither track. Low early reward
+does not automatically justify changing the task or model.
 
 ## Storage and execution
 

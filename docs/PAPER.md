@@ -36,6 +36,43 @@ action-perturbation results enter the paper. The earlier ten-episode frozen
 elasticity pilot is withdrawn; the new proposal includes task diversity during
 training, rather than assuming a fixed-prism model already generalizes.
 
+## Cutting scope and the broader contact problem
+
+The current environment and evidence concern cutting. Cutting is a contact-rich
+manipulation task with changing force response and irreversible material change;
+the general research question can be learned-model control under contact-force
+prediction error. Cutting is the focused test domain for this paper, not
+evidence that the same implementation already works in insertion, pushing or
+grinding. Adding those tasks would require their environments and validation,
+so none is scheduled now.
+
+Non-cutting literature informs the method: MAAC uses learned-model pathwise
+policy gradients and an endpoint value; LAMBDA uses world-model uncertainty
+for constrained policy learning on Safety-Gym; CAP adjusts model-based safety
+costs using uncertainty and real cost feedback. These are precedents, not
+extra task requirements or evidence that our contact-specific problem is solved.
+Sources: [MAAC](https://arxiv.org/abs/2005.08068),
+[LAMBDA](https://arxiv.org/abs/2201.09802),
+[CAP](https://arxiv.org/abs/2112.07701).
+
+The intended paper tests a shared cutting controller across materials and
+prepared shapes. Generality to other contact tasks remains a future claim.
+Do not market the present method as a validated general contact-rich algorithm.
+
+## Historical screening versus training a new policy
+
+B1 uses old interaction data to fit/test force-risk predictors. B2 uses an old
+frozen WM to select new MPPI actions and execute physical rollouts. Neither
+updates a policy network, and neither proves shared multi-condition learning.
+Their bounded role is to decide whether B merits a named training variant.
+
+The main S3 experiment starts fresh WM, policy and critic networks, collecting
+new simulation transitions across the declared conditions; SAC also starts
+fresh under the matched physical-interaction budget. The WM-only stage and
+later online joint learning belong to that new training process. The old
+policy62 is a historical reference, not its default starting controller.
+B's prediction/planning outcome does not block S0–S2 or substitute for S3.
+
 ## Correction: from-scratch capability and continuation are different facts
 
 The source learning chain starts with fresh network weights, a 500-round

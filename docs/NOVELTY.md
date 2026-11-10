@@ -266,16 +266,22 @@ by the review agent only; I = prior knowledge, not re-verified.
   prediction of peak wrench; the full combination inside world-model BPTT.
 
 Assessment: generic pessimistic safety costs in world-model optimization (LAMBDA,
-CAP) and force chance constraints in MPC (Matschek, Haninger) exist. The
-narrowest defensible element is (1) the measured one-sided under-prediction of
-the onset peak force (RESULTS 2026-11-08/09: 19-23 of 23 force-limit events
-missed, 11-20 N one-step under-prediction, while errors on nominal trajectories
-average +0.08 N) and its exploitation by model-based optimization (MPPI chose
-predicted ratios 0.71-0.99 and hit the limit in 4 of 6 runs), and (2) a
-calibrated, contact-phase-aware upper bound on peak force used as the constraint
-in BPTT (and MPPI). Biggest risk: "LAMBDA/CAP/Hewing applied to a force output";
-it is answered only if ensemble (epistemic) pessimism fails to flag the onset
-under-prediction while a calibrated tail bound does.
+CAP) and force chance constraints in MPC (Matschek, Haninger) exist. Recorded
+one-sided under-prediction (RESULTS 2026-11-08/09: 19–23 of 23 force-limit
+events missed, 11–20 N one-step under-prediction) and the MPPI failures motivate
+a candidate, not an established contribution. A calibrated upper estimate
+inside force-aware policy optimization remains to be defined and tested.
+Ensemble failure is neither required nor sufficient for novelty; calibrated
+ensemble comparators deserve the same calibration opportunity.
+
+Phase/group conformal calibration itself has prior art (Angelopoulos & Bates,
+§4.1, [tutorial](https://arxiv.org/pdf/2107.07511), targeted text inspection).
+The deployed group must be observable; damage/spring truth may label analysis
+but cannot secretly select a bound. Coverage assumptions, limited independent
+episodes and distribution change matter. PLAN's revised B section defines a
+bounded screen; it does not claim guaranteed safety, that spikes are inherently
+unpredictable, or that prediction gains already improve BPTT. Cutting remains
+the first experimental domain; non-cutting papers inform the formulation.
 
 ## Assessment
 
