@@ -35,7 +35,7 @@ The previous long plan (route B screening rules, S0–S4 rationale) is archived 
 | End-to-end check | 46-iteration multi-object training with and without the constraint completes (WM, risk head, joint updates, checkpoint) |
 | Parallel object groups | Done: one process per group, 2.5× faster than sequential, consistent within the simulator's run-to-run variation |
 | Ensemble-risk comparator | Done (`--risk-estimator ensemble`) |
-| Multi-object evaluation | `scripts/evaluate_multi.py` written; functional run pending |
+| Multi-object evaluation | `scripts/evaluate_multi.py`: loads and runs (functional run 2026-11-11); per-episode rows not yet exercised |
 | Missing before S3 | SAC on the multi-object task (training is still single-environment; only SAC evaluation is batched); task force limit value |
 | Main experiment (S3) | Not started |
 

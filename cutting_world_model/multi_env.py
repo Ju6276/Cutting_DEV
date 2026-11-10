@@ -107,13 +107,19 @@ def _group_worker(connection, arguments):
         group = LocalGroup(*arguments)
         connection.send(('ready', group.metadata, _cpu(group.current)))
         while True:
-            command, payload = connection.recv()
+            try:
+                command, payload = connection.recv()
+            except EOFError:      # the parent exited without close(): shut down quietly
+                break
             if command == 'close':
                 break
             result = group.step(*payload) if command == 'step' else group.reset(*payload)
             connection.send(('ok', _cpu(result)))
     except BaseException:
-        connection.send(('error', traceback.format_exc()))
+        try:
+            connection.send(('error', traceback.format_exc()))
+        except (BrokenPipeError, OSError):
+            pass
     finally:
         connection.close()
 

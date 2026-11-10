@@ -378,6 +378,8 @@ def run(args, output, status, started):
     finally:
         errors = finalize_gpu_run(checkpoint, progress, tracker, output, status,
                                   schedule.iteration, learner.updates)
+        if hasattr(env, 'close'):
+            env.close()  # stops object-group processes of the multi-object task
         if errors and error is None:
             raise RuntimeError('Training finalization failed: ' + repr(errors))
 

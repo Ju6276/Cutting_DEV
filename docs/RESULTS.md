@@ -2073,8 +2073,8 @@ before 90% of the cut springs were released (a separation proxy):
 | Object | 1 cm/s | 2 cm/s | 5 cm/s | Object displacement |
 |---|---:|---:|---:|---|
 | potato_003 | 9.7 N (cut) | 9.7 N | 10.3 N | ≤ 1.4 mm |
-| cucumber_003 (17 cm) | pending | 34.5 N | 41.4 N | ≤ 0.6 mm |
-| cucumber_002 (9 cm) | pending | pending | 19.9 N | 0 |
+| cucumber_003 (17 cm) | 33.8 N (cut) | 34.5 N | 41.4 N | ≤ 0.6 mm |
+| cucumber_002 (9 cm) | 16.9 N | 16.1 N | 19.9 N | ≤ 1.2 mm |
 
 Larger peaks after the cut are the knife pressing into the held layer and board as
 the reference keeps descending; they are not cutting forces. Without the hold the
@@ -2083,3 +2083,16 @@ potato slid 26 mm sideways and was not cut; holding also raised cucumber_003's f
 (earlier run, not held) reached 179–200 N at 1–5 cm/s without completing; it was not
 repeated with the hold. These numbers inform the task force limit, which is set from
 the external Mini45 sensor (not the inherited 50 N).
+
+## 2026-11-11 — Multi-object functional run with the ensemble-risk comparator
+
+`configs/multi_condition/smoke.json` (prism, potato_003, cucumber_003; 4 worlds each;
+parallel groups), `train_gpu.py --risk-constraint --risk-estimator ensemble`, 46
+iterations, then `evaluate_multi.py` for 12 steps. Completed: WM-only update, four
+ensemble members fitted per update (losses 0.40–0.64), joint update with the ensemble
+risk in BPTT (mean upper estimate 0.11, penalty 0 at this stage, lambda 10). The
+evaluation loaded the 8-dimensional-goal policy and ran; no episode ended within 12
+steps, so its per-episode rows are not yet exercised. Object-group processes exited
+with EOF tracebacks after training (harmless, the parent had not closed them); fixed
+by closing the environment at the end of training and ending workers quietly on EOF.
+
