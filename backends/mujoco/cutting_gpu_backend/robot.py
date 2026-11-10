@@ -34,6 +34,14 @@ class Robot:
         self.q = wp.to_torch(self.data.qpos)
         self.qd = wp.to_torch(self.data.qvel)
 
+    @torch.no_grad()
+    def set_joint_positions(self, q):
+        """Place each world at its own joint configuration at rest (before saving the reset state)."""
+        with wp.ScopedStream(self.stream):
+            self.q.copy_(torch.as_tensor(q, device=self.q.device, dtype=self.q.dtype))
+            self.qd.zero_()
+            mjw.forward(self.gpu_model, self.data)
+
     def save_reset_state(self):
         self.initial = {name: wp.to_torch(getattr(self.data, name)).clone()
                         for name in ('qpos', 'qvel', 'qacc_warmstart', 'time')}

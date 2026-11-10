@@ -57,8 +57,14 @@ class SliceItHeads:
         elif self.force_penalty_scale is not None:
             raise ValueError("force_penalty_scale applies to the linear force penalty only")
 
-    def observation(self, pose_error, velocity, jerk, previous_action, wrench_history):
-        # SliceIt flattens force histories by component, then by time.
+    def limits(self, like, limit_scale=None):
+        """Force/torque limits, optionally scaled per sample (per-object limits)."""
+        limits = like.new_tensor(self.force_limits)
+        return limits if limit_scale is None else limits * limit_scale[..., None].to(like)
+
+    def observation(self, pose_error, velocity, jerk, previous_action, wrench_history, limit_scale=None):
+        # SliceIt flattens force histories by component, then by time. Forces are normalized
+        # by the (per-sample) limits, so the policy observes sensor-limit utilization.
         dims = self.dims
         position = pose_error[..., dims] / pose_error.new_tensor(self.max_distance)
         velocity = velocity[..., dims]
@@ -69,7 +75,10 @@ class SliceItHeads:
             pieces.append(jerk[..., dims] / 500.)
         if self.env["last_action_as_obs"]:
             pieces.append(previous_action)
-        force = wrench_history / wrench_history.new_tensor(self.force_limits)
+        limits = self.limits(wrench_history, limit_scale)
+        if limit_scale is not None:
+            limits = limits[..., None, :]
+        force = wrench_history / limits
         force = force[..., dims].transpose(-1, -2).flatten(-2)
         pieces.append(force)
         return torch.cat(pieces, dim=-1)
@@ -79,19 +88,21 @@ class SliceItHeads:
         dims = len(self.dims)
         return torch.linalg.vector_norm(observation[..., dims * 2:dims * 3], dim=-1)
 
-    def force_norm(self, observation):
+    def force_norm(self, observation, limit_scale=None):
         """s = ||mean over the history of the physical target-dim wrench components||."""
         dims = len(self.dims)
-        limits = observation.new_tensor([self.force_limits[i] for i in self.dims])
+        limits = self.limits(observation, limit_scale)[..., self.dims]
+        if limit_scale is not None:
+            limits = limits[..., None, :]
         # Observations store each component across the history window.
         force = observation[..., -self.history * dims:].reshape(*observation.shape[:-1], dims, self.history)
         force = force.transpose(-1, -2)
         force = (force * limits).mean(dim=-2)
         return torch.linalg.vector_norm(force[..., :3], dim=-1)
 
-    def force_reward(self, observation):
+    def force_reward(self, observation, limit_scale=None):
         """Unweighted force term of the reward under the configured force penalty."""
-        norm_force = self.force_norm(observation)
+        norm_force = self.force_norm(observation, limit_scale)
         if self.force_penalty == "linear":
             return -norm_force / self.force_penalty_scale
         return -torch.sigmoid(norm_force / 2. - 3.)
@@ -101,15 +112,15 @@ class SliceItHeads:
                                           self.env["w_jerkiness"], 1.])
         return weights / weights.abs().sum()
 
-    def weighted_force_reward(self, observation):
+    def weighted_force_reward(self, observation, limit_scale=None):
         """The force term as it enters the reward (with its normalized weight)."""
-        return self.reward_weights(observation)[1] * self.force_reward(observation)
+        return self.reward_weights(observation)[1] * self.force_reward(observation, limit_scale)
 
-    def reward(self, observation, collision, goal_reached, out_of_workspace):
+    def reward(self, observation, collision, goal_reached, out_of_workspace, limit_scale=None):
         distance = observation[..., 1].abs()
         jerk = self.jerkiness(observation)
         r_distance = -torch.tanh(5. * distance)
-        r_force = self.force_reward(observation)
+        r_force = self.force_reward(observation, limit_scale)
         r_jerk = torch.clamp(-jerk, min=-1., max=0.)
         cost = self.env["cost"]
         weights = self.reward_weights(observation)

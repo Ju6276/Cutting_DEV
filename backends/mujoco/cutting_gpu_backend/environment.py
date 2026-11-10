@@ -9,7 +9,8 @@ import torch
 import warp as wp
 
 from .batched_disect import BatchedDiSECt
-from .controller.fdcc import ControllerConfig, FDCCController, SerialChain, SlicingActionMapper
+from .controller.fdcc import (ControllerConfig, FDCCController, SerialChain, SlicingActionMapper,
+                              pose_error, quat_apply)
 from .coupling import SliceItCoupling
 from .metrics import StepMetrics
 from .reference import KnifeTrajectory
@@ -18,7 +19,12 @@ from .robot import Robot
 
 class CuttingBatch:
     @torch.no_grad()
-    def __init__(self, root, worlds=1, scene='runs/disect_source_v4/scene.pt', reference_trajectory=None):
+    def __init__(self, root, worlds=1, scene='runs/disect_source_v4/scene.pt', reference_trajectory=None,
+                 initial_lift=None, force_limit_scale=None):
+        """``initial_lift`` (m, per world): start the knife this far above the captured start
+        along DiSECt +y (vertical), same orientation, by inverse kinematics before the reset
+        state is settled and saved. ``force_limit_scale`` (per world) multiplies the task
+        force/torque limits used by the force-limit termination."""
         root = Path(root)
         self.worlds = worlds
         self.scene = scene
@@ -38,6 +44,10 @@ class CuttingBatch:
         self.mapper = SlicingActionMapper(max_twist=task['controller']['max_twist'])
         self.mapper.reset(worlds, self.device, self.dtype)
         self.coupling = SliceItCoupling.from_urdf(task['robot_xml'], self.material.spine_height, device=self.device, dtype=self.dtype)
+        self.initial_lift = torch.zeros(worlds, device=self.device, dtype=self.dtype)
+        if initial_lift is not None:
+            self.initial_lift = torch.as_tensor(initial_lift, device=self.device, dtype=self.dtype).expand(worlds).clone()
+            self.robot.set_joint_positions(self.lifted_configuration(self.robot.q.to(self.dtype), self.initial_lift))
         raw = -self.robot.sensor_wrench(self.config.sensor_ref_link).to(self.dtype)
         self.coupling.reset_filter(raw)
         hold = self.robot.q.clone()
@@ -57,7 +67,13 @@ class CuttingBatch:
         self.target = torch.as_tensor(episode['target_pose'][0], device=self.device, dtype=self.dtype)[None].repeat(worlds, 1)
         self.reference_start = self.frames[self.chain.tip].clone()
         self.set_reference_trajectory(reference_trajectory)
-        self.force_limits = torch.tensor(task['controller']['max_force_torque'], device=self.device, dtype=self.dtype)
+        nominal = torch.tensor(task['controller']['max_force_torque'], device=self.device, dtype=self.dtype)
+        scale = torch.ones(worlds, device=self.device, dtype=self.dtype) if force_limit_scale is None else \
+            torch.as_tensor(force_limit_scale, device=self.device, dtype=self.dtype).expand(worlds)
+        if not bool((scale > 0).all()):
+            raise ValueError('Force-limit scales must be positive')
+        self.force_limit_scale = scale.clone()
+        self.force_limits = nominal[None] * scale[:, None]
         self.desired_wrench = torch.tensor(task['controller']['desired_force_torque'], device=self.device, dtype=self.dtype)[None].expand(worlds, -1)
         self.coupling.previous_pose_base = knife.clone()
         self.motion_initialized = torch.zeros(worlds, device=self.device, dtype=torch.bool)
@@ -73,6 +89,26 @@ class CuttingBatch:
         self._initial_queue = self.wrench_queue.clone()
         self._initial_previous_knife = knife.clone()
         self.spring_reference = self.material.state_field('cut_spring_ke').clone()
+
+    @torch.no_grad()
+    def lifted_configuration(self, q, lift, iterations=50, tolerance=1e-7):
+        """Joint positions placing the knife ``lift`` metres higher along DiSECt +y, same orientation."""
+        tip = 'b_bot_knife_sim'
+        start = self.knife_chain(q, mass_matrix=False)[0][tip]
+        up = quat_apply(self.coupling.base_from_disect[3:].to(q).expand(len(q), -1),
+                        q.new_tensor([0., 1., 0.]).expand(len(q), -1))
+        target = start.clone()
+        target[:, :3] += lift[:, None].to(q) * up
+        for _ in range(iterations):
+            frames, jacobian, _ = self.knife_chain(q, mass_matrix=False)
+            error = pose_error(frames[tip], target)
+            if float(error.abs().max()) < tolerance:
+                break
+            jjt = jacobian @ jacobian.transpose(-1, -2) + 1e-10 * torch.eye(6, device=q.device, dtype=q.dtype)
+            q = q + (jacobian.transpose(-1, -2) @ torch.linalg.solve(jjt, error[..., None])).squeeze(-1)
+        else:
+            raise RuntimeError('Inverse kinematics for the lifted start did not converge')
+        return q
 
     def set_reference_trajectory(self, trajectory=None):
         """None restores the scene's constant knife velocity over its duration."""
