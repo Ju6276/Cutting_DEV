@@ -11,6 +11,8 @@ force-risk constraint is `--risk-constraint`.
 |---|---|
 | WM and policy training (fixed prism or `--conditions`, optional `--risk-constraint`) | `train_gpu.py` |
 | Multi-object environment check with reference control | `check_multi_condition.py` |
+| Parallel vs sequential object groups | `check_parallel_groups.py` |
+| Frozen multi-object evaluation (WM-method checkpoints) | `evaluate_multi.py` |
 | Unified-environment SAC | `train_sac_gpu.py`; `sac_gpu_worker.py` is its process bridge |
 | Frozen policy, SAC, MPPI and reference evaluation | `evaluate_benchmark.py` |
 | Reference cuts / world scaling | `benchmark_gpu_env.py` |

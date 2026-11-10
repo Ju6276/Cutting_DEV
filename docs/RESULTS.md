@@ -2062,3 +2062,24 @@ mismatch. Sequential vs sequential (same seed and actions) differs as much: iden
 for two steps, then 0.29 → 8.1 N peak wrench by step 6 — the GPU physics is not
 bitwise repeatable under contact. The parallel path is therefore consistent with the
 sequential reference within the simulator's own run-to-run variation.
+
+## 2026-11-11 — Force needed to cut the held scanned objects
+
+`scripts/measure_cut_force.py`, `runs/food_force_held_20261111`: knife 1 cm above the
+object, straight downward reference at 1/2/5 cm/s, force-limit termination off, object
+held by its bottom 6 mm (except near the cut plane). Largest sensor force component
+before 90% of the cut springs were released (a separation proxy):
+
+| Object | 1 cm/s | 2 cm/s | 5 cm/s | Object displacement |
+|---|---:|---:|---:|---|
+| potato_003 | 9.7 N (cut) | 9.7 N | 10.3 N | ≤ 1.4 mm |
+| cucumber_003 (17 cm) | pending | 34.5 N | 41.4 N | ≤ 0.6 mm |
+| cucumber_002 (9 cm) | pending | pending | 19.9 N | 0 |
+
+Larger peaks after the cut are the knife pressing into the held layer and board as
+the reference keeps descending; they are not cutting forces. Without the hold the
+potato slid 26 mm sideways and was not cut; holding also raised cucumber_003's force
+(8.5 → 41 N at 5 cm/s), so the hold is part of the task definition. The apple
+(earlier run, not held) reached 179–200 N at 1–5 cm/s without completing; it was not
+repeated with the hold. These numbers inform the task force limit, which is set from
+the external Mini45 sensor (not the inherited 50 N).

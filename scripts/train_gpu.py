@@ -135,6 +135,7 @@ def run(args, output, status, started):
             reward = {**(reward or {}), 'w_speed': float(conditions['w_speed'])}
         env = MultiConditionEnvironment.from_config(args.backend_root, conditions, reward=reward)
         args.worlds = env.worlds
+        status['worlds'] = env.worlds
         task_goal = MultiConditionEnvironment.goal
     else:
         env = GPUEnvironment(args.backend_root, args.worlds, reward=reward)

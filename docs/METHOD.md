@@ -647,3 +647,9 @@ WMs, each fitted every update with the WM procedure on its own minibatches (the
 setting selected on B1 development data). Only the risk representation differs from
 the proposed head.
 
+Multi-object frozen evaluation: `scripts/evaluate_multi.py --checkpoint ... --conditions
+<eval json> --episodes N` runs the deterministic policy until every world finished N
+episodes and writes one row per episode (object, sampled conditions, ending, steps,
+peak material force, peak limit ratio, impulse, released-spring fraction, target-speed
+error while cutting) plus per-object summaries.
+

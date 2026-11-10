@@ -64,7 +64,14 @@ class LocalGroup:
                                   initial_lift=lift, force_limits=force_limits)
         self.env.target_speed = torch.zeros(worlds, device=self.env.device)
         self.metadata = self.env.metadata
-        self.current = _fixed(self.env.current)
+        self.springs = torch.full((worlds, 1), float(self.env.current['cut_spring_ke'].shape[-1]),
+                                  device=self.env.device)
+        self.current = self._out(self.env.current)
+
+    def _out(self, frame):
+        frame = _fixed(frame)
+        frame['total_springs'] = self.springs.clone()
+        return frame
 
     @torch.no_grad()
     def reset(self, local, scales, speeds):
@@ -75,13 +82,13 @@ class LocalGroup:
             full[k][local] = v.to(full[k])
         material.set_material_scales(local, **full)
         self.env.target_speed[local] = speeds.to(self.env.target_speed)
-        self.current = _fixed(self.env.reset(local))
+        self.current = self._out(self.env.reset(local))
         return self.current
 
     @torch.no_grad()
     def step(self, action, reference=False):
         frame, reward, terminated, truncated, info = self.env.step(action.to(self.env.device), reference=reference)
-        self.current = _fixed(frame)
+        self.current = self._out(frame)
         return self.current, reward, terminated, truncated, info
 
 

@@ -103,7 +103,8 @@ the proposed mechanism does not.
 - **Task setting.** One shared WM, policy and critic over scanned objects with real
   shapes (OmniObject3D apple, potato, cucumbers; benchmark prism), DiSECt official
   materials with randomized scales, randomized knife start height and target
-  cutting speed (task input), one force limit for all objects. Held-out material
+  cutting speed (task input), one force limit for all objects, set from the external
+  Mini45 force/torque sensor used on the real robot. Held-out material
   scales, start heights and, if available, one object for testing.
 - **Main comparison.** Fresh training under the same physical-interaction budget:
   working base; base + force-risk penalty; base + ensemble risk; SAC; optionally
@@ -141,6 +142,6 @@ Action-perturbation evaluations are retired and excluded.
 
 - Whether the constraint improves control on the multi-object task (the main
   experiment, not yet run).
-- The one force limit and the object set (cut-force measurement in progress).
+- The force limit value (from the Mini45) and the first-run object set (PLAN step 1).
 - Training stability of the base across seeds (one repeat collapsed).
 - Real-robot validation ([REAL2SIM](REAL2SIM.md), draft).
