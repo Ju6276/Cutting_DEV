@@ -54,6 +54,90 @@ distribution is still to be measured. Both facts belong in the paper.
 These are missing features for a new task, not newly discovered failures of the
 already tested fixed-task implementation.
 
+## Route B viability check (proposal, awaiting user/Codex approval, 2026-11-10)
+
+**Relation to S0-S4.** S0-S4 build the experimental setting (one shared
+controller across conditions, matched-budget SAC). Route B is the candidate
+method contribution inside that setting; B1 and B2 use existing data and models
+and can run while S0/S1 are implemented. If B is supported, its bound enters the
+S3 training comparison as the method's force-limit constraint.
+
+**Why.** The method contribution is open: A had no clear control benefit, and the
+working design (`real` critic + short horizon + BC, designed in this project and
+supported by its ablations) is the method's base but has precedents per
+component. Route B targets a measured failure: every WM missed the contact-onset
+force spike at force-limit events (19-23 of 23 missed, one-step under-prediction
+11-20 N, while nominal trajectories average +0.08 N), and model-based
+optimization exploits it (same-WM MPPI chose predicted limit ratios 0.71-0.99 and
+ended by the force limit in 4 of 6 runs). Literature (NOVELTY section 9):
+pessimistic safety costs in world models (LAMBDA, CAP) and GP force chance
+constraints in MPC (Matschek, Haninger) exist; not found: the measured one-sided
+onset under-prediction and a calibrated onset-aware peak-force bound inside WM
+policy optimization. The decisive question for novelty: does ordinary ensemble
+(epistemic) pessimism already flag the onset under-prediction?
+
+**Hypothesis.** The onset error is a bias shared by independently trained WMs,
+so ensemble disagreement does not flag it, while a one-sided bound calibrated on
+real onset events does, and using that bound as the force-limit constraint stops
+the planner from exploiting it.
+
+**Data.** No new collection.
+- Fit: the working-baseline run's replay (`critic_abl_a250_20261106/training/replay.pt`,
+  A6000; training episodes with 7-14% force-limit endings) plus the
+  `wm_frozen_fit_20261105` training split.
+- Calibration: reliability-supplement dev split (23 force-limit endings, 16 at
+  contact onset).
+- Test: reliability-supplement final split (13 force-limit endings), sealed so
+  far; opened only for this check's final numbers.
+
+**B1 — offline prediction check (no policy training).** Predictors of the next
+control step's peak sensor wrench given state and action (one step before the
+event):
+1. Mean: the working-baseline WM.
+2. Ensemble: 5 WMs trained from independent initializations on the fit data
+   (same architecture, losses and budget as the WM-only stage, capped below),
+   bound = max over members and mean + 2 std.
+3. Quantile head: a tau = 0.95 pinball-loss head on the frozen working-baseline WM
+   features (head only).
+4. Conformal residual: working-baseline prediction plus the 95% quantile of
+   calibration residuals (true - predicted peak), computed separately for the
+   contact-onset phase (no spring released yet and the knife within the
+   object's top band) and the cutting phase. No training.
+Metrics on the test split, per predictor: share of force-limit events flagged
+(bound above the limit one step before), false-alarm rate on nominal steps
+(bound above the limit while the true peak stays below), mean slack of the bound
+on nominal steps, and for the ensemble the member spread at onset vs nominal.
+Decision rule (fixed now):
+- B supported: a calibrated bound (3 or 4) flags at least 80% of test force-limit
+  events at no more than 10% nominal false alarms, while the ensemble bounds flag
+  at most half as many events at matched false-alarm rate.
+- B not supported: the ensemble bounds flag within 20 percentage points of the
+  calibrated bound (pessimism already solves it), or no bound reaches 80% at
+  10% false alarms (the onset spike is not predictable from the WM state; the
+  route is reconsidered, not patched).
+
+**B2 — planner check (evaluation only, only if B1 supports B).** Same-WM MPPI on
+the working-baseline WM, settings as before, no terminal critic (its imagined-
+state values are out of range and would confound the force effect). The
+predicted force-limit predicate uses (i) the mean, (ii) the ensemble bound,
+(iii) the calibrated bound; 8 planner seeds each on the nominal task. Metric:
+force-limit endings, success, steps, material peak force. Supported if (iii) has
+fewer force-limit endings than (i) and (ii) without losing completion.
+
+**After B1/B2.** Only if both support B: a training plan that uses the calibrated
+bound as the force-limit constraint in BPTT (Lagrangian or adaptive penalty, as
+CAP), evaluated in the S3 setting against the working baseline, SAC and same-WM
+MPPI. If B fails, the paper positioning is rediscussed before any
+further GPU time.
+
+**Implementation.** Ensemble training from fresh initializations on a replay
+file; quantile head on frozen WM features; conformal residual tables; flag
+metrics; a bound option for MPPI's force-limit predicate. Tests for each.
+
+**Budget.** B1: ensemble about 5 x 1 h WM fitting plus minutes for the rest
+(GPU7 when free, or A6000 when its other user's jobs end); B2: 24 MPPI episodes,
+about 2 h. Single GPU. No automatic extension.
+
 ## Ordered implementation and experimental stages
 
 ### S0 — freeze a task-distribution specification
