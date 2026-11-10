@@ -1,14 +1,16 @@
 # Script entry points
 
 Run commands from the repository root; installation is in [RUNNING](../docs/RUNNING.md).
-The current task is in [PLAN](../docs/PLAN.md). Existing executable tasks remain
-fixed-scene tasks; the new distribution/reset/grouped training is still planned.
+The current task is in [PLAN](../docs/PLAN.md). `train_gpu.py` runs the fixed
+prism by default and the multi-object task with `--conditions <json>`; the
+force-risk constraint is `--risk-constraint`.
 
 ## Current execution
 
 | Purpose | Entry |
 |---|---|
-| WM and policy training | `train_gpu.py` |
+| WM and policy training (fixed prism or `--conditions`, optional `--risk-constraint`) | `train_gpu.py` |
+| Multi-object environment check with reference control | `check_multi_condition.py` |
 | Unified-environment SAC | `train_sac_gpu.py`; `sac_gpu_worker.py` is its process bridge |
 | Frozen policy, SAC, MPPI and reference evaluation | `evaluate_benchmark.py` |
 | Reference cuts / world scaling | `benchmark_gpu_env.py` |
@@ -16,6 +18,12 @@ fixed-scene tasks; the new distribution/reset/grouped training is still planned.
 | Render saved geometry | `render_episode.py` |
 
 ## Assets and independent source reproduction
+
+Scanned objects: `prepare_food_mesh.py` (scan surface -> tetrahedral mesh),
+`make_food_configs.py` (DiSECt scene configs with official materials), then
+`backends/mujoco/scripts/export_disect_scene.py`. `measure_cut_force.py` measures the
+force needed to cut each exported object (PLAN step 1). `b1_force_risk.py` is the
+completed B1 risk screen.
 
 `prepare_backend.py`, `checkout_sliceit.py` and `export_disect_trajectory.py`
 prepare assets or reference trajectories. Backend-specific exporters and robot

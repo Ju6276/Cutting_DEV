@@ -60,6 +60,22 @@ in PLAN starts fresh; do not silently initialize it from these weights.
 - Historical reliability training/calibration/held-out data named in PLAN remain
   in their existing server locations. This cleanup did not open or move them.
 
+## Multi-object task data (GPU7, 2026-11-11)
+
+| Path | Role |
+|---|---|
+| `/dataHDD/dong/Research/food_meshes/omniobject3d/<object>/` | OmniObject3D scans (CC BY 4.0, from the HF mirror `AlbertS666/OmniObject3D-objects`): `Object.usd`, converted `surface.obj` |
+| `/dataHDD/dong/Research/food_meshes/tet/` | Tetrahedral meshes (`prepare_food_mesh.py`) with their parameter JSON |
+| `configs/food_scenes/*.json`, `backends/mujoco/runs/sweep/food_*` | DiSECt scene configs and exported scenes (apple_002, potato_003, cucumber_003, cucumber_002) |
+| `runs/food_force_20261111` | Cut-force measurement (PLAN step 1, in progress) |
+| `runs/route_b1_20261110` | B1: five ensemble WMs, quantile head, `frozen.json`, dev and held-out reports |
+| `runs/critic_abl_a250_20261106/training`, `runs/wm_reliability_supplement_20261108`, `runs/wm_frozen_fit_20261105` | Copies from the A6000 used by B1 (identical files; originals stay on the A6000) |
+
+Deleted 2026-11-11 (wrong object shapes or superseded): material-swapped sweep
+scenes and runs `material_sweep_20261110`, `material_sweep_long_20261110`, smoke runs
+`mc_smoke_*`, `multi_condition_check_20261110`, all their videos, and the copies on
+the Mac.
+
 ## Data on other servers
 
 **A6000** (`/dataHDD/dong/Projects/Cutting_DEV/runs`, reachable from GPU7 with

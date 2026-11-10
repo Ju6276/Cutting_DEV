@@ -2019,3 +2019,33 @@ Rule: net additional detections b − c = 4 − 0 = 4 (≥ 4) and B false-alarm 
 not transfer. Events are mostly induced by injected action noise on the fixed prism;
 13 events are screening evidence for an action-conditioned risk head, not a deployment
 rate, and say nothing yet about multi-material conditions or BPTT use.
+
+## 2026-11-11 — Multi-object task and force-risk constraint: implementation check
+
+Code `6460f67`…`e9b1704`. Functional checks only; no learning result.
+
+- Start height by IK: four worlds lifted 0/1/2/3 cm put the DiSECt knife 1 cm apart
+  (0.0882…0.1182 m); reset restores each world's start; zero lift reproduces the
+  captured start exactly.
+- Grouped environment (prism, scanned apple/potato/cucumber, reference control):
+  per-world conditions sampled and reported; the prism and cucumber reach the goal.
+  Groups run sequentially: ~10.8 s per control step for four groups (GPU7).
+- `train_gpu.py --conditions configs/multi_condition/smoke.json` (16 worlds, 46
+  iterations) completes WM-only and joint updates with and without
+  `--risk-constraint` (risk head fitted each update, lambda logged, checkpoint saved).
+- Root tests 232 passed / 15 skipped; backend 28 passed.
+
+Scanned objects: OmniObject3D (CC BY 4.0) apple_002, potato_003, cucumber_003,
+cucumber_002; fTetWild with a ~1 mm envelope gives 284–744 vertices, minimum edge
+1.3–5.1 mm, and DiSECt cut meshing succeeds (65–298 cut springs). Earlier attempts
+were discarded: dense fTetWild meshes (0.2 mm slivers) diverged at the first step;
+6 mm voxel meshes were stable but blocky; three scans failed DiSECt cut meshing.
+Earlier sweeps over material-swapped DiSECt prism/cylinder/sphere scenes and their
+videos were deleted (wrong object shapes; the scanned apple started intersecting
+the knife). The per-object force-limit scale tried on 2026-11-10 was removed: all
+objects share one limit and the learner gets no object information.
+
+Cut-force measurement (in progress, `runs/food_force_20261111`, knife 1 cm above the
+object, force-limit termination off, speeds 1/2/5 cm/s): apple at 5 cm/s reached
+200 N with 77/298 springs released when the run ended (55 steps), i.e. not cut.
+The one force limit is chosen from the complete measurement (PLAN step 1).

@@ -1,6 +1,6 @@
 # Paper
 
-Method paper for RA-L/ICRA/IROS. Updated 2026-11-10. [PLAN](PLAN.md) is the
+Method paper for RA-L/ICRA/IROS. Updated 2026-11-11. [PLAN](PLAN.md) is the
 task list; [RESULTS](RESULTS.md) holds measurements; [NOVELTY](NOVELTY.md) and
 the [per-paper notes](literature/README.md) hold the literature evidence;
 [METHOD](METHOD.md) maps the code. The unified simulation platform, the
@@ -48,18 +48,23 @@ without BC at H8 collapsed; H32 cut slowly; BC-only did not improve over the
 start policy. Code: `cutting_world_model/trainer.py`, `world_model.py`,
 `control_state.py`.
 
-**Proposed mechanism (candidate, under test).** Force risk as an explicit,
-action- and history-conditioned prediction, calibrated on real contact-onset
-events, used as the force-limit constraint inside policy optimization:
+**Force-risk constraint (implemented; screened by B1; effect on control not yet
+measured).** Force risk as an explicit, action- and history-conditioned prediction,
+used as the force-limit constraint inside policy optimization:
 1. Risk target: next-interval sensor-limit utilization
    R = max over the six components of |peak wrench| / limit (R > 1 is the
    task's force-limit event).
-2. An upper estimate of R from the WM's causal state and the candidate action,
-   calibrated one-sidedly on recorded onset events (quantile/conformal), with an
-   observable contact phase declared before testing.
-3. In BPTT, the actor objective penalizes the calibrated risk with an adaptive
-   (Lagrangian) weight driven by physical force-limit events; the same estimate
-   constrains same-WM MPPI.
+2. An upper (0.95-quantile) estimate of R from the WM's features of the causal
+   state and the candidate action, fitted online on recorded transitions.
+3. In BPTT, the actor objective adds lambda times the survival-weighted excess of
+   the upper estimate over a threshold (0.9) at every imagined step; lambda follows
+   a dual update driven by the physical force-limit episode rate. The same estimate
+   can constrain same-WM MPPI.
+
+Every object shares one force limit, and the learner receives no object or
+material information: how hard an object is must be inferred from the force
+history, which is exactly what the risk estimate conditions on. Code:
+`cutting_world_model/trainer.py` (`risk_constraint`), `force_risk.py`.
 
 The mechanism targets the measured failure (one-sided onset under-prediction
 exploited by optimization). Its value has to be shown against the precedents'
@@ -88,16 +93,18 @@ the proposed mechanism does not.
 
 ## 4. Experiments
 
-- **Task setting (PLAN S0-S2).** One shared WM, policy and critic trained across
-  declared material parameters and prepared geometries (prism variants, jello
-  cylinder); held-out material ranges and shapes for testing.
-- **Main comparison (S3-S4).** Fresh training under the same physical-interaction
-  budget: working base; base + proposed mechanism; base + ensemble-pessimistic
-  force cost (LAMBDA/CAP style); base + global conformal bound (visuotactile
-  style); SAC; same-WM MPPI with and without the mechanism; reference trajectory.
+- **Task setting.** One shared WM, policy and critic over scanned objects with real
+  shapes (OmniObject3D apple, potato, cucumbers; benchmark prism), DiSECt official
+  materials with randomized scales, randomized knife start height and target
+  cutting speed (task input), one force limit for all objects. Held-out material
+  scales, start heights and, if available, one object for testing.
+- **Main comparison.** Fresh training under the same physical-interaction budget:
+  working base; base + force-risk constraint; SAC; if time allows base +
+  ensemble-pessimistic force cost (LAMBDA/CAP style) and same-WM MPPI.
 - **Metrics (BENCHMARK).** Completion, force-limit/workspace/time-limit endings,
   duration, material peak/mean force and impulse, sensor-limit utilization,
-  online computation; per condition and for held-out conditions.
+  target-speed tracking error, online computation; per object and for held-out
+  conditions.
 - **Mechanism evidence.** Risk prediction quality at onset (recall/false alarms
   vs ensemble and global bounds), and whether optimization still selects
   under-predicted actions.
@@ -113,15 +120,18 @@ the proposed mechanism does not.
 | Same-WM MPPI (working WM), with / without critic | 1/3, 1/3 (others hit the force limit) | 33, 37 | 18.7, 39.7 N |
 | Reference trajectory | success | 40 | 10.0 N |
 
-These are development checkpoints on one fixed task, not the paper's results.
+Risk prediction (B1, fixed prism, historical data; RESULTS 2026-11-10): on 13
+held-out force-limit episodes the 0.95-quantile risk head flagged 13 one step
+ahead, the ensemble (mean + 2 std) 9 and the plain WM 10, with 11/116 false-alarm
+episodes for both head and ensemble. It passed the pre-set rule at its minimum.
+
+These are development results on one fixed task, not the paper's results.
 Action-perturbation evaluations are retired and excluded.
 
 ## 6. Open points
 
-- The mechanism is not implemented; B1 (PLAN) screens its risk estimate on
-  existing data first, with a pre-set gate.
-- Whether onset risk is predictable from the WM's observable history at all.
-- How the calibrated risk enters BPTT with a useful gradient (a hard stop gives
-  none), and how calibration is refreshed as policy and data change.
+- Whether the constraint improves control on the multi-object task (the main
+  experiment, not yet run).
+- The one force limit and the object set (cut-force measurement in progress).
 - Training stability of the base across seeds (one repeat collapsed).
 - Real-robot validation ([REAL2SIM](REAL2SIM.md), draft).

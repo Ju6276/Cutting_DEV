@@ -102,8 +102,8 @@ force spike at contact onset, and model-based optimization exploits that error
 (planner force-limit failures, a collapsed training run). The candidate method
 makes force risk an explicit, action- and history-conditioned prediction,
 calibrated on contact-onset events and used as the force-limit constraint in
-BPTT policy learning. It is not implemented yet; PLAN's B1 screens it on
-existing data first.
+BPTT policy learning. It is implemented (`--risk-constraint`) and its risk
+estimate passed the B1 screen; its effect on control is the main experiment.
 
 The experiments train one shared WM, policy and critic across declared materials
 and prepared geometries (PLAN S0-S4) and compare against the working base, the
