@@ -56,9 +56,19 @@ def build_replay(spec, episodes, device):
     from .sequence_replay import SequenceReplay
     capacity = max(9, max(len(e['actions']) + 2 for e in episodes))
     replay = SequenceReplay(len(episodes), capacity, spec.state_dim, 6, 7, device)
-    for world, ep in enumerate(episodes):
+    add_episodes(replay, episodes)
+    return replay
+
+
+def add_episodes(replay, episodes, first_world=0):
+    """Write each recorded episode into its own world ``first_world + i`` of ``replay``."""
+    device = replay.device
+    for index, ep in enumerate(episodes):
+        world = first_world + index
         ids = torch.tensor([world], device=device)
         n = len(ep['actions'])
+        if n + 1 > replay.T:
+            raise ValueError('Episode longer than replay capacity: ' + str(ep['id']))
         zero = torch.zeros(1, 6, device=device)
         for t in range(n + 1):
             terminal = t == n
@@ -68,7 +78,6 @@ def build_replay(spec, episodes, device):
                        torch.tensor([float(bool(ep['terminated'][-1])) if terminal else 0.], device=device),
                        torch.tensor([t], device=device), torch.tensor([world], device=device),
                        torch.tensor([terminal], device=device), torch.tensor([t == 0], device=device))
-    return replay
 
 
 def predicate(spec, state, previous):
