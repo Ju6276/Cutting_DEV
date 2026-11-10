@@ -238,6 +238,10 @@ GPU7 storage:
   /dataHDD/dong/Archive/cutting_cleanup_20261109/code.
 - Migrated Mac files and uncommitted BladeMaster work:
   /dataHDD/dong/Archive/mac_cutting_20261109/Code.
+- GPU9-only code (bundles with all branches, uncommitted patches, untracked files of
+  Cutting_DEV_critic, Cutting_DEV_sac, DiSECt, DiSECt-Optimization; the GPU9 tmp scripts,
+  including the 2026-11-04 video renderers): /dataHDD/dong/Archive/gpu9_20261110.
+  All of that code is superseded by main; no merge needed. GPU9 run data stays on GPU9.
 
 Source the existing runs/sac_env.sh before GPU commands. For MPC commands
 above, use the planner Python explicitly. Machine addresses, protected active
