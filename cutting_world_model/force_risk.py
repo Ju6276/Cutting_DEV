@@ -20,8 +20,9 @@ PHASE_EDGES = (0.1, 0.5)
 PHASES = ('free', 'light', 'loaded')
 
 
-def utilization(spec, state):
-    return (spec.field(state, 'peak_wrench').abs() / spec.force_limits).amax(-1)
+def utilization(spec, state, goal=None):
+    """Sensor-limit utilization of the interval ending at ``state`` (per-goal limits)."""
+    return (spec.field(state, 'peak_wrench').abs() / spec.limits(goal)).amax(-1)
 
 
 def phase(spec, state):
@@ -29,17 +30,21 @@ def phase(spec, state):
     return torch.bucketize(utilization(spec, state), edges, right=True)
 
 
-@torch.no_grad()
-def wm_forward(wm, state, action, goal):
-    """Last hidden layer of the WM dynamics MLP and the predicted next utilization;
-    the same computation as ``CuttingWorldModel.transition``."""
+def wm_features(wm, state, action, goal):
+    """Last hidden layer of the WM dynamics MLP and the predicted next utilization; the same
+    computation as ``CuttingWorldModel.transition``. Differentiable in ``action``."""
     spec = wm.spec
     executed = spec.execute(action)
     net = wm.dynamics.mlp.net
-    hidden = net[:-1](torch.cat((spec.dynamics_features(state), executed, goal), -1))
+    hidden = net[:-1](torch.cat((spec.dynamics_features(state), executed, goal[..., :7]), -1))
     fields = spec.integrate_physical(state, net[-1](hidden))
     next_state, _, _ = spec.derive(state, fields, executed, goal)
-    return hidden, utilization(spec, next_state)
+    return hidden, utilization(spec, next_state, goal)
+
+
+@torch.no_grad()
+def wm_forward(wm, state, action, goal):
+    return wm_features(wm, state, action, goal)
 
 
 class QuantileHead(nn.Module):

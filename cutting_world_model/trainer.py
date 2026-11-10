@@ -33,6 +33,12 @@ def discount_weights(ro, gamma):
 
 
 CRITIC_TARGETS = ('imagined', 'real', 'real_wm')
+# Route B force-risk constraint (PLAN): an upper-quantile head predicts the next interval's
+# sensor-limit utilization R(s_t, a_t) from WM features; the actor objective penalizes
+# lambda * survival-weighted max(0, R_up - threshold) over imagined steps, and lambda follows a
+# dual update driven by the physical force-limit episode rate (Lagrangian, cf. Stooke et al. 2020).
+RISK_DEFAULTS = {'quantile': .95, 'threshold': .9, 'lambda_init': 10., 'lambda_lr': 50.,
+                 'target_rate': .02, 'head_lr': 3e-4, 'head_batch': 4096, 'head_steps': 10}
 ACTOR_OBJECTIVES = ('model', 'bc')
 
 
@@ -60,7 +66,7 @@ class OnlineLearner:
     def __init__(self, wm, policy, critic, microbatch=64, wm_cfg=None, policy_cfg=None,
                  wm_only_updates=500, critic_target='imagined', critic_microbatch=None,
                  actor_horizon=None, actor_bc_alpha=None, actor_objective='model',
-                 wm_terminal_gradient='dynamics'):
+                 wm_terminal_gradient='dynamics', risk_constraint=None):
         if type(wm_only_updates) is not int or wm_only_updates < 0:
             raise ValueError('wm_only_updates must be a nonnegative integer')
         if critic_target not in CRITIC_TARGETS:
@@ -98,6 +104,19 @@ class OnlineLearner:
         self.popt = torch.optim.Adam(policy.parameters(), lr=self.pcfg.lr, betas=self.pcfg.betas)
         self.copt = torch.optim.Adam(critic.parameters(), lr=self.pcfg.critic_lr)
         wm.enable_compile(self.wcfg.compile)
+        self.risk_head = None
+        self.risk = None
+        if risk_constraint is not None:
+            from .force_risk import QuantileHead
+            unknown = set(risk_constraint) - set(RISK_DEFAULTS)
+            if unknown:
+                raise ValueError('Unknown risk settings: ' + ', '.join(sorted(unknown)))
+            self.risk = {**RISK_DEFAULTS, **risk_constraint}
+            device = next(wm.parameters()).device
+            self.risk_head = QuantileHead(wm.dynamics.mlp.net[-1].in_features).to(device)
+            self.risk_opt = torch.optim.Adam(self.risk_head.parameters(), lr=self.risk['head_lr'])
+            self.risk_lambda = float(self.risk['lambda_init'])
+            self.risk_head_updates = 0
         self.wm_only_updates = wm_only_updates
         self.wm_updates = 0
         self.updates = 0
@@ -164,14 +183,62 @@ class OnlineLearner:
         self.wm_updates += 1
         return metrics
 
+    def risk_upper(self, state, action, goal):
+        """Calibrated upper prediction of the next interval's sensor-limit utilization."""
+        from .force_risk import utilization, wm_features
+        hidden, predicted = wm_features(self.wm, state, action, goal)
+        return self.risk_head(hidden, predicted, utilization(self.wm.spec, state, goal))
+
+    def fit_risk_head(self, buffer):
+        """``head_steps`` pinball-loss steps of the risk head on recorded transitions (WM frozen);
+        the same count as the WM's minibatches per update."""
+        for _ in range(self.risk['head_steps']):
+            metrics = self._fit_risk_head_step(buffer)
+        return metrics
+
+    def _fit_risk_head_step(self, buffer):
+        from .force_risk import pinball, utilization, wm_features
+        spec = self.wm.spec
+        batch = buffer.sample_windows(self.risk['head_batch'], 1)
+        valid = batch.valid_steps[0]
+        state, action, goal = batch.states[0][valid], batch.a_exec[0][valid], batch.xi[valid]
+        target = utilization(spec, batch.states[1][valid], goal)
+        with torch.no_grad():
+            hidden, predicted = wm_features(self.wm, state, action, goal)
+        upper = self.risk_head(hidden, predicted, utilization(spec, state, goal))
+        loss = pinball(upper, target, self.risk['quantile'])
+        self.risk_opt.zero_grad(set_to_none=True)
+        loss.backward()
+        self.risk_opt.step()
+        self.risk_head_updates += 1
+        with torch.no_grad():
+            events = target > 1
+            return {'risk_pinball': float(loss), 'risk_coverage': float((upper >= target).float().mean()),
+                    'risk_event_recall': float((upper[events] > self.risk['threshold']).float().mean())
+                    if bool(events.any()) else float('nan'),
+                    'risk_events': int(events.sum())}
+
+    def update_risk_lambda(self, force_limit_episodes, ended_episodes):
+        """Dual step: lambda += lr * (physical force-limit episode rate - target), lambda >= 0."""
+        if ended_episodes <= 0:
+            return self.risk_lambda
+        rate = force_limit_episodes / ended_episodes
+        self.risk_lambda = max(0., self.risk_lambda + self.risk['lambda_lr'] * (rate - self.risk['target_rate']))
+        return self.risk_lambda
+
     def imagine(self, state, history_states, goal):
         spec, cfg = self.wm.spec, self.pcfg
         history = spec.field(history_states, 'observation')
         survival = torch.ones(state.shape[0], device=state.device)
         absorbed = torch.zeros(state.shape[0], dtype=torch.bool, device=state.device)
         states, rewards, probabilities, survivals, actions = [state], [], [survival * 0], [survival], []
+        risks = []
         for _ in range(self.actor_horizon):
             action = self.policy(history, goal)
+            if getattr(self, 'risk_head', None) is not None:
+                # Risk of the interval about to be executed; zero once the rollout has ended.
+                risk = self.risk_upper(state, action, goal)
+                risks.append(torch.where(absorbed, torch.zeros_like(risk), risk))
             next_state, reward, logits = self.wm.predict(state, action, goal)
             collision = (spec.field(next_state, 'peak_wrench') > spec.limits(goal)).any(-1)
             task_done, _, _, _ = spec.heads.termination(
@@ -192,7 +259,8 @@ class OnlineLearner:
             actions.append(action)
         return SimpleNamespace(states=torch.stack(states), rewards=torch.stack(rewards),
                                dhat=torch.stack(probabilities), survival=torch.stack(survivals),
-                               actions=torch.stack(actions))
+                               actions=torch.stack(actions),
+                               risk=torch.stack(risks) if risks else None)
 
     def critic_values(self, states, goal):
         error = pose_error(goal[..., :7], self.wm.spec.field(states, 'previous_ee_pose'))
@@ -207,6 +275,8 @@ class OnlineLearner:
         starts = buffer.sample_starts(cfg.batch_size, cfg.history)
         self.wm.requires_grad_(False)
         self.critic.requires_grad_(False)
+        if self.risk_head is not None:
+            self.risk_head.requires_grad_(False)
         self.popt.zero_grad(set_to_none=True)
         metrics, critic_data = {}, []
         abs_objective = 0.
@@ -222,6 +292,13 @@ class OnlineLearner:
                     terminal = self.critic_values(ro.states[-1], goal) if cfg.use_critic else None
                     objective = policy_objective(ro, terminal, cfg.gamma)
                     loss = -objective * weight / self.actor_horizon
+                    if ro.risk is not None:
+                        excess = torch.relu(ro.risk - self.risk['threshold'])
+                        risk_cost = (ro.survival[:-1].detach() * excess).sum(0).mean()
+                        loss = loss + self.risk_lambda * risk_cost * weight / self.actor_horizon
+                        metrics['imag_risk_upper_mean'] = (metrics.get('imag_risk_upper_mean', 0.)
+                                                           + float(ro.risk.detach().mean()) * weight)
+                        metrics['imag_risk_cost'] = metrics.get('imag_risk_cost', 0.) + float(risk_cost) * weight
                 if not torch.isfinite(loss):
                     raise FloatingPointError('Non-finite policy objective')
                 if self.actor_objective == 'model':
@@ -289,6 +366,9 @@ class OnlineLearner:
         finally:
             self.wm.requires_grad_(True)
             self.critic.requires_grad_(True)
+            if self.risk_head is not None:
+                self.risk_head.requires_grad_(True)
+                metrics['risk_lambda'] = self.risk_lambda
         if cfg.use_critic and self.critic_target == 'imagined':
             # Restore source (time, sample) order before shuffling critic minibatches.
             data = [torch.cat([item[i] for item in critic_data], dim=1).flatten(0, 1)
@@ -490,6 +570,10 @@ class OnlineLearner:
                 'actor_horizon': self.actor_horizon, 'actor_bc_alpha': self.actor_bc_alpha,
                 'actor_objective': self.actor_objective,
                 'wm_terminal_gradient': self.wm.terminal_gradient,
+                **({'risk': {'config': self.risk, 'head': self.risk_head.state_dict(),
+                             'optimizer': self.risk_opt.state_dict(), 'lambda': self.risk_lambda,
+                             'head_updates': self.risk_head_updates}}
+                   if self.risk_head is not None else {}),
                 'training_stage': {'wm_only_updates': self.wm_only_updates,
                                    'wm_updates': self.wm_updates,
                                    'optimizer_steps': self.optimizer_steps,
@@ -574,6 +658,16 @@ class OnlineLearner:
         for key, module in [('world_model', self.wm), ('policy', self.policy), ('critic', self.critic),
                             ('wm_optimizer', self.wopt), ('policy_optimizer', self.popt), ('critic_optimizer', self.copt)]:
             module.load_state_dict(data[key])
+        saved_risk = data.get('risk')
+        if (saved_risk is None) != (self.risk_head is None):
+            raise ValueError('Checkpoint and learner differ in the force-risk constraint')
+        if saved_risk is not None:
+            if saved_risk['config'] != self.risk:
+                raise ValueError('Checkpoint force-risk configuration differs')
+            self.risk_head.load_state_dict(saved_risk['head'])
+            self.risk_opt.load_state_dict(saved_risk['optimizer'])
+            self.risk_lambda = float(saved_risk['lambda'])
+            self.risk_head_updates = int(saved_risk['head_updates'])
         self.wm_updates = stage['wm_updates']
         self.updates = data['updates']
         if reset_critic:

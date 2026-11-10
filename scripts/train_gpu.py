@@ -75,6 +75,13 @@ def main():
     parser.add_argument('--change-wm-terminal-gradient', action='store_true',
                         help='With --resume: start --wm-terminal-gradient from a checkpoint written '
                              'with the other route (e.g. variant A from policy62/WM562)')
+    parser.add_argument('--risk-constraint', action='store_true',
+                        help='route B: quantile force-risk head and Lagrangian risk penalty in BPTT')
+    parser.add_argument('--risk-threshold', type=float, default=.9)
+    parser.add_argument('--risk-target-rate', type=float, default=.02,
+                        help='target fraction of ended episodes that hit the force limit')
+    parser.add_argument('--risk-lambda-init', type=float, default=10.)
+    parser.add_argument('--risk-lambda-lr', type=float, default=50.)
     parser.add_argument('--conditions', type=Path,
                         help='multi-condition task JSON (object groups, materials, start clearance, '
                              'target speeds, w_speed); worlds = sum of group worlds')
@@ -149,7 +156,12 @@ def run(args, output, status, started):
                             actor_horizon=args.actor_horizon,
                             actor_bc_alpha=args.actor_bc_alpha,
                             actor_objective=args.actor_objective,
-                            wm_terminal_gradient=args.wm_terminal_gradient)
+                            wm_terminal_gradient=args.wm_terminal_gradient,
+                            risk_constraint=({'threshold': args.risk_threshold,
+                                              'target_rate': args.risk_target_rate,
+                                              'lambda_init': args.risk_lambda_init,
+                                              'lambda_lr': args.risk_lambda_lr}
+                                             if args.risk_constraint else None))
     schedule = OnlineSchedule(worlds=args.worlds)
     if args.resume:
         saved = torch.load(args.resume, map_location=device, weights_only=False)
@@ -235,6 +247,7 @@ def run(args, output, status, started):
         replay.save(output / 'replay.pt', metadata=metadata, iteration=schedule.iteration,
                     transitions=schedule.transitions, checkpoint=name)
 
+    risk_window = [0, 0]  # force-limit and all ended episodes since the last dual update
     physical_limit = (None if args.max_iterations is None else
                       schedule.iteration + args.max_iterations)
     status['state'] = 'running'
@@ -264,6 +277,8 @@ def run(args, output, status, started):
                 returns += reward
                 lengths += 1
             ended = terminated | truncated
+            risk_window[0] += int((ended & info['collision']).sum())
+            risk_window[1] += int(ended.sum())
             metrics = {'iteration': schedule.iteration + 1, 'physics/reward_mean': float(reward.mean())}
             if ended.any():
                 metrics.update({'episode/return_mean': float(returns[ended].mean()),
@@ -294,6 +309,10 @@ def run(args, output, status, started):
                 learner.set_lr(lr)
                 tick = time.monotonic()
                 wm_metrics = learner.fit_world_model(replay.buffer)
+                if learner.risk_head is not None:
+                    wm_metrics.update(learner.fit_risk_head(replay.buffer))
+                    learner.update_risk_lambda(*risk_window)
+                    risk_window = [0, 0]
                 timing['world_model'] += time.monotonic() - tick
                 policy_metrics = {}
                 if learner.should_update_policy and learner.critic_prefit_pending:
