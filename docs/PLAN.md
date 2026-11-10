@@ -25,29 +25,32 @@ The previous long plan (route B screening rules, S0–S4 rationale) is archived 
 |---|---|
 | Base method | Implemented; fixed-prism development evidence (PAPER §5) |
 | B1 risk screen | Passed at the minimum: risk head 13/13 vs ensemble 9/13 held-out force-limit events, equal false alarms (RESULTS 2026-11-10) |
-| Force-risk constraint in training | Implemented (`--risk-constraint`): online quantile risk head, risk penalty in BPTT, dual update of its weight |
-| Multi-object environment | Implemented (`--conditions`): grouped scenes, start height by IK, per-episode material and target speed, one force limit |
+| Force-risk penalty in training | Implemented (`--risk-constraint`): online 0.95-pinball risk head, penalty on predicted excess over 0.9 in BPTT, weight adapted from the physical force-limit episode rate (adaptive penalty, not an exact Lagrangian) |
+| Multi-object environment | Implemented (`--conditions`): grouped scenes; knife start height drawn once per parallel world at construction (by IK); material scales and target speed drawn every episode; one force limit |
 | Objects | Scanned OmniObject3D apple, potato, two cucumbers (fTetWild meshes, DiSECt official materials) plus the benchmark prism |
 | End-to-end check | 46-iteration multi-object training with and without the constraint completes (WM, risk head, joint updates, checkpoint) |
+| Missing before S3 | Parallel group stepping; SAC on the multi-object task; ensemble-risk comparator; multi-object evaluation script |
 | Main experiment (S3) | Not started |
 
 ## Next steps, in order
 
-1. **Force limit and object set (S0).** Measure the force needed to cut each object
-   at slow and fast knife speeds (`scripts/measure_cut_force.py`, running). Choose
-   one limit such that a careful (slow) cut stays below it and a forceful cut
-   exceeds it; drop objects that cannot be cut below it at any speed. Fix the
-   training ranges (material scales, start clearance, target speeds) and the
-   held-out conditions (material scales and start heights outside training,
-   one held-out object if available), then write them into one config.
-2. **Parallel object groups.** Groups are currently stepped one after another
-   (~10 s per step for four groups). Step them concurrently so a multi-object
-   step costs close to a single-group step; verify identical results to the
-   sequential path on a short run.
+1. **Object set and splits (S0).** Keep the task force limit (50 N / 10 N·m)
+   unless it is changed deliberately as a new task setting, not tuned to produce a
+   desired pass/fail pattern. Use the objects the reference or a sawing reference
+   can cut under it (`scripts/measure_cut_force.py`); the apple, which reached
+   ~200 N without completing at 2 and 5 cm/s, is deferred from the first S3 run.
+   Report goal completion and physical separation separately (released-spring
+   fraction is only a proxy). Held-out: unseen material scales and start heights
+   on training shapes, plus one scan not used in training (an unseen instance /
+   geometry, not an unseen food class).
+2. **Code before S3.** (a) One persistent process per object group with the learner
+   updating centrally; keep the sequential path as the reference and check equality
+   on a short run (the GPU is shared, so four groups will not cost one group's time).
+   (b) SAC on the multi-object task with the same goal input. (c) Ensemble-risk
+   comparator: same penalty and weight adaptation, risk upper bound from an ensemble
+   (mean + 2 std). (d) Multi-object frozen evaluation.
 3. **S3 training (A6000).** Fresh weights, same distribution, same physical
-   interaction budget: (a) base, (b) base + force-risk constraint, (c) SAC.
-   A precedent comparator (ensemble-pessimistic force cost) is added if time
-   allows.
+   interaction budget: base, base + risk penalty, base + ensemble risk, SAC.
 4. **S4 evaluation and writing.** Frozen policies on the held-out conditions:
    completion, force-limit and workspace endings, duration, peak force and
    impulse, speed-tracking error. Results go to RESULTS and PAPER.

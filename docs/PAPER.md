@@ -20,7 +20,9 @@ through short imagined rollouts (BPTT) instead of only by trial and error.
 
 Measured in this project: the WM predicts force well along ordinary cutting
 trajectories, but systematically under-predicts the force spike at contact
-onset, and model-based optimization exploits exactly that error.
+onset, and actions selected inside the model can end by the force limit when
+executed. Whether optimization systematically exploits this error, and whether a
+risk estimate fixes it, is what the main experiment tests.
 - Every WM checkpoint missed 19-23 of 23 recorded force-limit events one step
   ahead, with 11-20 N under-prediction; on nominal branches the WM's force error
   averaged +0.08 N (RESULTS 2026-11-08).
@@ -48,26 +50,31 @@ without BC at H8 collapsed; H32 cut slowly; BC-only did not improve over the
 start policy. Code: `cutting_world_model/trainer.py`, `world_model.py`,
 `control_state.py`.
 
-**Force-risk constraint (implemented; screened by B1; effect on control not yet
-measured).** Force risk as an explicit, action- and history-conditioned prediction,
+**Adaptive force-risk penalty (implemented; risk estimate screened by B1; effect on
+control not yet measured).** Force risk as an explicit, action- and history-conditioned prediction,
 used as the force-limit constraint inside policy optimization:
 1. Risk target: next-interval sensor-limit utilization
    R = max over the six components of |peak wrench| / limit (R > 1 is the
    task's force-limit event).
-2. An upper (0.95-quantile) estimate of R from the WM's features of the causal
-   state and the candidate action, fitted online on recorded transitions.
+2. An upper estimate of R from the WM's features of the causal state and the
+   candidate action, fitted online with the 0.95 pinball loss on recorded
+   transitions. The loss targets a quantile but does not guarantee coverage
+   (B1 measured 0.91 interval coverage on held-out data).
 3. In BPTT, the actor objective adds lambda times the survival-weighted excess of
-   the upper estimate over a threshold (0.9) at every imagined step; lambda follows
-   a dual update driven by the physical force-limit episode rate. The same estimate
-   can constrain same-WM MPPI.
+   the upper estimate over a threshold (0.9) at every imagined step. lambda is
+   adapted from the physical force-limit episode rate minus a target rate. This is
+   an adaptive penalty, not an exact Lagrangian: the penalized quantity (predicted
+   excess) and the quantity driving lambda (observed episode rate) differ.
+   The same estimate can constrain same-WM MPPI.
 
 Every object shares one force limit, and the learner receives no object or
 material information: how hard an object is must be inferred from the force
 history, which is exactly what the risk estimate conditions on. Code:
 `cutting_world_model/trainer.py` (`risk_constraint`), `force_risk.py`.
 
-The mechanism targets the measured failure (one-sided onset under-prediction
-exploited by optimization). Its value has to be shown against the precedents'
+The mechanism targets the measured failure (one-sided onset under-prediction).
+Comparators in the main experiment: the base without the penalty, the same
+penalty with an ensemble-pessimistic risk estimate (precedent approach), and SAC. Its value has to be shown against the precedents'
 approaches implemented in the same task (section 4), not assumed.
 
 ## 3. Prior work and where it stops
@@ -99,8 +106,10 @@ the proposed mechanism does not.
   cutting speed (task input), one force limit for all objects. Held-out material
   scales, start heights and, if available, one object for testing.
 - **Main comparison.** Fresh training under the same physical-interaction budget:
-  working base; base + force-risk constraint; SAC; if time allows base +
-  ensemble-pessimistic force cost (LAMBDA/CAP style) and same-WM MPPI.
+  working base; base + force-risk penalty; base + ensemble risk; SAC; optionally
+  same-WM MPPI. Main comparators: base, base + ensemble-pessimistic risk
+  (LAMBDA/CAP style, tests whether the new risk representation beats the precedent),
+  SAC (tests learning overall).
 - **Metrics (BENCHMARK).** Completion, force-limit/workspace/time-limit endings,
   duration, material peak/mean force and impulse, sensor-limit utilization,
   target-speed tracking error, online computation; per object and for held-out

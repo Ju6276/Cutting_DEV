@@ -609,7 +609,8 @@ knife publishing, and `cutting/ros_visualizer.py:update_knife_pose` /
 scene, worlds, start-clearance range, material-scale ranges, target-speed range),
 `w_speed` and optionally one `force_limits` vector for every object. Each group is a
 homogeneous `GPUEnvironment`; groups are concatenated along the world dimension.
-Per world: knife start height fixed at construction by inverse kinematics
+Per world (drawn once when the environment is built, not at resets): knife start
+height, set by inverse kinematics
 (`CuttingBatch(initial_lift=...)`, knife edge `clearance` above the object top).
 Per episode at reset: Young's modulus, density and cut-spring stiffness scales
 (log-uniform) and the target cutting speed (uniform). The task goal is
@@ -621,7 +622,7 @@ sequentially (PLAN step 2 parallelizes them). Objects: scanned surfaces
 (`scripts/prepare_food_mesh.py`, fTetWild with a ~1 mm envelope) and DiSECt official
 materials (`scripts/make_food_configs.py`), exported with `export_disect_scene.py`.
 
-## Force-risk constraint (`--risk-constraint`)
+## Adaptive force-risk penalty (`--risk-constraint`)
 
 `OnlineLearner(risk_constraint=...)`, `cutting_world_model/force_risk.py`.
 R(s_t, a_t) = max_i |peak_wrench_i(t+1)| / limit_i. A `QuantileHead` on the last
@@ -634,5 +635,8 @@ penalty reaches the policy through the action. After each update, lambda <-
 max(0, lambda + lr * (force-limit episode rate - target rate)) over the episodes
 that ended since the previous update. Defaults: threshold 0.9, target rate 0.02,
 lambda 10, lr 50. Head, optimizer and lambda are checkpointed; a checkpoint with
-and one without the constraint cannot be mixed.
+and one without the constraint cannot be mixed. The penalized quantity (predicted
+excess) and the quantity adapting lambda (observed episode rate) differ, so this is an
+adaptive penalty rather than an exact Lagrangian; the pinball loss targets the 0.95
+quantile without guaranteeing coverage.
 

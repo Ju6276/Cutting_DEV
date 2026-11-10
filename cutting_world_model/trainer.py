@@ -33,10 +33,12 @@ def discount_weights(ro, gamma):
 
 
 CRITIC_TARGETS = ('imagined', 'real', 'real_wm')
-# Route B force-risk constraint (PLAN): an upper-quantile head predicts the next interval's
+# Route B adaptive force-risk penalty (PLAN): an upper-quantile head predicts the next interval's
 # sensor-limit utilization R(s_t, a_t) from WM features; the actor objective penalizes
-# lambda * survival-weighted max(0, R_up - threshold) over imagined steps, and lambda follows a
-# dual update driven by the physical force-limit episode rate (Lagrangian, cf. Stooke et al. 2020).
+# lambda * survival-weighted max(0, R_up - threshold) over imagined steps. lambda is adapted from
+# the physical force-limit episode rate minus a target rate (dual-ascent style, cf. Stooke et
+# al. 2020); the penalized and the rate-driving quantities differ, so this is not an exact
+# Lagrangian.
 RISK_DEFAULTS = {'quantile': .95, 'threshold': .9, 'lambda_init': 10., 'lambda_lr': 50.,
                  'target_rate': .02, 'head_lr': 3e-4, 'head_batch': 4096, 'head_steps': 10}
 ACTOR_OBJECTIVES = ('model', 'bc')
@@ -184,7 +186,8 @@ class OnlineLearner:
         return metrics
 
     def risk_upper(self, state, action, goal):
-        """Calibrated upper prediction of the next interval's sensor-limit utilization."""
+        """Upper-quantile estimate (pinball-trained, not coverage-guaranteed) of the next
+        interval's sensor-limit utilization."""
         from .force_risk import utilization, wm_features
         hidden, predicted = wm_features(self.wm, state, action, goal)
         return self.risk_head(hidden, predicted, utilization(self.wm.spec, state, goal))
