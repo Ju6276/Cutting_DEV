@@ -29,7 +29,7 @@ The previous long plan (route B screening rules, S0–S4 rationale) is archived 
 | Multi-object environment | Implemented (`--conditions`): grouped scenes; knife start height drawn once per parallel world at construction (by IK); material scales and target speed drawn every episode; one force limit |
 | Objects | Scanned OmniObject3D apple, potato, two cucumbers (fTetWild meshes, DiSECt official materials) plus the benchmark prism |
 | End-to-end check | 46-iteration multi-object training with and without the constraint completes (WM, risk head, joint updates, checkpoint) |
-| Missing before S3 | Parallel group stepping; SAC on the multi-object task; ensemble-risk comparator; multi-object evaluation script |
+| Missing before S3 | SAC on the multi-object task; ensemble-risk comparator; multi-object evaluation script |
 | Main experiment (S3) | Not started |
 
 ## Next steps, in order

@@ -2049,3 +2049,16 @@ Cut-force measurement (in progress, `runs/food_force_20261111`, knife 1 cm above
 object, force-limit termination off, speeds 1/2/5 cm/s): apple at 5 cm/s reached
 200 N with 77/298 springs released when the run ended (55 steps), i.e. not cut.
 The one force limit is chosen from the complete measurement (PLAN step 1).
+
+## 2026-11-11 — Parallel object groups
+
+`MultiConditionEnvironment(parallel=True)` (config `"parallel": true`): one persistent
+process per object group on the same GPU, sampling and the learner in the parent,
+fixed-size fields exchanged on the CPU. `scripts/check_parallel_groups.py`, smoke
+config (4 groups × 4 worlds, random actions, GPU7 shared with three other jobs):
+sequential 20.6 s per control step, parallel 8.3 s (2.5×). Parallel vs sequential
+max differences over 10 steps: joint 8.7e-4 rad, peak wrench 4.5 N, no ending
+mismatch. Sequential vs sequential (same seed and actions) differs as much: identical
+for two steps, then 0.29 → 8.1 N peak wrench by step 6 — the GPU physics is not
+bitwise repeatable under contact. The parallel path is therefore consistent with the
+sequential reference within the simulator's own run-to-run variation.

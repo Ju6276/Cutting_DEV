@@ -48,41 +48,157 @@ def knife_clearance(backend_root, scene):
     return edge - top
 
 
+# Per-object arrays stay inside their group; only fixed-size fields are concatenated.
+PER_OBJECT_KEYS = ('particle_q', 'particle_qd', 'cut_spring_ke', 'spring_reference_ke')
+
+
+def _fixed(frame):
+    return {k: v for k, v in frame.items() if k not in PER_OBJECT_KEYS}
+
+
+class LocalGroup:
+    """One object group simulated in this process."""
+
+    def __init__(self, backend_root, scene, worlds, lift, reward, force_limits):
+        self.env = GPUEnvironment(backend_root, worlds, reward=reward, scene=scene,
+                                  initial_lift=lift, force_limits=force_limits)
+        self.env.target_speed = torch.zeros(worlds, device=self.env.device)
+        self.metadata = self.env.metadata
+        self.current = _fixed(self.env.current)
+
+    @torch.no_grad()
+    def reset(self, local, scales, speeds):
+        material = self.env.physics.material
+        local = local.to(self.env.device)
+        full = {k: material.material_scales[k].clone() for k in MATERIAL_KEYS}
+        for k, v in scales.items():
+            full[k][local] = v.to(full[k])
+        material.set_material_scales(local, **full)
+        self.env.target_speed[local] = speeds.to(self.env.target_speed)
+        self.current = _fixed(self.env.reset(local))
+        return self.current
+
+    @torch.no_grad()
+    def step(self, action, reference=False):
+        frame, reward, terminated, truncated, info = self.env.step(action.to(self.env.device), reference=reference)
+        self.current = _fixed(frame)
+        return self.current, reward, terminated, truncated, info
+
+
+def _cpu(value):
+    if isinstance(value, dict):
+        return {k: _cpu(v) for k, v in value.items()}
+    if isinstance(value, (tuple, list)):
+        return type(value)(_cpu(v) for v in value)
+    return value.cpu() if isinstance(value, torch.Tensor) else value
+
+
+def _group_worker(connection, arguments):
+    import traceback
+    try:
+        torch.set_num_threads(2)
+        group = LocalGroup(*arguments)
+        connection.send(('ready', group.metadata, _cpu(group.current)))
+        while True:
+            command, payload = connection.recv()
+            if command == 'close':
+                break
+            result = group.step(*payload) if command == 'step' else group.reset(*payload)
+            connection.send(('ok', _cpu(result)))
+    except BaseException:
+        connection.send(('error', traceback.format_exc()))
+    finally:
+        connection.close()
+
+
+class ProcessGroup:
+    """One object group simulated in its own persistent process on the same GPU.
+    Commands are sent to every group before any result is awaited, so groups step
+    concurrently; tensors cross the process boundary on the CPU."""
+
+    def __init__(self, backend_root, scene, worlds, lift, reward, force_limits):
+        import torch.multiprocessing as mp
+        context = mp.get_context('spawn')
+        self.connection, child = context.Pipe()
+        self.process = context.Process(target=_group_worker, daemon=True, args=(
+            child, (str(backend_root), scene, worlds, lift.cpu(), reward, force_limits)))
+        self.process.start()
+        self.pending = None
+
+    def finish_start(self, device):
+        status, *payload = self.connection.recv()
+        if status != 'ready':
+            raise RuntimeError('Object group process failed:\n' + payload[0])
+        self.device = device
+        self.metadata, current = payload
+        self.current = {k: v.to(device) for k, v in current.items()}
+
+    def send(self, command, *payload):
+        self.connection.send((command, _cpu(payload)))
+
+    def receive(self):
+        status, payload = self.connection.recv()
+        if status != 'ok':
+            raise RuntimeError('Object group process failed:\n' + payload)
+        move = lambda v: {k: x.to(self.device) for k, x in v.items()} if isinstance(v, dict) else v.to(self.device)
+        if isinstance(payload, tuple):
+            payload = tuple(move(v) for v in payload)
+            self.current = payload[0]
+        else:
+            payload = move(payload)
+            self.current = payload
+        return payload
+
+    def close(self):
+        try:
+            self.connection.send(('close', None))
+        except (BrokenPipeError, OSError):
+            pass
+        self.process.join(timeout=30)
+
+
 class MultiConditionEnvironment:
-    def __init__(self, backend_root, groups, reward=None, seed=0, force_limits=None):
+    def __init__(self, backend_root, groups, reward=None, seed=0, force_limits=None, parallel=False):
+        """``parallel``: one persistent process per object group (``ProcessGroup``);
+        otherwise groups are stepped one after another in this process (reference path)."""
         if not groups:
             raise ValueError('At least one object group is required')
         self.groups = list(groups)
+        self.parallel = parallel
         self.generator = torch.Generator().manual_seed(seed)
-        self.envs, self.slices, start = [], [], 0
-        self.lift = []
+        self.members, self.slices, self.lift, start = [], [], [], 0
         for group in self.groups:
             for key, (low, high) in group.material.items():
                 if key not in MATERIAL_KEYS or not 0 < low <= high:
                     raise ValueError(f'{group.name}: bad material range {key}={low, high}')
-            gap = knife_clearance(backend_root, group.scene)
-            clearance = self._uniform(group.clearance, group.worlds)
-            lift = clearance - gap
-            env = GPUEnvironment(backend_root, group.worlds, reward=reward, scene=group.scene,
-                                 initial_lift=lift, force_limits=force_limits)
-            self.envs.append(env)
+            lift = self._uniform(group.clearance, group.worlds) - knife_clearance(backend_root, group.scene)
+            maker = ProcessGroup if parallel else LocalGroup
+            self.members.append(maker(backend_root, group.scene, group.worlds, lift, reward, force_limits))
             self.lift.append(lift)
             self.slices.append(slice(start, start + group.worlds))
             start += group.worlds
         self.worlds = start
-        first = self.envs[0]
-        self.device, self.heads, self.metadata = first.device, first.heads, first.metadata
-        for env, group in zip(self.envs[1:], self.groups[1:]):
-            if env.metadata != first.metadata:
+        self.device = torch.device('cuda:0')
+        if parallel:
+            for member in self.members:
+                member.finish_start(self.device)
+        self.metadata = self.members[0].metadata
+        for member, group in zip(self.members[1:], self.groups[1:]):
+            if member.metadata != self.metadata:
                 raise ValueError(f'{group.name}: task metadata differs from {self.groups[0].name}')
+        from .task_heads import SliceItHeads
+        self.heads = SliceItHeads(self.metadata['environment'], self.metadata['controller'])
         self.group_index = torch.cat([torch.full((g.worlds,), i, dtype=torch.long)
                                       for i, g in enumerate(self.groups)]).to(self.device)
         self.material_scales = {k: torch.ones(self.worlds, device=self.device) for k in MATERIAL_KEYS}
         self.target_speed = torch.zeros(self.worlds, device=self.device)
-        for env, part in zip(self.envs, self.slices):
-            env.target_speed = self.target_speed[part]  # view: the group reward reads the sampled speeds
         self.current = None
         self.reset()
+
+    def close(self):
+        for member in self.members:
+            if hasattr(member, 'close'):
+                member.close()
 
     def _uniform(self, bounds, n, log=False):
         low, high = bounds
@@ -113,37 +229,44 @@ class MultiConditionEnvironment:
                               target_speed=tuple(g.get('target_speed', (.035, .065))))
                   for g in config['groups']]
         return cls(backend_root, groups, reward=reward, seed=int(config.get('seed', 0)),
-                   force_limits=config.get('force_limits'))
+                   force_limits=config.get('force_limits'), parallel=bool(config.get('parallel', False)))
 
     @torch.no_grad()
     def reset(self, mask=None):
         if mask is None:
             mask = torch.ones(self.worlds, dtype=torch.bool, device=self.device)
         mask = mask.to(self.device, torch.bool)
-        parts = []
-        for group, env, part in zip(self.groups, self.envs, self.slices):
+        active = []
+        for i, (group, member, part) in enumerate(zip(self.groups, self.members, self.slices)):
             local = mask[part]
-            if bool(local.any()):
-                n = int(local.sum())
-                scales = {k: self._uniform(group.material.get(k, (1., 1.)), n, log=True) for k in MATERIAL_KEYS}
-                full = {k: env.physics.material.material_scales[k].clone() for k in MATERIAL_KEYS}
-                for k, v in scales.items():
-                    full[k][local] = v.to(full[k])
-                    self.material_scales[k][part][local] = v.to(self.device, torch.float32)
-                env.physics.material.set_material_scales(local, **full)
-                speed = self._uniform(group.target_speed, n).to(self.device, torch.float32)
-                self.target_speed[part.start:part.stop][local] = speed
-                parts.append(env.reset(local))
+            if not bool(local.any()):
+                continue
+            n = int(local.sum())
+            scales = {k: self._uniform(group.material.get(k, (1., 1.)), n, log=True).float() for k in MATERIAL_KEYS}
+            speeds = self._uniform(group.target_speed, n).float()
+            for k, v in scales.items():
+                self.material_scales[k][part][local] = v.to(self.device)
+            self.target_speed[part][local] = speeds.to(self.device)
+            if self.parallel:
+                member.send('reset', local, scales, speeds)
+                active.append(member)
             else:
-                parts.append(env.current)
-        self.current = self._with_conditions(self._merge(parts))
+                member.reset(local, scales, speeds)
+        for member in active:
+            member.receive()
+        self.current = self._with_conditions(self._merge([m.current for m in self.members]))
         return self.current
 
     @torch.no_grad()
     def step(self, action, reference=False):
-        outputs = [env.step(action[part], reference=reference) for env, part in zip(self.envs, self.slices)]
+        if self.parallel:
+            for member, part in zip(self.members, self.slices):
+                member.send('step', action[part], reference)
+            outputs = [member.receive() for member in self.members]
+        else:
+            outputs = [member.step(action[part], reference) for member, part in zip(self.members, self.slices)]
         frame = self._with_conditions(self._merge([o[0] for o in outputs]))
-        reward, terminated, truncated = (torch.cat([o[i] for o in outputs]) for i in (1, 2, 3))
+        reward, terminated, truncated = (torch.cat([o[i].to(self.device) for o in outputs]) for i in (1, 2, 3))
         info = self._merge([o[4] for o in outputs])
         self.current = frame
         return frame, reward, terminated, truncated, info
