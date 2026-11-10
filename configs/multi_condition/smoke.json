@@ -5,7 +5,7 @@
   "groups": [
     {
       "name": "prism",
-      "scene": "runs/sweep/prism_prism/scene.pt",
+      "scene": "runs/disect_source_v4_fixed_bottom/scene.pt",
       "worlds": 4,
       "material": {
         "youngs_modulus": [
