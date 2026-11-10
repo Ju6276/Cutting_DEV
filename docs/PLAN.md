@@ -16,7 +16,9 @@ intended final experimental scope.
 The proposed claim is that model-based policy learning can produce a shared
 compliant-cutting controller which, at comparable task completion, uses lower
 contact force than a matched-budget SAC. This is a hypothesis, not an existing
-result. Multiple objects alone do not establish novelty.
+result. Multiple objects alone do not establish novelty. Method contribution depends
+on B or another justified mechanism; empirical success does not settle that
+question. See PAPER and the per-paper records in [literature](literature/README.md).
 
 **No more action-perturbation evaluations, and no such results in the paper.**
 Preserve their files as historical diagnostics; stop using the 256-case rates,
@@ -142,13 +144,47 @@ not independent adjacent frames. Report empirical bound coverage separately
 from event recall. With 13 held-out failures, one event is about 7.7 percentage
 points: this is screening evidence, not proof of a reliable deployment rate.
 
-Remove the old "80% recall, ensemble less than half" pass rule. Advance a
-candidate only if the frozen comparison supports a useful recall/false-alarm
-tradeoff over the mean and a reasonably calibrated comparator; declare
-inconclusive results as such. If a standard ensemble is sufficient, prefer the
-simpler justified method and narrow the novelty claim. Poor results show a
-limit of these predictors/data, not that the force event is unlearnable.
-No extra fitting rounds or new test sets are automatically added.
+**Frozen B1 advancement rule (development pilot, not a safety standard).**
+
+Before opening the held-out split, choose **one** B candidate and **one**
+ensemble comparator on development data, giving both the same calibration
+opportunity. Record the exact checkpoints, causal features, score, threshold,
+episode IDs and fitting/calibration provenance. Other families remain
+descriptive references; the test cannot select a winning B family.
+
+The unit is an episode. On a force-limit episode, count a detection only when
+the prediction made *before executing the first violating control interval*
+flags that interval. Do not count a warning inferred from its measured force,
+post-event frames or an absorbed state. On each non-force-limit episode,
+count one false alarm if any valid pre-terminal interval is flagged; exclude
+padding. This episode false-alarm rate is distinct from per-step rates,
+which are also reported with the declared contact-relevant strata.
+
+1. On development, both selected settings must have episode false-alarm rate
+   at most 10%. If no eligible setting exists, end this candidate as
+   inconclusive without opening the held-out split.
+2. On the reported 13 held-out force-limit episodes, let `b` count episodes
+   detected only by B and `c` those detected only by the ensemble.
+   Require **net additional detections `b - c >= 4`**.
+3. On the same held-out non-force-limit episodes, B must produce **no more
+   false-alarm episodes than the ensemble**. This prevents the +4 rule from
+   rewarding a simple shift toward always warning. Report achieved rates and
+   denominators rather than assuming the development 10% rate transfers.
+
+Only if all three hold does B advance to its already bounded B2 screen.
+Otherwise label this pilot inconclusive for advancement, or explicitly worse
+if the paired outcomes show a loss, and end B; no threshold revision or fresh
+test set follows automatically. This is a conservative project choice, not a
+literature-derived performance threshold.
+
+Report the full paired detection table, counts and uncertainty. Even the
+case `b=4, c=0` has two-sided exact McNemar p=0.125; the +4 gate does **not**
+establish statistical superiority. Thirteen events cannot certify deployment
+safety, multi-material transfer or a new method. Development selection and
+calibration on reused data support empirical screening only, unless the
+additional split/assumptions required for a coverage claim are supplied.
+If a calibrated standard ensemble suffices, use that evidence to narrow the
+method claim rather than requiring ensemble failure.
 
 **B2 — optional planner screen, no policy training.** Use the same frozen
 working WM for motion prediction, the same nominal task and no terminal critic

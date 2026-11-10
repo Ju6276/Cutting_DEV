@@ -1,6 +1,6 @@
 # Novelty check — force-aware world model for force-limited cutting
 
-Status: paper and source review, 2026-11-08; contact-dynamics source inspection
+Status: paper and source review, updated 2026-11-10; contact-dynamics source inspection
 included. Literature evidence and candidate gaps only; it does not add
 development tasks. The research argument and algorithm are in [PAPER](PAPER.md);
 current work is in [PLAN](PLAN.md). The proposed setting is now one shared WM
@@ -12,8 +12,9 @@ mechanisms below are literature directions, not adopted algorithms or new runs.
 
 Labels: **T** paper text; **C** code; **I** inference; **A/S** abstract or search
 snippet only. Claims marked "spot-checked" were re-read in the source by the
-main session. Downloaded texts and clones (not in Git):
-`/private/tmp/claude-501/-Users-judong/4c5bdeab-87d4-4a26-b99c-e7d9a689c037/scratchpad/{src,pdf}`.
+main session. Current reviewed texts and source snapshots stay on GPU7 (not in Git):
+`/dataHDD/dong/Research/cutting_literature_20261110/`.
+Individual scopes and code pins are indexed in [literature/README](literature/README.md).
 Code findings below name the inspected functions and link to pinned revisions.
 **C** records source inspection; execution results belong in [RESULTS](RESULTS.md).
 
@@ -31,8 +32,9 @@ Code findings below name the inspected functions and link to pinned revisions.
 - Training: 80K steps, about 40 h with DiSECt; no seed count [T].
 - Randomization: paper says calibrated foods plus small noise, no ranges [T];
   the public code's parameter noise defaults to off, and the material appears
-  fixed per run [C/I]. The released bridge is not the code that produced the
-  results (calls an undefined function) [I].
+  fixed per run [C/I]. The inspected released bridge contains an unresolved function call; this
+  establishes a release inconsistency, not the identity of the code used for
+  the paper experiments [C/I].
 - Unseen object: one carrot, real robot, **contact-force distributions only** — no
   success rate, time, completion or simulation evaluation [T, spot-checked].
   Approximate Fig. 7 medians 12/15/20/24 N (DiSECt+Gazebo) vs 18/22/30/31 N
@@ -58,13 +60,15 @@ Code findings below name the inspected functions and link to pinned revisions.
 
 | Work | Model predicts | Force/safety | Evaluation |
 |---|---|---|---|
-| DeepMPC, Lenz et al., RSS 2015 | Position; action is EE force | Hard input bound 30 N per axis [T, spot-checked] | 1488 cuts / 20 materials; 1.78 mm error at 0.5 s; no unseen-material robot test, no events |
-| Mitsioni et al., Humanoids 2019, [1903.03831](https://arxiv.org/abs/1903.03831) | Position only; force is an input [T] | Only the sampling bound on reference force (8 N) | 5 trials/class, cutting rate; potato unseen |
+| DeepMPC, Lenz et al., RSS 2015 | Position; action is EE force | Hard input bound 30 N per axis [T, spot-checked] | 1488 cuts / 20 materials; held-out prediction and robot cutting-rate results, plus temperature/knife transfer; no interval-peak guarantee |
+| Mitsioni et al., Humanoids 2019, [1903.03831](https://arxiv.org/abs/1903.03831) | Position only; reference-force input/proxy [T] | Only the sampling bound on reference force (8 N) | 5 trials/class, cutting rate; potato unseen |
 | Mitsioni et al., CASE 2021, [2003.09179](https://arxiv.org/abs/2003.09179) | Position only (LSTM, horizon curriculum) [T, spot-checked] | Torque-limit shutdowns repeated and discarded; some foods pre-slit | Prediction MSE; mean MPC cost; success = reached board |
 | Mitsioni et al., T-RO 2023 | State trajectories; β-VAE safe set | Soft cost on distance to safe set, plus abort | Accessible preprint: pendulum only; the published cutting experiment was **not read** — get the IEEE version |
 
-No code for the cutting papers; SafeDDC (T-RO) code is pendulum only [C].
-All are real-robot and argue cutting simulation is unavailable [T].
+No author cutting implementation was verified for these learned-MPC papers;
+SafeDDC releases pendulum code [C]. DeepMPC and the 2019/2021 studies include
+real-robot cutting; the retrieved T-RO preprint cannot establish its final
+cutting experiment. Details and versions are in the individual reading records.
 
 ## 4. Constrained world-model RL and force-predicting world models
 
@@ -192,8 +196,8 @@ All are real-robot and argue cutting simulation is unavailable [T].
   future trajectories [T]. Its robot formulation assumes rigid, static
   surroundings so joint position/velocity can represent state [T]. It motivates
   separating timing error from response error; applying the same state
-  assumption to deforming, damaged material would omit history [I]. This
-  entry is paper evidence; no implementation inspected.
+  assumption to deforming, damaged material would omit history [I]. Author implementation is now inspected; see
+  [the hybrid GP record](literature/hybrid_contact_gp.md) for its pin and scope.
 
 ## 8. Our own implementation, for comparison with the above
 
@@ -233,89 +237,83 @@ All are real-robot and argue cutting simulation is unavailable [T].
   final-success comparison did not detect a clear benefit. This historical
   motivation does not add another prediction-diagnostic stage.
 
-## 9. Route B: uncertainty-aware force limits in world-model policy optimization (2026-11-10)
+## 9. Deep-reading update: what constrains route B
 
-Question: is "account for force-prediction uncertainty near the force limit inside
-WM-based BPTT, targeting contact-onset force events" already done? Labels: R =
-abstract page read by the main session (arXiv API); A = abstract or snippet seen
-by the review agent only; I = prior knowledge, not re-verified.
+Updated 2026-11-10. [Individual records](literature/README.md) replace the
+earlier abstract-only B survey. Each gives the retrieved paper version, actual
+read scope, algorithm, data/metrics, relevant limitation, code provenance and
+inspected implementation paths. Code reading is not an executed reproduction.
 
-- Constrained policy search through models: Safe PILCO (1712.05556, GP chance
-  constraints with analytic gradients) [A]; Charvet et al. 2110.13576 (PILCO with
-  chance constraints, primal-dual) [A]; LAMBDA (2201.09802, pessimistic Bayesian
-  world-model safety cost with pathwise gradients) [R]; CERL (2405.05890,
-  log-barrier, epistemic pessimism) [A]; CGPO (2412.11138, constrained analytic
-  gradients without model uncertainty) [A]. None uses a force output or contact
-  transitions.
-- Model exploitation near constraints: CAP (2112.07701, uncertainty-inflated cost
-  with an adaptive penalty from real cost feedback; motivated by "imperfect models
-  can result in real-world constraint violations") [R]; SMBPO (2202.07789,
-  penalties for short imagined rollouts reaching unsafe states, no uncertainty)
-  [A]; Hewing et al. (1705.10702, nominal + GP residual, variance-tightened chance
-  constraints in MPC) [A].
-- Force chance constraints: Matschek, Bethge, Findeisen (2303.04569, GP maps robot
-  state to forces/moments; MPC with stochastic constraint satisfaction; real
-  robot) [R]; Haninger et al. (2208.07035, impedance MPC with GP, force limit as
-  mean + k std) [A]. MPC only, static force maps, no contact-onset dynamics.
-- Contact learning: Parmar, Halm, Posa (2103.15406, stiffness alone degrades
-  learned contact models; networks favour smooth fits) [R]; AHAC (2405.17784,
-  gradient bias of BPTT through stiff contact) [A]; conformal bounds for learned
-  dynamics (Chee et al., L4DC 2024; CaPTURe 2608.09166) [A].
-- Not found (about 20 targeted searches): a measurement that learned models
-  systematically under-predict the peak force at contact onset; quantile/tail
-  prediction of peak wrench; the full combination inside world-model BPTT.
+| Established idea | Direct precedents | Consequence here |
+|---|---|---|
+| Learned cutting dynamics and online MPC across materials | DeepMPC; Mitsioni 2019/2021 | Neither a learned cutting WM nor WM+MPC is new. |
+| Short learned-model rollout, endpoint value, analytic policy update | MAAC; SuperMimic; constrained LAMBDA/CGPO | WM+BPTT or adding a constraint alone is insufficient. |
+| Uncertainty-aware force/compliance control | Kuo; Haninger; Matschek | Force uncertainty and GP impedance MPC already exist. |
+| Contact-mode dynamics and structured impulse/state updates | Hybrid contact GP; ContactNets; CD-Lagrange | Mode splitting or a physics residual alone is insufficient. |
+| Conservative model costs or prediction bounds | CAP; MOPO; CQR; CaPTURe | Calibration/upper bounds are inherited machinery, not a new method. |
+| Endpoint and interval-peak force prediction in a WM | Visuotactile lifting (2609.09597) | Retract the earlier search-based suggestion that peak-force WMs were not found. |
+| Learned action sensitivity of constraints and action correction | Dalal safety layer; safe/force MPC | Action gradients are not themselves the contribution. |
+| Value targets on imagined states and model/critic uncertainty | MVE; STEVE; LEQ | Accurate physical-return estimates do not establish imagined-state reliability. |
 
-Assessment: generic pessimistic safety costs in world-model optimization (LAMBDA,
-CAP) and force chance constraints in MPC (Matschek, Haninger) exist. Recorded
-one-sided under-prediction (RESULTS 2026-11-08/09: 19–23 of 23 force-limit
-events missed, 11–20 N one-step under-prediction) and the MPPI failures motivate
-a candidate, not an established contribution. A calibrated upper estimate
-inside force-aware policy optimization remains to be defined and tested.
-Ensemble failure is neither required nor sufficient for novelty; calibrated
-ensemble comparators deserve the same calibration opportunity.
+Important source details: DreamerV3's actor uses REINFORCE in the inspected
+implementation, whereas our actor uses BPTT. Its stop-gradient choices cannot
+be transplanted by name. Learning on the Fly uses a hybrid forward model but
+a custom analytical backward derivative; it is not exact differentiation of
+the complete learned forward map. STEVE's original code remains available at
+a historical TensorFlow Models commit. MVE's author implementation explicitly
+does not predict new terminal states. These are adaptation boundaries, not
+reasons to replace our stack.
 
-Phase/group conformal calibration itself has prior art (Angelopoulos & Bates,
-§4.1, [tutorial](https://arxiv.org/pdf/2107.07511), targeted text inspection).
-The deployed group must be observable; damage/spring truth may label analysis
-but cannot secretly select a bound. Coverage assumptions, limited independent
-episodes and distribution change matter. PLAN's revised B section defines a
-bounded screen; it does not claim guaranteed safety, that spikes are inherently
-unpredictable, or that prediction gains already improve BPTT. Cutting remains
-the first experimental domain; non-cutting papers inform the formulation.
+Some close priors have limited releases: Haninger's linked author GitLab was
+unreachable, CERL's code endpoint returned 403, and the visuotactile arXiv source
+archive did not contain the advertised implementation. Passivity-Centric
+releases data and weights, which must not be mislabeled source code.
+Third-party Dalal and SuperMimic implementations are separately labeled.
+The T-RO final cutting section remains a coverage limitation; its pendulum
+preprint and SafeDDC release cannot stand in for it.
 
-## Assessment
+Two resource corrections also matter. [Sashimi-Bot](literature/sashimi_bot.md)
+uses RL for shape manipulation; its cutting is a geometry-based planner with
+tactile board-contact correction. [CulinaryCut](literature/culinarycut.md)
+has materially different manuscript/project versions and a currently
+inaccessible advertised code link; public samples do not establish access to
+the algorithm. Its older force-response speed limiter is relevant prior art.
+[Playing with Food](literature/playing_with_food.md) provides real multimodal
+interaction data, not just visual objects.
 
-Already done (cannot be claimed): the setting and a force-limit terminal
-(SliceIt); several calibrated foods in training with an unseen test object
-(SliceIt §IV-A); learned cutting dynamics + MPC on many and unseen materials
-(DeepMPC, Mitsioni); learned topology dynamics for cutting (TopoCut); WM + BPTT +
-learned cost head + Lagrangian (LAMBDA); force-peak prediction in a WM
-(visuotactile lifting); structured contact dynamics and contact supervision
-(ContactNets, CD-Lagrange); real-robot RL adapting cutting force/speed
-(robocutting).
+The earlier general claim that other papers do not use perturbation evaluations
+is not supported by the contact-safety literature. Our old suite remains
+retired because it does not serve the chosen task/claim; this correction does
+not reactivate it.
 
-Candidate gap, to be verified rather than assumed from searches that found
-nothing: compliant food cutting in which learned state-and-force dynamics
-improve a policy by BPTT, with force risk and the physical control effect
-validated. Points not found in the papers read:
+## Assessment and recommended focus
 
-1. A state/force/event-consistent cutting model whose gradients improve physical
-   execution. ContactNets already links contact geometry, impulse and state;
-   the narrower question is deformable cutting with the controller and sensor
-   response included, evaluated inside BPTT policy learning.
-2. A force-limit termination inside world-model policy learning (prior: CMDP
-   budgets or input bounds; Mitsioni discards limit hits).
-3. An account of why WM policies exceed force budgets despite force heads (the
-   lifting paper shows the symptom). Our BCE-gradient diagnostic (RESULTS
-   2026-11-08; 93 successes, 3 workspace failures, no force-limit failures)
-   shows that the terminal loss dominates dynamics updates; it does not show that
-   this causes missed force peaks.
+**Method novelty is unresolved. It depends on B or another justified mechanism,
+not on S0–S4 integration succeeding.** B's +4-event pilot gate decides whether
+to spend the already capped control-screen budget; it does not establish novelty,
+a significant population improvement or safe deployment.
 
-Risks: reads as "SliceIt + SuperMimic" unless the mechanism is clear and the
-gain holds against SAC and a same-WM MPC; simulation-only results limit claims on
-real cutting force and cross-material reliability; the T-RO cutting experiment is
-unread. DreamerV3's actor uses REINFORCE, so its stop-gradient placement does not
-transfer directly to BPTT.
+The recommended candidate question is whether a history-conditioned cutting
+model can support useful action changes near changing contact, rather than
+merely predicting recorded force values. A possible mechanism concerns the
+region of candidate compliance/reference actions for which force-risk
+predictions remain trustworthy under changing cutting history. This is an
+inference and formulation direction, not a verified literature gap or a new
+implemented module. Local action sensitivity, trust regions, contact-dependent
+calibration and hybrid controller models all have precedents above.
+
+The required distinction would be a concrete treatment of changing interaction
+during compliant cutting, with action-dependent force risk and demonstrated
+physical control benefit. Compare against a calibrated ensemble and the
+unmodified working procedure; do not require that every standard method fail.
+The current within-interval peak output already exists. Adding it again, adding
+a constant safety margin, or giving the whole method a new name is not a method.
+
+Keep cutting as the task domain. Non-cutting papers provide formulation
+evidence, not a requirement to add insertion/pushing/grinding benchmarks.
+S0–S2 build the shared task distribution independently; S3 trains fresh networks.
+Historical B fits and old-checkpoint MPPI are bounded screens, not the main
+multi-condition learning evidence.
 
 ## 10. Method precedents and scope correction — 2026-11-10
 
@@ -334,8 +332,8 @@ benefit. This review does not authorize a new run.
   training data and evidence differ; a priority claim for WM+BPTT or same-WM
   planning comparison is unsupported [I].
 - **TD3+BC**, [official repository](https://github.com/sfujim/TD3_BC):
-  its README documents weighted behavior cloning in the actor update and state
-  normalization [C; README inspected]. Our METHOD already attributes the
+  its actor implementation and training entry document weighted behavior cloning
+  and state normalization [C; see the pinned [TD3+BC record](literature/td3_bc.md)]. Our METHOD already attributes the
   replay-action regularizer to this work. We use it during online continuation;
   that does not turn the procedure into the original offline-RL algorithm [I].
 
@@ -364,7 +362,8 @@ plan and an estimate of integration and validation cost:
 
 - IEEE version of Mitsioni T-RO 2023 (cutting section).
 - Google Scholar "cited by" pass on SliceIt and DiSECt.
-- Full reads of the grinding paper, LEQ and Segmentation Dreamer appendices.
+- Unread sections are listed explicitly in individual reading records; do not
+  promote a scoped method/code read into a complete appendix/proof audit.
 - Inspect TopoCut code after publication; check for a robocutting algorithm/data
   release beyond its current project-page links.
 

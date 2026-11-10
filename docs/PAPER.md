@@ -1,7 +1,7 @@
 # Paper argument and method review
 
 Review draft for the user and Claude, 2026-11-10, based on the implementation
-at `ce346d0` (unchanged by this review),
+at `a7a10cd` (unchanged by this review),
 saved evaluations and the literature notes in [NOVELTY](NOVELTY.md).
 This is a research assessment, not an approved new algorithm, run or manuscript
 skeleton. [PLAN](PLAN.md) is the sole task list; [METHOD](METHOD.md) maps code;
@@ -87,9 +87,57 @@ the source chain's success is not yet a clean from-scratch validation of the
 working variant on a multi-condition distribution. That is part of the proposed
 new training comparison.
 
-## Scope and proposed contributions to test
+## Method contribution: conditional, not established
 
-| Proposed contribution | Needed evidence | Current status |
+**A method contribution depends on B, or on another explicitly justified
+mechanism with evidence beyond the inherited WM + BPTT recipe.** The empirical
+claims below are not substitutes for that contribution. If B is inconclusive,
+stop that candidate. S0–S2 still deliver a useful shared-task platform, but the
+paper must not quietly promote integration or multi-object performance into a
+new algorithm. A system/empirical paper is a possible different framing, not
+the promised method result.
+
+Passing B1 is a resource-allocation decision, not proof of novelty. Conservative
+world-model policy learning (LAMBDA, CGPO), GP force-constrained impedance MPC,
+contact-conditioned calibration (CaPTURe), peak-force prediction in a
+visuotactile WM, and learned action sensitivities (Dalal) are already precedents.
+The [individual paper/code records](literature/README.md) state their scopes.
+A force head, calibration offset, history encoder or action gradient alone
+cannot be our new mechanism.
+
+### Recommended question to concentrate on
+
+**When cutting contact changes, can a history-conditioned model tell which
+changes to the compliance/reference action will reduce the next interval's
+force risk, and use that information to improve a shared cutting policy?**
+
+This narrows the focus to action choice under changing interaction, rather
+than just lower prediction MSE or better coverage on recorded actions.
+The important unknown is whether the model's advice remains useful when the
+policy changes its actions and the material response changes. Irreversible
+damage is a plausible source of history dependence, not a demonstrated cause
+of every observed force peak.
+
+The current algorithm remains the working baseline. A candidate formulation
+would condition contact response on causal robot/wrench history, represent
+within-control-interval force risk, and connect that risk to action selection
+or the actor update. Known FDCC/sensor equations may supply structure;
+any such redesign must first specify how motion, force history and interval
+peaks are produced consistently. None is implemented or selected here.
+Generic hybrid models, local trust regions and safe action projections also
+have prior art; the proposed distinction must be concrete in cutting.
+
+B1 asks whether the existing upper-risk estimates deserve further use.
+B2 asks whether that estimate changes physical decisions beneficially.
+The main S3 study trains fresh networks across the declared cutting conditions.
+If a mechanism survives screening, its contribution requires an ablation
+against the same baseline and actual completed cuts, not another indefinitely
+growing list of local checks. Do not claim a reliable action-gradient
+mechanism from B1 coverage alone.
+
+## Scope and empirical claims to test
+
+| Empirical claim | Needed evidence | Current status |
 |---|---|---|
 | One history-based robot/force model and policy for varied cutting mechanics and prepared geometries | Shared training and physical outcomes per condition; no per-object policy substitution | Compact representation exists; mixed-condition training is not yet connected |
 | Model-based policy optimization improves control beyond replay imitation | Physical performance and a relevant actor-objective ablation under the declared task | Fixed-prism BC-only comparison exists; its scope remains that task |
