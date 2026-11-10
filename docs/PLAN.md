@@ -3,7 +3,7 @@
 The single current task list. [PAPER](PAPER.md) holds the research question and
 algorithm; [METHOD](METHOD.md) maps implementation and sources;
 [BENCHMARK](BENCHMARK.md) defines the task and metrics; [RESULTS](RESULTS.md)
-holds measurements. Updated 2026-11-10 against results at `d6f3865`.
+holds measurements. Updated 2026-11-10 using saved evaluations; evidence is packaged in EVIDENCE.
 
 ## Current decision — use the trained SAC; no new training now
 
@@ -103,35 +103,110 @@ Historical protocols are retained in Git at `3f65d23` (A pair) and `d5a876e`
 (main evaluation plan); their completed results remain in RESULTS. They are not
 pending tasks.
 
-## Next work — reuse recorded evidence, then scope the next task
+## Completed 2026-11-10 — evidence, argument and next-condition specification
 
-1. **Conclusions and naming (this update).** Align PLAN, PAPER, README,
-   BENCHMARK and RESULTS with the decision above. Retain historical measurements
-   and failed runs. No manuscript skeleton is created.
-2. **One evidence package from saved outputs.** Prepare the comparison figures
-   and their captions from `runs/main_compare_20261109`,
-   `runs/eval_fixed_p62_20261109`, `runs/eval_perturbed_main_20261109` and
-   `runs/mpc_baseline_pair_20261109`: completion/failure reasons, material
-   peaks, impulse, paired successful-case duration, and online computation.
-   Mark budget-censored and unmeasured cells explicitly. Include selected
-   checkpoints, source settings, input/history access and available training
-   counts alongside the figures. Do not rerun physics to reproduce saved numbers.
-   Deliverable: server-side figures and an evidence-to-claim summary.
-3. **Set the paper argument using that package.** The working algorithm can be
-   described now; A is analysis, not its central novelty claim. Identify which
-   result supports each proposed contribution, distinguish inherited components,
-   and keep unsupported safety/sample-efficiency/generalization claims out.
-   This is a research-direction update, not restarting the withdrawn skeleton.
-4. **Then scope one next single-cut condition.** Prefer a bounded material
-   variation on the existing prism before introducing a new geometry. Specify
-   whether the question is frozen-policy transfer or learning across conditions;
-   define material values, task contract, data coverage, evaluation and budget
-   before running it. Apple needs its own scene/data-coverage decision. No
-   collection, fitting or multi-object training is launched by this document.
+1. **Evidence package:** CPU-only analysis of saved reports; four PNG/PDF
+   figures, raw-case/paired CSV, controller provenance and SHA256 input/output
+   manifest in `runs/paper_evidence_20261110`. It covers 768 recorded perturbed
+   cases and 18 unperturbed records. No new simulation or optimizer updates.
+2. **Paper argument:** [EVIDENCE](EVIDENCE.md) maps claims to measurements and
+   limits; PAPER explains the connected method and inherited components.
+   No manuscript skeleton, new architecture or mandatory SAC retraining.
+3. **Next condition:** the frozen elastic-transfer pilot below is specified,
+   including material provenance, controller identities, data use and budget.
+   Its execution adapter is still to be implemented before running it.
 
-The immediate work is figures and interpretation of completed runs. It does not
-wait for A6000 availability. Do not turn an inconvenient metric into another
-unbounded repair stage.
+The immediate next implementation is the bounded material-condition evaluation
+option. There is no remaining A decision or broad regression/diagnostic stage
+to resolve before that work.
+
+## Next-stage protocol — frozen transfer under elastic-modulus changes
+
+**Status:** protocol prepared; no new physical run, data collection or fitting
+has started. This is one bounded single-cut pilot, not multi-material training.
+Question: do the existing frozen controllers still reach the goal when prism
+elasticity changes, and how do outcomes and forces change? A material shift may
+hurt the learned model/controllers; either outcome is informative.
+
+### Conditions and provenance
+
+Use the existing free-bottom prism, robot, knife, target, captured initial
+physical state, action mapper, reward and task definitions. Change only Young's
+modulus at fixed Poisson ratio 0.45:
+
+| Condition | E scale | E (Pa) | mu (Pa) | lambda (Pa) |
+|---|---:|---:|---:|---:|
+| Softer prism | 0.5 | 20,000 | 6,896.551724 | 62,068.965517 |
+| Existing prism | 1 | 40,000 | 13,793.103448 | 124,137.931034 |
+| Stiffer prism | 2 | 80,000 | 27,586.206897 | 248,275.862069 |
+
+These scales come from the completed Nov 8 P0 material-scale check, not a new
+search for favorable results. Use the existing `set_material_scales` operation
+to scale both Lamé arrays relative to their source values. Keep density
+830 kg/m³, damping, cutting-spring stiffness/softening, friction/contact and all
+other settings unchanged. These are synthetic elasticity conditions, not
+calibrated apple/potato/tomato materials.
+
+Restore the full captured reset frame, including controller/filter and material
+history, and keep the selected material arrays in effect across reset. Verify
+the actual arrays and unchanged initial state in the run manifest. This tests a
+common initial-state parameter shift, not material-specific equilibrium resets.
+The existing P0 reference peaks were 9.68/9.97/10.33 N; elasticity alone may have
+a modest effect. Do not widen the range or change spring strength after seeing
+an uninteresting result.
+
+### Controllers, data and budget
+
+Use five frozen controllers: working WM + BPTT, SAC85k, prescribed reference,
+and same-working-WM MPPI with/without terminal critic. Keep the existing MPPI
+settings and planning seed 0 in both settings, including its known nominal
+failure without a critic; do not select each setting's best seed. One physical
+world and one episode per controller/condition; no action perturbation.
+Do not add material identity to the model or policy inputs.
+
+The nominal condition already has saved results in the evidence recipe.
+Reuse the five nominal records (SAC's existing repeats remain repeats) when
+checkpoint tensors, asset/reset identity and execution configuration match.
+Only the softer and stiffer conditions need new execution: **10 new episodes**.
+Run the softer condition then the stiffer one, in this fixed controller order:
+working policy, SAC85k, reference, MPPI+critic, MPPI without critic.
+If provenance cannot match, stop that cell for resolution rather than silently
+substitute a new nominal experiment.
+
+No training set is required in advance. New transitions are evaluation logs;
+they are not used to update WM, critic or policy. The frozen nominal-material
+WM deliberately tests transfer under model mismatch. If later learning across
+materials is selected, that needs a separate data-coverage/training protocol.
+
+Budget: one available GPU7, at most **2 GPU-hours total** including startup,
+and at most **1,200 wall seconds per new episode**, in addition to the unchanged
+500-step task limit. Finish each case at its own ending. Keep censored prefixes
+and mark unstarted cells if the total budget expires; do not extend the budget
+or count wall-budget interruptions as task failures. No extra seeds or
+256-case disturbance evaluations in this pilot.
+
+Before execution, add the material-condition option to the existing frozen
+evaluator, preserve base-contract validation, and record a distinct condition
+identity with the base contract hash, applied scale, effective material-array
+hashes, reset hash and frozen checkpoint identity. This option/condition
+registration is **not implemented by this document update**; do not label
+changed material as an unchanged `public-prism-ur5e-v1` result. Use the existing
+P0 scaling implementation, not a second material path.
+
+### Measurement and stopping rule
+
+Report each cell's ending, elapsed simulation time, goal error, material
+peak/mean force and impulse, sensor utilization, released springs, and decision
+latency. Keep failed and censored cells alongside successes. No confidence
+interval or success probability is inferred from a single episode.
+
+This pilot answers feasibility for the tested conditions only. If all methods
+work similarly, report that the perturbation is mild. If a controller fails,
+retain its trajectory and identify the observed ending without automatically
+opening a repair, parameter sweep or retraining stage. A reproducible code
+exception is fixed separately; physical failure is a result. The pilot closes
+after the ten planned executions or the budget, and informs one explicit next
+decision about whether multi-material training is useful.
 
 ## Conditional work, not current jobs
 

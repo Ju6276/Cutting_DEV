@@ -1,0 +1,157 @@
+{
+  "perturbed": [
+    {
+      "id": "policy62",
+      "label": "Policy62 (start)",
+      "directory": "{runs}/eval_fixed_p62_20261109/perturbed_policy62"
+    },
+    {
+      "id": "working",
+      "label": "Working WM + BPTT",
+      "directory": "{runs}/eval_perturbed_main_20261109/working_baseline"
+    },
+    {
+      "id": "sac85k",
+      "label": "Unified SAC85k",
+      "directory": "{runs}/eval_perturbed_main_20261109/sac85k"
+    }
+  ],
+  "unperturbed": [
+    {
+      "id": "policy62",
+      "label": "Policy62 (1 episode)",
+      "directory": "{runs}/mpc_pair_repair_20261109/policy62"
+    },
+    {
+      "id": "working",
+      "label": "Working policy (1 episode)",
+      "directory": "{runs}/mpc_baseline_pair_20261109/policy"
+    },
+    {
+      "id": "sac85k",
+      "label": "SAC85k (8 overlapping repeats)",
+      "directory": "{legacy}/sac_85000"
+    },
+    {
+      "id": "reference",
+      "label": "Prescribed reference",
+      "directory": "{runs}/eval_fixed_p62_20261109/reference"
+    },
+    {
+      "id": "mppi_critic_0",
+      "label": "MPPI + critic, seed 0",
+      "directory": "{runs}/mpc_baseline_pair_20261109/mppi_critic_seed0"
+    },
+    {
+      "id": "mppi_critic_1",
+      "label": "MPPI + critic, seed 1",
+      "directory": "{runs}/mpc_baseline_pair_20261109/mppi_critic_seed1"
+    },
+    {
+      "id": "mppi_critic_2",
+      "label": "MPPI + critic, seed 2",
+      "directory": "{runs}/mpc_baseline_pair_20261109/mppi_critic_seed2"
+    },
+    {
+      "id": "mppi_none_0",
+      "label": "MPPI no critic, seed 0",
+      "directory": "{runs}/mpc_baseline_pair_20261109/mppi_none_seed0"
+    },
+    {
+      "id": "mppi_none_1",
+      "label": "MPPI no critic, seed 1",
+      "directory": "{runs}/mpc_baseline_pair_20261109/mppi_none_seed1"
+    },
+    {
+      "id": "mppi_none_2",
+      "label": "MPPI no critic, seed 2",
+      "directory": "{runs}/mpc_baseline_pair_20261109/mppi_none_seed2"
+    },
+    {
+      "id": "constant_zero",
+      "label": "Zero action (unfinished)",
+      "directory": "{runs}/eval_fixed_p62_20261109/constant_zero"
+    }
+  ],
+  "comparisons": [
+    {
+      "a": "working",
+      "b": "policy62",
+      "file": "{runs}/main_compare_20261109/working_baseline_minus_policy62.json"
+    },
+    {
+      "a": "working",
+      "b": "sac85k",
+      "file": "{runs}/main_compare_20261109/working_baseline_minus_sac85k.json"
+    }
+  ],
+  "controllers": [
+    {
+      "id": "policy62",
+      "input": "10 x 24 observation history + goal; observations include measured wrench history",
+      "training": {
+        "configuration": "source",
+        "iteration": 1561,
+        "policy_updates": 62,
+        "wm_updates": 562,
+        "worlds": 1024,
+        "total_physical_transitions": null
+      },
+      "budget_note": "Iteration/update counters are not a verified total transition count across resumes; no sample-efficiency curve is inferred."
+    },
+    {
+      "id": "working",
+      "input": "10 x 24 observation history + goal",
+      "training": {
+        "configuration": "real critic, H8, BC 0.25; critic reset + 100 prefit rounds",
+        "iteration": 2421,
+        "policy_updates": 390,
+        "wm_updates": 890,
+        "worlds": 1024,
+        "total_physical_transitions": null
+      },
+      "selection": "Preselected Nov 6 run final; later same-configuration collapse is also retained in RESULTS."
+    },
+    {
+      "id": "sac85k",
+      "input": "Current 24-component observation, already including three source wrench-history samples",
+      "training": {
+        "environment_steps": 85000,
+        "worlds": 1,
+        "lr": 0.01,
+        "batch_size": 1024,
+        "actor": "Wave/tanh"
+      },
+      "selection": "Pre-collapse checkpoint selected after observing collapse; training stopped at 95037, source endpoint 100100 not completed."
+    },
+    {
+      "id": "mppi",
+      "input": "Frozen WM joint/force/control history; one physical world with 512 planned candidates",
+      "training": {
+        "new_optimizer_updates": 0,
+        "wm_source": "working checkpoint (WM890)"
+      },
+      "settings": {
+        "horizon": 16,
+        "samples": 512,
+        "refinements": 4,
+        "temperature": 0.1,
+        "noise": 0.5,
+        "discount": 0.99
+      },
+      "selection": "Development settings selected on WM563; transferred unchanged to WM890; critic/no-critic distinct."
+    },
+    {
+      "id": "reference",
+      "input": "Scene trajectory",
+      "action_interface": "Separate reference branch; not the six-action mapper",
+      "training": null
+    },
+    {
+      "id": "constant_zero",
+      "input": "None",
+      "action_interface": "Six zero commands through shared action mapper",
+      "training": null
+    }
+  ]
+}

@@ -88,8 +88,10 @@ its pre-stated final-success criterion; it remains analysis. The working-baselin
 repeat's temporary collapse and SAC's later collapse are retained in RESULTS.
 The existing SAC85k is the current source-derived controller comparison, not a
 full reproduction of SliceIt's paper. No SAC retraining is required for this
-comparison. Next: consolidate saved evidence and the supported argument, then
-scope one material-variation condition. [PLAN](docs/PLAN.md) records the decision;
+comparison. The [evidence package](docs/EVIDENCE.md) now contains four figures,
+paired effects, checkpoint provenance and supported claims from saved results.
+Next: a frozen-controller elastic-transfer pilot at 20/40/80 kPa, specified but
+not yet run. [PLAN](docs/PLAN.md) records the scope and budget;
 [Paper direction and algorithm](docs/PAPER.md) describes the connected method.
 
 [Current plan](docs/PLAN.md) · [Benchmark and definitions](docs/BENCHMARK.md) ·

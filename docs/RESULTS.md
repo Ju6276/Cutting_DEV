@@ -1887,3 +1887,29 @@ claims are limited to the recorded checkpoints/task; lower material peak does
 not establish lower force-limit failure probability, and incomplete
 wall-budget trajectories are not completed failures. Next work in PLAN reuses
 the saved evidence before scoping any additional single-cut condition.
+
+
+## 2026-11-10 — Evidence package from saved evaluations
+
+CPU-only postprocessing with `scripts/build_evidence.py` and
+`configs/analysis/evidence_20261110.json`; no new physical transitions or
+optimizer updates. Output on GPU7: `runs/paper_evidence_20261110/`.
+Four PNG/PDF figures, 768 perturbed-case records, 18 unperturbed records,
+paired-effect CSV, controller provenance and input/output SHA256 hashes.
+Saved means and paired-success subsets are checked against raw cases.
+
+[EVIDENCE](EVIDENCE.md) holds captions and the supported argument. The figures
+keep material force distinct from sensor limit utilization, preserve the
+zero-action wall-budget prefix, separate MPPI terminal-value configurations,
+and show online decision time separately from physics. Case-paired intervals
+do not include training-seed uncertainty. No result is replaced or rescored.
+
+The current facts remain: working policy improves perturbed success over
+policy62; SAC85k has higher success and higher material peaks than the working
+policy; force-limit-ending and impulse differences between working/SAC are
+inconclusive. A remains a completed mechanism variant. The proposed elasticity
+pilot in PLAN is not a measured result.
+
+Validation on GPU7: root suite 231 passed / 5 skipped; backend suite 28 passed.
+All four figures were visually inspected; relative documentation links and
+Git whitespace checks passed. Simulation/training code is unchanged.

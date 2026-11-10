@@ -5,7 +5,8 @@ Working title: **World-Model Policy Optimization for Force-Limited Robotic Cutti
 This document holds the research argument and algorithm structure. [PLAN](PLAN.md)
 holds the current work and run approvals; [METHOD](METHOD.md) maps implementation
 and sources; [BENCHMARK](BENCHMARK.md) defines the task and metrics;
-[RESULTS](RESULTS.md) holds measurements; [NOVELTY](NOVELTY.md) holds literature
+[RESULTS](RESULTS.md) holds measurements; [EVIDENCE](EVIDENCE.md) maps current
+claims to figures; [NOVELTY](NOVELTY.md) holds literature
 evidence. Updated 2026-11-10 against code and results at `d6f3865`.
 This is the research-direction document, not a manuscript skeleton.
 
@@ -173,20 +174,22 @@ improved over its starting checkpoint; that comparison alone does not isolate
 the benefit of model gradients. Peak, mean force and impulse are distinct
 quantities, and force values do not replace task-completion outcomes.
 
-## Main experiments and what each would establish
+## Main experiments and their status
 
-| Question | Comparison | Evidence to report |
+| Question | Comparison | Status and supported conclusion |
 |---|---|---|
-| Does the mechanism improve control? | Working baseline vs baseline + A, identical continuation setup | Physical task outcomes and learning curves; existing prediction evidence explains the intervention |
-| Does the learned gradient matter? | Full actor objective vs BC-only; source/critic variants for attribution | Physical behavior and return, with each changed component identified |
-| How does it compare with alternatives? | Selected checkpoints, SAC85k, same-WM MPC and fixed control | Shared physical task; disclose unequal input histories/training budgets and separate reference action branch; report outcomes, force and compute |
-| Does it extend beyond one configuration? | Material variation, then held-out materials/shapes | Per-condition task and force outcomes; single-cut structure retained |
+| Does the working continuation improve executed control? | Working policy vs policy62 | Complete: +8.6 percentage points success on the fixed disturbance cases. This is a package-level checkpoint improvement. |
+| Does the learned objective affect behavior? | Full actor objective vs BC-only | Complete, one seed: execution changes. Does not isolate WM from critic gradients. |
+| Does A improve final control? | Baseline vs baseline + A | Complete: no detected primary success benefit; prediction/stability observations remain analysis. |
+| How does the controller compare with alternatives? | Existing SAC85k, same-WM MPPI and fixed control | Complete within the reported scope: distinct completion, force and online-cost outcomes; no general algorithm ranking. |
+| Does it work beyond the nominal elasticity? | Frozen controllers at E ×0.5, ×1 and ×2 | Protocol ready in PLAN; changed-material executions not yet performed. |
 
-The A experiment and the selected-controller fixed-prism evaluations are
-complete. The next deliverable is their evidence package and supported argument,
-not another A experiment or mandatory SAC retraining. Material transfer is a
-separate, bounded next-stage question. Multi-seed runs follow a fixed method and
-comparison protocol.
+The saved evidence package and captions are available; see EVIDENCE for the
+claim-to-result mapping, checkpoint histories, CSV and figure paths.
+The next bounded task tests frozen transfer, without new learning.
+This separates the question of transferring an existing controller from
+training a new multi-material controller. Neither is assumed from the nominal
+prism result.
 
 The source-to-working-baseline comparison changes critic targets, horizon and
 behavior regularization together. Attributing a benefit to one of them requires
@@ -225,10 +228,12 @@ deterministic task are not independent training seeds.
 
 ## Writing structure and stopping rule
 
-Write the paper as **problem → model and supervision → policy optimization →
-physical control evidence → generalization**. Introduce the force-limited task
+The argument is **cutting-control problem → learned interaction model and
+policy optimization → executed control evidence → scope of transfer**.
+Introduce the force-limited task
 and model-based alternatives, present the connected algorithm above, then use
-the mechanism experiment to explain the main task results. Put bug fixes,
+the mechanism experiment to discuss the limits of prediction-based improvement.
+Do not present A as a demonstrated cause of improved control. Put bug fixes,
 API checks and integration details in implementation notes. Model-fitting plots
 support the argument; they do not replace cutting results.
 
