@@ -19,6 +19,7 @@ class GPUEnvironment:
         self.physics = CuttingBatch(backend_root, worlds, reference_trajectory=reference_trajectory,
                                     initial_lift=initial_lift, force_limit_scale=force_limit_scale, **scene)
         self.limit_scale = None if force_limit_scale is None else self.physics.force_limit_scale
+        self.target_speed = None  # per-world target cutting speed (m/s), set by a task sampler
         self.worlds, self.device = worlds, self.physics.device
         self.metadata = dict(self.physics.task)
         if reward:
@@ -108,7 +109,8 @@ class GPUEnvironment:
         success = success & ~collision
         if self.environment['termination_on_negative_reward']:
             success.zero_()
-        reward = self.heads.reward(frame['observation'], collision, success, outside, self.limit_scale)
+        reward = self.heads.reward(frame['observation'], collision, success, outside, self.limit_scale,
+                                   self.target_speed)
         truncated = (self.step_count >= self.environment['steps_per_episode']) & ~terminated
         self.success_counter = counter
         frame['success_counter'] = counter[:, None].clone()

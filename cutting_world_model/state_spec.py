@@ -127,6 +127,25 @@ class CuttingStateSpec(nn.Module):
         self.register_buffer('action_low', bounds[0])
         self.register_buffer('action_high', bounds[1])
         self.register_buffer('force_limits', torch.tensor(force, dtype=torch.float32))
+        # Task goal: target pose (7), optionally followed by the task conditions
+        # (force-limit scale, target cutting speed) of a multi-condition task.
+        self.goal_dim = int(metadata.get('goal_dim', 7))
+        if self.goal_dim not in (7, 9):
+            raise ValueError('goal_dim must be 7 (pose) or 9 (pose, force-limit scale, target speed)')
+
+    def goal_parts(self, goal):
+        """(target pose, force-limit scale or None, target speed or None)."""
+        if goal.shape[-1] != self.goal_dim:
+            raise ValueError(f'Expected a {self.goal_dim}-dimensional goal, got {goal.shape[-1]}')
+        if self.goal_dim == 7:
+            return goal, None, None
+        return goal[..., :7], goal[..., 7], goal[..., 8]
+
+    def limits(self, goal=None):
+        """Force/torque limits for each goal (per-object scale), or the nominal limits."""
+        if goal is None or self.goal_dim == 7:
+            return self.force_limits
+        return self.force_limits * self.goal_parts(goal)[1][..., None]
 
     @classmethod
     def metadata_from_frame(cls, task, frame):
@@ -201,11 +220,13 @@ class CuttingStateSpec(nn.Module):
         velocity = observation_velocity(pose, self.field(old, 'previous_ee_pose'), self.dt)
         acceleration = (velocity - self.field(old, 'previous_velocity')) / self.dt
         jerk = (acceleration - self.field(old, 'previous_acceleration')) / self.dt
-        obs = self.heads.observation(pose_error(goal, pose), velocity, jerk, action, fields['wrench_history'])
-        collision = (fields['peak_wrench'] > self.force_limits).any(-1)
+        target, limit_scale, target_speed = self.goal_parts(goal)
+        obs = self.heads.observation(pose_error(target, pose), velocity, jerk, action, fields['wrench_history'],
+                                     limit_scale)
+        collision = (fields['peak_wrench'] > self.limits(goal)).any(-1)
         done, success, outside, counter = self.heads.termination(
             obs, self.field(old, 'success_counter'), collision)
-        reward = self.heads.reward(obs, collision, success, outside)
+        reward = self.heads.reward(obs, collision, success, outside, limit_scale, target_speed)
         direction = action.new_tensor([1., 0., 0., 0., 0., 0.])
         rotation_direction = action.new_tensor([0., 0., 0., 0., -1., 0.])
         limits = self.metadata['controller']['max_twist']
@@ -224,11 +245,11 @@ class CuttingStateSpec(nn.Module):
             errors.append(err.reshape(*pred.shape[:-1], -1))
         return torch.cat(errors, -1) / self.err_scale
 
-    def terminal_features(self, state):
+    def terminal_features(self, state, goal=None):
         obs = self.field(state, 'observation')
         error = (obs[..., :3] * obs.new_tensor(self.heads.max_distance)).abs()
         workspace = error / obs.new_tensor(self.heads.env['workspace_limit']) - 1
         target = error / obs.new_tensor(self.heads.env['goal_threshold']) - 1
-        force = self.field(state, 'peak_wrench') / self.force_limits - 1
+        force = self.field(state, 'peak_wrench') / self.limits(goal) - 1
         count = self.field(state, 'success_counter')[..., None] / (self.heads.env['successes_threshold'] + 1) - 1
         return torch.cat((force, workspace, target, count), -1)

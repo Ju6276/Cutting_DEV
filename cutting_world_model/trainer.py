@@ -173,7 +173,7 @@ class OnlineLearner:
         for _ in range(self.actor_horizon):
             action = self.policy(history, goal)
             next_state, reward, logits = self.wm.predict(state, action, goal)
-            collision = (spec.field(next_state, 'peak_wrench') > spec.force_limits).any(-1)
+            collision = (spec.field(next_state, 'peak_wrench') > spec.limits(goal)).any(-1)
             task_done, _, _, _ = spec.heads.termination(
                 spec.field(next_state, 'observation'),
                 spec.field(state, 'success_counter'), collision)
@@ -195,7 +195,7 @@ class OnlineLearner:
                                actions=torch.stack(actions))
 
     def critic_values(self, states, goal):
-        error = pose_error(goal, self.wm.spec.field(states, 'previous_ee_pose'))
+        error = pose_error(goal[..., :7], self.wm.spec.field(states, 'previous_ee_pose'))
         return self.critic(self.wm.spec.canonical(states), goal, error)
 
     def improve_policy(self, buffer):
@@ -235,7 +235,7 @@ class OnlineLearner:
                     if cfg.use_critic:
                         bootstrap = ((cfg.gamma ** self.actor_horizon) * ro.survival[-1] * terminal).mean()
                     spec = self.wm.spec
-                    collision = (spec.field(ro.states[1:], 'peak_wrench') > spec.force_limits).any(-1)
+                    collision = (spec.field(ro.states[1:], 'peak_wrench') > spec.limits(goal)).any(-1)
                     analytic_done, _, _, _ = spec.heads.termination(
                         spec.field(ro.states[1:], 'observation'),
                         spec.field(ro.states[:-1], 'success_counter'), collision)

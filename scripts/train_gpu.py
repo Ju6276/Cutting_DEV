@@ -75,6 +75,9 @@ def main():
     parser.add_argument('--change-wm-terminal-gradient', action='store_true',
                         help='With --resume: start --wm-terminal-gradient from a checkpoint written '
                              'with the other route (e.g. variant A from policy62/WM562)')
+    parser.add_argument('--conditions', type=Path,
+                        help='multi-condition task JSON (object groups, materials, start clearance, '
+                             'target speeds, w_speed); worlds = sum of group worlds')
     parser.add_argument('--force-penalty', choices=FORCE_PENALTIES, default='sliceit',
                         help="'sliceit': source -sigmoid(s/2-3); 'linear': -s/--force-penalty-scale")
     parser.add_argument('--force-penalty-scale', type=float,
@@ -115,15 +118,30 @@ def run(args, output, status, started):
     device = 'cuda:0'
     reward = ({'force_penalty': 'linear', 'force_penalty_scale': args.force_penalty_scale}
               if args.force_penalty == 'linear' else None)
-    env = GPUEnvironment(args.backend_root, args.worlds, reward=reward)
+    conditions = None
+    if args.conditions is not None:
+        from cutting_world_model.multi_env import MultiConditionEnvironment
+        conditions = json.loads(args.conditions.read_text())
+        if conditions.get('w_speed'):
+            reward = {**(reward or {}), 'w_speed': float(conditions['w_speed'])}
+        env = MultiConditionEnvironment.from_config(args.backend_root, conditions, reward=reward)
+        args.worlds = env.worlds
+        task_goal = MultiConditionEnvironment.goal
+    else:
+        env = GPUEnvironment(args.backend_root, args.worlds, reward=reward)
+        task_goal = lambda f: f['target_pose'].float()  # noqa: E731
     frame = env.current
     one = {k: v[0].cpu().numpy() for k, v in frame.items()}
     metadata = ControlStateSpec.metadata_from_frame(env.metadata, one)
+    if conditions is not None:
+        metadata['goal_dim'] = 9
+        metadata['task_conditions'] = conditions
+    goal_dim = int(metadata.get('goal_dim', 7))
     write_json(output / 'task.json', metadata)
     wm = CuttingWorldModel(metadata).to(device)
     spec = wm.spec
-    policy = SliceItPolicy().to(device)
-    critic = SliceItCritic(spec.state_dim).to(device)
+    policy = SliceItPolicy(goal_dim).to(device)
+    critic = SliceItCritic(spec.state_dim, goal_dim).to(device)
     learner = OnlineLearner(wm, policy, critic, args.microbatch,
                             wm_only_updates=args.wm_only_updates,
                             critic_target=args.critic_target,
@@ -150,7 +168,7 @@ def run(args, output, status, started):
         torch.set_rng_state(saved['torch_rng'].cpu())
         torch.cuda.set_rng_state(saved['cuda_rng'].cpu())
     replay = BatchedOnlineReplay(args.worlds, spec.state_dim, device,
-                                 capacity=schedule.replay_capacity)
+                                 capacity=schedule.replay_capacity, goal_dim=goal_dim)
     history = frame['observation'].float()[None].repeat(policy.history, 1, 1)
     state = spec.pack_batch(frame).float()
     returns = torch.zeros(args.worlds, device=device)
@@ -231,7 +249,7 @@ def run(args, output, status, started):
                 status['state'] = 'interrupted' if stop_requested else 'budget_complete'
                 break
             with torch.no_grad():
-                goal = frame['target_pose'].float()
+                goal = task_goal(frame)
                 clean = policy(history, goal)
                 executed = spec.execute(clean + .1 * torch.randn_like(clean))
             progress(phase='physics', iteration=schedule.iteration, updates=learner.updates)
@@ -258,6 +276,7 @@ def run(args, output, status, started):
                     'return': float(returns[e]), 'steps': int(lengths[e]),
                     'success': bool(info['success'][e]), 'collision': bool(info['collision'][e]),
                     'truncated': bool(truncated[e]), 'released_springs': int(info['released_springs'][e]),
+                    **({'condition': env.conditions([e])[0]} if conditions is not None else {}),
                 })
             schedule.after_environment_step()
             if ended.any():

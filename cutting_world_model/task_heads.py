@@ -8,7 +8,7 @@ TASK_INTERFACE_REVISION = "sliceit-177cf21"
 # 'sliceit': the source saturating term -sigmoid(s/2 - 3); 'linear': -s / force_penalty_scale.
 FORCE_PENALTIES = ("sliceit", "linear")
 # Environment keys that select the reward; absent keys mean the unchanged SliceIt reward.
-REWARD_KEYS = ("force_penalty", "force_penalty_scale")
+REWARD_KEYS = ("force_penalty", "force_penalty_scale", "w_speed")
 
 
 def reward_settings(environment):
@@ -108,15 +108,34 @@ class SliceItHeads:
         return -torch.sigmoid(norm_force / 2. - 3.)
 
     def reward_weights(self, observation):
-        weights = observation.new_tensor([self.env["w_dist"], self.env["w_force"],
-                                          self.env["w_jerkiness"], 1.])
+        values = [self.env["w_dist"], self.env["w_force"], self.env["w_jerkiness"], 1.]
+        if self.env.get("w_speed"):
+            values.append(self.env["w_speed"])
+        weights = observation.new_tensor(values)
         return weights / weights.abs().sum()
+
+    def cutting_speed(self, observation):
+        """Downward knife speed (m/s) from the observed target-dim velocity (z is dims[1])."""
+        dims = len(self.dims)
+        velocity = observation[..., dims + 1]
+        if self.env["normalize_velocity"]:
+            velocity = velocity * self.max_velocity[1]
+        return -velocity
+
+    def speed_reward(self, observation, target_speed):
+        """-tanh(|v_down - v*| / v*) while the cut target is not reached; 0 afterwards."""
+        dims = len(self.dims)
+        depth_error = (observation[..., 1] * self.max_distance[1]).abs()
+        cutting = depth_error > self.env["goal_threshold"][1]
+        mismatch = (self.cutting_speed(observation) - target_speed).abs() / target_speed
+        return torch.where(cutting, -torch.tanh(mismatch), torch.zeros_like(mismatch))
 
     def weighted_force_reward(self, observation, limit_scale=None):
         """The force term as it enters the reward (with its normalized weight)."""
         return self.reward_weights(observation)[1] * self.force_reward(observation, limit_scale)
 
-    def reward(self, observation, collision, goal_reached, out_of_workspace, limit_scale=None):
+    def reward(self, observation, collision, goal_reached, out_of_workspace, limit_scale=None,
+               target_speed=None):
         distance = observation[..., 1].abs()
         jerk = self.jerkiness(observation)
         r_distance = -torch.tanh(5. * distance)
@@ -125,6 +144,10 @@ class SliceItHeads:
         cost = self.env["cost"]
         weights = self.reward_weights(observation)
         result = weights[0] * r_distance + weights[1] * r_force + weights[2] * r_jerk + weights[3] * cost["step"]
+        if self.env.get("w_speed"):
+            if target_speed is None:
+                raise ValueError("The speed reward requires a target speed")
+            result = result + weights[4] * self.speed_reward(observation, target_speed)
         result = result + collision.to(result.dtype) * cost["collision"]
         result = result + (goal_reached & ~collision).to(result.dtype) * cost["done"]
         return result + out_of_workspace.to(result.dtype) * cost["collision"]

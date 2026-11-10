@@ -39,22 +39,23 @@ class CuttingWorldModel(nn.Module):
 
     def transition(self, state, action, goal):
         executed = self.spec.execute(action)
-        delta = self.dynamics(self.spec.dynamics_features(state), executed, goal)
+        # Physics prediction uses the target pose only; task conditions enter reward/termination.
+        delta = self.dynamics(self.spec.dynamics_features(state), executed, goal[..., :7])
         fields = self.spec.integrate_physical(state, delta)
         next_state, reward, done = self.spec.derive(state, fields, executed, goal)
         return next_state, reward
 
-    def terminal_logits(self, next_state):
-        feats = self.spec.terminal_features(next_state)
+    def terminal_logits(self, next_state, goal=None):
+        feats = self.spec.terminal_features(next_state, goal)
         return self.term_head(torch.cat((feats, feats.abs()), -1)).squeeze(-1)
 
     def step(self, state, action, goal):
         next_state, reward = self.transition(state, action, goal)
-        return next_state, reward, self.terminal_logits(next_state)
+        return next_state, reward, self.terminal_logits(next_state, goal)
 
     def _fit_step_head(self, state, action, goal):
         next_state, reward = self.transition(state, action, goal)
-        return next_state, reward, self.terminal_logits(next_state.detach())
+        return next_state, reward, self.terminal_logits(next_state.detach(), goal)
 
     def enable_compile(self, mode="default"):
         compile = (lambda f: torch.compile(f, mode=mode, dynamic=False)) if mode else (lambda f: f)

@@ -9,10 +9,10 @@ class SliceItPolicy(nn.Module):
     history = 10
     observation_terms = (3, 3, 3, 6, 9)
 
-    def __init__(self):
+    def __init__(self, goal_dim=7):
         super().__init__()
         hidden = (2048, 1024, 512, 256)
-        self.encoder = MLP(7, hidden, 32)
+        self.encoder = MLP(goal_dim, hidden, 32)
         self.decoder = MLP(32 + self.history * 24, hidden, 6, last_gain=.01)
 
     def forward(self, history, target_pose):
@@ -27,9 +27,9 @@ class SliceItPolicy(nn.Module):
 
 
 class SliceItCritic(nn.Module):
-    def __init__(self, state_dim):
+    def __init__(self, state_dim, goal_dim=7):
         super().__init__()
-        self.mlp = MLP(state_dim + 7 + 6, (256, 128), 1)
+        self.mlp = MLP(state_dim + goal_dim + 6, (256, 128), 1)
 
     def forward(self, features, goal, error):
         return self.mlp(torch.cat((features, goal, error), -1)).squeeze(-1)

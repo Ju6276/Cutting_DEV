@@ -35,8 +35,8 @@ class OnlineReplay:
 
 
 class BatchedOnlineReplay:
-    def __init__(self, worlds, state_dim, device, capacity=1000):
-        self.buffer = SequenceReplay(worlds, capacity, state_dim, 6, 7, device)
+    def __init__(self, worlds, state_dim, device, capacity=1000, goal_dim=7):
+        self.buffer = SequenceReplay(worlds, capacity, state_dim, 6, goal_dim, device)
         self.ids = torch.arange(worlds, device=device)
         self.frame = torch.zeros(worlds, dtype=torch.long, device=device)
         self.episode = torch.zeros_like(self.frame)

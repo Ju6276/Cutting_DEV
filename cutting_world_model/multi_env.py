@@ -80,6 +80,8 @@ class MultiConditionEnvironment:
                                       for i, g in enumerate(self.groups)]).to(self.device)
         self.material_scales = {k: torch.ones(self.worlds, device=self.device) for k in MATERIAL_KEYS}
         self.target_speed = torch.zeros(self.worlds, device=self.device)
+        for env, part in zip(self.envs, self.slices):
+            env.target_speed = self.target_speed[part]  # view: the group reward reads the sampled speeds
         self.current = None
         self.reset()
 
@@ -98,6 +100,21 @@ class MultiConditionEnvironment:
         frame['target_speed'] = self.target_speed[:, None].to(frame['observation']).clone()
         frame['object_group'] = self.group_index[:, None].clone()
         return frame
+
+    @staticmethod
+    def goal(frame):
+        """Task goal of each world: target pose, force-limit scale, target cutting speed."""
+        return torch.cat((frame['target_pose'], frame['force_limit_scale'], frame['target_speed']), -1).float()
+
+    @classmethod
+    def from_config(cls, backend_root, config, reward=None):
+        groups = [ObjectGroup(name=g['name'], scene=g['scene'], worlds=int(g['worlds']),
+                              force_limit_scale=float(g.get('force_limit_scale', 1.)),
+                              clearance=tuple(g.get('clearance', (.005, .03))),
+                              material={k: tuple(v) for k, v in g.get('material', {}).items()},
+                              target_speed=tuple(g.get('target_speed', (.035, .065))))
+                  for g in config['groups']]
+        return cls(backend_root, groups, reward=reward, seed=int(config.get('seed', 0)))
 
     @torch.no_grad()
     def reset(self, mask=None):
