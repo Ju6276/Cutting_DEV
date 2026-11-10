@@ -20,8 +20,11 @@
 - Every paid run needs an approved plan first: question, hypothesis, setting,
   metric, decision rule and wall/GPU budget. Docs separate measured results from
   inferences; search the literature before claiming novelty.
-- All methods are evaluated through `scripts/evaluate_benchmark.py` with matched
-  real-transition and wall budgets (docs/BENCHMARK.md).
+- Use the shared benchmark entries and task definitions (docs/BENCHMARK.md).
+  Frozen-controller comparisons may retain different training budgets and inputs
+  when disclosed. Matched-data/sample-efficiency claims require their own
+  budget and information-access protocol; they do not mandate retraining for
+  every checkpoint comparison.
 - Keep SliceIt rewards, thresholds, material configuration and physical behavior.
   No scene-specific success shortcuts, damage projection or invented reward head.
 - Short-term loss/reward oscillation and a few weak episodes do not establish

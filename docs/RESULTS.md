@@ -1178,9 +1178,10 @@ spikes pushed the tanh-squashed actor into saturation, where its gradient
 vanishes, and the following one-step collision data cannot pull it back. The
 triggering batch is not recoverable from the logs.
 
-The SAC baseline result for the single prism is the step-85000 checkpoint,
-reported together with this collapse. A new SAC run is deferred to the parallel
-multi-environment stage (see PLAN).
+The selected SAC result for the single prism is the step-85000 checkpoint,
+reported together with this collapse. The parallel-retraining proposal was
+subsequently made conditional (PLAN, 2026-11-10); retraining is not required
+for the present frozen-controller comparison.
 
 ## 2026-11-07 — Original DiSECt gradients and the static bottom layer
 
@@ -1822,11 +1823,13 @@ Unperturbed fixed control: prescribed reference trajectory success in 40 steps
 (2.0 s), return 80.29, material peak/mean 9.97/3.92 N, impulse 7.83 N s;
 constant-zero action did not reach the goal within the 840 s wall budget
 (323 steps, 16.15 s simulated, return −137.52, peak 5.83 N, 281/304 springs).
+This is a censored prefix, not a task-timeout failure: the 500-step episode limit
+was not reached. It does not establish that constant-zero can never complete.
 
 Perturbed robustness (success / force limit / workspace; mean material peak;
-mean impulse; mean safety margin; mean steps of successes):
+mean impulse; mean sensor limit utilization (log key `safety_margin`); mean steps of successes):
 
-| Controller | Rates | Peak N | Impulse N s | Safety margin | Steps |
+| Controller | Rates | Peak N | Impulse N s | Sensor limit utilization | Steps |
 |---|---|---:|---:|---:|---:|
 | policy62 (common start) | 0.746 / 0.086 / 0.168 | 32.9 | 7.05 | 0.63 | 23.1 |
 | Working baseline (WM + BPTT) | 0.832 / 0.078 / 0.090 | 29.7 | 7.07 | 0.57 | 20.9 |
@@ -1842,11 +1845,45 @@ Case-paired differences (working baseline minus the other):
   On the 202 cases both complete: 1.4 more steps [0.8, 2.5], peak −19.7 N
   [−20.9, −18.5].
 
-Measured: continuing training through the WM from policy62 made the frozen
-policy more robust to command perturbations (more successes, fewer workspace
-endings, lower peak force). The SAC 85k checkpoint succeeds in more perturbed
-cases and finishes slightly faster, at a much higher peak material force (mean
-45 vs 30 N) and sensor safety margin (0.89 vs 0.57, i.e. closer to the limit).
-Training budget, input history (one frame vs ten frames plus goal) and training
-stability differ, so this is a comparison of these checkpoints, not of the
-algorithms. MPPI: perturbed evaluation not done (deferred for compute budget).
+Measured: the selected checkpoint after the complete real + H8 + BC continuation
+procedure succeeds in more command-perturbation cases than policy62, with fewer
+workspace endings and lower material peaks. This before/after comparison does
+not isolate model gradients from extra interaction data, critic changes and
+behavior regularization. Its mean material force is higher than policy62's;
+peak, time-average force and impulse must not be conflated.
+
+SAC85k succeeds in more perturbed cases and finishes slightly faster, with a
+higher mean material peak (45.4 vs 29.7 N) and mean sensor limit utilization
+(0.89 vs 0.57). Neither force-limit ending nor total impulse has a clear
+difference across all cases. These results do not establish lower force-limit
+risk for the WM policy. The material force is not the signal compared with
+the 50 N sensor component limit, and a mean utilization ratio is not an
+exceedance probability.
+
+Training budgets, input history (one frame vs ten frames plus goal), checkpoint
+selection and training stability differ. This is a comparison of named frozen
+controllers, not a controlled algorithm or sample-efficiency result. MPPI
+perturbed evaluation is not done (deferred for compute budget).
+
+## 2026-11-10 — Interpretation and SAC reuse decision
+
+No new training or physical evaluation. Existing numbers are unchanged.
+The step-85000 SAC remains the model-free checkpoint reference; a new parallel
+SAC run is conditional on a later task or controlled-comparison claim, not a
+prerequisite for current interpretation or writing.
+
+Configuration provenance checked against the pinned SliceIt dependency
+`ur_python_utilities@7cd7cb8`, `ur3e_rl/config/simulation/slicing_3d_disect.yaml`:
+batch 1024, lr 0.01, auto-alpha, update interval 1 and the Wave actor are present
+upstream and in the local public-prism config. The public-prism scene,
+MuJoCo execution and integration patches are adaptations. Matching those
+training settings does not make this a full reproduction of the paper's
+multi-material/Gazebo/real-robot results. SAC85k was selected with knowledge of
+later collapse; it is not a completed source-endpoint training run.
+
+The working algorithm remains real-trajectory critic + short-horizon BPTT +
+behavior regularization. A remains a completed mechanism variant. Current
+claims are limited to the recorded checkpoints/task; lower material peak does
+not establish lower force-limit failure probability, and incomplete
+wall-budget trajectories are not completed failures. Next work in PLAN reuses
+the saved evidence before scoping any additional single-cut condition.

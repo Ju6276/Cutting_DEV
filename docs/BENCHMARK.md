@@ -66,9 +66,17 @@ other documents refer to it.
 - **Terminal reasons** are reported separately: success, force limit, workspace,
   time limit. A combined metric (for example "success and material peak below a
   bound") must get its own name and must not replace success.
-- **Force reporting.** Report the material peak force, the sensor wrench used for
-  control and termination (`safety_margin`), and limit exceedances (count,
-  magnitude, duration) separately.
+- **Sensor limit utilization.** The historical log key `safety_margin` is the
+  maximum over observed coupling substeps and wrench components of
+  `abs(wrench[i]) / max_force_torque[i]`. It is a dimensionless utilization
+  ratio, not remaining headroom: larger means closer to/exceeding a component
+  limit. An across-episode mean does not establish a lower exceedance rate.
+- **Force reporting.** Report material peak/mean force and impulse, sensor
+  limit utilization, and actual limit exceedances separately. Material peak
+  cannot be compared directly with the sensor's 50 N component threshold.
+- **Computation-budget censoring.** A wall-budget interruption before an
+  episode ends is an unfinished trajectory, distinct from the task's 500-step
+  time limit. Its prefix metrics are not full-episode failure metrics.
 
 ## Method names
 
@@ -77,8 +85,8 @@ Results of different entries are never pooled.
 | Name | What it is |
 |---|---|
 | SliceIt SAC, Gazebo (run 1) | Original SliceIt training in Gazebo + DiSECt; separate setting |
-| SAC, unified environment | Original tf2rl SAC and settings (one environment, lr 0.01) trained in this benchmark; step-85000 checkpoint reported (collapse at 90000, RESULTS 2026-11-07) |
-| SAC, parallel (planned) | Changed worlds and learning rate (PLAN, multi-object stage); a new configuration |
+| SliceIt SAC adapted to the unified environment, 85k | Source tf2rl SAC/settings (one training environment, lr 0.01) in this public-prism benchmark; checkpoint selected before later collapse, not a full reproduction of the paper's setup |
+| SAC, parallel (conditional; not scheduled) | A possible new training configuration only if a later task or matched-data claim requires it; not a prerequisite for the current comparison |
 | `source` | SuperMimic-Reproduced configuration: imagined critic targets, actor horizon 32, no BC |
 | Current working baseline | `real` critic targets, actor horizon 8, BC 0.25, resumed from policy62/WM562 with critic reset and 100 pre-fit rounds |
 | V5 | `real_wm` critic targets, actor horizon 8, BC 0.25 |
@@ -99,8 +107,10 @@ direction), each case with its own seeds (`cutting_world_model/perturbed_eval.py
 Every case runs to its own end; success, force limit, workspace and time limit are
 all kept. Mean material force divides the summed impulse by the actual simulated
 time (a force-limit stop ends inside a control step). `--method sac|wm-mppi|supermimic|constant-zero`
-runs the `evaluate_benchmark.py` controllers in one world, passing their own
-arguments through. `evaluate_perturbed.py compare --a DIR_A --b DIR_B --output
+uses the `evaluate_benchmark.py` controller interfaces. SAC supports batched
+deterministic evaluation (32 worlds in the completed comparison); MPPI and
+constant-zero use the single-world path. Evaluation parallelism does not change
+the training history of the loaded checkpoint. `evaluate_perturbed.py compare --a DIR_A --b DIR_B --output
 FILE` refuses runs with unfinished cases, different case configurations or
 different perturbation rules and reports case-paired differences with 95%
 bootstrap intervals over cases, plus steps and force on the cases both complete
@@ -196,8 +206,10 @@ SAC receives the source 24-D observation, including three force-history samples;
 the SuperMimic policy receives ten such frames plus the target pose. These source
 architectures are retained. The common task, physical reset and six-action
 interface are fixed. A Gazebo-trained SAC checkpoint evaluated here measures
-transfer; the algorithm training comparison uses SAC trained in this same GPU
-environment, with its original training settings.
+transfer. The current fixed-controller comparison uses SAC trained in this same
+GPU environment with source training settings. Unequal training budgets,
+observation histories and selection after observing collapse are disclosed;
+this is not an isolated algorithm or sample-efficiency comparison.
 
 ## Train SAC in the fixed environment
 
@@ -218,8 +230,9 @@ export CUTTING_LOGGER_PYTHON="$PWD/.venv/bin/python"
   --wall-seconds 259200 --output runs/sac_gpu_training
 ```
 
-This command starts a fresh SAC. Frozen evaluation of an existing checkpoint
-uses `evaluate_benchmark.py` below.
+This command documents how to start a fresh SAC; it is not a current run plan.
+Use the existing step-85000 checkpoint for the present comparison (PLAN,
+2026-11-10). Frozen evaluation uses `evaluate_benchmark.py` below.
 
 To continue a stopped or interrupted run, repeat the command with a new
 `--output` and `--resume runs/sac_gpu_training`. Every 5000-step save and the

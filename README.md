@@ -76,12 +76,21 @@ Single prism (`public-prism-ur5e-v1`), frozen 8 episodes, one seed
 | Current working baseline, last | 8/8 | 19 | 91.37 | 26.10 N |
 | SAC in the unified environment (source settings, one environment), step 85000 | 8/8 | 18 | 92.03 | 49.6 N |
 
-The completed fixed-data comparison reduced H8 tip prediction error from
-7.88 to 0.28 mm by isolating terminal supervision during WM fitting (variant A).
-The next proposed experiment tests its effect on actual cutting control.
-[Paper direction and algorithm](docs/PAPER.md) connects this mechanism to the
-world-model/BPTT method and the SAC / same-WM MPC comparisons;
-[PLAN](docs/PLAN.md) holds the current stage and run approvals.
+The selected-controller evaluations are complete (2026-11-09). On 256
+executed-action perturbation cases, policy62 / working policy / unified SAC85k
+succeed in 74.6% / 83.2% / 89.1%, with mean material peaks 32.9 / 29.7 / 45.4 N.
+The working policy's force-limit failure difference from SAC is inconclusive;
+lower material peak does not establish lower failure risk. Training budgets,
+input histories and checkpoint selection differ.
+
+Variant A improved fixed-data prediction but did not show a clear benefit on
+its pre-stated final-success criterion; it remains analysis. The working-baseline
+repeat's temporary collapse and SAC's later collapse are retained in RESULTS.
+The existing SAC85k is the current source-derived controller comparison, not a
+full reproduction of SliceIt's paper. No SAC retraining is required for this
+comparison. Next: consolidate saved evidence and the supported argument, then
+scope one material-variation condition. [PLAN](docs/PLAN.md) records the decision;
+[Paper direction and algorithm](docs/PAPER.md) describes the connected method.
 
 [Current plan](docs/PLAN.md) · [Benchmark and definitions](docs/BENCHMARK.md) ·
 [Results](docs/RESULTS.md) · [Methods and variants](docs/METHOD.md) ·
