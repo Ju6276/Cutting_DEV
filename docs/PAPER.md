@@ -1,253 +1,231 @@
-# Paper direction and algorithm
+# Paper argument and method review
+
+Review draft for the user and Claude, 2026-11-10, based on code `2354af7`,
+saved evaluations and the literature notes in [NOVELTY](NOVELTY.md).
+This is a research assessment, not an approved new algorithm, run or manuscript
+skeleton. [PLAN](PLAN.md) is the sole task list; [METHOD](METHOD.md) maps code;
+[EVIDENCE](EVIDENCE.md) links measured results and figures.
 
 Working title: **World-Model Policy Optimization for Force-Limited Robotic Cutting**.
+“Force-limited” describes the task's stopping rule, not a safety guarantee.
 
-This document holds the research argument and algorithm structure. [PLAN](PLAN.md)
-holds the current work and run approvals; [METHOD](METHOD.md) maps implementation
-and sources; [BENCHMARK](BENCHMARK.md) defines the task and metrics;
-[RESULTS](RESULTS.md) holds measurements; [EVIDENCE](EVIDENCE.md) maps current
-claims to figures; [NOVELTY](NOVELTY.md) holds literature
-evidence. Updated 2026-11-10 against code and results at `d6f3865`.
-This is the research-direction document, not a manuscript skeleton.
+## Recommendation
 
-## One research question
+Keep the current method and trained nominal prism task. The strongest supported
+question is:
 
-**How can a learned model of robot–material interaction support policy
-optimization whose predicted gains carry over to executed, force-limited
-compliant cutting?**
+**Can differentiable model-based policy updates improve an already functional
+compliant-cutting controller, while leaving deployment to a fast feedback policy?**
 
-The policy controls compliance and reference motion. Its actions affect both
-progress and contact force. The model must therefore support decisions about
-motion, force and when an episode ends, rather than just fit an average next
-state. A wrong end state can also make the actor query its critic after the
-physical task would have stopped.
+The algorithm can ultimately be studied from scratch, but the current working
+method's evidence is continuation from a successful policy62/WM562 checkpoint.
+Policy62 already completes the task. Do not describe the continuation as learning
+to cut from failure, or its data cost as a complete from-scratch training budget.
 
-The working algorithm learns a motion/force model from physical interaction,
-fits a critic on physical-trajectory lambda returns, and improves the policy
-through short model rollouts with recorded-action behavior regularization.
-The current implementation is `real` critic + H8 + BC 0.25. This is a complete
-algorithmic procedure; its inherited components and the evidence for the
-cutting-specific arrangement must be identified separately.
+A proposed contribution statement, still requiring review, is:
 
-Candidate A changes only the terminal-supervision gradient during WM fitting.
-Its joint control comparison is complete: the pre-stated final-success
-difference was inconclusive, so A remains a mechanism variant rather than part
-of the selected main algorithm. The paper must not assume that better
-prediction necessarily produces better control.
+> A robot-and-force history model supports short-horizon policy refinement for
+> compliant cutting, with value learning on recorded physical trajectories and
+> behavior regularization toward replay actions. The resulting controller is
+> evaluated in the original physical task against its starting controller,
+> imitation-only continuation, the existing SAC and same-model online planning.
 
-The current research unit is a single cut in the trained nominal prism task.
-Material/geometry generalization is not a mandatory next step or an established
-contribution. If selected later, its claim, training distribution and test
-conditions must be designed together. Multiple cuts, topology planning and
-camera-based manipulation are outside the current scope.
+This identifies a task-specific method and the evidence needed for it. It does
+not establish a new generic RL algorithm or a demonstrated safety mechanism.
+The present results constitute a working method and a preliminary comparative
+study; their current breadth does not by itself establish a strong final
+publication contribution. Adding disturbance or material cases would not
+resolve an unclear method claim.
 
-## Algorithm and data flow
+## Why this is a control problem worth formulating
+
+Compliance and reference commands affect both cutting progress and the sensed
+reaction. Recent interaction history carries information about the response of
+the controller and deforming material. The proposed use of a WM is to learn
+those action consequences and use their gradients during policy improvement.
+That is the motivation; lower physical-data cost and safer control are benefits
+to demonstrate, not consequences of merely having a differentiable network.
+
+SAC supplies an existing learned controller without an explicit transition
+model. Our BPTT procedure uses a learned transition model during actor training.
+The same-WM MPPI searches action sequences at deployment. This comparison asks
+how the model is used, not whether the plant is differentiable. Cheap policy
+inference is also available to SAC, so it is only a practical distinction from
+online planning, not a unique contribution over all alternatives.
+
+## What the algorithm actually does
 
 ```mermaid
 flowchart LR
-    P[Policy: observation history and goal] --> A[Compliance and reference-motion action]
+    P[Policy: observation history and goal] --> A[Six compliance and reference commands]
     A --> E[UR5e + FDCC + MuJoCo Warp + DiSECt]
-    E -->|Observations| P
+    E -->|Observed feedback| P
     E --> D[Recorded transitions and episode endings]
-    D --> W[Fit motion and force world model]
-    D --> V[Fit critic with physical-trajectory lambda returns]
-    W --> I[Short imagined rollout: task reward and termination]
-    D -->|Starting histories| I
+    D --> W[Fit robot and sensor-force dynamics]
+    D --> V[Fit physical-trajectory lambda-return critic]
+    D --> B[Replay-action behavior regularization]
+    W --> I[Short imagined actor rollout]
     V --> I
-    I --> B[BPTT actor update plus behavior regularization]
-    B --> P
+    I --> U[BPTT policy update]
+    B --> U
+    U --> P
 ```
 
-The physics executes actions and supplies new training data. Gradients for the
-actor pass through the learned model. At deployment the policy and compliance
-controller act on observations; the model and critic support training.
+1. **Physical interaction provides training data.** “Physical” here means the
+   coupled simulation, not collected real-robot data. DiSECt meshes/material
+   settings define the scene; they are not robot demonstrations.
+2. **The WM predicts the response needed for control.** It learns 36 next-state
+   coordinates: joint position/velocity, three observed wrench samples, and
+   within-step peak sensor wrench. A ten-frame history supplies 480 dynamics
+   features. FK and task equations derive other state fields and reward.
+   Material particles and damage remain hidden from this compact WM.
+3. **The critic learns on recorded physical trajectories.** `real` uses
+   episode-bounded lambda returns, which still bootstrap. It does not mean
+   Monte Carlo ground truth, an exact critic, or a guarantee on imagined states.
+4. **The actor is updated through the learned WM.** H8 imagination uses the
+   task reward, terminal handling and endpoint critic. BC 0.25 regularizes
+   toward recorded clean policy actions, not expert demonstrations.
+5. **Deployment uses policy + FDCC.** The trained policy needs neither online
+   MPPI nor the WM/critic to choose its action. Simulator differentiability
+   is not used for these actor updates.
 
-### 1. Learn the robot and force response
+Code: `control_state.py`, `world_model.py`, and
+`OnlineLearner.fit_world_model/imagine/improve_policy` in
+[trainer.py](../cutting_world_model/trainer.py). Exact losses and source
+differences are in METHOD. No architecture or loss is changed by this review.
 
-The policy reads ten observation frames and the target pose, then outputs the
-existing six-dimensional SliceIt action. The action mapper changes compliance
-parameters and reference motion. Data come from this policy interacting with
-the coupled robot/material simulation, including successful and failed episodes.
-DiSECt assets specify the physical scene; they are not a robot-demonstration set.
+## Which parts are inherited, adapted, or still hypotheses?
 
-The current model predicts residual updates of joint position, joint velocity,
-sensor-wrench history and within-control-step peak wrench. Forward kinematics
-and the existing task equations derive tip pose, observations, reward and task
-predicates. History supplies information about the recent controller and contact
-response. Material particles and damage are advanced by DiSECt; they are not
-outputs of this compact model.
+| Part | Assessment |
+|---|---|
+| SliceIt action/reward/task, FDCC, DiSECt physics | Inherited platform and task; not a proposed contribution. |
+| Learned dynamics, short model rollout, endpoint value and BPTT | Established family of methods; implementation starts from SuperMimic-Reproduced. |
+| Compact robot/wrench history with analytic decoding | Task-specific interface; implemented, but no causal evidence that it is superior to all alternative representations. |
+| Physical-data critic + short actor horizon + replay BC | A complete working optimization procedure. Individual ingredients have precedents; their contribution must be shown in this task. |
+| A: isolate terminal BCE during WM fitting | Completed mechanism analysis, not adopted as the main control method. |
+| Uniformly reliable learning, lower force-limit failure risk, multi-material generalization | Not established by the current evidence. |
 
-Code: [control_state.py](../cutting_world_model/control_state.py),
-[world_model.py](../cutting_world_model/world_model.py),
-[policy.py](../cutting_world_model/policy.py).
+MAAC already combines a short learned-model rollout, endpoint value and pathwise
+policy optimization, and discusses MPC at deployment (§§4.1, 5.4).
+[Primary paper](https://arxiv.org/pdf/2005.08068).
+Replay-action BC follows the TD3+BC precedent, whose official implementation
+documents policy regularization and normalization.
+[Official repository](https://github.com/sfujim/TD3_BC).
+These precedents belong in the method attribution; their theoretical guarantees
+do not automatically apply to our hidden material state and hard task endings.
 
-### 2. Fit the model and test terminal-supervision coupling
+The novelty question is therefore the cutting-specific formulation and its
+demonstrated practical effect. Calling the model a “world model,” replacing the
+simulator, shortening H or adding BC does not independently answer that question.
 
-The working baseline fits both state error and terminal BCE, with the terminal
-head reading the predicted state's features. Its BCE gradient can update the
-dynamics network. Candidate A, reported as a separate analysis, instead uses
+## What the nominal task already shows
 
-$$
-L_{WM}=L_{state}(\hat s,s')+
-\operatorname{BCE}(g_\psi(\operatorname{stopgrad}(\hat s)),d).
-$$
+These are selected frozen checkpoints/configurations, not algorithm averages.
+Most policy entries have eight deterministic repeats; reference/MPPI entries
+are separately recorded executions. All use the same nominal prism task;
+the prescribed reference has a different command interface.
 
-State supervision trains the dynamics; terminal supervision trains the terminal
-head. During actor training the head reads the predicted state with its gradient
-intact. Hard task predicates absorb ended imagined trajectories, while the
-learned terminal probability supplies the existing survival weighting. The hard
-event boundary itself has no continuous derivative.
+| Controller | Recorded outcome | Steps when successful | Material peak when successful |
+|---|---|---:|---:|
+| policy62, continuation start | 8/8 goal reached | 20 | 30.66 N |
+| BC-only continuation, final | 8/8 goal reached | 21 | 29.95 N |
+| Working continuation, final | 8/8 goal reached | 19 | 26.10 N |
+| Existing unified SAC85k | 8/8 goal reached | 18 | 49.62 N |
+| Prescribed reference | Recorded episode reaches goal | 40 | 9.97 N |
+| Same-working-WM MPPI + critic | 1/3 planning seeds reaches goal; 2 hit force limit | 33 | 18.68 N |
+| Same-working-WM MPPI without critic | 1/3 reaches goal; 2 hit force limit | 37 | 39.73 N |
 
-This split is implemented by `fit_predict()` versus `predict()`. Fixed-data
-position prediction improved. In the completed joint comparison, A minus baseline
-final perturbed success was -1.6 percentage points [-5.9, 3.1]. A had no observed
-mid-training collapse in that run; one seed per arm does not establish general
-training stability. Those evaluations used raw-output perturbations, distinct
-from the later cross-controller executed-action evaluation.
-This structure does not enforce a force–motion conservation law, and its history
-representation still has to predict effects of hidden material/controller state.
+For MPPI, the force columns describe only its successful seed; failed episodes
+remain in RESULTS/EVIDENCE and must not disappear from the comparison.
+Goal reached is BENCHMARK's pose-counter criterion, not proof of complete
+material separation. Its released-spring fraction is a separate observable.
 
-### 3. Improve the policy through short imagined trajectories
+The working policy's final call takes about 1 ms; the tested MPPI takes about
+0.5 s per action. This is online decision cost, not training sample efficiency,
+coupled-simulation speed or a novel property of neural policies.
 
-The actor maximizes the implemented survival-weighted return
+## Research problem → evidence → remaining gap
 
-$$
-J=\mathbb E\left[\sum_{k=0}^{H-1}\gamma^k c_k\hat r_{k+1}
-+\gamma^Hc_H V(\hat s_H)\right],\qquad
-c_k=\prod_{j=1}^{k}(1-\hat d_j).
-$$
+| Question | What is already available | What can be concluded | Remaining gap relevant to a claim |
+|---|---|---|---|
+| Is the policy only imitating its replay? | Completed BC-only continuation, same starting policy and nominal schedule. BC-only remains at 20–21 steps; model-objective continuation reaches 17–19. | Adding the full BPTT actor objective changes physical behavior and raises the source task return in this comparison. | One training run per condition. The objective contains both imagined reward and critic; this does not isolate either gradient. |
+| Does the complete working method improve the starting controller? | Nominal start/final records and intermediate checkpoints. | Selected final policy completes one step earlier than policy62 and has a lower peak. | The whole continuation and additional interaction differ; intermediate peaks are higher and another same-configuration run collapses temporarily. |
+| Does fitting the critic on physical data solve the value problem? | Value-error records, variant runs, imagined-state MPPI estimates. | Selected working checkpoint has low value error on checked physical returns. | No matched H8+BC experiment isolates critic-data source. Imagined-state extrapolation remains; a real-data critic is not automatically reliable there. |
+| Is the method better than SAC? | Existing SAC85k, common physical evaluator and task. | Both complete the nominal task; these checkpoints use different force/time profiles. | Unequal histories, training exposure and checkpoint selection; no general ranking or sample-efficiency claim. |
+| Is BPTT preferable to same-WM planning? | Exactly paired WM, two fixed MPPI settings, all planning seeds recorded. | The current policy succeeds with lower online cost; the selected planner is fragile. | Planner horizon/search/regularization differ; this is not evidence against MPC generally. |
+| Does improved model fitting imply improved control? | Completed A fit and joint-control experiment. | A improved position fit; its pre-stated final-success comparison detected no clear benefit. | Do not turn A's auxiliary stability observations into a new primary result after the fact. |
 
-The working baseline uses H = 8, recorded-action behavior regularization
-(`actor_bc_alpha=0.25`) and `critic_target=real`. The critic fits lambda returns
-from recorded physical states, rewards and episode endings; those returns still
-bootstrap from a critic estimate. The behavior target is the recorded clean
-policy action, not an expert demonstration. WM and critic parameters are frozen
-during the actor step, while gradients through their inputs remain connected.
+The action-noise results remain supplementary. Their local disturbance
+distribution is not hardware-calibrated and is not a required part of the task.
+They do not repair the attribution gaps in this table. Material/domain
+randomization is not required to ask any of the questions above.
 
-Code: [trainer.py](../cutting_world_model/trainer.py),
-[objective.py](../third_party/supermimic/objective.py). Exact regularization,
-normalization and source differences are in [METHOD](METHOD.md).
+## What the paper can center on, and what it cannot
 
-### What is inherited, and what is being tested
+**Recommended center:** the connected method for model-based refinement of
+compliant-cutting control, its physical execution, and the role of learned
+imagination beyond replay imitation. The existing BC-only comparison is the
+most directly relevant mechanism evidence. Use nominal executions first.
 
-| Part | Role in the paper | Current evidence |
-|---|---|---|
-| SliceIt task, FDCC and DiSECt; unified MuJoCo Warp execution | Shared experimental platform | Running task and frozen policies |
-| SuperMimic-style learned model and BPTT actor | Starting learning framework | Connected training and source configuration |
-| Compact motion/force history with analytic decoding | Cutting-specific model interface | Implemented; prediction results |
-| Physical-trajectory critic, short horizon and behavior regularization | Current working learning baseline | Single-seed continuation and BC-only comparison |
-| A: isolate terminal supervision during WM fitting | Completed mechanism variant | Improved fixed-data position prediction; no clear final-success benefit under the pre-stated control criterion |
+The current evidence does not support centering the paper on “safe/reliable
+learning,” because a same-configuration continuation temporarily collapses.
+It also does not support “superior sample efficiency,” “first world-model cutting
+algorithm,” “new differentiable cutting simulator,” or “generalizes across
+materials.” Those are different claims requiring different evidence.
 
-WM + BPTT, stop-gradient, lambda returns and behavior regularization have existing
-precedents. The proposed contribution concerns how their cutting-specific
-arrangement supports executed control; novelty and scope require evidence, not
-merely a list of components. Current results establish a functioning learning
-procedure, checkpoint-level improvements and comparisons. They do not yet
-establish general superiority, sample efficiency or reduced force-limit risk.
+A known prescribed trajectory already completes the nominal task. Therefore
+“the robot can cut” is feasibility, not by itself a learning contribution.
+Nor is beating a deliberately slower reference in elapsed time sufficient.
+The selected final working policy is lighter than SAC85k but slightly slower;
+the reference is lighter still. None of these isolated metrics establishes
+overall superiority.
 
-## Evidence that motivates the method
+An applied robotics-method paper may present an existing algorithmic family
+adapted to a meaningful control problem, but the task-specific gain and scope
+must be substantive and reproducible. A single fixed simulated prism plus one
+selected continuation is currently preliminary evidence. More plots or invented
+disturbances cannot substitute for a justified claim.
 
-Three completed observations explain the mechanism study:
+## Proposal for the next decision, for Claude to review
 
-1. **The learned objective changes behavior.** From policy62, BC-only takes
-   20–21 steps; the working actor objective gives 17–19 steps and often higher
-   material force, in one seed. This establishes an effect of the objective,
-   not a sample-efficiency result.
-2. **Event supervision can damage state prediction.** With the same fixed data
-   and 100 fitting rounds, A changes held-out H8 tip error from 7.88 to 0.28 mm.
-   Force-limit/workspace prediction remains poor on underrepresented endings.
-3. **Force and event errors have different consequences.** On five checked
-   successful trajectories, predicted peak sensor force has 1.58 N mean absolute
-   error and captures the faster policies' higher force. Of 40 physically
-   successful branches, only 14 are predicted successful. Missed endings lead
-   to critic evaluation beyond the physical episode. The branch score was a
-   proxy, so its discrepancy does not establish an error in the actor gradient.
+1. **Keep one working algorithm.** Keep `real + H8 + BC 0.25` for this review;
+   no A promotion, architecture search or reward change.
+2. **Use completed evidence first.** BC-only, starting policy, all working
+   checkpoints, existing SAC, same-WM MPPI and reference already answer distinct
+   parts of the table. Do not repeat them merely because their results are mixed.
+3. **Choose the scope of the contribution.** A task-level policy-refinement
+   study is the narrower supported route. If instead the claim is that the
+   physical-data critic makes BPTT effective/reliable, that needs a matched
+   component comparison; current variants change too many things together.
+4. **Only for that latter claim, propose one missing comparison:** recorded
+   versus imagined critic targets with the same H8, BC, starting policy/WM,
+   critic initialization, update schedule and evaluation protocol. It is a
+   candidate experiment, not a runnable/approved protocol yet. Equal pre-fit
+   treatment and implementation feasibility must be specified; comparing
+   `source H32/no BC` directly with `real H8/BC` does not isolate the cause.
+   One development pair would not establish seed-level reliability. No run is
+   launched, budget committed or improvement threshold invented in this review.
 
-These observations motivated the now-completed A comparison. They do not
-support attributing the checked policies' higher force to systematic force
-underprediction. Separate onset-force failures remain relevant when interpreting
-failure episodes. Full splits and numbers are in RESULTS (2026-11-08/09).
+This is a decision between paper scopes, not a plan to accumulate every possible
+ablation. If neither the existing effect nor one clearly motivated mechanism
+offers a convincing contribution, say so before buying more GPU time. Material
+variation, perturbation sweeps and repeated bug-fix demonstrations would not
+answer that scientific problem.
 
-As a supplementary local stress test, the completed 256-case executed-action
-comparison gives the current working
-policy 83.2% success versus 74.6% for policy62 and 89.1% for SAC85k. The working
-policy has a lower mean material peak than SAC85k (29.7 vs 45.4 N), but the
-force-limit failure difference is inconclusive. Its whole continuation procedure
-improved over its starting checkpoint; that comparison alone does not isolate
-the benefit of model gradients. Peak, mean force and impulse are distinct
-quantities, and force values do not replace task-completion outcomes.
+## Questions for Claude's review
 
-## Main experiments and their status
+- Does the recommended scope honestly describe warm-start refinement rather
+  than learning cutting from scratch? Is that useful enough for the intended
+  paper, and what exactly is the task-specific contribution?
+- Does the code/source mapping above omit a relevant input, gradient path or
+  training change? Separate corrections from proposed new algorithms.
+- Do the BC-only and full-objective records support the limited behavioral
+  conclusion? Keep the later collapse and failed planner seeds visible.
+- Is the physical-critic mechanism essential to the proposed claim? If yes,
+  identify one missing counterfactual and its expected discriminating outcome;
+  if not, do not add that experiment to the queue.
 
-| Question | Comparison | Status and supported conclusion |
-|---|---|---|
-| Does the working continuation improve executed control? | Working policy vs policy62 | Complete: +8.6 percentage points success on the fixed disturbance cases. This is a package-level checkpoint improvement. |
-| Does the learned objective affect behavior? | Full actor objective vs BC-only | Complete, one seed: execution changes. Does not isolate WM from critic gradients. |
-| Does A improve final control? | Baseline vs baseline + A | Complete: no detected primary success benefit; prediction/stability observations remain analysis. |
-| How does the controller compare with alternatives? | Existing SAC85k, same-WM MPPI and fixed control | Complete within the reported scope: distinct completion, force and online-cost outcomes; no general algorithm ranking. |
-| Does it work beyond the training material? | No current experiment | Deferred; not a contribution supported by this study. |
-
-The saved evidence package and captions are available; see EVIDENCE for the
-claim-to-result mapping, checkpoint histories, CSV and figure paths.
-The next research decision concerns the method's contribution within the
-trained task, not adding a transfer experiment. Action-noise evaluations remain
-supplementary: their disturbance amplitudes are not hardware-calibrated and their
-proportions are not the nominal task's success rates. No additional runs are
-scheduled merely to produce separation between already successful controllers.
-
-The source-to-working-baseline comparison changes critic targets, horizon and
-behavior regularization together. Attributing a benefit to one of them requires
-a matched ablation; that package comparison alone does not isolate the cause.
-
-The existing unified-environment SAC85k is the model-free checkpoint comparison.
-It retains source SAC training settings but is adapted to our public-prism
-MuJoCo environment; it is not a full reproduction of the SliceIt paper.
-Its selection before the later collapse, single training environment, input and
-data budget are disclosed. It can be used now without retraining; general
-algorithm rankings and sample-efficiency claims require a different protocol.
-
-A receding-horizon planner using the same WM
-tests planning versus a learned BPTT policy with a common dynamics model. A
-classical fixed compliance controller supplies a model-independent reference.
-DiSECt direct trajectory optimization is a separate physical-model method and
-remains parked. Prescribed trajectories bypass the policy action mapper, so
-their results are labeled separately from action-matched controllers.
-
-Use BENCHMARK's separate outcome and force metrics. The primary question is
-executed task performance and failure risk; prediction loss supports the
-explanation. The unchanged reward accepts some speed/force trade-offs. A
-terminal-gradient intervention is not automatically expected to make cuts both
-faster and lighter. Reduced force is a claim only if it is measured at comparable
-completion performance.
-
-The present system comparison keeps each controller's information interface and
-reports its differences; it does not isolate the learning algorithm. For a
-future controlled algorithm or sample-efficiency comparison, define information
-access, physical-transition budgets including pretraining/warm starts,
-checkpoint selection and update schedules, and report training wall time and
-online control cost separately. Current policy62/WM562
-continuations measure improvement from a common start. From-scratch sample
-efficiency requires a separate matched experiment. Frozen repeats of a
-deterministic task are not independent training seeds.
-
-## Writing structure and stopping rule
-
-The argument is **cutting-control problem → learned interaction model and
-policy optimization → executed control evidence and limits**.
-Introduce the force-limited task
-and model-based alternatives, present the connected algorithm above, then use
-the mechanism experiment to discuss the limits of prediction-based improvement.
-Do not present A as a demonstrated cause of improved control. Put bug fixes,
-API checks and integration details in implementation notes. Model-fitting plots
-support the argument; they do not replace cutting results.
-
-The A decision is closed under its pre-stated primary criterion; its auxiliary
-observations remain analysis. Reuse completed task comparisons and mechanism
-evidence before proposing additional experiments. SAC retraining is conditional
-on a new claim or task requirement, not a gate on current interpretation.
-No new manuscript skeleton, training or diagnostic batch follows automatically
-from updating this research-direction document.
-
-Real-robot force claims require the separately planned physical experiments in
-[REAL2SIM](REAL2SIM.md). Literature positioning follows NOVELTY; the thesis here
-sets the experiment's question rather than asserting priority over prior work.
+The review should end in one selected claim and its necessary evidence, or an
+explicit statement that the present method is not yet a convincing methods
+contribution. PLAN records the next action; no experiment follows automatically
+from this document.

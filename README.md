@@ -94,7 +94,8 @@ Current scope remains the trained nominal prism task. The proposed material
 pilot is withdrawn; action-noise results are supplementary, not the nominal
 success rate or evidence of material generalization.
 [PLAN](docs/PLAN.md) records the scope correction;
-[Paper direction and algorithm](docs/PAPER.md) describes the connected method.
+[Paper assessment and algorithm](docs/PAPER.md) contains the evidence-based
+review memo and concrete questions for the next research decision.
 
 [Current plan](docs/PLAN.md) · [Benchmark and definitions](docs/BENCHMARK.md) ·
 [Results](docs/RESULTS.md) · [Methods and variants](docs/METHOD.md) ·

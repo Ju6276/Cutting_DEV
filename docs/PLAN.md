@@ -127,6 +127,42 @@ Clarify what the learning/control procedure contributes within this task before
 deciding on any additional experiment. No new physics, training, material sweep,
 action-noise sweep or mandatory SAC retraining is scheduled by this correction.
 
+## Research review handoff — prepared 2026-11-10
+
+[PAPER](PAPER.md) is now the review memo for the user and Claude: recommended
+question, exact implemented data flow, inherited versus task-specific elements,
+nominal-task results, claim-to-evidence gaps, and four review questions.
+It is not a manuscript skeleton or a new experimental protocol.
+
+Recommended scope: model-based refinement of an already functional compliant
+cutting controller. The working continuation starts from successful policy62,
+so learning from scratch and nominal task feasibility are different claims.
+
+### Next action after review
+
+1. Record one selected contribution claim and its scope. Review the existing
+   BC-only evidence before asking for a new ablation; retain all working-run
+   checkpoints, the later collapse and failed MPPI seeds.
+2. If the scope is a task-level method/continuation study, assemble the method
+   and nominal-result narrative from existing records. No new collection or
+   retraining is required merely to do that. Any manuscript is a separate
+   deliverable; the previously withdrawn skeleton is not restored here.
+3. Only if attributing a benefit to physical-data critic training is central,
+   design one matched recorded-target versus imagined-target continuation with
+   H8 and BC held fixed. It is a conditional counterfactual, not a queued run.
+   Initialization/pre-fit treatment, measured endpoints, computational budget
+   and the interpretation of mixed/negative results must be fixed before it
+   becomes a runnable proposal. No current implementation change is authorized
+   by this review memo alone.
+4. If the evidence and method distinction are insufficient for a convincing
+   paper claim, report that decision directly. Do not replace the missing
+   contribution with more disturbance cases, material sweeps or bug-fix plots.
+
+The user will ask Claude to review. No external message, training or evaluation
+job is sent/launched. A methods claim and an applied-system claim have different
+evidence requirements; this review must end with a choice, not a longer repair
+list.
+
 ## Completed evidence work
 
 - Four figures and their CSV/provenance are on GPU7 in

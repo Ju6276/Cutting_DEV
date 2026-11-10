@@ -6,7 +6,7 @@ development tasks. The research argument and algorithm are in [PAPER](PAPER.md);
 current work is in [PLAN](PLAN.md). The question is how WM errors in
 cutting force and failure events affect BPTT policy learning, and how model-side
 policy improvement can carry over to physical execution (single-cut task first,
-multi-material as an experimental condition). Robot-methods paper (RA-L/ICRA/IROS).
+material variation deferred). Robot-methods paper scope remains under review.
 
 Labels: **T** paper text; **C** code; **I** inference; **A/S** abstract or search
 snippet only. Claims marked "spot-checked" were re-read in the source by the
@@ -227,9 +227,9 @@ All are real-robot and argue cutting simulation is unavailable [T].
   on the five checked successful trajectories. Missed success events instead
   cause critic queries beyond the physical ending. The compared score is a
   proxy for the actor objective; a causal control effect remains open (RESULTS,
-  2026-11-08) [I]. PLAN now proposes a paired control experiment with A. These
-  literature implications explain that experiment rather than adding another
-  prediction-diagnostic stage.
+  2026-11-08) [I]. The paired A experiment is now complete: its pre-stated
+  final-success comparison did not detect a clear benefit. This historical
+  motivation does not add another prediction-diagnostic stage.
 
 ## Assessment
 
@@ -264,6 +264,31 @@ gain holds against SAC and a same-WM MPC; simulation-only results limit claims o
 real cutting force and cross-material reliability; the T-RO cutting experiment is
 unread. DreamerV3's actor uses REINFORCE, so its stop-gradient placement does not
 transfer directly to BPTT.
+
+## 9. Scope and closest method precedents — 2026-11-10
+
+This addendum narrows the current paper assessment; it does not authorize a
+new run. The proposed material-transfer pilot has been withdrawn. A's control
+comparison is complete and did not establish its pre-stated final-success
+benefit. The next decision is the contribution scope in [PAPER](PAPER.md).
+
+- **MAAC**, [2005.08068](https://arxiv.org/pdf/2005.08068): §§2, 4.1 and 5.4
+  describe differentiating through a short learned-model rollout with an
+  endpoint value and comparing policy execution with model-predictive control
+  [T; targeted paper reading this review, not a code audit]. This is a direct
+  precedent for the generic framework and comparison. Our cutting interface,
+  training data and evidence differ; a priority claim for WM+BPTT or same-WM
+  planning comparison is unsupported [I].
+- **TD3+BC**, [official repository](https://github.com/sfujim/TD3_BC):
+  its README documents weighted behavior cloning in the actor update and state
+  normalization [C; README inspected]. Our METHOD already attributes the
+  replay-action regularizer to this work. We use it during online continuation;
+  that does not turn the procedure into the original offline-RL algorithm [I].
+
+The remaining claim must concern a justified cutting-control formulation and
+its physical effects. Existing method ingredients can form a task-specific
+algorithm, but neither renaming them nor reporting their integration makes a
+new generic algorithm. See PAPER's evidence table and review questions.
 
 ## Candidate comparisons (depend on the final claim; not current tasks)
 

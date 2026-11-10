@@ -494,7 +494,12 @@ next observations.
 
 Not adopted (RESULTS 2026-11-08); kept as a named variant for the record.
 
-## Variant `wm_terminal_gradient=head` (variant A, under test)
+## Variant `wm_terminal_gradient=head` (variant A, completed analysis)
+
+Status updated 2026-11-10: implementation retained as a named variant; its
+paired control experiment is complete (RESULTS, 2026-11-09). The pre-stated
+final-success criterion did not detect a clear benefit. A is not the selected
+main method; the description below records its implementation.
 
 Source route (`dynamics`): the terminal head reads `terminal_features` of the
 predicted next state, so the terminal BCE of the WM fitting loss also trains the
