@@ -77,6 +77,8 @@ def main():
                              'with the other route (e.g. variant A from policy62/WM562)')
     parser.add_argument('--risk-constraint', action='store_true',
                         help='route B: quantile force-risk head and Lagrangian risk penalty in BPTT')
+    parser.add_argument('--risk-estimator', choices=('quantile', 'ensemble'), default='quantile',
+                        help='quantile: proposed risk head; ensemble: precedent comparator (mean + 2 std of 5 WMs)')
     parser.add_argument('--risk-threshold', type=float, default=.9)
     parser.add_argument('--risk-target-rate', type=float, default=.02,
                         help='target fraction of ended episodes that hit the force limit')
@@ -157,7 +159,8 @@ def run(args, output, status, started):
                             actor_bc_alpha=args.actor_bc_alpha,
                             actor_objective=args.actor_objective,
                             wm_terminal_gradient=args.wm_terminal_gradient,
-                            risk_constraint=({'threshold': args.risk_threshold,
+                            risk_constraint=({'estimator': args.risk_estimator,
+                                              'threshold': args.risk_threshold,
                                               'target_rate': args.risk_target_rate,
                                               'lambda_init': args.risk_lambda_init,
                                               'lambda_lr': args.risk_lambda_lr}

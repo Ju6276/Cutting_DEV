@@ -62,6 +62,8 @@ def main():
         cut_step = None
         force_to_cut = None
         frame = env.current
+        start = frame['particle_q'][0].double().clone()
+        bottom = start[:, 1] < start[:, 1].min() + .003
         zero = torch.zeros(1, 6, device=env.device)
         sensor_force = sensor_torque = material = 0.
         ending, steps = 'steps', 0
@@ -79,12 +81,16 @@ def main():
                 ending = ('success' if bool(info['success'][0]) else
                           'outside' if bool(info['outside'][0]) else 'terminated')
                 break
+        end = frame['particle_q'][0].double()
+        centroid_shift_mm = (1000 * (end.mean(0) - start.mean(0))).tolist()
+        bottom_shift_mm = float(1000 * (end[bottom] - start[bottom]).norm(dim=-1).max())
         released = int((frame['cut_spring_ke'][0] == 0).sum())
         total = int(frame['cut_spring_ke'].shape[-1])
         report = {'scene': name, 'ending': ending, 'control_steps': steps,
                   'sim_seconds': float(frame['sim_time'][0, 0]),
                   'sensor_peak_force_n': sensor_force, 'sensor_peak_torque_nm': sensor_torque,
                   'material_peak_force_n': material,
+                  'object_centroid_shift_mm': centroid_shift_mm, 'object_bottom_shift_max_mm': bottom_shift_mm,
                   'cut_through_step': cut_step, 'sensor_peak_force_before_cut_n': force_to_cut,
                   'cut_fraction': args.cut_fraction, 'reference_duration_s': args.reference_duration,
                   'reference_speed_mps': args.reference_speed, 'clearance_m': args.clearance, 'released_springs': released,

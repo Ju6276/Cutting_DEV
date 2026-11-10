@@ -640,3 +640,10 @@ excess) and the quantity adapting lambda (observed episode rate) differ, so this
 adaptive penalty rather than an exact Lagrangian; the pinball loss targets the 0.95
 quantile without guaranteeing coverage.
 
+Ensemble-risk comparator (`--risk-estimator ensemble`, precedent approach in the style of
+LAMBDA/CAP): identical penalty, threshold and lambda adaptation, but the upper estimate is
+mean + 2 std of R predicted by the main WM and four further independently initialized
+WMs, each fitted every update with the WM procedure on its own minibatches (the
+setting selected on B1 development data). Only the risk representation differs from
+the proposed head.
+

@@ -39,8 +39,13 @@ CRITIC_TARGETS = ('imagined', 'real', 'real_wm')
 # the physical force-limit episode rate minus a target rate (dual-ascent style, cf. Stooke et
 # al. 2020); the penalized and the rate-driving quantities differ, so this is not an exact
 # Lagrangian.
+# 'quantile': pinball-trained risk head (proposed). 'ensemble': precedent comparator
+# (LAMBDA/CAP style): the main WM plus ensemble_size-1 independently initialized WMs, each
+# fitted every update; upper estimate = mean + ensemble_std * std of their predicted R.
+RISK_ESTIMATORS = ('quantile', 'ensemble')
 RISK_DEFAULTS = {'quantile': .95, 'threshold': .9, 'lambda_init': 10., 'lambda_lr': 50.,
-                 'target_rate': .02, 'head_lr': 3e-4, 'head_batch': 4096, 'head_steps': 10}
+                 'target_rate': .02, 'head_lr': 3e-4, 'head_batch': 4096, 'head_steps': 10,
+                 'estimator': 'quantile', 'ensemble_size': 5, 'ensemble_std': 2.}
 ACTOR_OBJECTIVES = ('model', 'bc')
 
 
@@ -114,9 +119,22 @@ class OnlineLearner:
             if unknown:
                 raise ValueError('Unknown risk settings: ' + ', '.join(sorted(unknown)))
             self.risk = {**RISK_DEFAULTS, **risk_constraint}
+            if self.risk['estimator'] not in RISK_ESTIMATORS:
+                raise ValueError('risk estimator must be one of ' + ', '.join(RISK_ESTIMATORS))
             device = next(wm.parameters()).device
             self.risk_head = QuantileHead(wm.dynamics.mlp.net[-1].in_features).to(device)
             self.risk_opt = torch.optim.Adam(self.risk_head.parameters(), lr=self.risk['head_lr'])
+            self.risk_members, self.risk_member_opts = [], []
+            if self.risk['estimator'] == 'ensemble':
+                if int(self.risk['ensemble_size']) < 2:
+                    raise ValueError('An ensemble needs at least two members')
+                for _ in range(int(self.risk['ensemble_size']) - 1):
+                    member = type(wm)(wm.spec.metadata).to(device)
+                    member.terminal_gradient = wm.terminal_gradient
+                    member.enable_compile(self.wcfg.compile)
+                    self.risk_members.append(member)
+                    self.risk_member_opts.append(torch.optim.Adam(
+                        member.parameters(), lr=self.wcfg.lr, weight_decay=self.wcfg.weight_decay))
             self.risk_lambda = float(self.risk['lambda_init'])
             self.risk_head_updates = 0
         self.wm_only_updates = wm_only_updates
@@ -143,11 +161,16 @@ class OnlineLearner:
             for group in optimizer.param_groups:
                 group['lr'] = lr
 
-    def fit_world_model(self, buffer):
+    def fit_world_model(self, buffer, model=None, optimizer=None):
+        """One WM update (``batches_per_update`` minibatches). ``model``/``optimizer`` default
+        to the learner's WM; ensemble-risk members reuse the same procedure."""
+        member = model is not None
+        model = self.wm if model is None else model
+        optimizer = self.wopt if optimizer is None else optimizer
         cfg = self.wcfg
         aggregate = {}
         for batch_index in range(cfg.batches_per_update):
-            self.progress(phase="world_model", minibatch=batch_index + 1, minibatches=cfg.batches_per_update)
+            self.progress(phase="risk_ensemble" if member else "world_model", minibatch=batch_index + 1, minibatches=cfg.batches_per_update)
             batch = buffer.sample_windows(cfg.batch_size, cfg.window)
             valid = getattr(batch, 'valid_steps', None)
             if valid is not None:
@@ -158,15 +181,15 @@ class OnlineLearner:
                     'short_windows': (valid.sum(0) < cfg.window).sum(),
                 }.items():
                     aggregate[key] = aggregate.get(key, 0.) + value.detach()
-            self.wopt.zero_grad(set_to_none=True)
+            optimizer.zero_grad(set_to_none=True)
             for part in chunks(cfg.batch_size, self.microbatch):
                 if valid is None:
                     weight = (part.stop - part.start) / cfg.batch_size
-                    loss, metrics = self.wm.window_loss(
+                    loss, metrics = model.window_loss(
                         batch.states[:, part], batch.a_exec[:, part], batch.xi[part], batch.done[:, part])
                 else:
                     weight = valid[:, part].sum().to(batch.states.dtype) / count
-                    loss, metrics = self.wm.window_loss(
+                    loss, metrics = model.window_loss(
                         batch.states[:, part], batch.a_exec[:, part], batch.xi[part], batch.done[:, part],
                         valid[:, part])
                 if not torch.isfinite(loss):
@@ -178,14 +201,23 @@ class OnlineLearner:
                                      if key in ('nse_1step', 'nse_kstep') else weight)
                     aggregate[key] = (aggregate.get(key, 0.)
                                       + value.detach() * metric_weight / cfg.batches_per_update)
-            gn = finite_gradient_norm(self.wm.parameters(), cfg.grad_clip)
-            self.wopt.step()
+            gn = finite_gradient_norm(model.parameters(), cfg.grad_clip)
+            optimizer.step()
             aggregate['grad_norm'] = aggregate.get('grad_norm', 0.) + gn.detach() / cfg.batches_per_update
         metrics = {key: float(value) for key, value in aggregate.items()}
-        self.wm_updates += 1
+        if not member:
+            self.wm_updates += 1
         return metrics
 
     def risk_upper(self, state, action, goal):
+        if self.risk['estimator'] == 'ensemble':
+            from .force_risk import wm_features
+            predicted = torch.stack([wm_features(m, state, action, goal)[1]
+                                     for m in [self.wm] + self.risk_members])
+            return predicted.mean(0) + self.risk['ensemble_std'] * predicted.std(0)
+        return self._quantile_upper(state, action, goal)
+
+    def _quantile_upper(self, state, action, goal):
         """Upper-quantile estimate (pinball-trained, not coverage-guaranteed) of the next
         interval's sensor-limit utilization."""
         from .force_risk import utilization, wm_features
@@ -195,6 +227,13 @@ class OnlineLearner:
     def fit_risk_head(self, buffer):
         """``head_steps`` pinball-loss steps of the risk head on recorded transitions (WM frozen);
         the same count as the WM's minibatches per update."""
+        if self.risk['estimator'] == 'ensemble':
+            metrics = {}
+            for index, (member, optimizer) in enumerate(zip(self.risk_members, self.risk_member_opts)):
+                row = self.fit_world_model(buffer, member, optimizer)
+                metrics['risk_member_loss_%d' % index] = row['loss']
+            self.risk_head_updates += 1
+            return metrics
         for _ in range(self.risk['head_steps']):
             metrics = self._fit_risk_head_step(buffer)
         return metrics
@@ -280,6 +319,8 @@ class OnlineLearner:
         self.critic.requires_grad_(False)
         if self.risk_head is not None:
             self.risk_head.requires_grad_(False)
+            for member in self.risk_members:
+                member.requires_grad_(False)
         self.popt.zero_grad(set_to_none=True)
         metrics, critic_data = {}, []
         abs_objective = 0.
@@ -371,6 +412,8 @@ class OnlineLearner:
             self.critic.requires_grad_(True)
             if self.risk_head is not None:
                 self.risk_head.requires_grad_(True)
+                for member in self.risk_members:
+                    member.requires_grad_(True)
                 metrics['risk_lambda'] = self.risk_lambda
         if cfg.use_critic and self.critic_target == 'imagined':
             # Restore source (time, sample) order before shuffling critic minibatches.
@@ -575,7 +618,9 @@ class OnlineLearner:
                 'wm_terminal_gradient': self.wm.terminal_gradient,
                 **({'risk': {'config': self.risk, 'head': self.risk_head.state_dict(),
                              'optimizer': self.risk_opt.state_dict(), 'lambda': self.risk_lambda,
-                             'head_updates': self.risk_head_updates}}
+                             'head_updates': self.risk_head_updates,
+                             'members': [m.state_dict() for m in self.risk_members],
+                             'member_optimizers': [o.state_dict() for o in self.risk_member_opts]}}
                    if self.risk_head is not None else {}),
                 'training_stage': {'wm_only_updates': self.wm_only_updates,
                                    'wm_updates': self.wm_updates,
@@ -671,6 +716,10 @@ class OnlineLearner:
             self.risk_opt.load_state_dict(saved_risk['optimizer'])
             self.risk_lambda = float(saved_risk['lambda'])
             self.risk_head_updates = int(saved_risk['head_updates'])
+            for member, state in zip(self.risk_members, saved_risk.get('members', [])):
+                member.load_state_dict(state)
+            for optimizer, state in zip(self.risk_member_opts, saved_risk.get('member_optimizers', [])):
+                optimizer.load_state_dict(state)
         self.wm_updates = stage['wm_updates']
         self.updates = data['updates']
         if reset_critic:

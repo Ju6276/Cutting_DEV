@@ -47,3 +47,37 @@ def test_dual_update_and_checkpoint_roundtrip():
     plain, _ = control_learner(critic_target='real', actor_horizon=3)
     with pytest.raises(ValueError):
         plain.restore(saved)
+
+
+def ensemble_learner(**risk):
+    learner, replay = control_learner(critic_target='real', actor_horizon=3,
+                                      risk_constraint={'estimator': 'ensemble', 'ensemble_size': 3, **risk})
+    perturbed(learner)
+    return learner, replay
+
+
+def test_ensemble_members_fit_without_touching_the_main_wm():
+    learner, replay = ensemble_learner()
+    assert len(learner.risk_members) == 2
+    main = [p.clone() for p in learner.wm.parameters()]
+    before = [p.clone() for p in learner.risk_members[0].parameters()]
+    updates = learner.wm_updates
+    metrics = learner.fit_risk_head(replay)
+    assert set(metrics) == {'risk_member_loss_0', 'risk_member_loss_1'}
+    assert all(torch.equal(a, b) for a, b in zip(main, learner.wm.parameters()))
+    assert any(not torch.equal(a, b) for a, b in zip(before, learner.risk_members[0].parameters()))
+    assert learner.wm_updates == updates
+
+
+def test_ensemble_upper_bound_reaches_the_policy_and_checkpoints():
+    learner, replay = ensemble_learner(threshold=-10.)
+    starts = replay.sample_starts(4, learner.pcfg.history)
+    ro = learner.imagine(starts.state, starts.hist_states, starts.xi)
+    assert ro.risk.shape == (3, 4)
+    grads = torch.autograd.grad(ro.risk.sum(), list(learner.policy.parameters()), allow_unused=True)
+    assert any(g is not None and g.abs().sum() > 0 for g in grads)
+    learner.fit_risk_head(replay)
+    other, _ = ensemble_learner(threshold=-10.)
+    other.restore(learner.checkpoint())
+    for a, b in zip(learner.risk_members, other.risk_members):
+        assert all(torch.equal(x, y) for x, y in zip(a.state_dict().values(), b.state_dict().values()))

@@ -6,6 +6,10 @@ benchmark's; the object is a prepared tetrahedral mesh (scripts/prepare_food_mes
 file stem ``<food>_<id>``) and its material keys come from the matching official DiSECt
 config (examples/config: sphere_apple, osx/cucumber, osx/potato, osx/tomato).
 
+The object is held by its bottom layer: vertices below ``HOLD_HEIGHT`` are static,
+except near the cut plane (the benchmark's exclusion box), as a real object is placed
+or held on the board; a few static vertices let round scans slide away from the knife.
+
 Usage: make_food_configs.py <tet mesh directory> [<SliceIt root>]
 """
 import json
@@ -18,6 +22,7 @@ MATERIAL_KEYS = ('young', 'poisson', 'mu', 'lambda', 'density',
                  'surface_cut_spring_ke', 'surface_cut_spring_kd', 'surface_cut_spring_softness',
                  'sdf_ke', 'sdf_kd', 'sdf_kf', 'sdf_mu',
                  'surface_sdf_ke', 'surface_sdf_kd', 'surface_sdf_kf', 'surface_sdf_mu')
+HOLD_HEIGHT = .006  # m above the object's lowest point (the object rests at y = 0.0008)
 
 
 def main():
@@ -37,6 +42,7 @@ def main():
         for key in MATERIAL_KEYS:
             if key in material:
                 config[key] = material[key]
+        config['static_vertices']['include'][0]['max'][1] = config['geometry']['position'][1] + HOLD_HEIGHT
         (out / f'{mesh.stem}.json').write_text(json.dumps(config, indent=2) + '\n')
         print(mesh.stem, food)
 
