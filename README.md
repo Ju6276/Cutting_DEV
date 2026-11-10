@@ -97,25 +97,19 @@ an external expert. Resumes and terminal/masking fixes are part of its lineage.
 
 ## Current research direction
 
-Train **one shared WM, policy and critic** across declared material conditions
-and prepared geometries: prism variation, then grouped prism/jello simulation.
-The hypothesis is lower contact force at comparable completion to SAC trained
-on the same task distribution and physical-interaction budget. It is not a
-measured multi-condition result yet.
+Method paper ([PAPER](docs/PAPER.md)): a learned world model under-predicts the
+force spike at contact onset, and model-based optimization exploits that error
+(planner force-limit failures, a collapsed training run). The candidate method
+makes force risk an explicit, action- and history-conditioned prediction,
+calibrated on contact-onset events and used as the force-limit constraint in
+BPTT policy learning. It is not implemented yet; PLAN's B1 screens it on
+existing data first.
 
-[PLAN](docs/PLAN.md) specifies S0–S4: define the distribution and splits,
-implement episode-reset sampling, connect geometry groups to one learner, train
-matched comparisons, then evaluate predefined conditions. No numerical
-randomization ranges or new long runs are selected by this documentation review.
-Fresh SAC training is justified for the new distribution; the old fixed-task
-comparison remains valid within its stated limits.
-
-Action-perturbation evaluations are retired and excluded from the paper. Their
-unchanged data and figures remain in the [historical evidence archive](docs/archive/EVIDENCE_20261110.md).
-The unexecuted ten-episode frozen-material pilot is withdrawn. Training
-exploration is separate and is not disabled.
-[Paper argument and algorithm](docs/PAPER.md) records the proposed claim, existing
-evidence and concrete scope decisions for review.
+The experiments train one shared WM, policy and critic across declared materials
+and prepared geometries (PLAN S0-S4) and compare against the working base, the
+precedents' force-risk approaches, matched-budget SAC, same-WM MPPI and a
+reference trajectory. Action-perturbation evaluations are retired and excluded
+([archive](docs/archive/EVIDENCE_20261110.md)).
 
 [Current plan](docs/PLAN.md) · [Benchmark and definitions](docs/BENCHMARK.md) ·
 [Results](docs/RESULTS.md) · [Methods and variants](docs/METHOD.md) ·

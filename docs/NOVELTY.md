@@ -288,6 +288,16 @@ not reactivate it.
 
 ## Assessment and recommended focus
 
+**How precedents are judged (user, 2026-11-10).** A related paper does not mean
+the problem is solved. Each precedent is judged by its setting, assumptions and
+measured results (e.g. the visuotactile WM's BPTT agent underperformed IQL;
+Dalal's sensitivity layer was shown on toy position constraints). Where the
+precedents stop is summarized in [PAPER](PAPER.md) section 3; precedent
+approaches become baselines when the paper claims to do better. The text below
+is the earlier synthesis and keeps its evidence; read its "not new" wording
+through this rule.
+
+
 **Method novelty is unresolved. It depends on B or another justified mechanism,
 not on S0–S4 integration succeeding.** B's +4-event pilot gate decides whether
 to spend the already capped control-screen budget; it does not establish novelty,

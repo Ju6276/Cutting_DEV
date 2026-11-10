@@ -3,7 +3,7 @@
 | Document | Role |
 |---|---|
 | [PLAN](PLAN.md) | Sole current implementation/experiment plan; S0–S4 and bounded B screening |
-| [PAPER](PAPER.md) | Research question, algorithm and limits of present evidence |
+| [PAPER](PAPER.md) | Method paper: problem, base method, candidate mechanism, precedents and their limits, experiments, evidence so far |
 | [BENCHMARK](BENCHMARK.md) | Existing task, force/outcome definitions and evaluation commands |
 | [RUNNING](RUNNING.md) | Installation, execution and validation |
 | [DATA](DATA.md) | Server data/checkpoint locations, status and cleanup record |
