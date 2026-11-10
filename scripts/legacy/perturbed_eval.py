@@ -8,7 +8,7 @@ force limit, workspace and time-limit outcomes are all kept.
 """
 import torch
 
-from .reliability import metric, paired_bootstrap
+from cutting_world_model.reliability import metric, paired_bootstrap
 
 SIGMAS = (0.3, 0.6, 1.0)
 START_STEPS = (0, 5, 10)

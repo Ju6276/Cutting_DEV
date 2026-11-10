@@ -1,6 +1,6 @@
 import torch
 
-from cutting_world_model.perturbed_eval import CaseNoise, compare_cases, make_cases, summarize_cases
+from scripts.legacy.perturbed_eval import CaseNoise, compare_cases, make_cases, summarize_cases
 
 
 def test_cases_are_fixed_and_noise_does_not_depend_on_the_policy():
@@ -58,7 +58,7 @@ def test_compare_checks_configurations_and_completion(tmp_path):
     import pytest
     from pathlib import Path
     spec = importlib.util.spec_from_file_location(
-        'evaluate_perturbed', Path(__file__).resolve().parents[1] / 'scripts/evaluate_perturbed.py')
+        'evaluate_perturbed', Path(__file__).resolve().parents[1] / 'scripts/legacy/evaluate_perturbed.py')
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     cases = make_cases(4, 3_000_000)
@@ -82,7 +82,7 @@ def load_script():
     import importlib.util
     from pathlib import Path
     spec = importlib.util.spec_from_file_location(
-        'evaluate_perturbed_script', Path(__file__).resolve().parents[1] / 'scripts/evaluate_perturbed.py')
+        'evaluate_perturbed_script', Path(__file__).resolve().parents[1] / 'scripts/legacy/evaluate_perturbed.py')
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -120,7 +120,7 @@ def test_compare_refuses_mixed_perturbation_points(tmp_path):
 
 
 def test_legacy_rows_recover_impulse_from_mean_force_and_time():
-    from cutting_world_model.perturbed_eval import with_impulse
+    from scripts.legacy.perturbed_eval import with_impulse
     legacy = [{'id': 0, 'mean_material_force_n': 6.0, 'simulation_seconds': 0.5}]
     recorded = [{'id': 1, 'mean_material_force_n': 6.0, 'simulation_seconds': 0.5, 'material_impulse_ns': 2.9}]
     assert with_impulse(legacy)[0]['material_impulse_ns'] == 3.0

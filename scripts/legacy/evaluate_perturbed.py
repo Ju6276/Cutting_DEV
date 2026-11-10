@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run predefined perturbation cases with one frozen controller, or compare two such runs.
+"""Historical action-perturbation protocol; retired from the current paper and run plan.
 
     evaluate_perturbed.py run --checkpoint CKPT --cases 256 --seed-base 3000000 --output DIR
     evaluate_perturbed.py run --method sac --checkpoint MODEL_DIR --sac-python ... --output DIR
@@ -28,11 +28,11 @@ import time
 
 import torch
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(ROOT), str(ROOT / 'backends/mujoco')]
 from cutting_world_model.benchmark import benchmark_scene, check_contract, physical_contract
 from cutting_world_model.control_state import ControlStateSpec
-from cutting_world_model.perturbed_eval import (CaseNoise, compare_cases, make_cases, outcome,
+from scripts.legacy.perturbed_eval import (CaseNoise, compare_cases, make_cases, outcome,
                                                 summarize_cases)
 from cutting_world_model.policy import SliceItPolicy
 from cutting_world_model.provenance import git_revision

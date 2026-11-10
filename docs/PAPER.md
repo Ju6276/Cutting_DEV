@@ -5,7 +5,7 @@ at `ce346d0` (unchanged by this review),
 saved evaluations and the literature notes in [NOVELTY](NOVELTY.md).
 This is a research assessment, not an approved new algorithm, run or manuscript
 skeleton. [PLAN](PLAN.md) is the sole task list; [METHOD](METHOD.md) maps code;
-[EVIDENCE](EVIDENCE.md) links measured results and figures.
+[Historical evidence](archive/EVIDENCE_20261110.md) links measured results and figures.
 
 Working title: **Learning Compliant Robotic Cutting Across Materials and Shapes
 with Differentiable World Models**.

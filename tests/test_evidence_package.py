@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 import pytest
 
-spec = importlib.util.spec_from_file_location("build_evidence", Path(__file__).parents[1] / "scripts/build_evidence.py")
+spec = importlib.util.spec_from_file_location("build_evidence", Path(__file__).parents[1] / "scripts/legacy/build_evidence.py")
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 

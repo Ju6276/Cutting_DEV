@@ -1898,7 +1898,7 @@ Four PNG/PDF figures, 768 perturbed-case records, 18 unperturbed records,
 paired-effect CSV, controller provenance and input/output SHA256 hashes.
 Saved means and paired-success subsets are checked against raw cases.
 
-[EVIDENCE](EVIDENCE.md) holds captions and the supported argument. The figures
+[Historical evidence](archive/EVIDENCE_20261110.md) holds captions and the supported argument. The figures
 keep material force distinct from sensor limit utilization, preserve the
 zero-action wall-budget prefix, separate MPPI terminal-value configurations,
 and show online decision time separately from physics. Case-paired intervals
@@ -1967,3 +1967,25 @@ files are unchanged from the prior validated implementation (root 231 passed /
 5 skipped; backend 28 passed at a097099). Validation checks this unchanged-code
 condition, local document links and Git whitespace; no training or physics suite
 is repeated for this scope edit.
+
+## 2026-11-10 — Repository and artifact organization
+
+Retired perturbation CLI/helper and the old evidence builder moved to
+`scripts/legacy`; the historical protocol/evidence pages and recipe moved to
+`docs/archive` and `configs/archive`. Current recording no longer accepts
+perturbation cases. Nominal policy, SAC, reference and MPPI behavior is unchanged.
+Current commands use verified checkpoint paths instead of the missing old
+resume path or the mismatched WM563 recording example.
+
+The physical WM563 checkpoint was renamed from the misleading WM562 filename,
+with unchanged SHA256. Measured geometry, reports, videos, failed-run evidence
+and held-out data remain. Regenerable PNG caches for three videos and four
+clean, merged historical worktrees were removed; hashes/recovery commits live
+in `runs/operations/cleanup_20261110.json`. Dirty archives and A6000 dependencies
+were retained. This is organization, not an additional scientific experiment.
+Validation on GPU7: root 231 passed / 5 skipped (including optional MPPI),
+backend 28 passed. The relocated helper's relative import was corrected before
+the passing run. Three CLI help checks, rejection of the removed recording
+option, 87 document file links, five heading links and runtime/data symlinks
+were checked. Logs and cleanup details are in the operation manifest. Core
+physics and learning code is unchanged; no training or new task evaluation ran.

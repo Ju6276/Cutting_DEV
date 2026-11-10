@@ -21,7 +21,6 @@ from scripts.evaluate_benchmark import argument_parser, make_controller
 from cutting_world_model.benchmark import (
     benchmark_scene, check_contract, evaluate, physical_contract, write_json,
 )
-from cutting_world_model.perturbed_eval import CaseNoise, make_cases
 from cutting_world_model.provenance import git_revision
 from cutting_gpu_backend.controller.fdcc import quat_apply
 
@@ -126,43 +125,16 @@ class GeometryRecorder:
         return len(display)
 
 
-class PerturbedPolicy:
-    def __init__(self, policy, case):
-        self.policy, self.case = policy, case
-
-    def reset(self, frame):
-        self.policy.reset(frame)
-        self.noise = CaseNoise(self.case)
-        self.step = 0
-
-    def act(self, frame):
-        p = self.policy
-        action = p.policy(p.history, frame['target_pose'].float())
-        action = action + self.noise(self.step)[None].to(action.device)
-        self.step += 1
-        return p.spec.execute(action)
-
-    def observe(self, frame):
-        self.policy.observe(frame)
-
-    def unchanged(self):
-        return self.policy.unchanged()
-
-
 def main():
     parser = argument_parser(default_method='supermimic')
     parser.description = __doc__
     parser.add_argument('--label', required=True)
-    parser.add_argument('--case', type=int, help='predefined policy perturbation case')
-    parser.add_argument('--seed-base', type=int, default=3_000_000)
     parser.add_argument('--substeps', type=int, default=12, help='display samples per control interval')
     args = parser.parse_args()
     if args.episodes != 1 or args.substeps < 1 or not 0 < args.wall_seconds < float('inf'):
         parser.error('Recording uses one episode, positive subdivisions and a finite wall budget')
     if args.method not in ('constant-zero', 'reference') and args.checkpoint is None:
         parser.error('Learned controllers require --checkpoint')
-    if args.case is not None and (args.method != 'supermimic' or args.case < 0):
-        parser.error('--case requires supermimic and a nonnegative case index')
     if args.trajectory is not None and args.method != 'reference':
         parser.error('--trajectory applies to --method reference')
     if args.method == 'sac' and any(value is None for value in
@@ -178,7 +150,7 @@ def main():
     sys.path.insert(0, str(args.backend_root.resolve()))
     from cutting_world_model.gpu_env import GPUEnvironment
     contract = json.loads(args.contract.read_text())
-    case = make_cases(args.case + 1, args.seed_base)[args.case] if args.case is not None else None
+    case = None  # Historical recording metadata; current recording is the unperturbed task.
     manifest = {'git': git_revision(ROOT), 'command': sys.argv, 'method': args.method,
                 'contract': contract, 'checkpoint': str(args.checkpoint) if args.checkpoint else None,
                 'seed': args.seed, 'case': case, 'label': args.label,
@@ -190,8 +162,6 @@ def main():
         check_contract(contract, physical_contract(args.backend_root, env))
         write_json(args.output / 'task.json', env.metadata)
         policy = make_controller(args, env, manifest)
-        if case:
-            policy = PerturbedPolicy(policy, case)
         recorder = GeometryRecorder(env, args.backend_root)
         write_json(args.output / 'manifest.json', manifest)
         report = evaluate(env, policy, args.output, 1, started + args.wall_seconds, on_frame=recorder)

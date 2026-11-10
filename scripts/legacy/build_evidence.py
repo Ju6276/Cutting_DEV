@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build scientific figures from saved cutting evaluations; never imports physics or training.
+"""Rebuild the archived 2026-11-10 evidence package; not the current paper evaluation.
 
 Python >=3.8, numpy and matplotlib. Outputs are regenerated from immutable input hashes.
 """
@@ -12,7 +12,7 @@ from pathlib import Path
 import platform
 import subprocess
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 OUTCOMES = ("success", "collision", "outside", "truncated")
 METRICS = ("max_material_force_n", "mean_material_force_n",
            "material_impulse_ns", "safety_margin")
@@ -336,7 +336,7 @@ def build(args):
         {"interface_and_training": cfg["controllers"], "frozen_report_provenance": provenance},
         indent=2, allow_nan=False) + "\n")
     index = ["# Cutting evidence package", "", "Saved data only; no new physical interaction or optimizer updates.", "",
-             "Named frozen controllers on public-prism-ur5e-v1. See docs/EVIDENCE.md for claims and limits.", ""]
+             "Named frozen controllers on public-prism-ur5e-v1. Historical package; see docs/archive/EVIDENCE_20261110.md. Perturbation results are excluded from the paper.", ""]
     for name, caption in captions:
         index += ["## " + name, "", "![" + name + "](" + name + ".png)", "", caption, "",
                   "[Vector PDF](" + name + ".pdf)", ""]
@@ -356,7 +356,7 @@ def build(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, default=ROOT / "configs/analysis/evidence_20261110.json")
+    parser.add_argument("--config", type=Path, default=ROOT / "configs/archive/evidence_20261110.json")
     parser.add_argument("--runs-root", type=Path, default=ROOT / "runs")
     parser.add_argument("--legacy-root", type=Path,
                         default=Path("/dataHDD/dong/Experiments/Cutting_DEV/legacy_metrics/metrics_eval_20261106"))

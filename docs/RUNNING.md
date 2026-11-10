@@ -76,12 +76,12 @@ Assets are stored under `backends/mujoco/runs/`:
 `source/`, `model_coupled/`, `controller_source/` and `disect_source_v4/`.
 They remain outside Git.
 
-## GPU training and evaluation — run 3
+## Unified GPU training and evaluation
 
 The commands for the current working baseline (resumed from policy62/WM562 with
 critic reset and 100 pre-fit rounds) and for the `source` configuration (script
-defaults, from scratch) are in [README](../README.md#run); the two must not be
-confused. Without variant flags, `train_gpu.py` runs `source`: imagined critic
+defaults, from scratch) are in
+[README](../README.md#run-the-existing-fixed-prism-task); the two must not be confused. Without variant flags, `train_gpu.py` runs `source`: imagined critic
 targets, 32-step policy rollout, no BC (`--critic-target imagined`, `--actor-horizon`
 unset = 32, `--actor-bc-alpha` unset = off). Variant flags are documented in
 [METHOD](METHOD.md).
@@ -101,7 +101,7 @@ The current task list is in [PLAN](PLAN.md).
 Checkpoints from before the absorbing-terminal repair are usable for frozen
 evaluation, while training requires the current terminal-rule metadata.
 
-## Gazebo collection and training — runs 1 and 2
+## Independent Gazebo reproduction
 
 These commands require a built SliceIt ROS Noetic checkout and its Python 3.8
 environment. Export `CUTTING_LOGGER_PYTHON` to the modern environment above.
@@ -166,6 +166,10 @@ revision. Return to the root Python 3.12 environment for the tests.
 
 Run both suites separately to preserve their module resolution:
 
+For full optional-MPPI coverage on GPU7, use
+`/dataHDD/dong/Envs/cutting-mppi-20261108/bin/python` for the root suite;
+the backend suite uses the base environment as below.
+
 ```bash
 CUTTING_BACKEND_ROOT="$PWD/backends/mujoco" PYTHONPATH=. \
   .venv/bin/python -m pytest tests -q
@@ -182,25 +186,30 @@ uses complete physical discounted returns; recorded results are in RESULTS.
 `record_episode.py` uses the benchmark controller factory, contract and evaluation
 loop. It saves raw states/actions in `episode_000.npz`, measured world-frame
 geometry in `episode.npz`, and the benchmark report. WM–MPPI also saves every
-planning call in `planning.json`. The video run uses the selected H16 planner:
+planning call in `planning.json`. The example records the existing working
+checkpoint with the selected H16 planner.
+The policy and planner comparison must load that same checkpoint; it is not a
+new multi-condition result:
 
 ```bash
+POLICY_CHECKPOINT=runs/sm_ckpts/abl_a250_last.pt
 /dataHDD/dong/Envs/cutting-mppi-20261108/bin/python scripts/record_episode.py --method wm-mppi \
-  --checkpoint runs/mpc_assets/policy62_wm563_real_prefit100.pt --label wm_mppi \
+  --checkpoint "$POLICY_CHECKPOINT" --paired-checkpoint "$POLICY_CHECKPOINT" --label wm_mppi \
   --seed 0 --wall-seconds 600 --mpc-horizon 16 --mpc-samples 512 \
   --mpc-refinements 4 --mpc-temperature 0.1 --mpc-noise-std 0.5 \
   --mpc-discount 0.99 --mpc-terminal-value none \
-  --output runs/videos_20261108/wm_mppi
+  --output runs/videos/wm_mppi
 ```
 
-`--method supermimic` records a frozen actor; `--case N` retains the predefined
-perturbation case interface for that method. Rendering runs separately with
+`--method supermimic` records a frozen actor. Recording now follows the nominal
+benchmark only; the retired perturbation option is removed. Choose a new output
+directory for each recording. Rendering runs separately with
 VTK, numpy, Pillow, pycollada and ffmpeg (`requirements-render.txt`); the GPU7 environment is
 `/dataHDD/dong/Envs/render-20261108`. It needs no physics packages:
 
 ```bash
 /dataHDD/dong/Envs/render-20261108/bin/python scripts/render_episode.py \
-  --recording runs/videos_20261108/wm_mppi --title 'Learned WM + MPPI' \
+  --recording runs/videos/wm_mppi --title 'Learned WM + MPPI' \
   --source-root /opt/ros/noetic/share \
   --source-root /dataHDD/dong/Projects/SliceIt/catkin_ws/src \
   --speed 0.1 --fps 30
@@ -246,5 +255,7 @@ GPU7 storage:
 Source the existing runs/sac_env.sh before GPU commands. For MPC commands
 above, use the planner Python explicitly. Machine addresses, protected active
 paths and the migration inventory are in the server's runs/operations/MACHINES.md.
-A6000's running A comparison keeps its frozen checkout, assets and base
-environment until its process exits.
+Machine notes are timestamped observations, not proof that a job is still active.
+A6000 keeps its existing checkouts and dependencies; inspect current process
+ownership before changing them. GPU7 cleanup details and retained assets are in
+[DATA](DATA.md).

@@ -12,6 +12,9 @@ gradients pass through the learned world model.
 | Commands | `scripts/` | Collection, training and frozen evaluation |
 | Experiments | `runs/` | Local data, checkpoints and videos; excluded from Git |
 
+[Documentation map](docs/README.md) · [Script entry points](scripts/README.md) ·
+[Data and checkpoint locations](docs/DATA.md)
+
 ## Run the existing fixed-prism task
 
 These commands reproduce the existing task. Reset-time material sampling and
@@ -34,7 +37,7 @@ pre-fits a fresh critic for 100 rounds on the refilled replay, then trains:
 
 ```bash
 .venv/bin/python scripts/train_gpu.py --worlds 1024 \
-  --resume runs/critic_mask_validation_20261104/training/last.pt \
+  --resume runs/mpc_assets/policy62_wm562_original.pt \
   --critic-target real --actor-horizon 8 --actor-bc-alpha 0.25 \
   --critic-reset --critic-prefit-rounds 100 \
   --microbatch 64 --critic-microbatch 8192 --max-iterations 860 --max-hours 12 \
@@ -108,7 +111,7 @@ Fresh SAC training is justified for the new distribution; the old fixed-task
 comparison remains valid within its stated limits.
 
 Action-perturbation evaluations are retired and excluded from the paper. Their
-unchanged data and figures remain in the [historical evidence archive](docs/EVIDENCE.md).
+unchanged data and figures remain in the [historical evidence archive](docs/archive/EVIDENCE_20261110.md).
 The unexecuted ten-episode frozen-material pilot is withdrawn. Training
 exploration is separate and is not disabled.
 [Paper argument and algorithm](docs/PAPER.md) records the proposed claim, existing
