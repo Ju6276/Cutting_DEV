@@ -12,7 +12,11 @@ gradients pass through the learned world model.
 | Commands | `scripts/` | Collection, training and frozen evaluation |
 | Experiments | `runs/` | Local data, checkpoints and videos; excluded from Git |
 
-## Run
+## Run the existing fixed-prism task
+
+These commands reproduce the existing task. Reset-time material sampling and
+shared multi-geometry training are proposed in PLAN, not implemented by these
+commands.
 
 GPU training uses Linux, Python 3.12, NVIDIA CUDA and prepared robot/material
 assets; Gazebo collection and the original SAC use the separate ROS Noetic
@@ -76,26 +80,39 @@ Single prism (`public-prism-ur5e-v1`), frozen 8 episodes, one seed
 | Current working baseline, last | 8/8 | 19 | 91.37 | 26.10 N |
 | SAC in the unified environment (source settings, one environment), step 85000 | 8/8 | 18 | 92.03 | 49.6 N |
 
-The selected-controller evaluations are complete (2026-11-09). In a
-supplementary local stress test with 256 executed-action perturbation cases, policy62 / working policy / unified SAC85k
-succeed in 74.6% / 83.2% / 89.1%, with mean material peaks 32.9 / 29.7 / 45.4 N.
-The working policy's force-limit failure difference from SAC is inconclusive;
-lower material peak does not establish lower failure risk. Training budgets,
-input histories and checkpoint selection differ.
+These are historical fixed-task checkpoints, not a matched-budget algorithm
+comparison. Variant A improved fixed-data prediction but did not establish its
+pre-stated final control benefit. The working-baseline repeat's temporary
+collapse and SAC's later collapse remain in RESULTS. The existing SAC85k is
+a source-derived controller comparison, not a full reproduction of SliceIt's
+paper.
 
-Variant A improved fixed-data prediction but did not show a clear benefit on
-its pre-stated final-success criterion; it remains analysis. The working-baseline
-repeat's temporary collapse and SAC's later collapse are retained in RESULTS.
-The existing SAC85k is the current source-derived controller comparison, not a
-full reproduction of SliceIt's paper. No SAC retraining is required for this
-comparison. The [evidence package](docs/EVIDENCE.md) now contains four figures,
-paired effects, checkpoint provenance and supported claims from saved results.
-Current scope remains the trained nominal prism task. The proposed material
-pilot is withdrawn; action-noise results are supplementary, not the nominal
-success rate or evidence of material generalization.
-[PLAN](docs/PLAN.md) records the scope correction;
-[Paper assessment and algorithm](docs/PAPER.md) contains the evidence-based
-review memo and concrete questions for the next research decision.
+The source learning chain began with fresh networks, 500 WM-only rounds and
+later joint updates, reaching policy62/WM562. The working baseline above
+continues that policy; it does not imply the entire approach only fine-tunes
+an external expert. Resumes and terminal/masking fixes are part of its lineage.
+
+## Current research direction
+
+Train **one shared WM, policy and critic** across declared material conditions
+and prepared geometries: prism variation, then grouped prism/jello simulation.
+The hypothesis is lower contact force at comparable completion to SAC trained
+on the same task distribution and physical-interaction budget. It is not a
+measured multi-condition result yet.
+
+[PLAN](docs/PLAN.md) specifies S0–S4: define the distribution and splits,
+implement episode-reset sampling, connect geometry groups to one learner, train
+matched comparisons, then evaluate predefined conditions. No numerical
+randomization ranges or new long runs are selected by this documentation review.
+Fresh SAC training is justified for the new distribution; the old fixed-task
+comparison remains valid within its stated limits.
+
+Action-perturbation evaluations are retired and excluded from the paper. Their
+unchanged data and figures remain in the [historical evidence archive](docs/EVIDENCE.md).
+The unexecuted ten-episode frozen-material pilot is withdrawn. Training
+exploration is separate and is not disabled.
+[Paper argument and algorithm](docs/PAPER.md) records the proposed claim, existing
+evidence and concrete scope decisions for review.
 
 [Current plan](docs/PLAN.md) · [Benchmark and definitions](docs/BENCHMARK.md) ·
 [Results](docs/RESULTS.md) · [Methods and variants](docs/METHOD.md) ·

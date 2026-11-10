@@ -1,4 +1,4 @@
-# Evidence for the current paper argument
+# Historical fixed-task evidence archive
 
 Updated 2026-11-10. This document connects saved measurements to claims. It is
 not a new experiment list or manuscript skeleton. [PAPER](PAPER.md) describes
@@ -6,14 +6,19 @@ the algorithm; [PLAN](PLAN.md) is the only current task list;
 [BENCHMARK](BENCHMARK.md#task-definitions) defines outcomes and forces;
 [RESULTS](RESULTS.md) retains all historical measurements.
 
-## Central argument and its present support
+## Historical scope and present use
 
-**Scope correction:** the action-noise plots are supplementary diagnostics of
-the specified disturbance distribution. They are not the main success rate of
-the trained nominal task and do not establish material generalization. The
-unexecuted material pilot was withdrawn from current work on 2026-11-10.
-Figures and raw measurements are preserved; their scope is narrower than a
-general robustness claim.
+**Decision, 2026-11-10:** retire action-perturbation evaluation and exclude its
+results/figures from the paper. They remain below solely as an auditable record,
+not as a proposed paper argument or a queue of experiments to repeat. Figures
+1–2 and the 256-case tables are excluded. The saved folder name
+`paper_evidence_20261110` is historical and does not make every artifact current
+manuscript evidence.
+
+Nominal execution, provenance and the BC-only comparison remain development
+evidence. The new shared multi-condition training direction is in PAPER/PLAN;
+the old fixed-prism checkpoints do not answer that question. The unexecuted
+ten-episode frozen-material pilot remains withdrawn.
 
 The method learns robot motion and sensor-force response from physical
 interaction, learns values from physical-trajectory lambda returns, and updates
@@ -27,20 +32,20 @@ have precedents. The cutting-specific state/action interface and connected
 learning procedure must be justified by control evidence, not by counting
 components or bugs fixed. A remains a completed mechanism experiment.
 
-| Proposed statement | Saved evidence | Scope of the statement |
+| Historical observation | Saved evidence | Scope of the statement |
 |---|---|---|
 | The working continuation improves its starting controller under the specified disturbances. | 213/256 vs 191/256 successes; paired difference +8.6 percentage points [4.7, 12.5]. | These checkpoints and cases. Continuation changes data, critic, horizon and regularization; it does not isolate model gradients. |
 | The working policy has lower material peak force than the existing SAC85k controller. | All-case mean peaks 29.7 vs 45.4 N; paired difference −15.7 N [−17.3, −14.0]. | SAC succeeds more often: 228/256 vs 213/256. Do not turn this into a safety or overall-superiority claim. |
 | The learned policy executes this task with much less online decision computation than the tested same-WM MPPI. | About 1.02 ms per policy call vs 491–532 ms per MPPI call; policy completes, each MPPI configuration succeeds for 1/3 planning seeds. | Recorded implementations and settings. Physics is separate; timings are not a controlled throughput benchmark. |
 | Better prediction need not translate into a detectable final control gain. | A improved held-out H8 tip prediction, but its pre-stated final perturbed-success interval includes zero. | The completed A experiment, its legacy raw-output disturbance rule and single training seed per arm. |
-| The method transfers across material conditions. | Not established by these results. | Not a current contribution claim; material experiments are deferred in PLAN. |
+| The method transfers across material conditions. | Not established by these results. | Proposed shared multi-condition training is in PLAN; no such result exists yet. |
 
 The present package supports a functioning learned control method and a
 checkpoint-level empirical study. It does not yet establish a new general
 algorithm, training-seed robustness, sample efficiency, real-robot safety,
 multi-material learning, or arbitrary cut/topology generalization.
 
-## Perturbed physical execution
+## Archived perturbed physical execution — excluded from the paper
 
 Each controller ran the same 256 predefined executed-action disturbance cases
 to its own termination. No cases were discarded or replaced. All task-timeout
@@ -119,11 +124,11 @@ All artifacts remain on GPU7:
 Open its `index.md` in Remote SSH Markdown preview. PNG and vector PDF versions
 are available. No weights, data, figures or source copy is stored on the Mac.
 
-1. **01_perturbed_outcomes_and_force.** Task endings and all-case ECDFs for
+1. **01_perturbed_outcomes_and_force — archive only, excluded from the paper.** Task endings and all-case ECDFs for
    material peak, material impulse and sensor limit utilization. The line at one
    belongs only to the sensor-utilization panel; no material-force threshold is
    implied. Fixed checkpoints, 256 shared cases each.
-2. **02_paired_checkpoint_effects.** Working-minus-comparator differences and
+2. **02_paired_checkpoint_effects — archive only, excluded from the paper.** Working-minus-comparator differences and
    saved 95% paired intervals. All-case n=256; both-success n=188 or 202. The
    intervals exclude training-seed uncertainty.
 3. **03_unperturbed_execution.** Each recorded episode's elapsed simulation

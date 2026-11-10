@@ -1,57 +1,79 @@
 # Paper argument and method review
 
-Review draft for the user and Claude, 2026-11-10, based on code `2354af7`,
+Review draft for the user and Claude, 2026-11-10, based on the implementation
+at `ce346d0` (unchanged by this review),
 saved evaluations and the literature notes in [NOVELTY](NOVELTY.md).
 This is a research assessment, not an approved new algorithm, run or manuscript
 skeleton. [PLAN](PLAN.md) is the sole task list; [METHOD](METHOD.md) maps code;
 [EVIDENCE](EVIDENCE.md) links measured results and figures.
 
-Working title: **World-Model Policy Optimization for Force-Limited Robotic Cutting**.
-“Force-limited” describes the task's stopping rule, not a safety guarantee.
+Working title: **Learning Compliant Robotic Cutting Across Materials and Shapes
+with Differentiable World Models**.
 
-## Recommendation
+## Revised research direction
 
-Keep the current method and trained nominal prism task. The strongest supported
-question is:
+Train one shared policy, world model and critic on a declared distribution of
+cutting materials and prepared object geometries. The proposed research question
+is:
 
-**Can differentiable model-based policy updates improve an already functional
-compliant-cutting controller, while leaving deployment to a fast feedback policy?**
+**Can learning robot and sensor-force response support short-horizon policy
+optimization for compliant cutting across materials and shapes, and yield
+lower contact force at comparable completion to matched-budget SAC?**
 
-The algorithm can ultimately be studied from scratch, but the current working
-method's evidence is continuation from a successful policy62/WM562 checkpoint.
-Policy62 already completes the task. Do not describe the continuation as learning
-to cut from failure, or its data cost as a complete from-scratch training budget.
+This is a hypothesis. Adding objects does not guarantee a useful separation
+between methods, lower force or generalization. The contribution would be a
+justified cutting-control formulation and demonstrated control benefit, not
+a new generic RL algorithm or merely a larger task list.
 
-A proposed contribution statement, still requiring review, is:
+The current WM + BPTT framework predicts robot and force response and improves
+a shared feedback policy. Physical-trajectory value learning and replay-action
+regularization form the current working optimization recipe. Execution uses
+the policy + FDCC; online planning through the same WM provides a comparator.
 
-> A robot-and-force history model supports short-horizon policy refinement for
-> compliant cutting, with value learning on recorded physical trajectories and
-> behavior regularization toward replay actions. The resulting controller is
-> evaluated in the original physical task against its starting controller,
-> imitation-only continuation, the existing SAC and same-model online planning.
+The intended evidence is actual task execution across the training distribution,
+then separately declared held-out material/geometry conditions. No synthetic
+action-perturbation results enter the paper. The earlier ten-episode frozen
+elasticity pilot is withdrawn; the new proposal includes task diversity during
+training, rather than assuming a fixed-prism model already generalizes.
 
-This identifies a task-specific method and the evidence needed for it. It does
-not establish a new generic RL algorithm or a demonstrated safety mechanism.
-The present results constitute a working method and a preliminary comparative
-study; their current breadth does not by itself establish a strong final
-publication contribution. Adding disturbance or material cases would not
-resolve an unclear method claim.
+## Correction: from-scratch capability and continuation are different facts
 
-## Why this is a control problem worth formulating
+The source learning chain starts with fresh network weights, a 500-round
+WM-only stage and then cumulative policy updates, reaching policy62/WM562 and
+8/8 nominal completions. It does not import an expert or externally pretrained
+cutting policy. Historical fixes/resumes are documented in RESULTS/METHOD.
 
-Compliance and reference commands affect both cutting progress and the sensed
-reaction. Recent interaction history carries information about the response of
-the controller and deforming material. The proposed use of a WM is to learn
-those action consequences and use their gradients during policy improvement.
-That is the motivation; lower physical-data cost and safer control are benefits
-to demonstrate, not consequences of merely having a differentiable network.
+The later `real + H8 + BC 0.25` working variant was continued from policy62.
+Those specific comparisons measure continuation, but it was too narrow to
+describe the entire system as only fine-tuning a supplied controller. Conversely,
+the source chain's success is not yet a clean from-scratch validation of the
+working variant on a multi-condition distribution. That is part of the proposed
+new training comparison.
 
-SAC supplies an existing learned controller without an explicit transition
-model. Our BPTT procedure uses a learned transition model during actor training.
-The same-WM MPPI searches action sequences at deployment. This comparison asks
-how the model is used, not whether the plant is differentiable. Cheap policy
-inference is also available to SAC, so it is only a practical distinction from
-online planning, not a unique contribution over all alternatives.
+## Scope and proposed contributions to test
+
+| Proposed contribution | Needed evidence | Current status |
+|---|---|---|
+| One history-based robot/force model and policy for varied cutting mechanics and prepared geometries | Shared training and physical outcomes per condition; no per-object policy substitution | Compact representation exists; mixed-condition training is not yet connected |
+| Model-based policy optimization improves control beyond replay imitation | Physical performance and a relevant actor-objective ablation under the declared task | Fixed-prism BC-only comparison exists; its scope remains that task |
+| At comparable completion, contact force is lower than matched-budget SAC | Same training distribution, counted interaction exposure, declared information access and completion criterion | Not established by existing unequal-budget fixed-task checkpoints |
+| Transfer to held-out materials/geometries | Disjoint, predeclared training/development/test conditions | Proposed; no result yet |
+
+Multiple materials/objects are the experimental setting, not the contribution
+by themselves. The proposed force benefit may be rejected by the results.
+Force-limit termination is a task rule, not a guarantee from the learned model.
+
+Unknown material properties are not directly observable before interaction.
+A common initial observation can correspond to different force responses.
+History enables feedback-based adaptation after informative contact; neither a
+ten-frame history nor a deterministic WM proves perfect material identification.
+The first version keeps the current network; no uncertainty model, latent
+material encoder or new reward is silently introduced.
+
+Different cutting speeds are ordinarily the policy's actions/outcomes.
+The exogenous conditions here are material parameters, physically valid object
+geometry and placement, with a known task target. No vision/localization claim
+is made. Prepared DiSECt cut interfaces remain an inherited restriction.
 
 ## What the algorithm actually does
 
@@ -118,7 +140,7 @@ The novelty question is therefore the cutting-specific formulation and its
 demonstrated practical effect. Calling the model a “world model,” replacing the
 simulator, shortening H or adding BC does not independently answer that question.
 
-## What the nominal task already shows
+## Historical fixed-task evidence, not the final paper scope
 
 These are selected frozen checkpoints/configurations, not algorithm averages.
 Most policy entries have eight deterministic repeats; reference/MPPI entries
@@ -155,77 +177,62 @@ coupled-simulation speed or a novel property of neural policies.
 | Is BPTT preferable to same-WM planning? | Exactly paired WM, two fixed MPPI settings, all planning seeds recorded. | The current policy succeeds with lower online cost; the selected planner is fragile. | Planner horizon/search/regularization differ; this is not evidence against MPC generally. |
 | Does improved model fitting imply improved control? | Completed A fit and joint-control experiment. | A improved position fit; its pre-stated final-success comparison detected no clear benefit. | Do not turn A's auxiliary stability observations into a new primary result after the fact. |
 
-The action-noise results remain supplementary. Their local disturbance
-distribution is not hardware-calibrated and is not a required part of the task.
-They do not repair the attribution gaps in this table. Material/domain
-randomization is not required to ask any of the questions above.
+Action-noise results are excluded from the paper and no new such evaluation is
+planned. The existing fixed-task evidence is useful development history; it
+does not answer the new shared multi-condition training question.
 
-## What the paper can center on, and what it cannot
+## Main comparisons and interpretation
 
-**Recommended center:** the connected method for model-based refinement of
-compliant-cutting control, its physical execution, and the role of learned
-imagination beyond replay imitation. The existing BC-only comparison is the
-most directly relevant mechanism evidence. Use nominal executions first.
+- **WM + BPTT vs SAC:** train on the same declared task distribution and count
+  every physical interaction, including WM pretraining. Define information
+  access and model-selection rules before training. The old SAC85k is not a
+  substitute for training on the new distribution.
+- **Same-WM MPPI:** use the model paired with the policy being evaluated;
+  freeze its search protocol. Record access to control state and online cost.
+  Its existing fixed-prism failures cannot establish universal MPC inferiority.
+- **Reference trajectory/compliance:** a non-learning system reference with
+  per-scene coordinate/goal alignment. Retain the distinction between its
+  direct reference branch and the learned six-action interface.
+- **Mechanism:** use the already completed BC-only study as development
+  evidence; choose any new ablation around the eventual multi-condition method
+  claim. A remains completed analysis, not an automatically selected method.
 
-The current evidence does not support centering the paper on “safe/reliable
-learning,” because a same-configuration continuation temporarily collapses.
-It also does not support “superior sample efficiency,” “first world-model cutting
-algorithm,” “new differentiable cutting simulator,” or “generalizes across
-materials.” Those are different claims requiring different evidence.
+Material force and the filtered sensor wrench are different metrics. Force
+comparisons require completed-task evidence and accounting for failed/unfinished
+episodes. Success remains the task's pose-counter criterion; material separation
+must not be silently inferred from it. Definitions remain in BENCHMARK.
 
-A known prescribed trajectory already completes the nominal task. Therefore
-“the robot can cut” is feasibility, not by itself a learning contribution.
-Nor is beating a deliberately slower reference in elapsed time sufficient.
-The selected final working policy is lighter than SAC85k but slightly slower;
-the reference is lighter still. None of these isolated metrics establishes
-overall superiority.
+The current fixed-prism peaks, returns and inference times do not yet establish
+the proposed multi-condition advantage. The later working-configuration collapse
+also prevents a claim of uniformly stable training. Report these facts while
+moving to a scientifically declared task distribution, rather than choosing
+more artificial disturbances to separate saturated policies.
 
-An applied robotics-method paper may present an existing algorithmic family
-adapted to a meaningful control problem, but the task-specific gain and scope
-must be substantive and reproducible. A single fixed simulated prism plus one
-selected continuation is currently preliminary evidence. More plots or invented
-disturbances cannot substitute for a justified claim.
+## Implementation scope and review questions
 
-## Proposal for the next decision, for Claude to review
+The existing material scale operator is a useful component. It is not a complete
+reset-randomization or multi-object pipeline. The physics batch duplicates one
+scene; different topologies need separate homogeneous groups. Their fixed-size
+control states can feed one learner, while particle arrays remain per group.
 
-1. **Keep one working algorithm.** Keep `real + H8 + BC 0.25` for this review;
-   no A promotion, architecture search or reward change.
-2. **Use completed evidence first.** BC-only, starting policy, all working
-   checkpoints, existing SAC, same-WM MPPI and reference already answer distinct
-   parts of the table. Do not repeat them merely because their results are mixed.
-3. **Choose the scope of the contribution.** A task-level policy-refinement
-   study is the narrower supported route. If instead the claim is that the
-   physical-data critic makes BPTT effective/reliable, that needs a matched
-   component comparison; current variants change too many things together.
-4. **Only for that latter claim, propose one missing comparison:** recorded
-   versus imagined critic targets with the same H8, BC, starting policy/WM,
-   critic initialization, update schedule and evaluation protocol. It is a
-   candidate experiment, not a runnable/approved protocol yet. Equal pre-fit
-   treatment and implementation feasibility must be specified; comparing
-   `source H32/no BC` directly with `real H8/BC` does not isolate the cause.
-   One development pair would not establish seed-level reliability. No run is
-   launched, budget committed or improvement threshold invented in this review.
+Placement changes must respect DiSECt's prepared cut plane and the coupling's
+knife-motion constraint. A cosmetic displacement or changing only observations
+does not implement a new physical condition. Cutting-spring stiffness is not
+interchangeable with fracture energy or calibrated food toughness.
 
-This is a decision between paper scopes, not a plan to accumulate every possible
-ablation. If neither the existing effect nor one clearly motivated mechanism
-offers a convincing contribution, say so before buying more GPU time. Material
-variation, perturbation sweeps and repeated bug-fix demonstrations would not
-answer that scientific problem.
+The ordered S0–S4 plan in PLAN replaces the previous nominal-only review route.
+This document does not select numerical randomization ranges or launch jobs.
 
-## Questions for Claude's review
+For Claude/user review, resolve these concrete items:
 
-- Does the recommended scope honestly describe warm-start refinement rather
-  than learning cutting from scratch? Is that useful enough for the intended
-  paper, and what exactly is the task-specific contribution?
-- Does the code/source mapping above omit a relevant input, gradient path or
-  training change? Separate corrections from proposed new algorithms.
-- Do the BC-only and full-objective records support the limited behavioral
-  conclusion? Keep the later collapse and failed planner seeds visible.
-- Is the physical-critic mechanism essential to the proposed claim? If yes,
-  identify one missing counterfactual and its expected discriminating outcome;
-  if not, do not add that experiment to the queue.
+1. What public base scenes and physically meaningful parameter ranges define
+   the train/development/test distributions? Which variations are synthetic?
+2. What placement changes preserve the prepared cutting interface, and what
+   observable history/goal information is common to learned controllers?
+3. Will the final comparison train fresh networks on the full distribution, or
+   use a declared common curriculum with all exposure counted?
+4. What predeclared completion criterion and force statistic test “comparable
+   completion with lower force,” without conditioning away failures?
 
-The review should end in one selected claim and its necessary evidence, or an
-explicit statement that the present method is not yet a convincing methods
-contribution. PLAN records the next action; no experiment follows automatically
-from this document.
+These decisions determine the executable experiment. They are not reasons to
+resume action-noise evaluation or restart an unrelated numerical-debug campaign.

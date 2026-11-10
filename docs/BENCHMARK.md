@@ -86,23 +86,32 @@ Results of different entries are never pooled.
 |---|---|
 | SliceIt SAC, Gazebo (run 1) | Original SliceIt training in Gazebo + DiSECt; separate setting |
 | SliceIt SAC adapted to the unified environment, 85k | Source tf2rl SAC/settings (one training environment, lr 0.01) in this public-prism benchmark; checkpoint selected before later collapse, not a full reproduction of the paper's setup |
-| SAC, parallel (conditional; not scheduled) | A possible new training configuration only if a later task or matched-data claim requires it; not a prerequisite for the current comparison |
+| SAC on the proposed shared task distribution (not launched) | New training paired to WM + BPTT under PLAN; existing SAC85k is retained only for the old fixed task |
 | `source` | SuperMimic-Reproduced configuration: imagined critic targets, actor horizon 32, no BC |
 | Current working baseline | `real` critic targets, actor horizon 8, BC 0.25, resumed from policy62/WM562 with critic reset and 100 pre-fit rounds |
 | V5 | `real_wm` critic targets, actor horizon 8, BC 0.25 |
 | Reference / constant zero | Prescribed knife trajectory; zero action |
 
-## Robustness under action perturbations
+## Proposed multi-condition task distribution
 
-**Scope (2026-11-10): supplementary local stress test, not the nominal task
-or a required paper evaluation.** The amplitudes below were selected for this
-project; no measured hardware-error distribution or paper-prescribed
-calibration is claimed. The normalized action range is [-1, 1], so sigma 1.0
-is a large disturbance relative to that range. This changes six compliance/
-reference commands, not material properties and not an applied physical push.
-Training exploration, test-time action noise and material domain randomization
-are distinct. Existing results remain recorded; no further noise batch is
-scheduled.
+PLAN now calls for one shared WM/policy trained on material variation and grouped
+prepared geometries. The existing `public-prism-ur5e-v1` contract remains frozen.
+A new versioned distribution must declare scene hashes, physical material
+parameters, valid placement transforms, goals, sampling weights and
+train/development/test splits. It must reuse the existing task/force definitions
+or explicitly version any changed definition; no new material range is defined
+by this paragraph. Same-range test draws and held-out materials/shapes support
+different claims. This task integration is planned, not already available.
+
+## Archived action-perturbation protocol — excluded from the paper
+
+**Decision (2026-11-10): stop these evaluations and exclude their results from
+the paper.** Retain the exact protocol for historical reproducibility only.
+The amplitudes were project choices without measured hardware-error calibration.
+The normalized action range is [-1, 1], so sigma 1.0 is large relative to that
+range. This changes six compliance/reference commands, not material properties
+or an applied physical push. Training exploration is separate; the new
+material-distribution training plan does not disable it.
 
 An evaluation condition, not part of the task. `scripts/evaluate_perturbed.py run
 --checkpoint CKPT --cases 256 --seed-base 3000000 --output DIR` executes a frozen

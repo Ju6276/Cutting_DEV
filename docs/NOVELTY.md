@@ -3,10 +3,12 @@
 Status: paper and source review, 2026-11-08; contact-dynamics source inspection
 included. Literature evidence and candidate gaps only; it does not add
 development tasks. The research argument and algorithm are in [PAPER](PAPER.md);
-current work is in [PLAN](PLAN.md). The question is how WM errors in
-cutting force and failure events affect BPTT policy learning, and how model-side
-policy improvement can carry over to physical execution (single-cut task first,
-material variation deferred). Robot-methods paper scope remains under review.
+current work is in [PLAN](PLAN.md). The proposed setting is now one shared WM
+and policy trained across materials and prepared geometries (single-cut episodes).
+The question remains how learning robot/force response helps physical cutting
+control. Multiple objects do not by themselves establish novelty. Action-noise
+evaluations are retired and excluded from the paper. Candidate uncertainty-aware
+mechanisms below are literature directions, not adopted algorithms or new runs.
 
 Labels: **T** paper text; **C** code; **I** inference; **A/S** abstract or search
 snippet only. Claims marked "spot-checked" were re-read in the source by the
@@ -309,12 +311,14 @@ real cutting force and cross-material reliability; the T-RO cutting experiment i
 unread. DreamerV3's actor uses REINFORCE, so its stop-gradient placement does not
 transfer directly to BPTT.
 
-## 9. Scope and closest method precedents — 2026-11-10
+## 10. Method precedents and scope correction — 2026-11-10
 
-This addendum narrows the current paper assessment; it does not authorize a
-new run. The proposed material-transfer pilot has been withdrawn. A's control
+These precedents still constrain novelty after broadening the proposed training
+task. The earlier nominal-only recommendation has been replaced by shared
+multi-condition training in PAPER/PLAN. The ten-episode zero-shot material pilot
+remains withdrawn; it is not the new training-distribution proposal. A's control
 comparison is complete and did not establish its pre-stated final-success
-benefit. The next decision is the contribution scope in [PAPER](PAPER.md).
+benefit. This review does not authorize a new run.
 
 - **MAAC**, [2005.08068](https://arxiv.org/pdf/2005.08068): §§2, 4.1 and 5.4
   describe differentiating through a short learned-model rollout with an

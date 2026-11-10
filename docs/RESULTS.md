@@ -1932,3 +1932,38 @@ This correction edits documentation only. Code, tests, settings and recorded
 inputs are unchanged from `a097099`, which passed root 231 / 5 skipped and
 backend 28. Documentation links and diff whitespace are checked without
 repeating training, physics evaluation or the unchanged test suites.
+
+## 2026-11-10 — Shared multi-condition direction and training-lineage correction
+
+This entry supersedes the nominal-only research recommendation in the earlier
+scope note; it adds no experimental result. Action-perturbation evaluations are
+retired and excluded from the paper. Their data and historical conclusions
+remain available for audit. The ten-episode frozen elasticity pilot was never
+run and remains withdrawn.
+
+The source learning chain began with fresh networks and a 500-round WM-only
+stage. The documented terminal/masking corrections and resumed joint-training
+stages subsequently reached policy62/WM562 (62 cumulative policy updates) and
+8/8 nominal completions. The later real/H8/BC0.25 working variant is a continuation
+of that learned policy, not evidence that the whole method requires an external
+expert. This is neither an uninterrupted unchanged run nor validation of fresh
+working-variant learning on multiple materials.
+
+PAPER/PLAN now propose one shared WM/policy/critic trained across a declared
+material/geometry distribution. Code inspection confirms per-world material
+scaling and a fixed-size control representation; reset-time random sampling,
+condition provenance and heterogeneous scene-group collection remain to be
+implemented. Placement must preserve the physical prepared cut interface and
+coupling, not just move rendered geometry. No randomization ranges are selected
+and no jobs are launched in this review.
+
+Existing nominal controllers remain development evidence. New matched-budget
+SAC training belongs to the new distribution, with WM-only collection counted
+as physical training exposure. Lower force at comparable completion is a
+hypothesis to test, not an established multi-object result.
+
+Documentation-only change. Simulation, learning, scripts, tests and configuration
+files are unchanged from the prior validated implementation (root 231 passed /
+5 skipped; backend 28 passed at a097099). Validation checks this unchanged-code
+condition, local document links and Git whitespace; no training or physics suite
+is repeated for this scope edit.

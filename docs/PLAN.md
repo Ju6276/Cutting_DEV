@@ -1,198 +1,202 @@
 # Current plan
 
-The single current task list. [PAPER](PAPER.md) holds the research question and
-algorithm; [METHOD](METHOD.md) maps implementation and sources;
-[BENCHMARK](BENCHMARK.md) defines the task and metrics; [RESULTS](RESULTS.md)
-holds measurements. Updated 2026-11-10 using saved evaluations; evidence is packaged in EVIDENCE.
+Updated 2026-11-10 after the multi-condition research review.
+[PAPER](PAPER.md) holds the proposed research claim and actual algorithm;
+[METHOD](METHOD.md) maps code; [BENCHMARK](BENCHMARK.md) defines existing task
+metrics; [RESULTS](RESULTS.md) retains historical experiments.
 
-## Current decision — use the trained SAC; no new training now
+## Direction: one learned controller across cutting conditions
 
-SAC has already been trained and evaluated in the unified environment. Keep the
-step-85000 checkpoint as the existing model-free controller for the fixed-task
-comparison. Retraining SAC, increasing its environment count or changing its
-learning rate is not a prerequisite for interpreting these results or preparing
-the paper's argument. The previous parallel-SAC / lr 3e-4 proposal is deferred;
-it is not an approved next job.
+Develop one shared WM, policy and critic across a declared training distribution
+of materials and geometries. Start with prism material variation, then incorporate
+prepared prism geometries and the jello cylinder through grouped simulation.
+The old fixed-prism results are feasibility and development evidence, not the
+intended final experimental scope.
 
-Name this controller **SliceIt SAC adapted to the unified environment, 85k**.
-It retains the source SAC implementation and listed training settings, but uses
-our MuJoCo Warp/public-prism environment and integration patches. It is neither
-the separate Gazebo run nor a full reproduction of the SliceIt paper's
-calibrated-material and robot experiments.
+The proposed claim is that model-based policy learning can produce a shared
+compliant-cutting controller which, at comparable task completion, uses lower
+contact force than a matched-budget SAC. This is a hypothesis, not an existing
+result. Multiple objects alone do not establish novelty.
 
-The current comparison describes named, frozen controllers in one common task.
-Their training data budgets and information interfaces differ. Report those
-differences and checkpoint selection; do not infer algorithm-wide superiority
-or sample efficiency. A single environment is not, by itself, a reason to
-discard or retrain an already trained SAC.
+**No more action-perturbation evaluations, and no such results in the paper.**
+Preserve their files as historical diagnostics; stop using the 256-case rates,
+noise confidence intervals and figures as manuscript evidence. Normal training
+exploration is separate and is not disabled by this decision.
+The unexecuted ten-episode frozen elasticity pilot is withdrawn. The next work
+is a training task distribution, not zero-shot testing of an untrained range.
 
-## Research question and working algorithm
+## Correct training provenance
 
-How can a learned robot/material interaction model support policy optimization
-for force-limited compliant cutting? The connected method is:
+The source-configuration learning chain starts from fresh weights and a
+500-round WM-only stage, then proceeds through resumed joint-training stages
+to policy62/WM562 (62 policy updates cumulatively). policy62 completes 8/8
+nominal evaluations. It is not a supplied expert or externally pretrained
+cutting policy. The intervening terminal/masking fixes and resumes are part of
+the historical lineage; do not describe it as one uninterrupted, unchanged run.
 
-physical interaction data → motion/force world model and physical-trajectory
-value learning → short imagined rollouts with behavior regularization →
-BPTT policy updates → executed control.
+The later `real + H8 + BC 0.25` working configuration was evaluated by
+continuation from policy62. Thus from-scratch learning exists for the source
+chain, while the working variant's clean from-scratch performance on the new
+distribution is still to be measured. Both facts belong in the paper.
 
-Keep the working algorithm: `real` critic, actor horizon 8, BC 0.25, continued
-from policy62/WM562 with a fresh critic and 100 pre-fit rounds. Deployment uses
-the policy and compliance controller. The specific values are implementation
-settings; the algorithm is the connected learning procedure, not three numbers.
+## What exists and what must be connected
 
-A (isolating terminal BCE from dynamics fitting) stays a completed mechanism
-variant, not the selected main method. Its pre-stated final-success comparison
-did not detect a clear benefit; its prediction, force and training-stability
-observations remain in RESULTS. No extra A seed pair or B/C redesign is planned.
+| Capability | Evidence/current code | Remaining integration |
+|---|---|---|
+| Per-world material parameters | P0 checked E, density and cutting-spring stiffness scaling; `BatchedDiSECt.set_material_scales` | Reset-time sampler, condition IDs, persistent RNG, material-specific reset/metadata and replay provenance |
+| Same-shape GPU batching | `pack_model` duplicates one scene; fixed particles/springs per world | Preserve this path for each object group; it is not already a heterogeneous batch |
+| Different object geometry | Exported prism and free jello have reference rollouts | Group dispatch/collection, compact-state merge, per-group reset and recording |
+| Shared learning representation | `ControlStateSpec` predicts fixed-size robot/wrench quantities, independent of particle count | One learner consumes all groups; preserve sequence boundaries and object/condition provenance |
+| Position variation | Fixed initial frame and fixed coupling transforms today; knife is constrained to its prepared plane | Physically consistent scene/cut-plane/robot/goal transformations; not an observation-only or visual offset |
+| SAC in unified environment | Existing fixed-task SAC85k | Parallel collection/training with the same new distribution and declared interaction budget |
+| Same-WM MPPI and reference | Frozen evaluators already work on the fixed task | Use the task distribution, matched model identity, per-condition goals/reference frames |
 
-## Fixed scope and existing controllers
+These are missing features for a new task, not newly discovered failures of the
+already tested fixed-task implementation.
 
-- Task: free-bottom `public-prism-ur5e-v1`, unchanged physics, rewards, bounds,
-  force-limit and goal-pose predicates. Goal completion is not a test of full
-  material separation. Definitions live only in BENCHMARK.
-- WM + BPTT: `critic_abl_a250_20261106` final,
-  `runs/sm_ckpts/abl_a250_last.pt`; policy62/WM562 is also shown as the starting
-  controller. Report the later same-configuration run's temporary collapse,
-  rather than describing the configuration as uniformly stable.
-- SAC: `runs/sac_frozen_ckpt85000_20261107`, selected after observing later
-  training collapse. Training used one environment, lr 0.01 and one 24-D
-  observation (including its source force-history fields); the WM policy uses
-  ten frames plus the goal. The 32 worlds used for frozen SAC evaluation do not
-  turn its training into parallel training.
-- Same-WM MPPI: the working baseline's own checkpoint, verified with
-  `--paired-checkpoint`; H16, 512 samples, four refinements, temperature 0.1,
-  noise 0.5, gamma 0.99. Critic-enabled and critic-disabled are two separate
-  controllers. No further planner search is scheduled.
-- Fixed controls: zero action through the common action mapper, and a prescribed
-  reference trajectory through its separate reference branch.
-- Multi-cut tasks, new simulators, visual policies and DiSECt direct trajectory
-  optimization remain outside the current work.
+## Ordered implementation and experimental stages
 
-## Completed comparison and allowable conclusions
+### S0 — freeze a task-distribution specification
 
-Full numbers and output directories: RESULTS, 2026-11-09 main-comparison entries.
+Deliver one versioned specification, shared by training and evaluation, before
+launching new training. It must include:
 
-- Unperturbed: working policy completes in 19 steps; reference completes in 40.
-  Constant-zero reached only 323 steps before an 840 s computation budget ended.
-  It is an unfinished prefix, not a completed failure or proof it cannot finish.
-- Paired working-baseline WM + MPPI: each terminal-value configuration completes
-  one of three planning seeds and hits the force limit in two. Planning takes
-  about 0.5 s per action, versus about 1 ms policy inference; physics time is
-  separate. The critic's out-of-range candidate estimates remain disclosed.
-  This is evidence about those fixed implementations, not MPC in general.
-- Executed-action perturbation: 256 predefined cases per controller, all complete.
-  Success is 74.6% for policy62, 83.2% for the working policy and 89.1% for SAC85k.
-  Continuing the whole learning procedure improved the selected policy over its
-  starting checkpoint; this does not isolate the WM gradient from extra data,
-  critic changes or behavior regularization.
-- Working policy vs SAC85k: success difference -5.9 percentage points
-  [-10.5, -1.2]; mean material peak difference -15.7 N [-17.3, -14.0].
-  Force-limit ending and total impulse differences are inconclusive. Lower
-  material peak is not evidence of fewer force-limit failures.
-- The logged `safety_margin` is a sensor limit-utilization ratio: larger means
-  closer to/exceeding a limit. Material force is a different signal. Do not
-  compare the material peak directly with the sensor's 50 N component limit.
-- All-case metrics and the subset where both controllers succeed are reported
-  separately. Case-paired intervals describe these checkpoints on this
-  perturbation distribution, not training-seed variation.
-- MPPI disturbance robustness is unmeasured. No new 256-case MPPI batch is
-  scheduled. The old A comparison used raw-output perturbations and remains
-  separate from the new executed-action rule.
+- Prepared scene identities and hashes; initially prism, then eligible prism
+  variants and the jello cylinder. Apple is deferred because the current
+  reference fails there, not declared impossible for every controller.
+- Explicit material values, units, sampling rule, parameter correlations and
+  source provenance. P0 scale checks are implementation evidence, not a chosen
+  training distribution or real-food calibration.
+- Elastic modulus, density and cutting-spring stiffness are separate parameters.
+  Spring stiffness does not equal fracture energy or a complete damage law;
+  softness/rest lengths/contact parameters remain explicit.
+- Admissible placement transforms and matched start/goal/cut-plane definitions.
+  New geometry must be exported with its cut interface; no mesh-only scaling
+  that leaves masses, rest geometry or cut preparation inconsistent.
+- Separate training/development/test condition manifests. Test new draws within
+  the training range separately from genuinely held-out material ranges or
+  geometries. Fix them before seeing controller results. Hyperparameter choice
+  uses development data, not the held-out test.
+- One common observable-information contract: robot/proprioception, sensor force
+  history and known cutting goal. Do not give one learner hidden material labels.
+  Specify history access for SAC and WM policies before claiming an
+  algorithm-controlled comparison. MPPI's model state access remains disclosed.
 
-Historical protocols are retained in Git at `3f65d23` (A pair) and `d5a876e`
-(main evaluation plan); their completed results remain in RESULTS. They are not
-pending tasks.
+Cutting speed stays an action-dependent behavior. It becomes a task condition
+only if an externally specified deadline/desired-speed task is deliberately
+introduced; that is not this plan.
 
-## Current scope correction — nominal task first, no material pilot
+The parameter intervals, condition counts and compute budget are not selected
+by this document. They belong in S0, not invented later inside a collector.
 
-The user questioned adding transfer experiments without a multi-material
-training/data design. The proposed 20/40/80 kPa pilot is withdrawn from current
-work; no adapter is to be implemented and no episodes are queued. Its proposed
-ten new episodes meant five controllers at two new elasticities, once each.
-That was a development budget, not a statistically justified sample size.
-The unexecuted proposal remains in Git at `a097099`, not on the task list.
+### S1 — prism material randomization at episode reset
 
-The completed action-noise evaluation is a supplementary, locally designed
-stress test. It was introduced because the deterministic fixed-start task
-provided little separation between policies. Its noise distribution is not
-calibrated to a measured robot disturbance and is not a required reproduction
-protocol for this project. Do not make its 256-case proportions the headline
-success rate of the original task, or infer unseen-material generalization.
+Use the existing scale operator, sample only reset worlds, and keep a condition
+fixed until that episode ends. Start each new episode from undamaged material
+with its selected parameters; refresh any reference arrays or force/recording
+metadata which describe that state. Preserve worlds which are still running.
 
-Keep the research scope at the trained, nominal prism task: the connected
-WM + BPTT method, the existing SAC85k controller and the paired same-WM MPPI,
-with their actual task outcomes, forces and online cost. Existing comparisons
-and figures are available in EVIDENCE; retain their failures and limitations.
-Clarify what the learning/control procedure contributes within this task before
-deciding on any additional experiment. No new physics, training, material sweep,
-action-noise sweep or mandatory SAC retraining is scheduled by this correction.
+Save condition parameters, episode IDs, reset RNG state and physical-transition
+counts in recording/checkpoint provenance. Prevent replay windows and histories
+from crossing resets. Finite histories must not accidentally carry the previous
+material into a new episode.
 
-## Research review handoff — prepared 2026-11-10
+Use a small functional integration check to verify actual material arrays,
+selective reset and one genuine learner update from mixed-condition data.
+This checks implementation, not learning quality; do not redesign the network
+from a few update losses. Placement variation joins only when its physical
+transform and prepared cut interface have been implemented consistently.
 
-[PAPER](PAPER.md) is now the review memo for the user and Claude: recommended
-question, exact implemented data flow, inherited versus task-specific elements,
-nominal-task results, claim-to-evidence gaps, and four review questions.
-It is not a manuscript skeleton or a new experimental protocol.
+Deliverable: one policy/WM training pipeline with changing episode materials.
+Any intermediate training is development; preserve its full data/compute counts.
 
-Recommended scope: model-based refinement of an already functional compliant
-cutting controller. The working continuation starts from successful policy62,
-so learning from scratch and nominal task feasibility are different claims.
+### S2 — grouped geometries, shared learner
 
-### Next action after review
+Create one homogeneous simulation group per prepared geometry/topology.
+Keep particle/spring arrays and low-level reset/force state within their groups.
+Concatenate fixed-size control histories, goals, actions and episode transitions
+for **one shared WM, policy and critic**. Do not train a separate policy per object.
 
-1. Record one selected contribution claim and its scope. Review the existing
-   BC-only evidence before asking for a new ablation; retain all working-run
-   checkpoints, the later collapse and failed MPPI seeds.
-2. If the scope is a task-level method/continuation study, assemble the method
-   and nominal-result narrative from existing records. No new collection or
-   retraining is required merely to do that. Any manuscript is a separate
-   deliverable; the previously withdrawn skeleton is not restored here.
-3. Only if attributing a benefit to physical-data critic training is central,
-   design one matched recorded-target versus imagined-target continuation with
-   H8 and BC held fixed. It is a conditional counterfactual, not a queued run.
-   Initialization/pre-fit treatment, measured endpoints, computational budget
-   and the interpretation of mixed/negative results must be fixed before it
-   becomes a runnable proposal. No current implementation change is authorized
-   by this review memo alone.
-4. If the evidence and method distinction are insufficient for a convincing
-   paper claim, report that decision directly. Do not replace the missing
-   contribution with more disturbance cases, material sweeps or bug-fix plots.
+Choose a declared group/condition sampling weight so fast-ending scenes do not
+silently dominate the replay. Preserve original per-environment provenance and
+independent RNG streams. The compact state makes a shared network feasible;
+it does not prove that ten-frame history is sufficient to identify every material.
 
-The user will ask Claude to review. No external message, training or evaluation
-job is sent/launched. A methods claim and an applied-system claim have different
-evidence requirements; this review must end with a choice, not a longer repair
-list.
+Complete one joint collection/update cycle across both prism and jello groups,
+then freeze the executable distribution. These functional checks replace
+re-running a broad physics validation campaign.
 
-## Completed evidence work
+### S3 — matched-distribution learning comparison
 
-- Four figures and their CSV/provenance are on GPU7 in
-  `runs/paper_evidence_20261110`; no measurements were deleted.
-- EVIDENCE maps observations to appropriately limited claims. Action-noise
-  results are supplementary; nominal execution is the current task evidence.
-- PAPER describes the working method. A remains a completed mechanism analysis.
-  Transfer is not a current contribution claim or next-step requirement.
+Train WM + BPTT and SAC on the same final training distribution and physical
+interaction budget. The recommended clean comparison starts both learning
+procedures from fresh networks. If a staged curriculum or existing checkpoint
+is reused instead, declare it and count all pretraining/continuation exposure
+for both sides; do not compare a warm-started method with a fresh SAC while
+ignoring its history.
 
-## Conditional work, not current jobs
+For WM + BPTT, the current working recipe is the starting method:
+physical-trajectory critic, H8 and replay BC 0.25. Do not silently add A, change
+the reward or attach a new force safety mechanism. Existing code supports a
+source configuration, but the selected new-task recipe must be recorded once.
 
-- A matched-data or sample-efficiency claim would need a new explicit comparison
-  protocol: total physical transitions including policy62/WM pretraining, input
-  access, checkpoint selection, gradient-update-to-data ratio, tuning and
-  wall/GPU budgets. Decide then whether fresh SAC training is required; neither
-  parallelism nor identical learning rates alone makes a comparison fair.
-- Material or geometry generalization is deferred. If selected later, first
-  define whether the claim concerns untrained transfer or learning across a
-  specified training distribution, then design its data and held-out evaluation.
-  Existing single-prism policies are not assumed to generalize.
-- More training seeds follow a fixed method and protocol, per the user's choice.
-- Robot experiments follow [REAL2SIM](REAL2SIM.md) once hardware/sensing and
-  the physical protocol are settled. No claim of real-world safety is made.
+Budget counts actual individual environment transitions, including WM-only
+collection, refills and other warmup interaction. Vector steps, update counts
+and wall time are not substitutes. Record model/critic/actor updates and total
+wall/GPU cost separately. Pure optimizer passes do not add physical samples.
 
-## Storage and scheduling
+Use equal observable information where the claim compares learning algorithms;
+otherwise explicitly label a system-level comparison. Same interaction budget
+does not require identical learning rates or parallel counts. Record optimizer
+and update-to-data settings in advance, including any permitted development
+tuning. Do not automatically reuse the old unstable SAC settings or silently
+replace them with unreported settings.
 
-Use Remote SSH; keep source, data, weights and artifacts on the servers.
-GPU7 canonical checkout: `/dataHDD/dong/Projects/Cutting_DEV`; machine routes
-and protected dependencies: `runs/operations/MACHINES.md`. GPU9 is retired.
-A-pair training/evaluation results are complete; previous running snapshots are
-historical. Recheck actual GPU/process occupancy before any future job and leave
-other users' work alone. This document update starts no training or physics
-evaluation.
+SAC85k remains a historical fixed-task comparator. Fresh SAC training is needed
+here because the task distribution changes, not because its old result is invalid.
+
+First complete a development run of each method. Multi-seed confirmation follows
+a fixed method and protocol, as the user requested. A wall cap is a resource
+limit; report an incomplete interaction budget rather than calling it complete.
+
+### S4 — frozen comparison on predefined conditions
+
+Evaluate the shared policy, matched-distribution SAC, paired same-WM MPPI and
+a physically aligned reference trajectory. MPPI/reference need no policy
+training, but their task interfaces and online computation still need accounting.
+Do not let MPC query hidden true material parameters absent from its paired WM.
+
+Report each material/geometry group and an explicitly weighted aggregate:
+goal completion, force-limit/workspace/time-limit endings, duration, material
+peak/mean/impulse, sensor-limit utilization, released-spring fraction and online
+cost. Keep outcomes separate from physical-separation evidence.
+
+“Comparable completion with lower force” needs a predeclared completion criterion
+and force summary. A confidence interval containing zero does not prove equal
+completion. Include all outcomes and a clearly labeled paired both-success
+analysis; do not obtain lower force by dropping failures or unfinished episodes.
+
+Within-distribution conditions, held-out material ranges and held-out shapes
+are separate claims. A policy trained jointly on prism and cylinder has not
+demonstrated unseen-shape generalization merely by succeeding on both.
+Model prediction errors support interpretation, not replace physical task results.
+
+## Stop expansion, not scientific reporting
+
+No action-noise evaluation, ten-episode zero-shot pilot, automatic A repeat,
+new simulator, arbitrary 3-D cutting plane or multi-cut topology task is queued.
+No generic “real critic versus imagined critic” experiment precedes building the
+new task distribution by default. A targeted ablation is selected only when it
+tests the final method claim.
+
+Current work is this scoped plan and implementation assessment. No new long run
+is launched until a concrete S0 specification and run settings/budget exist.
+Low early reward does not automatically justify changing the task or model.
+
+## Storage and execution
+
+Remote SSH only. GPU7 canonical checkout:
+`/dataHDD/dong/Projects/Cutting_DEV`; machine routes and protected dependencies:
+`runs/operations/MACHINES.md`. GPU9 is retired. Recheck actual GPU occupancy
+before execution; no current occupancy or running-job claim is made here.
+All source, data, checkpoints, figures and caches stay on servers.

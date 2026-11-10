@@ -25,8 +25,13 @@
   when disclosed. Matched-data/sample-efficiency claims require their own
   budget and information-access protocol; they do not mandate retraining for
   every checkpoint comparison.
-- Keep SliceIt rewards, thresholds, material configuration and physical behavior.
-  No scene-specific success shortcuts, damage projection or invented reward head.
+- Preserve the existing SliceIt-derived benchmark's rewards, thresholds and
+  physics. New material/geometry distributions are explicit, versioned tasks
+  under PLAN; record physical parameter provenance and do not change the old
+  contract silently. No scene-specific success shortcuts, damage projection or
+  invented reward head.
+- Action-perturbation evaluations are retired and excluded from the paper;
+  preserve historical records. Normal training exploration is a separate setting.
 - Short-term loss/reward oscillation and a few weak episodes do not establish
   model failure. Use sustained learning curves and held-out physical evaluation.
   Fix demonstrated implementation errors; do not redesign from a tiny fit.
