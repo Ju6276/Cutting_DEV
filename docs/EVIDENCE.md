@@ -8,6 +8,13 @@ the algorithm; [PLAN](PLAN.md) is the only current task list;
 
 ## Central argument and its present support
 
+**Scope correction:** the action-noise plots are supplementary diagnostics of
+the specified disturbance distribution. They are not the main success rate of
+the trained nominal task and do not establish material generalization. The
+unexecuted material pilot was withdrawn from current work on 2026-11-10.
+Figures and raw measurements are preserved; their scope is narrower than a
+general robustness claim.
+
 The method learns robot motion and sensor-force response from physical
 interaction, learns values from physical-trajectory lambda returns, and updates
 the policy by short BPTT rollouts with recorded-action behavior regularization.
@@ -26,7 +33,7 @@ components or bugs fixed. A remains a completed mechanism experiment.
 | The working policy has lower material peak force than the existing SAC85k controller. | All-case mean peaks 29.7 vs 45.4 N; paired difference −15.7 N [−17.3, −14.0]. | SAC succeeds more often: 228/256 vs 213/256. Do not turn this into a safety or overall-superiority claim. |
 | The learned policy executes this task with much less online decision computation than the tested same-WM MPPI. | About 1.02 ms per policy call vs 491–532 ms per MPPI call; policy completes, each MPPI configuration succeeds for 1/3 planning seeds. | Recorded implementations and settings. Physics is separate; timings are not a controlled throughput benchmark. |
 | Better prediction need not translate into a detectable final control gain. | A improved held-out H8 tip prediction, but its pre-stated final perturbed-success interval includes zero. | The completed A experiment, its legacy raw-output disturbance rule and single training seed per arm. |
-| The method transfers across material conditions. | Not measured for the frozen controllers in the proposed material sweep. | An open question, with a bounded pilot in PLAN. |
+| The method transfers across material conditions. | Not established by these results. | Not a current contribution claim; material experiments are deferred in PLAN. |
 
 The present package supports a functioning learned control method and a
 checkpoint-level empirical study. It does not yet establish a new general

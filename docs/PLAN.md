@@ -103,110 +103,38 @@ Historical protocols are retained in Git at `3f65d23` (A pair) and `d5a876e`
 (main evaluation plan); their completed results remain in RESULTS. They are not
 pending tasks.
 
-## Completed 2026-11-10 — evidence, argument and next-condition specification
+## Current scope correction — nominal task first, no material pilot
 
-1. **Evidence package:** CPU-only analysis of saved reports; four PNG/PDF
-   figures, raw-case/paired CSV, controller provenance and SHA256 input/output
-   manifest in `runs/paper_evidence_20261110`. It covers 768 recorded perturbed
-   cases and 18 unperturbed records. No new simulation or optimizer updates.
-2. **Paper argument:** [EVIDENCE](EVIDENCE.md) maps claims to measurements and
-   limits; PAPER explains the connected method and inherited components.
-   No manuscript skeleton, new architecture or mandatory SAC retraining.
-3. **Next condition:** the frozen elastic-transfer pilot below is specified,
-   including material provenance, controller identities, data use and budget.
-   Its execution adapter is still to be implemented before running it.
+The user questioned adding transfer experiments without a multi-material
+training/data design. The proposed 20/40/80 kPa pilot is withdrawn from current
+work; no adapter is to be implemented and no episodes are queued. Its proposed
+ten new episodes meant five controllers at two new elasticities, once each.
+That was a development budget, not a statistically justified sample size.
+The unexecuted proposal remains in Git at `a097099`, not on the task list.
 
-The immediate next implementation is the bounded material-condition evaluation
-option. There is no remaining A decision or broad regression/diagnostic stage
-to resolve before that work.
+The completed action-noise evaluation is a supplementary, locally designed
+stress test. It was introduced because the deterministic fixed-start task
+provided little separation between policies. Its noise distribution is not
+calibrated to a measured robot disturbance and is not a required reproduction
+protocol for this project. Do not make its 256-case proportions the headline
+success rate of the original task, or infer unseen-material generalization.
 
-## Next-stage protocol — frozen transfer under elastic-modulus changes
+Keep the research scope at the trained, nominal prism task: the connected
+WM + BPTT method, the existing SAC85k controller and the paired same-WM MPPI,
+with their actual task outcomes, forces and online cost. Existing comparisons
+and figures are available in EVIDENCE; retain their failures and limitations.
+Clarify what the learning/control procedure contributes within this task before
+deciding on any additional experiment. No new physics, training, material sweep,
+action-noise sweep or mandatory SAC retraining is scheduled by this correction.
 
-**Status:** protocol prepared; no new physical run, data collection or fitting
-has started. This is one bounded single-cut pilot, not multi-material training.
-Question: do the existing frozen controllers still reach the goal when prism
-elasticity changes, and how do outcomes and forces change? A material shift may
-hurt the learned model/controllers; either outcome is informative.
+## Completed evidence work
 
-### Conditions and provenance
-
-Use the existing free-bottom prism, robot, knife, target, captured initial
-physical state, action mapper, reward and task definitions. Change only Young's
-modulus at fixed Poisson ratio 0.45:
-
-| Condition | E scale | E (Pa) | mu (Pa) | lambda (Pa) |
-|---|---:|---:|---:|---:|
-| Softer prism | 0.5 | 20,000 | 6,896.551724 | 62,068.965517 |
-| Existing prism | 1 | 40,000 | 13,793.103448 | 124,137.931034 |
-| Stiffer prism | 2 | 80,000 | 27,586.206897 | 248,275.862069 |
-
-These scales come from the completed Nov 8 P0 material-scale check, not a new
-search for favorable results. Use the existing `set_material_scales` operation
-to scale both Lamé arrays relative to their source values. Keep density
-830 kg/m³, damping, cutting-spring stiffness/softening, friction/contact and all
-other settings unchanged. These are synthetic elasticity conditions, not
-calibrated apple/potato/tomato materials.
-
-Restore the full captured reset frame, including controller/filter and material
-history, and keep the selected material arrays in effect across reset. Verify
-the actual arrays and unchanged initial state in the run manifest. This tests a
-common initial-state parameter shift, not material-specific equilibrium resets.
-The existing P0 reference peaks were 9.68/9.97/10.33 N; elasticity alone may have
-a modest effect. Do not widen the range or change spring strength after seeing
-an uninteresting result.
-
-### Controllers, data and budget
-
-Use five frozen controllers: working WM + BPTT, SAC85k, prescribed reference,
-and same-working-WM MPPI with/without terminal critic. Keep the existing MPPI
-settings and planning seed 0 in both settings, including its known nominal
-failure without a critic; do not select each setting's best seed. One physical
-world and one episode per controller/condition; no action perturbation.
-Do not add material identity to the model or policy inputs.
-
-The nominal condition already has saved results in the evidence recipe.
-Reuse the five nominal records (SAC's existing repeats remain repeats) when
-checkpoint tensors, asset/reset identity and execution configuration match.
-Only the softer and stiffer conditions need new execution: **10 new episodes**.
-Run the softer condition then the stiffer one, in this fixed controller order:
-working policy, SAC85k, reference, MPPI+critic, MPPI without critic.
-If provenance cannot match, stop that cell for resolution rather than silently
-substitute a new nominal experiment.
-
-No training set is required in advance. New transitions are evaluation logs;
-they are not used to update WM, critic or policy. The frozen nominal-material
-WM deliberately tests transfer under model mismatch. If later learning across
-materials is selected, that needs a separate data-coverage/training protocol.
-
-Budget: one available GPU7, at most **2 GPU-hours total** including startup,
-and at most **1,200 wall seconds per new episode**, in addition to the unchanged
-500-step task limit. Finish each case at its own ending. Keep censored prefixes
-and mark unstarted cells if the total budget expires; do not extend the budget
-or count wall-budget interruptions as task failures. No extra seeds or
-256-case disturbance evaluations in this pilot.
-
-Before execution, add the material-condition option to the existing frozen
-evaluator, preserve base-contract validation, and record a distinct condition
-identity with the base contract hash, applied scale, effective material-array
-hashes, reset hash and frozen checkpoint identity. This option/condition
-registration is **not implemented by this document update**; do not label
-changed material as an unchanged `public-prism-ur5e-v1` result. Use the existing
-P0 scaling implementation, not a second material path.
-
-### Measurement and stopping rule
-
-Report each cell's ending, elapsed simulation time, goal error, material
-peak/mean force and impulse, sensor utilization, released springs, and decision
-latency. Keep failed and censored cells alongside successes. No confidence
-interval or success probability is inferred from a single episode.
-
-This pilot answers feasibility for the tested conditions only. If all methods
-work similarly, report that the perturbation is mild. If a controller fails,
-retain its trajectory and identify the observed ending without automatically
-opening a repair, parameter sweep or retraining stage. A reproducible code
-exception is fixed separately; physical failure is a result. The pilot closes
-after the ten planned executions or the budget, and informs one explicit next
-decision about whether multi-material training is useful.
+- Four figures and their CSV/provenance are on GPU7 in
+  `runs/paper_evidence_20261110`; no measurements were deleted.
+- EVIDENCE maps observations to appropriately limited claims. Action-noise
+  results are supplementary; nominal execution is the current task evidence.
+- PAPER describes the working method. A remains a completed mechanism analysis.
+  Transfer is not a current contribution claim or next-step requirement.
 
 ## Conditional work, not current jobs
 
@@ -215,8 +143,10 @@ decision about whether multi-material training is useful.
   access, checkpoint selection, gradient-update-to-data ratio, tuning and
   wall/GPU budgets. Decide then whether fresh SAC training is required; neither
   parallelism nor identical learning rates alone makes a comparison fair.
-- A task outside existing training coverage may require collection/training for
-  both methods. Existing single-prism policies are not assumed to generalize.
+- Material or geometry generalization is deferred. If selected later, first
+  define whether the claim concerns untrained transfer or learning across a
+  specified training distribution, then design its data and held-out evaluation.
+  Existing single-prism policies are not assumed to generalize.
 - More training seeds follow a fixed method and protocol, per the user's choice.
 - Robot experiments follow [REAL2SIM](REAL2SIM.md) once hardware/sensing and
   the physical protocol are settled. No claim of real-world safety is made.

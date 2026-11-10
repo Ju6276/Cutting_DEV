@@ -94,6 +94,16 @@ Results of different entries are never pooled.
 
 ## Robustness under action perturbations
 
+**Scope (2026-11-10): supplementary local stress test, not the nominal task
+or a required paper evaluation.** The amplitudes below were selected for this
+project; no measured hardware-error distribution or paper-prescribed
+calibration is claimed. The normalized action range is [-1, 1], so sigma 1.0
+is a large disturbance relative to that range. This changes six compliance/
+reference commands, not material properties and not an applied physical push.
+Training exploration, test-time action noise and material domain randomization
+are distinct. Existing results remain recorded; no further noise batch is
+scheduled.
+
 An evaluation condition, not part of the task. `scripts/evaluate_perturbed.py run
 --checkpoint CKPT --cases 256 --seed-base 3000000 --output DIR` executes a frozen
 controller on 256 cases fixed before any controller runs. Each case adds

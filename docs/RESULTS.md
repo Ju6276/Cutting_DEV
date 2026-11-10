@@ -1913,3 +1913,22 @@ pilot in PLAN is not a measured result.
 Validation on GPU7: root suite 231 passed / 5 skipped; backend suite 28 passed.
 All four figures were visually inspected; relative documentation links and
 Git whitespace checks passed. Simulation/training code is unchanged.
+
+
+## 2026-11-10 — Scope correction after evidence packaging
+
+The proposed ten-episode elastic-transfer pilot was not executed and is
+withdrawn from current work after user review. Ten meant five controllers at
+two additional elasticities, one episode each: a local trial budget, not a
+sample-size justification. No material-condition evaluation adapter was added.
+
+The completed action-perturbation evaluation remains a supplementary local
+stress test. Sigma 0.3/0.6/1.0 is in normalized command units, with no claimed
+hardware calibration. It does not measure nominal-task success or material
+generalization. These are interpretation/scope changes; recorded data and
+figures are unchanged. The current task remains the trained nominal prism.
+
+This correction edits documentation only. Code, tests, settings and recorded
+inputs are unchanged from `a097099`, which passed root 231 / 5 skipped and
+backend 28. Documentation links and diff whitespace are checked without
+repeating training, physics evaluation or the unchanged test suites.

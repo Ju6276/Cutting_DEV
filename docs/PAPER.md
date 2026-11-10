@@ -35,9 +35,11 @@ difference was inconclusive, so A remains a mechanism variant rather than part
 of the selected main algorithm. The paper must not assume that better
 prediction necessarily produces better control.
 
-The research unit is a single cut. Changes of material and geometry test transfer
-of the method after the fixed task works. Multiple cuts, topology planning and
-camera-based manipulation are outside this paper's current scope.
+The current research unit is a single cut in the trained nominal prism task.
+Material/geometry generalization is not a mandatory next step or an established
+contribution. If selected later, its claim, training distribution and test
+conditions must be designed together. Multiple cuts, topology planning and
+camera-based manipulation are outside the current scope.
 
 ## Algorithm and data flow
 
@@ -166,7 +168,8 @@ support attributing the checked policies' higher force to systematic force
 underprediction. Separate onset-force failures remain relevant when interpreting
 failure episodes. Full splits and numbers are in RESULTS (2026-11-08/09).
 
-The completed 256-case executed-action comparison gives the current working
+As a supplementary local stress test, the completed 256-case executed-action
+comparison gives the current working
 policy 83.2% success versus 74.6% for policy62 and 89.1% for SAC85k. The working
 policy has a lower mean material peak than SAC85k (29.7 vs 45.4 N), but the
 force-limit failure difference is inconclusive. Its whole continuation procedure
@@ -182,14 +185,15 @@ quantities, and force values do not replace task-completion outcomes.
 | Does the learned objective affect behavior? | Full actor objective vs BC-only | Complete, one seed: execution changes. Does not isolate WM from critic gradients. |
 | Does A improve final control? | Baseline vs baseline + A | Complete: no detected primary success benefit; prediction/stability observations remain analysis. |
 | How does the controller compare with alternatives? | Existing SAC85k, same-WM MPPI and fixed control | Complete within the reported scope: distinct completion, force and online-cost outcomes; no general algorithm ranking. |
-| Does it work beyond the nominal elasticity? | Frozen controllers at E ×0.5, ×1 and ×2 | Protocol ready in PLAN; changed-material executions not yet performed. |
+| Does it work beyond the training material? | No current experiment | Deferred; not a contribution supported by this study. |
 
 The saved evidence package and captions are available; see EVIDENCE for the
 claim-to-result mapping, checkpoint histories, CSV and figure paths.
-The next bounded task tests frozen transfer, without new learning.
-This separates the question of transferring an existing controller from
-training a new multi-material controller. Neither is assumed from the nominal
-prism result.
+The next research decision concerns the method's contribution within the
+trained task, not adding a transfer experiment. Action-noise evaluations remain
+supplementary: their disturbance amplitudes are not hardware-calibrated and their
+proportions are not the nominal task's success rates. No additional runs are
+scheduled merely to produce separation between already successful controllers.
 
 The source-to-working-baseline comparison changes critic targets, horizon and
 behavior regularization together. Attributing a benefit to one of them requires
@@ -229,7 +233,7 @@ deterministic task are not independent training seeds.
 ## Writing structure and stopping rule
 
 The argument is **cutting-control problem → learned interaction model and
-policy optimization → executed control evidence → scope of transfer**.
+policy optimization → executed control evidence and limits**.
 Introduce the force-limited task
 and model-based alternatives, present the connected algorithm above, then use
 the mechanism experiment to discuss the limits of prediction-based improvement.

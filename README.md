@@ -76,8 +76,8 @@ Single prism (`public-prism-ur5e-v1`), frozen 8 episodes, one seed
 | Current working baseline, last | 8/8 | 19 | 91.37 | 26.10 N |
 | SAC in the unified environment (source settings, one environment), step 85000 | 8/8 | 18 | 92.03 | 49.6 N |
 
-The selected-controller evaluations are complete (2026-11-09). On 256
-executed-action perturbation cases, policy62 / working policy / unified SAC85k
+The selected-controller evaluations are complete (2026-11-09). In a
+supplementary local stress test with 256 executed-action perturbation cases, policy62 / working policy / unified SAC85k
 succeed in 74.6% / 83.2% / 89.1%, with mean material peaks 32.9 / 29.7 / 45.4 N.
 The working policy's force-limit failure difference from SAC is inconclusive;
 lower material peak does not establish lower failure risk. Training budgets,
@@ -90,8 +90,10 @@ The existing SAC85k is the current source-derived controller comparison, not a
 full reproduction of SliceIt's paper. No SAC retraining is required for this
 comparison. The [evidence package](docs/EVIDENCE.md) now contains four figures,
 paired effects, checkpoint provenance and supported claims from saved results.
-Next: a frozen-controller elastic-transfer pilot at 20/40/80 kPa, specified but
-not yet run. [PLAN](docs/PLAN.md) records the scope and budget;
+Current scope remains the trained nominal prism task. The proposed material
+pilot is withdrawn; action-noise results are supplementary, not the nominal
+success rate or evidence of material generalization.
+[PLAN](docs/PLAN.md) records the scope correction;
 [Paper direction and algorithm](docs/PAPER.md) describes the connected method.
 
 [Current plan](docs/PLAN.md) · [Benchmark and definitions](docs/BENCHMARK.md) ·
