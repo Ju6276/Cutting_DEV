@@ -231,6 +231,50 @@ All are real-robot and argue cutting simulation is unavailable [T].
   final-success comparison did not detect a clear benefit. This historical
   motivation does not add another prediction-diagnostic stage.
 
+## 9. Route B: uncertainty-aware force limits in world-model policy optimization (2026-11-10)
+
+Question: is "account for force-prediction uncertainty near the force limit inside
+WM-based BPTT, targeting contact-onset force events" already done? Labels: R =
+abstract page read by the main session (arXiv API); A = abstract or snippet seen
+by the review agent only; I = prior knowledge, not re-verified.
+
+- Constrained policy search through models: Safe PILCO (1712.05556, GP chance
+  constraints with analytic gradients) [A]; Charvet et al. 2110.13576 (PILCO with
+  chance constraints, primal-dual) [A]; LAMBDA (2201.09802, pessimistic Bayesian
+  world-model safety cost with pathwise gradients) [R]; CERL (2405.05890,
+  log-barrier, epistemic pessimism) [A]; CGPO (2412.11138, constrained analytic
+  gradients without model uncertainty) [A]. None uses a force output or contact
+  transitions.
+- Model exploitation near constraints: CAP (2112.07701, uncertainty-inflated cost
+  with an adaptive penalty from real cost feedback; motivated by "imperfect models
+  can result in real-world constraint violations") [R]; SMBPO (2202.07789,
+  penalties for short imagined rollouts reaching unsafe states, no uncertainty)
+  [A]; Hewing et al. (1705.10702, nominal + GP residual, variance-tightened chance
+  constraints in MPC) [A].
+- Force chance constraints: Matschek, Bethge, Findeisen (2303.04569, GP maps robot
+  state to forces/moments; MPC with stochastic constraint satisfaction; real
+  robot) [R]; Haninger et al. (2208.07035, impedance MPC with GP, force limit as
+  mean + k std) [A]. MPC only, static force maps, no contact-onset dynamics.
+- Contact learning: Parmar, Halm, Posa (2103.15406, stiffness alone degrades
+  learned contact models; networks favour smooth fits) [R]; AHAC (2405.17784,
+  gradient bias of BPTT through stiff contact) [A]; conformal bounds for learned
+  dynamics (Chee et al., L4DC 2024; CaPTURe 2608.09166) [A].
+- Not found (about 20 targeted searches): a measurement that learned models
+  systematically under-predict the peak force at contact onset; quantile/tail
+  prediction of peak wrench; the full combination inside world-model BPTT.
+
+Assessment: generic pessimistic safety costs in world-model optimization (LAMBDA,
+CAP) and force chance constraints in MPC (Matschek, Haninger) exist. The
+narrowest defensible element is (1) the measured one-sided under-prediction of
+the onset peak force (RESULTS 2026-11-08/09: 19-23 of 23 force-limit events
+missed, 11-20 N one-step under-prediction, while errors on nominal trajectories
+average +0.08 N) and its exploitation by model-based optimization (MPPI chose
+predicted ratios 0.71-0.99 and hit the limit in 4 of 6 runs), and (2) a
+calibrated, contact-phase-aware upper bound on peak force used as the constraint
+in BPTT (and MPPI). Biggest risk: "LAMBDA/CAP/Hewing applied to a force output";
+it is answered only if ensemble (epistemic) pessimism fails to flag the onset
+under-prediction while a calibrated tail bound does.
+
 ## Assessment
 
 Already done (cannot be claimed): the setting and a force-limit terminal
