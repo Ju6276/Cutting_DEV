@@ -15,8 +15,10 @@ The previous long plan (route B screening rules, S0–S4 rationale) is archived 
   The platform, objects and baselines are the experiment, not a contribution.
 - **Force sensing and limit.** The real robot uses an external ATI Mini45 (Net F/T),
   not the UR5e built-in sensor, so the inherited SliceIt 50 N / 10 N·m limit is not
-  the task limit. The limit is one config value (`force_limits`), set from the Mini45
-  (to decide); the simulated sensor is moved to the Mini45 mounting for sim2real.
+  the task limit. The task limit is a required six-component config (`force_limits`),
+  still to decide using the actual Mini45 calibration, mounting/tool and experimental
+  requirements. Sensor measurement range is not itself the task stop threshold;
+  the simulated sensor is moved to the Mini45 mounting for sim2real.
 - **One force limit for every object.** The learner gets no object identity,
   material label or per-object limit; it must infer hardness from force feedback.
 - Task goal = target pose + target cutting speed (tracked by a reward term).
@@ -42,9 +44,10 @@ The previous long plan (route B screening rules, S0–S4 rationale) is archived 
 ## Next steps, in order
 
 1. **First-run task specification (S0) — proposal, to decide.**
-   - Force limit: one value from the Mini45 (to decide). With a limit well above the
-     forces below, the apple (~180–200 N without completing a straight press at
-     1–5 cm/s) can be reconsidered; a sawing reference is the next measurement for it.
+   - Force limit: one shared six-component task setting, not yet chosen (see above).
+     Do not raise it just to admit an object. Apple remains deferred: its old,
+     unheld straight-press measurements do not establish its required cutting
+     force; held/sawing measurements would be separate future work.
    - Training objects: benchmark prism, potato_003, cucumber_003 (all cut through when
      held, RESULTS 2026-11-11). Held-out object: cucumber_002 (unseen instance/geometry,
      not an unseen food class). Apple: deferred unless the limit and a sawing cut admit it.
@@ -56,11 +59,17 @@ The previous long plan (route B screening rules, S0–S4 rationale) is archived 
      every method (~2–2.5 M transitions, as in the from-scratch source chain).
    - Report goal completion and physical separation separately (released-spring
      fraction is only a proxy).
-2. **Code before S3.** (a) Done: parallel object groups. (b) SAC on the multi-object
-   task: keep SliceIt's tf2rl SAC (Wave/TCN actor, batch 1024, lr 0.01, auto-alpha),
-   collect from many parallel worlds and keep one gradient update per collected
-   transition. (c) Done: ensemble-risk comparator. (d) Multi-object frozen evaluation:
-   written, functional run pending.
+2. **Code repair for review (user scope, 2026-11-11).** Implemented: ensemble WM
+   learning-rate scheduling, explicit valid multi-object force limits, and worker
+   lifecycle handling. Validation and patch details are in RESULTS. Claude reviews
+   this patch before the next experimental step.
+   No new policy training, evaluation experiment or SAC parallel implementation
+   in this step.
+   **Deferred:** multi-object SAC training and expanded frozen evaluation. Before
+   formal comparison, evaluation must check the checkpoint/task interface and use
+   case-indexed condition sampling for paired cases (the current shared reset RNG
+   is not a paired-case guarantee). Complete-episode evaluation remains untested.
+   SAC collection/update scheduling will be specified when that work resumes.
 3. **S3 training (A6000).** Fresh weights, same distribution, same physical
    interaction budget: base, base + risk penalty, base + ensemble risk, SAC.
 4. **S4 evaluation and writing.** Frozen policies on the held-out conditions:

@@ -22,6 +22,7 @@ from pathlib import Path
 import torch
 
 from .gpu_env import GPUEnvironment
+from .task_heads import validate_force_limits
 
 MATERIAL_KEYS = ('youngs_modulus', 'density', 'cut_spring_stiffness')
 
@@ -135,11 +136,26 @@ class ProcessGroup:
         self.connection, child = context.Pipe()
         self.process = context.Process(target=_group_worker, daemon=True, args=(
             child, (str(backend_root), scene, worlds, lift.cpu(), reward, force_limits)))
-        self.process.start()
-        self.pending = None
+        self._closed = False
+        try:
+            self.process.start()
+        except BaseException:
+            self.connection.close()
+            raise
+        finally:
+            child.close()  # only the worker owns the other end of the pipe
+
+    def _receive_message(self):
+        while not self.connection.poll(0.1):
+            if not self.process.is_alive():
+                raise RuntimeError(f'Object group exited without a reply (exit code {self.process.exitcode})')
+        try:
+            return self.connection.recv()
+        except (EOFError, OSError) as exc:
+            raise RuntimeError('Object group connection closed before a reply') from exc
 
     def finish_start(self, device):
-        status, *payload = self.connection.recv()
+        status, *payload = self._receive_message()
         if status != 'ready':
             raise RuntimeError('Object group process failed:\n' + payload[0])
         self.device = device
@@ -150,7 +166,7 @@ class ProcessGroup:
         self.connection.send((command, _cpu(payload)))
 
     def receive(self):
-        status, payload = self.connection.recv()
+        status, payload = self._receive_message()
         if status != 'ok':
             raise RuntimeError('Object group process failed:\n' + payload)
         move = lambda v: {k: x.to(self.device) for k, x in v.items()} if isinstance(v, dict) else v.to(self.device)
@@ -162,56 +178,84 @@ class ProcessGroup:
             self.current = payload
         return payload
 
-    def close(self):
+    def close(self, timeout=30):
+        if self._closed:
+            return
         try:
-            self.connection.send(('close', None))
-        except (BrokenPipeError, OSError):
-            pass
-        self.process.join(timeout=30)
+            if self.process.is_alive():
+                try:
+                    self.connection.send(('close', None))
+                except (BrokenPipeError, OSError):
+                    pass
+            self.process.join(timeout=timeout)
+            if self.process.is_alive():
+                import warnings
+                warnings.warn('Object group did not shut down; terminating the worker', RuntimeWarning)
+                self.process.terminate()
+                self.process.join(timeout=timeout)
+            if self.process.is_alive():
+                self.process.kill()
+                self.process.join(timeout=timeout)
+            if self.process.is_alive():
+                raise RuntimeError('Object group could not be stopped')
+        finally:
+            self.connection.close()
+            self._closed = True
 
 
 class MultiConditionEnvironment:
     def __init__(self, backend_root, groups, reward=None, seed=0, force_limits=None, parallel=False):
         """``parallel``: one persistent process per object group (``ProcessGroup``);
         otherwise groups are stepped one after another in this process (reference path)."""
+        force_limits = validate_force_limits(force_limits, required=True)
         if not groups:
             raise ValueError('At least one object group is required')
         self.groups = list(groups)
         self.parallel = parallel
         self.generator = torch.Generator().manual_seed(seed)
         self.members, self.slices, self.lift, start = [], [], [], 0
-        for group in self.groups:
-            for key, (low, high) in group.material.items():
-                if key not in MATERIAL_KEYS or not 0 < low <= high:
-                    raise ValueError(f'{group.name}: bad material range {key}={low, high}')
-            lift = self._uniform(group.clearance, group.worlds) - knife_clearance(backend_root, group.scene)
-            maker = ProcessGroup if parallel else LocalGroup
-            self.members.append(maker(backend_root, group.scene, group.worlds, lift, reward, force_limits))
-            self.lift.append(lift)
-            self.slices.append(slice(start, start + group.worlds))
-            start += group.worlds
-        self.worlds = start
-        self.device = torch.device('cuda:0')
-        if parallel:
-            for member in self.members:
-                member.finish_start(self.device)
-        self.metadata = self.members[0].metadata
-        for member, group in zip(self.members[1:], self.groups[1:]):
-            if member.metadata != self.metadata:
-                raise ValueError(f'{group.name}: task metadata differs from {self.groups[0].name}')
-        from .task_heads import SliceItHeads
-        self.heads = SliceItHeads(self.metadata['environment'], self.metadata['controller'])
-        self.group_index = torch.cat([torch.full((g.worlds,), i, dtype=torch.long)
-                                      for i, g in enumerate(self.groups)]).to(self.device)
-        self.material_scales = {k: torch.ones(self.worlds, device=self.device) for k in MATERIAL_KEYS}
-        self.target_speed = torch.zeros(self.worlds, device=self.device)
-        self.current = None
-        self.reset()
+        try:
+            for group in self.groups:
+                for key, (low, high) in group.material.items():
+                    if key not in MATERIAL_KEYS or not 0 < low <= high:
+                        raise ValueError(f'{group.name}: bad material range {key}={low, high}')
+                lift = self._uniform(group.clearance, group.worlds) - knife_clearance(backend_root, group.scene)
+                maker = ProcessGroup if parallel else LocalGroup
+                self.members.append(maker(backend_root, group.scene, group.worlds, lift, reward, force_limits))
+                self.lift.append(lift)
+                self.slices.append(slice(start, start + group.worlds))
+                start += group.worlds
+            self.worlds = start
+            self.device = torch.device('cuda:0')
+            if parallel:
+                for member in self.members:
+                    member.finish_start(self.device)
+            self.metadata = self.members[0].metadata
+            for member, group in zip(self.members[1:], self.groups[1:]):
+                if member.metadata != self.metadata:
+                    raise ValueError(f'{group.name}: task metadata differs from {self.groups[0].name}')
+            from .task_heads import SliceItHeads
+            self.heads = SliceItHeads(self.metadata['environment'], self.metadata['controller'])
+            self.group_index = torch.cat([torch.full((g.worlds,), i, dtype=torch.long)
+                                          for i, g in enumerate(self.groups)]).to(self.device)
+            self.material_scales = {k: torch.ones(self.worlds, device=self.device) for k in MATERIAL_KEYS}
+            self.target_speed = torch.zeros(self.worlds, device=self.device)
+            self.current = None
+            self.reset()
+        except BaseException:
+            self.close()
+            raise
 
     def close(self):
+        errors = []
         for member in self.members:
             if hasattr(member, 'close'):
-                member.close()
+                try:
+                    member.close()
+                except Exception as exc:
+                    errors.append(exc)
+        if errors:
+            raise RuntimeError('Failed to close object group(s): ' + repr(errors)) from errors[0]
 
     def _uniform(self, bounds, n, log=False):
         low, high = bounds

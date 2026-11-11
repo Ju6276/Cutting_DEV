@@ -2096,3 +2096,47 @@ steps, so its per-episode rows are not yet exercised. Object-group processes exi
 with EOF tracebacks after training (harmless, the parent had not closed them); fixed
 by closing the environment at the end of training and ending workers quietly on EOF.
 
+
+## 2026-11-11 — Codex repair review after c76deb5
+
+Scope authorized by the user: repair the identified implementation issues; defer
+multi-object SAC implementation and expanded evaluation. No policy training,
+new force sweep or performance evaluation was launched.
+
+- Ensemble LR: `set_lr` previously scheduled only the main WM, actor and critic.
+  The four other WM optimizers retained the initial LR. They now follow the same
+  schedule, also after restore; the quantile head keeps its separate fitting LR.
+  The old ensemble smoke remains a functional run, not a matched-schedule result.
+- Limits: multi-object construction now requires six explicit finite positive
+  limits before loading assets or spawning workers. There is no silent legacy
+  fallback. The smoke config explicitly retains its historical 50 N / 10 N·m
+  settings solely to reproduce the interface check, not as the S0 decision or
+  Mini45 rating. Single-scene source defaults remain unchanged.
+- Lifecycle: close the parent's child-pipe copy, surface unexpected worker exits,
+  clean up initialized siblings on setup failure, and close all workers even
+  when learner setup/checkpoint loading/finalization fails. Close is idempotent;
+  a worker that ignores close is warned about and terminated/reaped after the
+  existing 30-second grace period, with kill fallback.
+- GPU reset test: its force-limit fault injection still indexed the old shared
+  vector. The backend now stores [world, component] limits; inject into component
+  [0, 0] using that same indexed limit. Physics and assertion tolerances were not
+  changed.
+
+Validation logs are on GPU7 under `runs/codex_review_20261111/`. The first root
+invocation omitted `runs/sac_env.sh` and eight physics tests failed at the missing
+`TORCH_EXTENSIONS_DIR`; that invocation did not reach those physics checks.
+With the environment sourced, 260 passed / 5 skipped and the stale test indexing
+failed. Correcting that indexing made the physical reset/force-stop test pass.
+Final validation, with the documented environment and optional MPPI dependencies:
+root **261 passed / 5 skipped** (186 s); backend **28 passed** (4 s).
+The remaining warnings are from upstream DiSECt's deprecated Python AST API.
+Logs: `root_final.log`, `backend.log`, `reset_limit.log` and `targeted.log`.
+The 5 skipped tests are not counted as passes. Changed-document links and
+`git diff --check` also pass.
+
+The process tests use actual spawned CPU workers for clean exit, abrupt exit and
+stuck-worker cleanup. They also cover partial setup failure and pre-loop learner
+failure; these are implementation checks, not cutting-performance results.
+Evaluation interface matching and policy-independent case sampling remain
+explicitly deferred in PLAN. S0 limits/material ranges and the method objectives
+are not changed by this patch.

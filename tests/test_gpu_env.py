@@ -30,7 +30,7 @@ def test_gpu_task_reset_preserves_other_world_and_observation_state():
     assert torch.isfinite(spec.assemble(continued)).all()
 
     before_stop = {k: v.clone() for k, v in continued.items()}
-    env.physics.feedback['observation_wrench'][0, 0] = env.physics.force_limits[0] + 1
+    env.physics.feedback['observation_wrench'][0, 0] = env.physics.force_limits[0, 0] + 1
     stopped, _, term, _, info = env.step(torch.zeros(2, 6, device='cuda'))
     assert term[0] and info['collision'][0] and not info['collision'][1]
     torch.testing.assert_close(stopped['particle_q'][0], before_stop['particle_q'][0], atol=0, rtol=0)

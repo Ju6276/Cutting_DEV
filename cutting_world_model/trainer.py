@@ -113,6 +113,7 @@ class OnlineLearner:
         wm.enable_compile(self.wcfg.compile)
         self.risk_head = None
         self.risk = None
+        self.risk_members, self.risk_member_opts = [], []
         if risk_constraint is not None:
             from .force_risk import QuantileHead
             unknown = set(risk_constraint) - set(RISK_DEFAULTS)
@@ -124,7 +125,6 @@ class OnlineLearner:
             device = next(wm.parameters()).device
             self.risk_head = QuantileHead(wm.dynamics.mlp.net[-1].in_features).to(device)
             self.risk_opt = torch.optim.Adam(self.risk_head.parameters(), lr=self.risk['head_lr'])
-            self.risk_members, self.risk_member_opts = [], []
             if self.risk['estimator'] == 'ensemble':
                 if int(self.risk['ensemble_size']) < 2:
                     raise ValueError('An ensemble needs at least two members')
@@ -157,7 +157,7 @@ class OnlineLearner:
                                         ('policy', self.popt), ('critic', self.copt))}
 
     def set_lr(self, lr):
-        for optimizer in (self.wopt, self.popt, self.copt):
+        for optimizer in (self.wopt, self.popt, self.copt, *self.risk_member_opts):
             for group in optimizer.param_groups:
                 group['lr'] = lr
 

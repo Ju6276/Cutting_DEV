@@ -1,6 +1,8 @@
 """Torch translations of SliceIt's observation, slicing reward and termination formulas."""
 # Adapted from ur_python_utilities, copyright 2018-2021 Cristian Beltran.
 # MIT license: third_party/sliceit/LICENSE.
+import math
+
 import torch
 
 TASK_INTERFACE_REVISION = "sliceit-177cf21"
@@ -9,6 +11,25 @@ TASK_INTERFACE_REVISION = "sliceit-177cf21"
 FORCE_PENALTIES = ("sliceit", "linear")
 # Environment keys that select the reward; absent keys mean the unchanged SliceIt reward.
 REWARD_KEYS = ("force_penalty", "force_penalty_scale", "w_speed")
+
+
+def validate_force_limits(values, *, required=False):
+    """Validate the six task limits; legacy single-scene callers may omit them."""
+    message = 'force_limits must explicitly contain six finite positive force/torque limits'
+    if values is None:
+        if required:
+            raise ValueError(message)
+        return None
+    try:
+        raw = list(values)
+        if len(raw) != 6 or any(isinstance(v, bool) for v in raw):
+            raise ValueError(message)
+        limits = [float(v) for v in raw]
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError(message) from exc
+    if isinstance(values, (str, bytes)) or not all(math.isfinite(v) and v > 0 for v in limits):
+        raise ValueError(message)
+    return limits
 
 
 def reward_settings(environment):

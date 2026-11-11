@@ -81,3 +81,19 @@ def test_ensemble_upper_bound_reaches_the_policy_and_checkpoints():
     other.restore(learner.checkpoint())
     for a, b in zip(learner.risk_members, other.risk_members):
         assert all(torch.equal(x, y) for x, y in zip(a.state_dict().values(), b.state_dict().values()))
+
+
+def test_ensemble_members_follow_main_wm_learning_rate_schedule():
+    learner, replay = ensemble_learner()
+    # The risk head's separate fitting LR is not the ensemble WM LR.
+    head_lr = learner.risk_opt.param_groups[0]['lr']
+    learner.set_lr(3e-5)
+    for optimizer in (learner.wopt, learner.popt, learner.copt, *learner.risk_member_opts):
+        assert all(group['lr'] == pytest.approx(3e-5) for group in optimizer.param_groups)
+    assert learner.risk_opt.param_groups[0]['lr'] == head_lr
+    saved = learner.checkpoint()
+    other, _ = ensemble_learner()
+    other.restore(saved)
+    other.set_lr(1e-5)
+    assert all(o.param_groups[0]['lr'] == pytest.approx(1e-5)
+               for o in [other.wopt, *other.risk_member_opts])

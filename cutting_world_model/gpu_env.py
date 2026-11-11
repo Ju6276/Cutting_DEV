@@ -3,7 +3,7 @@ import torch
 
 from cutting_gpu_backend.environment import CuttingBatch
 from .kinematics import SerialKinematics, observation_velocity
-from .task_heads import REWARD_KEYS, SliceItHeads, pose_error, TASK_INTERFACE_REVISION
+from .task_heads import REWARD_KEYS, SliceItHeads, pose_error, TASK_INTERFACE_REVISION, validate_force_limits
 
 
 class GPUEnvironment:
@@ -15,13 +15,12 @@ class GPUEnvironment:
         source prism. The scene is not part of the task metadata."""
         # initial_lift (m, per world): knife start height (CuttingBatch). force_limits (6 values)
         # replaces the task's force/torque limits for every world (one hardware limit).
+        force_limits = validate_force_limits(force_limits)
         scene = {} if scene is None else {'scene': scene}
         self.physics = CuttingBatch(backend_root, worlds, reference_trajectory=reference_trajectory,
                                     initial_lift=initial_lift, **scene)
         if force_limits is not None:
-            limits = [float(v) for v in force_limits]
-            if len(limits) != 6 or min(limits) <= 0:
-                raise ValueError('force_limits needs six positive values')
+            limits = force_limits
             self.physics.task = {**self.physics.task, 'controller': {**self.physics.task['controller'],
                                                                      'max_force_torque': limits}}
             self.physics.force_limits = torch.tensor(limits, device=self.physics.device,

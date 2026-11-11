@@ -140,6 +140,15 @@ def run(args, output, status, started):
     else:
         env = GPUEnvironment(args.backend_root, args.worlds, reward=reward)
         task_goal = lambda f: f['target_pose'].float()  # noqa: E731
+    try:
+        return run_with_environment(args, output, status, started, env, conditions, task_goal)
+    finally:
+        if hasattr(env, 'close'):
+            env.close()
+
+
+def run_with_environment(args, output, status, started, env, conditions, task_goal):
+    device = 'cuda:0'
     frame = env.current
     one = {k: v[0].cpu().numpy() for k, v in frame.items()}
     metadata = ControlStateSpec.metadata_from_frame(env.metadata, one)
@@ -378,8 +387,6 @@ def run(args, output, status, started):
     finally:
         errors = finalize_gpu_run(checkpoint, progress, tracker, output, status,
                                   schedule.iteration, learner.updates)
-        if hasattr(env, 'close'):
-            env.close()  # stops object-group processes of the multi-object task
         if errors and error is None:
             raise RuntimeError('Training finalization failed: ' + repr(errors))
 

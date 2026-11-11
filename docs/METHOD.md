@@ -607,7 +607,7 @@ knife publishing, and `cutting/ros_visualizer.py:update_knife_pose` /
 
 `cutting_world_model/multi_env.py`. A JSON config lists object groups (exported
 scene, worlds, start-clearance range, material-scale ranges, target-speed range),
-`w_speed` and optionally one `force_limits` vector for every object. Each group is a
+`w_speed` and a required `force_limits` vector of six finite positive values shared by all objects. Each group is a
 homogeneous `GPUEnvironment`; groups are concatenated along the world dimension.
 Per world (drawn once when the environment is built, not at resets): knife start
 height, set by inverse kinematics
@@ -617,8 +617,12 @@ Per episode at reset: Young's modulus, density and cut-spring stiffness scales
 `[target_pose(7), target_speed]` (`goal_dim` 8): policy and critic receive it, the
 WM dynamics receives the pose only, the reward adds
 `-tanh(|v_down - v*| / v*)` while the cut depth is not reached (`SliceItHeads.speed_reward`).
-No object identity or per-object limit is given to the learner. Groups are stepped
-sequentially (PLAN step 2 parallelizes them). Objects: scanned surfaces
+No object identity or per-object limit is given to the learner. With `parallel: true`,
+one persistent worker process steps each group concurrently; the sequential path
+remains available. Missing/invalid limits fail before scene loading. The smoke config
+explicitly records historical 50 N / 10 N·m values for interface checks only; these
+are not the selected S0 limits. Legacy single-scene callers retain their original
+task defaults. Objects: scanned surfaces
 (`scripts/prepare_food_mesh.py`, fTetWild with a ~1 mm envelope) and DiSECt official
 materials (`scripts/make_food_configs.py`), exported with `export_disect_scene.py`.
 
@@ -644,8 +648,11 @@ Ensemble-risk comparator (`--risk-estimator ensemble`, precedent approach in the
 LAMBDA/CAP): identical penalty, threshold and lambda adaptation, but the upper estimate is
 mean + 2 std of R predicted by the main WM and four further independently initialized
 WMs, each fitted every update with the WM procedure on its own minibatches (the
-setting selected on B1 development data). Only the risk representation differs from
-the proposed head.
+setting selected on B1 development data). All ensemble WM optimizers follow the
+main WM learning-rate schedule, including after checkpoint restore. The quantile
+head retains its separately configured fitting learning rate. Only the risk
+estimator is exchanged in the actor objective; the ensemble adds four WM fits
+and their computation cost must be reported.
 
 Multi-object frozen evaluation: `scripts/evaluate_multi.py --checkpoint ... --conditions
 <eval json> --episodes N` runs the deterministic policy until every world finished N
@@ -653,3 +660,9 @@ episodes and writes one row per episode (object, sampled conditions, ending, ste
 peak material force, peak limit ratio, impulse, released-spring fraction, target-speed
 error while cutting) plus per-object summaries.
 
+Worker lifecycle: the parent closes its copy of the child pipe, reports an
+unexpected worker exit instead of waiting forever for a reply, and closes every
+started group on initialization failure. Training closes groups even when learner
+setup/checkpoint loading or finalization fails. Normal close waits up to 30 s,
+then warns and terminates a stuck worker (with kill fallback). This is process
+cleanup, not a physics timeout or a changed task termination rule.

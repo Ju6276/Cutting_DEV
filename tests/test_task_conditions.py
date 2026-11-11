@@ -1,4 +1,4 @@
-"""Multi-condition task goal: per-object force limits and the target-speed reward."""
+"""Multi-condition task goal: one shared force limit and the target-speed reward."""
 import copy
 
 import numpy as np

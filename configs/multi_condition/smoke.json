@@ -1,5 +1,5 @@
 {
-  "description": "Functional smoke configuration (parallel groups, apple deferred). Not a training distribution.",
+  "description": "Functional smoke configuration only (parallel groups, apple deferred). Explicit legacy limits reproduce the historical interface check; these are NOT the S0 task limits or Mini45 hardware limits.",
   "seed": 0,
   "w_speed": 1.0,
   "groups": [
@@ -61,5 +61,13 @@
       }
     }
   ],
-  "parallel": true
+  "parallel": true,
+  "force_limits": [
+    50.0,
+    50.0,
+    50.0,
+    10.0,
+    10.0,
+    10.0
+  ]
 }
