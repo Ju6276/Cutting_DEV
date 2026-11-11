@@ -36,6 +36,17 @@ def finalize_gpu_run(checkpoint, progress, tracker, output, status, iteration, u
         state=status)
 
 
+def without_substeps(metadata):
+    """Task metadata with the object groups' DiSECt substeps removed: a numerical-stability
+    setting of the material integrator, not a change of the task."""
+    conditions = metadata.get('task_conditions')
+    if conditions is None:
+        return metadata
+    conditions = {k: v for k, v in conditions.items() if k != 'sim_dt_note'}
+    conditions['groups'] = [{k: v for k, v in g.items() if k != 'sim_dt'} for g in conditions['groups']]
+    return {**metadata, 'task_conditions': conditions}
+
+
 def restore_replay(replay, checkpoint_path, saved):
     """Load the replay snapshot written with ``checkpoint_path``. Episodes in progress at the
     checkpoint are closed: the environment restarts every world, so no training window may
@@ -66,6 +77,9 @@ def main():
     parser.add_argument('--max-iterations', type=int)
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--resume', type=Path)
+    parser.add_argument('--allow-substep-change', action='store_true',
+                        help='With --resume: accept task conditions that differ from the checkpoint '
+                             'only in object-group DiSECt substeps (sim_dt); recorded in the manifest')
     parser.add_argument('--resume-without-replay', action='store_true',
                         help='With --resume: start from an empty replay instead of the replay.pt '
                              'snapshot written with the checkpoint')
@@ -200,7 +214,8 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
     schedule = OnlineSchedule(worlds=args.worlds)
     if args.resume:
         saved = torch.load(args.resume, map_location=device, weights_only=False)
-        if without_reward_settings(saved['metadata']) != without_reward_settings(metadata):
+        compare = without_substeps if args.allow_substep_change else (lambda m: m)
+        if compare(without_reward_settings(saved['metadata'])) != compare(without_reward_settings(metadata)):
             raise ValueError('Checkpoint and physical task metadata differ')
         # The critic estimates returns of the reward it was fitted on; a reward change
         # keeps the WM and policy but requires a fresh critic.

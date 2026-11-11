@@ -74,3 +74,14 @@ def test_s0_configs_use_the_stable_potato_substep():
         for group in json.loads(path.read_text())['groups']:
             if 'potato_003' in group['scene']:
                 assert group['sim_dt'] == 8e-6, path.name
+
+
+def test_substep_change_is_the_only_difference_allowed():
+    module = train_gpu()
+    old = {'environment': {}, 'task_conditions': {'groups': [{'name': 'p', 'material': {'density': [.8, 1.25]}}]}}
+    new = {'environment': {}, 'task_conditions': {'sim_dt_note': 'x', 'groups': [
+        {'name': 'p', 'material': {'density': [.8, 1.25]}, 'sim_dt': 8e-6}]}}
+    assert module.without_substeps(old) == module.without_substeps(new)
+    changed = {'environment': {}, 'task_conditions': {'groups': [
+        {'name': 'p', 'material': {'density': [.8, 2.]}, 'sim_dt': 8e-6}]}}
+    assert module.without_substeps(old) != module.without_substeps(changed)
