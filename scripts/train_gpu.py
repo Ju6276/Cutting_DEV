@@ -14,6 +14,7 @@ import torch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from cutting_world_model.online_replay import BatchedOnlineReplay
 from cutting_world_model.online_schedule import OnlineSchedule
+from cutting_world_model.episode_log import ended_metrics, episode_row
 from cutting_world_model.policy import SliceItPolicy, SliceItCritic
 from cutting_world_model.provenance import git_revision
 from cutting_world_model.control_state import ControlStateSpec
@@ -84,6 +85,8 @@ def main():
                         help='target fraction of ended episodes that hit the force limit')
     parser.add_argument('--risk-lambda-init', type=float, default=10.)
     parser.add_argument('--risk-lambda-lr', type=float, default=50.)
+    parser.add_argument('--checkpoint-every', type=int, default=0,
+                        help='also save checkpoint_<iteration>.pt (and the replay) every N iterations; 0: off')
     parser.add_argument('--conditions', type=Path,
                         help='multi-condition task JSON (object groups, materials, start clearance, '
                              'target speeds, w_speed); worlds = sum of group worlds')
@@ -197,6 +200,8 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
     state = spec.pack_batch(frame).float()
     returns = torch.zeros(args.worlds, device=device)
     lengths = torch.zeros(args.worlds, device=device, dtype=torch.long)
+    peak_material = torch.zeros(args.worlds, device=device)
+    peak_ratio = torch.zeros(args.worlds, device=device)
     episodes = torch.zeros_like(lengths)
     revisions = {'world_model': git_revision(Path(__file__).resolve().parents[1]),
                  'backend': git_revision(args.backend_root)}
@@ -288,28 +293,26 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
                 history = torch.cat((history[1:], frame['observation'].float()[None]), 0)
                 returns += reward
                 lengths += 1
+                peak_material = torch.maximum(peak_material, info['peak_force'].float())
+                peak_ratio = torch.maximum(peak_ratio, info['safety_margin'].float())
             ended = terminated | truncated
             risk_window[0] += int((ended & info['collision']).sum())
             risk_window[1] += int(ended.sum())
             metrics = {'iteration': schedule.iteration + 1, 'physics/reward_mean': float(reward.mean())}
-            if ended.any():
-                metrics.update({'episode/return_mean': float(returns[ended].mean()),
-                                'episode/length_mean': float(lengths[ended].float().mean()),
-                                'episode/success_rate': float(info['success'][ended].float().mean()),
-                                'episode/collision_rate': float(info['collision'][ended].float().mean())})
+            metrics.update(ended_metrics(ended, returns, lengths, info, truncated, peak_material, peak_ratio,
+                                         env.groups if conditions is not None else None,
+                                         env.group_index if conditions is not None else None))
             for e in ended.nonzero().flatten().tolist():
-                append_json(output / 'episodes.jsonl', {
-                    'env': e, 'episode': int(episodes[e]), 'iteration': schedule.iteration + 1,
-                    'return': float(returns[e]), 'steps': int(lengths[e]),
-                    'success': bool(info['success'][e]), 'collision': bool(info['collision'][e]),
-                    'truncated': bool(truncated[e]), 'released_springs': int(info['released_springs'][e]),
-                    **({'condition': env.conditions([e])[0]} if conditions is not None else {}),
-                })
+                append_json(output / 'episodes.jsonl', episode_row(
+                    e, int(episodes[e]), schedule.iteration + 1, returns, lengths, info, truncated,
+                    peak_material, peak_ratio, env.conditions([e])[0] if conditions is not None else None))
             schedule.after_environment_step()
             if ended.any():
                 frame = env.reset(ended)
                 state = spec.reset_batch_history(frame, state, ended)
                 history[:, ended] = frame['observation'][ended].float()[None]
+                peak_material[ended] = 0
+                peak_ratio[ended] = 0
                 returns[ended] = 0
                 lengths[ended] = 0
                 episodes[ended] += 1
@@ -370,6 +373,8 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
             tracker.log(metrics)
             append_json(output / 'steps.jsonl', dict(status))
             print(json.dumps(status), flush=True)
+            if args.checkpoint_every and schedule.iteration % args.checkpoint_every == 0:
+                save_requested = True
             if save_requested:
                 checkpoint('checkpoint_%08d.pt' % schedule.iteration)
                 save_requested = False

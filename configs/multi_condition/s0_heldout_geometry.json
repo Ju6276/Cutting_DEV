@@ -1,8 +1,15 @@
 {
   "description": "S0 held-out geometry: cucumber_002, an unseen geometric instance (not an unseen food class), with the training material, start and speed ranges. Held-out conditions change ONE factor at a time.",
   "seed": 104,
-  "status": "DRAFT 2026-11-11: force_limits not set (to come from the Mini45 calibration, its mounting and the experiment requirements). The loader refuses a missing limit, so this config cannot be trained until it is filled in. Material scales are a simulation design range, not a measured calibration.",
-  "force_limits": null,
+  "status": "2026-11-11: simulation setting chosen for this run: component-wise 50 N force and 5 N m torque limits for every object. Not a real-robot safety threshold; the Mini45-based limit is still to be set. Material scales are a simulation design range, not a measured calibration.",
+  "force_limits": [
+    50.0,
+    50.0,
+    50.0,
+    5.0,
+    5.0,
+    5.0
+  ],
   "w_speed": 1.0,
   "parallel": true,
   "groups": [
