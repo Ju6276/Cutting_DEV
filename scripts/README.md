@@ -53,3 +53,10 @@ action-noise protocol and paired analysis. `legacy/build_evidence.py` rebuilds
 the archived 2026-11-10 package using `configs/archive/evidence_20261110.json`.
 These are historical reproduction tools, excluded from the current paper/run
 plan. The nominal recording entry no longer imports their perturbation wrapper.
+
+## Task diagnosis
+
+`diagnose_rollout.py` runs the reference trajectory or a checkpoint's deterministic policy on a
+multi-condition config and records per-step pose errors, released cut springs, limit ratio and
+knife speed, the ending and the workspace dimension crossed. `check_material_stability.py` scans
+material scales per object for nonfinite DiSECt states (optionally with another substep).

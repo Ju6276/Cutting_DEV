@@ -18,6 +18,10 @@ Individual scopes and code pins are indexed in [literature/README](literature/RE
 Code findings below name the inspected functions and link to pinned revisions.
 **C** records source inspection; execution results belong in [RESULTS](RESULTS.md).
 
+> 2026-11-12: the problem statement this review served is retired (PAPER §1). Prior art for the
+> candidate topic is in [literature/force_adaptive_search_20261112](literature/force_adaptive_search_20261112.md).
+> The per-paper evidence below stays valid.
+
 ## 1. SliceIt (ICRA 2024, [2404.02569](https://arxiv.org/abs/2404.02569); code omron-sinicx/sliceit)
 
 - Same setting: UR5e + FDCC, DiSECt + Gazebo, SAC outputs FDCC gains and pose

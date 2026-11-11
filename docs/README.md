@@ -2,8 +2,9 @@
 
 | Document | Role |
 |---|---|
-| [PLAN](PLAN.md) | Sole current plan: fixed decisions, status, next steps |
-| [PAPER](PAPER.md) | Method paper: problem, base method, candidate mechanism, precedents and their limits, experiments, evidence so far |
+| [PLAN](PLAN.md) | Sole current plan: where we are, fixed decisions, task defects, next steps |
+| [PAPER](PAPER.md) | Topic under re-decision: why the old problem statement was retired, candidate topic, prior art, what must be shown |
+| [Literature search 2026-11-12](literature/force_adaptive_search_20261112.md) | Prior art for the candidate topic, searched outside the library (second-hand evidence levels) |
 | [OFFICIAL_SUPERMIMIC](OFFICIAL_SUPERMIMIC.md) | Official SuperMimic (5efbf11) adapted to the cutting prism: component mapping and every deviation |
 | [BENCHMARK](BENCHMARK.md) | Existing task, force/outcome definitions and evaluation commands |
 | [RUNNING](RUNNING.md) | Installation, execution and validation |
@@ -20,6 +21,7 @@ reproduction and targeted analysis.
 
 ## Archive
 
+[PAPER_20261111](archive/PAPER_20261111.md) and [PLAN_20261111](archive/PLAN_20261111.md) (retired problem statement and S3 launch plan),
 [PLAN_20261110](archive/PLAN_20261110.md) (route B screening rules and S0–S4 rationale),
 [Action perturbations](archive/ACTION_PERTURBATIONS.md) and
 [2026-11-10 evidence package](archive/EVIDENCE_20261110.md) preserve the retired

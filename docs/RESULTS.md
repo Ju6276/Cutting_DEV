@@ -2187,3 +2187,65 @@ parameters identical in content to GPU7.
   (checked to belong to that checkpoint and iteration); episodes open at the checkpoint
   are closed so no training window spans the resume. Both arms continue from their own
   latest checkpoint with this code, so they keep identical physics.
+
+## 2026-11-12 — S3 first runs stopped; task-definition diagnosis
+
+Runs (all stopped; training data deleted, see DATA): base (iteration 3819/5000),
+base + quantile risk penalty (2939/5000), official SuperMimic adaptation on the prism
+(3750/3750 completed). Numbers below marked *training* come from training episodes
+with exploration noise; *deterministic* from `diag_rollout` (32 worlds per object,
+`s0_eval_train`, base checkpoint 3500).
+
+**Outcomes under the then-current task definition**
+- Base (*training*, iterations 2500-2790): prism 65% success / 35% force limit;
+  potato_003 25% / 75% workspace; cucumber_003 0% success.
+- Risk arm: worse than base (potato 0% from iteration 2000, prism 7-50%). The dual
+  variable rose 10 -> 4269 because the 2% force-limit target was not reachable; the
+  penalty term (about 26-77 per step against a task reward of about -1.4) dominated
+  the actor objective. Risk head itself: coverage 0.88-0.98, event recall 0.72-0.88.
+- Official SuperMimic adaptation: 25 successes in 170,578 episodes. The cutting step
+  reward is <= 0, so the official soft termination ends negative reward early; an
+  adaptation error, not evidence about the official algorithm.
+
+**Diagnosis (deterministic policy, base checkpoint 3500)**
+
+| Object | Ending by the task definition | Cut springs released >= 95% |
+|---|---|---|
+| prism | 22 goal, 10 force limit | 22/32 |
+| potato_003 | 2 goal, 30 workspace (x) | 32/32 |
+| cucumber_003 | 0 goal, 29 workspace (x), 3 force limit | 30/32 |
+
+- Potato and cucumber are fully cut by control step 10-13. The knife then stays
+  2-10 mm above the goal height with a residual force (13 N potato, 34 N cucumber),
+  never satisfies the 2 mm goal tolerance for 10 steps, drifts in x at a constant
+  rate and leaves the 5 cm workspace limit.
+- Knife speed: 20-27 cm/s peak downward speed against commanded 1-5 cm/s. Prism
+  force-limit endings occur at about 22 cm/s (58 N at step 8). Under the normalised
+  weights the step cost (-0.2) and the +100 goal bonus outweigh the speed term
+  (at most -0.2 per step), so fastest is optimal; x motion has no cost.
+- Reference trajectory on the same conditions: goal in 6/32 prism, 1/32 potato,
+  2/32 cucumber worlds, only where the start lift is about 0: it is a fixed
+  displacement and stops short by the start lift. With lift ~0 the potato reference
+  ends at 1.8 mm from the goal with 14.7 N residual force (inside the tolerance by
+  0.2 mm); cucumber_003 holds 47 N after all 65 springs are released.
+
+**Hold test (reference trajectory, default start, force limit disabled)**
+
+| potato_003 hold | Cut springs | Task ending | Object centroid shift | Peak force |
+|---|---|---|---|---|
+| bottom 6 mm, +-1 cm around the cut plane free (current) | 245/245 | not goal in 120 steps | 0.1 mm | 20.6 N |
+| bottom 6 mm, +-3 cm free | 56/245 | goal | 34.6 mm | 33.3 N |
+| no static vertices | 57/245 | goal | 32.3 mm | 34.0 N |
+
+cucumber_003 current hold: 65/65 cut, not goal, 37.2 N before cut-through
+(the +-3 cm and no-hold variants: see the next entry when measured).
+
+**Conclusions**
+- "Goal = knife at one fixed pose" is wrong in both directions: a fully cut held
+  object is not a success, and an object pushed away uncut is.
+- Unheld objects are pushed away (ground friction 0.2 does not keep them).
+- The earlier "contact-onset force spike" observations were made with policies
+  moving at several times the commanded speed; they do not establish a world-model
+  problem. The earlier cut-force table for cucumber_003 (34-41 N) includes the
+  squeeze of the bottom-held halves.
+- Training code (WM, BPTT, resume, logging) showed no defect in this diagnosis.

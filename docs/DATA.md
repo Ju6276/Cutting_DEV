@@ -76,6 +76,17 @@ scenes and runs `material_sweep_20261110`, `material_sweep_long_20261110`, smoke
 `mc_smoke_*`, `multi_condition_check_20261110`, all their videos, and the copies on
 the Mac.
 
+## 2026-11-12 cleanup
+
+Kept: `runs/task_diagnosis_20261112/` (per-step traces of the deterministic base policy and the
+reference trajectory on `s0_eval_train`; RESULTS 2026-11-12).
+
+Deleted (failed or trained on the defective task definition; conclusions are in RESULTS 2026-11-12):
+A6000 `runs/s3_base_20261111`, `runs/s3_risk_20261111`; GPU7 `runs/official_prism_20261111`
+(including its unsynced offline W&B logs), temporary diagnosis/curve/evaluation folders under
+`/dataHDD/dong/tmp`, and the hold-test scenes `backends/mujoco/runs/sweep/holdtest_*`.
+W&B online runs `0xvf8zj7`, `5r1geoka` and their resumed runs remain on the server side.
+
 ## Data on other servers
 
 **A6000** (`/dataHDD/dong/Projects/Cutting_DEV/runs`, reachable from GPU7 with

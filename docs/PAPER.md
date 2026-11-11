@@ -1,148 +1,78 @@
 # Paper
 
-Method paper for RA-L/ICRA/IROS. Updated 2026-11-11. [PLAN](PLAN.md) is the
-task list; [RESULTS](RESULTS.md) holds measurements; [NOVELTY](NOVELTY.md) and
-the [per-paper notes](literature/README.md) hold the literature evidence;
-[METHOD](METHOD.md) maps the code. The unified simulation platform, the
-multi-condition task and the baselines are the experimental part of this paper,
-not its contribution.
+Updated 2026-11-12. **The topic is being re-decided; nothing in this file is a
+settled claim yet.** [PLAN](PLAN.md) is the task list, [RESULTS](RESULTS.md) the
+measurements, [literature search 2026-11-12](literature/force_adaptive_search_20261112.md)
+and [NOVELTY](NOVELTY.md) the prior-art evidence. The previous version of this file
+(problem: "the world model under-predicts the force spike at contact onset") is
+archived as [PAPER_20261111](archive/PAPER_20261111.md) and is **retired**.
 
-Working title: **Force-Risk-Aware World-Model Policy Learning for Compliant
-Robotic Cutting**.
+## 1. Why the previous problem statement was retired
 
-## 1. Problem
+It was derived from failures observed in our own experiments, not from the task.
+The 2026-11-12 diagnosis (RESULTS) shows those failures are at least partly produced
+by the task definition: with the inherited reward the trained policy drives the
+knife down at 20-27 cm/s against a 1-5 cm/s speed command, and force-limit hits
+happen at that speed. Whether a force-spike problem remains once the task is
+corrected is unknown. A paper cannot rest on it.
 
-A robot cuts deformable food with a Cartesian compliance controller (FDCC). Its
-policy sets compliance gains and reference motion every 50 ms; the episode fails
-if the filtered wrist wrench exceeds the force limit. A learned world model (WM)
-of robot motion and sensor force lets the policy be optimized by backpropagation
-through short imagined rollouts (BPTT) instead of only by trial and error.
+## 2. Candidate topic (proposed 2026-11-12, not decided)
 
-Measured in this project: the WM predicts force well along ordinary cutting
-trajectories, but systematically under-predicts the force spike at contact
-onset, and actions selected inside the model can end by the force limit when
-executed. Whether optimization systematically exploits this error, and whether a
-risk estimate fixes it, is what the main experiment tests.
-- Every WM checkpoint missed 19-23 of 23 recorded force-limit events one step
-  ahead, with 11-20 N under-prediction; on nominal branches the WM's force error
-  averaged +0.08 N (RESULTS 2026-11-08).
-- Planning on the working WM chose actions predicted at 0.71-0.99 of the limit
-  and ended by the force limit at contact onset in 4 of 6 runs; the policy trained
-  through the same WM completed the task (RESULTS 2026-11-09).
-- One training run of the working configuration collapsed for about 300
-  iterations into step-1 force-limit failures (RESULTS 2026-11-09, A pair).
-- Better WM fit did not by itself give better control (A pair; also reported for
-  a visuotactile WM, where WM-RL underperformed IQL).
+**Force-adaptive robotic cutting of unknown objects under one hard force limit.**
+One policy and one force/torque limit for objects of unknown shape and material.
+The policy receives no object identity or material label. It tracks a commanded
+cutting speed when the material allows it and slows down or changes compliance
+from its own force feedback when the force approaches the limit. Exceeding the
+limit is a failure, not a cost.
 
-The question: **how should a world model represent and use force risk so that
-policy improvement inside the model carries over to physical cutting without
-pushing the robot into force-limit failures?**
+The problem follows from the task (unknown material, hard hardware limit, speed
+command), not from an observed failure of a particular model.
 
-## 2. Method
+Candidate method: the working base (history-conditioned world model of robot state
+and sensor wrench including the within-interval peak; policy trained by
+backpropagation through short imagined rollouts with behaviour regularisation)
+with a constraint on the predicted peak force. The force prediction makes the
+speed-force trade-off differentiable.
 
-**Base (implemented; the user's design).** History-conditioned WM of joint state
-and sensor wrench, including the within-control-interval peak; critic fitted on
-physical trajectories (`real` targets); actor updated by BPTT over 8 imagined
-steps with behavior regularization toward recorded actions (BC 0.25).
-Deployment needs only the policy and FDCC. Each design choice is backed by this
-project's ablations: the imagined-target critic had value MAE 153 against physical returns; `real_wm`
-without BC at H8 collapsed; H32 cut slowly; BC-only did not improve over the
-start policy. Code: `cutting_world_model/trainer.py`, `world_model.py`,
-`control_state.py`.
+## 3. Prior art (2026-11-12 search; evidence levels in the search record)
 
-**Adaptive force-risk penalty (implemented; risk estimate screened by B1; effect on
-control not yet measured).** Force risk as an explicit, action- and history-conditioned prediction,
-used as the force-limit constraint inside policy optimization:
-1. Risk target: next-interval sensor-limit utilization
-   R = max over the six components of |peak wrench| / limit (R > 1 is the
-   task's force-limit event).
-2. An upper estimate of R from the WM's features of the causal state and the
-   candidate action, fitted online with the 0.95 pinball loss on recorded
-   transitions. The loss targets a quantile but does not guarantee coverage
-   (B1 measured 0.91 interval coverage on held-out data).
-3. In BPTT, the actor objective adds lambda times the survival-weighted excess of
-   the upper estimate over a threshold (0.9) at every imagined step. lambda is
-   adapted from the physical force-limit episode rate minus a target rate. This is
-   an adaptive penalty, not an exact Lagrangian: the penalized quantity (predicted
-   excess) and the quantity driving lambda (observed episode rate) differ.
-   The same estimate can constrain same-WM MPPI.
+The task framing alone is **not** new:
 
-Every object shares one force limit, and the learner receives no object or
-material information: how hard an object is must be inferred from the force
-history, which is exactly what the risk estimate conditions on. Code:
-`cutting_world_model/trainer.py` (`risk_constraint`), `force_risk.py`.
-
-The mechanism targets the measured failure (one-sided onset under-prediction).
-Comparators in the main experiment: the base without the penalty, the same
-penalty with an ensemble-pessimistic risk estimate (precedent approach), and SAC. Its value has to be shown against the precedents'
-approaches implemented in the same task (section 4), not assumed.
-
-## 3. Prior work and where it stops
-
-Related ideas exist; their settings and results leave the problem open
-(details and read scopes in the per-paper notes):
-
-| Precedent | What it does | Setting and limits relevant here |
+| Precedent | What is already done | What it does not do |
 |---|---|---|
-| Visuotactile WM for lifting (2609.09597) | Peak-force head, one-sided conformal correction, BPTT with BC | Rigid box lifting, partly scripted, 240 offline episodes, simulation only; WM-RL 11.9% vs IQL 25.0%, force-budget violations 58-93%; cause not identified |
-| LAMBDA, SafeDreamer, CAP | Pessimistic/adaptive safety cost in model-based policy learning | Simulated benchmarks with abstract costs (Safety-Gym navigation for LAMBDA/SafeDreamer) and cumulative-cost budgets; no contact force, no terminal force limit |
-| Matschek; Haninger | GP force chance constraints in MPC | Static state-to-force maps; no contact-onset dynamics; no policy learning |
-| Dalal safety layer | Learned linear action sensitivity of a safety signal | Toy point-mass tasks, position constraints, one active constraint; the paper notes impacts and delayed force peaks need more |
-| CaPTURe | Contact-mode-stratified conformal prediction for planning | Rigid known geometry and fixed contact modes, single-step coverage, no forces |
-| Kuo (RA-L 2021) | GP uncertainty shrinks action limits | No force model |
-| SliceIt; DeepMPC; Mitsioni | RL / learned-dynamics MPC for cutting | No force-risk modeling for policy optimization; limit hits avoided by bounds or discarded |
+| Hathaway et al. (T-ASE 2023, IROS 2024, arXiv 2026) | One model-free policy adapts feed rate and stiffness from wrench on materials hidden from the agent; sim-to-real (milling saw) | No hard force limit (quadratic penalty only), no history, no learned model for policy gradients, not knife cutting of deformables |
+| FORGE (2024) | Recurrent policy conditioned on a maximum force, hidden dynamics inferred from force; sim-to-real assembly | Soft penalty: real peak 12.8 N against a 7.5 N threshold; no material removal, no speed command |
+| SRL-VIC (RA-L 2024) | Force threshold ends the episode; safety critic + variable stiffness; sim-to-real | Environment stiffness not varied; model-free |
+| Luo & Yuan robocutting; SliceIt; Liu et al. (RA-L 2025) | Real knife cutting of varied foods with force feedback (RL per food / SAC per material / demonstration primitives) | No single frozen learned policy with a formal force limit across unseen objects |
+| Peng et al. (TNNLS 2022); CaT; LAMBDA; SafeDreamer | Chance-constrained / terminating / Lagrangian safe (model-based) RL | No contact force, no manipulation |
+| Classical adaptive feed control | "Slow the feed when force nears a limit" as a hand-designed governor | Needs tuning per process; no learned adaptation |
 
-None handles force risk at contact onset with changing, irreversibly damaged
-material inside learned-model policy optimization, and the closest attempt did
-not beat a model-free baseline. The paper must show where the precedent
-approaches (ensemble pessimism, global conformal bound) fail in cutting and that
-the proposed mechanism does not.
+Not found in the search (38 queries; "not found", not "does not exist"): knife
+cutting of deformable objects with a hard, episode-ending force limit handled as
+a formal constraint across unknown materials; a wrench-predicting world model used
+for backpropagated policy learning under a peak-force constraint; prediction of the
+within-interval force peak (policy at 20 Hz, sensor faster).
 
-## 4. Experiments
+A reviewer will ask: why not a model-free force-penalty policy (FORGE), a
+terminating safe-RL policy (SRL-VIC/CaT), or a hand-tuned force-feedback speed
+governor? The paper is defensible only as a **method** paper that beats these three
+in the same task, compared on force-limit violations at matched cutting speed.
 
-- **Task setting.** One shared WM, policy and critic over scanned objects with real
-  shapes (OmniObject3D apple, potato, cucumbers; benchmark prism), DiSECt official
-  materials with randomized scales, randomized knife start height and target
-  cutting speed (task input), one task force/torque-limit vector for all objects,
-  selected with the actual external Mini45 calibration, tool mounting and experiment
-  requirements; sensor measurement range is not the task limit. Held-out material
-  scales, start heights and, if available, one object for testing.
-- **Main comparison.** Fresh training under the same physical-interaction budget:
-  working base; base + force-risk penalty; base + ensemble risk; SAC; optionally
-  same-WM MPPI. Main comparators: base, base + ensemble-pessimistic risk
-  (LAMBDA/CAP style, tests whether the new risk representation beats the precedent),
-  SAC (tests learning overall).
-- **Metrics (BENCHMARK).** Completion, force-limit/workspace/time-limit endings,
-  duration, material peak/mean force and impulse, sensor-limit utilization,
-  target-speed tracking error, online computation; per object and for held-out
-  conditions.
-- **Mechanism evidence.** Risk prediction quality at onset (recall/false alarms
-  vs ensemble and global bounds), and whether optimization still selects
-  under-predicted actions.
+## 4. What has to be true for this paper (to be tested, in this order)
 
-## 5. Evidence so far (fixed prism, one seed, development)
+1. The task is well defined for every object (PLAN step 1): success means the object
+   is cut, the reward makes speed tracking under the limit optimal.
+2. The base learns the corrected task on several objects.
+3. The constraint on predicted peak force lowers force-limit violations at matched
+   speed against the three baselines above, on held-out material/geometry/start.
+4. Real-robot validation with the external Mini45 ([REAL2SIM](REAL2SIM.md), draft).
 
-| Controller | Outcome | Steps | Material peak |
-|---|---|---:|---:|
-| policy62 (trained from scratch, source configuration) | 8/8 | 20 | 30.7 N |
-| Working base, continued from policy62 | 8/8 | 19 | 26.1 N |
-| BC-only continuation | 8/8 | 21 | 30.0 N |
-| Unified-environment SAC 85k (one environment, lr 0.01) | 8/8 | 18 | 49.6 N |
-| Same-WM MPPI (working WM), with / without critic | 1/3, 1/3 (others hit the force limit) | 33, 37 | 18.7, 39.7 N |
-| Reference trajectory | success | 40 | 10.0 N |
+## 5. What exists
 
-Risk prediction (B1, fixed prism, historical data; RESULTS 2026-11-10): on 13
-held-out force-limit episodes the 0.95-quantile risk head flagged 13 one step
-ahead, the ensemble (mean + 2 std) 9 and the plain WM 10, with 11/116 false-alarm
-episodes for both head and ensemble. It passed the pre-set rule at its minimum.
-
-These are development results on one fixed task, not the paper's results.
-Action-perturbation evaluations are retired and excluded.
-
-## 6. Open points
-
-- Whether the constraint improves control on the multi-object task (the main
-  experiment, not yet run).
-- The task force/torque-limit vector and the first-run object set (PLAN step 1).
-- Training stability of the base across seeds (one repeat collapsed).
-- Real-robot validation ([REAL2SIM](REAL2SIM.md), draft).
+- Base method, multi-object environment, per-object logging, deterministic
+  evaluation, resume with replay: implemented and tested (METHOD, tests).
+- Risk head + adaptive penalty (`--risk-constraint`) and the official SuperMimic
+  adaptation: implemented; both failed in their first run for identified reasons
+  (RESULTS 2026-11-12). Kept as code; not results.
+- Fixed-prism development results (archived PAPER §5) remain valid for the fixed
+  prism only.
