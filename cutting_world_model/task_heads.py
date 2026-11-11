@@ -134,7 +134,6 @@ class SliceItHeads:
 
     def speed_reward(self, observation, target_speed):
         """-tanh(|v_down - v*| / v*) while the cut target is not reached; 0 afterwards."""
-        dims = len(self.dims)
         depth_error = (observation[..., 1] * self.max_distance[1]).abs()
         cutting = depth_error > self.env["goal_threshold"][1]
         mismatch = (self.cutting_speed(observation) - target_speed).abs() / target_speed

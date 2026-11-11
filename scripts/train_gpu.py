@@ -124,7 +124,6 @@ def run(args, output, status, started):
     from cutting_world_model.gpu_env import GPUEnvironment
     torch.set_num_threads(2)
     torch.manual_seed(args.seed)
-    device = 'cuda:0'
     reward = ({'force_penalty': 'linear', 'force_penalty_scale': args.force_penalty_scale}
               if args.force_penalty == 'linear' else None)
     conditions = None
