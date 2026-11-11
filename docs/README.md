@@ -4,6 +4,7 @@
 |---|---|
 | [PLAN](PLAN.md) | Sole current plan: fixed decisions, status, next steps |
 | [PAPER](PAPER.md) | Method paper: problem, base method, candidate mechanism, precedents and their limits, experiments, evidence so far |
+| [OFFICIAL_SUPERMIMIC](OFFICIAL_SUPERMIMIC.md) | Official SuperMimic (5efbf11) adapted to the cutting prism: component mapping and every deviation |
 | [BENCHMARK](BENCHMARK.md) | Existing task, force/outcome definitions and evaluation commands |
 | [RUNNING](RUNNING.md) | Installation, execution and validation |
 | [DATA](DATA.md) | Server data/checkpoint locations, status and cleanup record |
