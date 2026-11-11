@@ -2249,3 +2249,20 @@ cucumber_003 current hold: 65/65 cut, not goal, 37.2 N before cut-through
   problem. The earlier cut-force table for cucumber_003 (34-41 N) includes the
   squeeze of the bottom-held halves.
 - Training code (WM, BPTT, resume, logging) showed no defect in this diagnosis.
+
+#### 2026-11-12 — hold test, cucumber_003 (same protocol as the potato table above)
+
+| cucumber_003 hold | Cut springs | Task ending | Object centroid shift | Peak force before cut-through |
+|---|---|---|---|---|
+| bottom 6 mm, +-1 cm around the cut plane free (current) | 65/65 | not goal in 120 steps | 0.1 mm | 37.2 N |
+| bottom 6 mm, +-3 cm free | 65/65 | not goal in 120 steps | 0.3 mm | 23.2 N |
+| no static vertices | 65/65 | goal at step 39 | 2-3 mm | 5.6 N |
+
+Most of the force measured on the held cucumber is the squeeze of halves that cannot
+spread: unheld, the same cut needs 5.6 N and the knife reaches the goal. The unheld
+potato is pushed 32 mm and stays uncut (table above). The bottom hold therefore
+changes the measured cutting force by a factor of up to about 7 and is not a neutral
+way to keep objects in place; how objects are constrained has to be decided per object
+geometry (scene preparation, not policy input) before any force limit, success rule
+or reward is fixed. The 2026-11-11 "force needed to cut the held scanned objects"
+table measured this artefact for cucumber_003.

@@ -31,7 +31,7 @@ problem statement), [PLAN_20261110](archive/PLAN_20261110.md).
 | # | Defect | Evidence |
 |---|---|---|
 | 1 | Success = knife at one fixed pose (the prism's board height), not "object cut" | Held potato: 245/245 springs cut, not success. Unheld potato: pushed 32 mm, 57/245 cut, success |
-| 2 | Bottom-held halves cannot spread: residual force after the cut keeps the knife above the goal | 14.7 N (potato), 34-47 N (cucumber_003) after every cut spring is released |
+| 2 | The bottom hold pinches the knife: residual force after the cut, and inflated cutting force | cucumber_003 needs 37 N held but 5.6 N unheld (and then reaches the goal); the unheld potato is pushed 32 mm and stays uncut |
 | 3 | Reward makes "as fast as possible" optimal; lateral drift is free | Policy 20-27 cm/s against a 1-5 cm/s command; prism force-limit hits at that speed; steady x drift to the workspace limit |
 | 4 | The reference trajectory is a fixed displacement | Reaches the goal only when the start lift is ~0 |
 
@@ -40,7 +40,10 @@ problem statement), [PLAN_20261110](archive/PLAN_20261110.md).
 1. **Task definition (needs user approval before coding).** Proposal:
    - Success: released cut-spring fraction >= a threshold (e.g. 0.98) without a
      force-limit event; real-robot equivalent: knife at board height.
-   - Object stays held by its bottom (unheld objects are pushed away).
+   - How each object is constrained, decided from its geometry in scene preparation (not a
+     policy input): the unheld cucumber cuts cleanly, the unheld potato is pushed away, the
+     bottom hold inflates force up to about 7x. This comes first; force limit, success rule
+     and reward depend on it.
    - Reward, identical for every object: progress = released fraction; speed tracking
      as the main shaped term; no step cost that rewards speed; lateral-drift penalty;
      force-limit event = failure.
