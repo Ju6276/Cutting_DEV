@@ -2140,3 +2140,31 @@ failure; these are implementation checks, not cutting-performance results.
 Evaluation interface matching and policy-independent case sampling remain
 explicitly deferred in PLAN. S0 limits/material ranges and the method objectives
 are not changed by this patch.
+
+## 2026-11-11 — S3 first two arms launched (multi-object, from scratch)
+
+Run record. Code `a28898e` (A6000 checkout synced from GPU7 by git bundle; clean);
+config `configs/multi_condition/s0_train.json` (sha256 `ab375876d371722a…`); backend
+scenes copied from GPU7 with identical checksums (prism `1bc719ce…`, potato_003
+`b9c0cbe9…`, cucumber_003 `f619a823…`); A6000 robot model `robot.mjb` and controller
+parameters identical in content to GPU7.
+
+- Task: prism, potato_003, cucumber_003, 256 worlds each (768); per episode Young's
+  modulus and cut-spring stiffness ×0.5–2, density ×0.8–1.25, target speed 1–5 cm/s;
+  per world knife start 0.5–3 cm above the object; objects held by their bottom 6 mm.
+  Force limits `[50, 50, 50 N, 5, 5, 5 N·m]` for every object — a simulation setting
+  chosen for this run, not a real-robot safety threshold. `w_speed` 1.0.
+- Initialization: fresh weights, seed 0, 500 WM-only updates, then joint training;
+  critic `real`, actor horizon 8, BC 0.25, microbatch 64, critic microbatch 8192.
+- Budget (both arms): 5000 iterations × 768 worlds = 3.84 M physical transitions
+  (`--max-iterations 5000`, 48 h wall cap). Checkpoints every 250 iterations plus the
+  stage checkpoints; replay snapshot with each checkpoint.
+- Arms: `runs/s3_base_20261111` (GPU1, W&B `0xvf8zj7`); `runs/s3_risk_20261111`
+  (GPU0, `--risk-constraint --risk-estimator quantile`, W&B `5r1geoka`). Only the risk
+  switch differs. SAC and the ensemble comparator are not started.
+- Throughput at start: ~15 s physics per iteration (three groups share one GPU at 100%
+  utilization), i.e. roughly a day per arm.
+- Logged: per-episode rows (object, sampled conditions, ending, return, steps, peak
+  material force, peak limit ratio, released springs) in `episodes.jsonl`; per-object
+  success/force-limit/workspace/time-limit rates, returns and peaks, WM/critic/policy
+  metrics in W&B and `updates.jsonl`.

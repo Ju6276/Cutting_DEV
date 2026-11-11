@@ -39,7 +39,7 @@ The previous long plan (route B screening rules, S0–S4 rationale) is archived 
 | Ensemble-risk comparator | Done (`--risk-estimator ensemble`) |
 | Multi-object evaluation | `scripts/evaluate_multi.py`: loads and runs (functional run 2026-11-11); per-episode rows not yet exercised |
 | Missing before S3 | Task force limit (Mini45 details pending); SAC on the multi-object task (deferred, not started) |
-| Main experiment (S3) | Not started |
+| Main experiment (S3) | Running since 2026-11-11: base and base + quantile risk penalty (RESULTS run record); SAC and ensemble comparator not started |
 
 ## Next steps, in order
 
