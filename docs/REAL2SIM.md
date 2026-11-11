@@ -12,9 +12,9 @@ measured, not assumed. Nothing here runs before the open items are settled.
 |---|---|
 | UR5e | Available; same arm model as the simulation. Primary platform. |
 | Diana7 | Available; not used in the first pass (see "Later"). |
-| ATI Mini45 | Available. **Open:** calibration (SI-145-5: ±145 N Fx/Fy, ±290 N Fz, 1/16 N resolution; SI-290-10: ±290/580 N, 1/8 N), interface (Net F/T or DAQ), ROS version. Either range covers the 50 N task force limit. |
+| ATI Mini45 | Available. **Open:** calibration (SI-145-5: ±145 N Fx/Fy, ±290 N Fz, 1/16 N resolution; SI-290-10: ±290/580 N, 1/8 N), interface (Net F/T or DAQ), ROS version. The task force limit is not the inherited 50 N; it is set from this sensor's calibration, its mounting (axes, distance to the blade) and the experiment requirements (PLAN). |
 | Knife and mount | **Open:** CAD or measured geometry and mass, to replace the simulated knife frame and tool payload. |
-| Object placement | The benchmark keeps a free bottom (PLAN, "Decisions in force"): specimens rest on the board without clamping. **Open:** board material and friction, and a lateral stop if specimens slide. |
+| Object placement | The multi-object task holds each object by its bottom 6 mm except near the cut plane (scanned round objects slid away otherwise; RESULTS 2026-11-11); the benchmark prism has a static bottom layer. **Open:** the real holding method (fixture, stop or board friction) that matches this. |
 | Foods / specimens | **Open:** proposal below. |
 
 ## Steps (one change each)

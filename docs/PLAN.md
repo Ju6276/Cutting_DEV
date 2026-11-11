@@ -38,38 +38,31 @@ The previous long plan (route B screening rules, S0–S4 rationale) is archived 
 | Parallel object groups | Done: one process per group, 2.5× faster than sequential, consistent within the simulator's run-to-run variation |
 | Ensemble-risk comparator | Done (`--risk-estimator ensemble`) |
 | Multi-object evaluation | `scripts/evaluate_multi.py`: loads and runs (functional run 2026-11-11); per-episode rows not yet exercised |
-| Missing before S3 | SAC on the multi-object task (training is still single-environment; only SAC evaluation is batched); task force limit value |
+| Missing before S3 | Task force limit (Mini45 details pending); SAC on the multi-object task (deferred, not started) |
 | Main experiment (S3) | Not started |
 
 ## Next steps, in order
 
-1. **First-run task specification (S0) — proposal, to decide.**
-   - Force limit: one shared six-component task setting, not yet chosen (see above).
-     Do not raise it just to admit an object. Apple remains deferred: its old,
-     unheld straight-press measurements do not establish its required cutting
-     force; held/sawing measurements would be separate future work.
-   - Training objects: benchmark prism, potato_003, cucumber_003 (all cut through when
-     held, RESULTS 2026-11-11). Held-out object: cucumber_002 (unseen instance/geometry,
-     not an unseen food class). Apple: deferred unless the limit and a sawing cut admit it.
+1. **First-run task specification (S0) — decided except the force limit (2026-11-11).**
+   Configs (drafts until the limit is filled in; the loader refuses a missing limit):
+   `configs/multi_condition/s0_train.json` and held-out `s0_heldout_material_low.json`,
+   `s0_heldout_material_high.json`, `s0_heldout_start.json`, `s0_heldout_geometry.json`.
+   - Training objects: benchmark prism, potato_003, cucumber_003; apple deferred.
    - Per episode: Young's modulus and cut-spring stiffness ×0.5–2, density ×0.8–1.25
-     (log-uniform); target speed 1–5 cm/s (the measured range). Per world: knife start
-     0.5–3 cm above the object.
-   - Held-out conditions: material scales ×0.35 and ×3, start 3–4 cm, cucumber_002.
-   - Scale: 256 worlds per object (A6000); the same physical-interaction budget for
-     every method (~2–2.5 M transitions, as in the from-scratch source chain).
-   - Report goal completion and physical separation separately (released-spring
-     fraction is only a proxy).
-2. **Code repair for review (user scope, 2026-11-11).** Implemented: ensemble WM
-   learning-rate scheduling, explicit valid multi-object force limits, and worker
-   lifecycle handling. Validation and patch details are in RESULTS. Claude reviews
-   this patch before the next experimental step.
-   No new policy training, evaluation experiment or SAC parallel implementation
-   in this step.
-   **Deferred:** multi-object SAC training and expanded frozen evaluation. Before
-   formal comparison, evaluation must check the checkpoint/task interface and use
-   case-indexed condition sampling for paired cases (the current shared reset RNG
-   is not a paired-case guarantee). Complete-episode evaluation remains untested.
-   SAC collection/update scheduling will be specified when that work resumes.
+     (log-uniform; a simulation design range, not a measured calibration); target speed
+     1–5 cm/s. Per world: knife start 0.5–3 cm above the object. 256 worlds per object.
+   - Held-out, one factor at a time: material ×0.35 and ×3; start 3–4 cm; cucumber_002
+     (an unseen geometric instance, not an unseen food class).
+   - Force limit: not set. Needed first: the Mini45 model and calibration (or file), its
+     mounting position and axis directions, and the sensor-to-blade distance; the stop
+     threshold then follows from these and the experiment requirements, not from the
+     measured cutting forces plus a margin. The 50 N / 10 N·m values remain only for
+     historical interface checks (`smoke.json`).
+   - Report goal completion and physical separation separately.
+2. **Later, not started automatically:** SAC on the multi-object task (keep SliceIt's tf2rl
+   SAC, parallel collection, one update per collected transition) and the S3 launch,
+   after the force limit is set. Done: parallel object groups, ensemble-risk comparator,
+   multi-object evaluation script.
 3. **S3 training (A6000).** Fresh weights, same distribution, same physical
    interaction budget: base, base + risk penalty, base + ensemble risk, SAC.
 4. **S4 evaluation and writing.** Frozen policies on the held-out conditions:
