@@ -39,7 +39,8 @@
           0.5,
           2.0
         ]
-      }
+      },
+      "sim_dt": 8e-06
     },
     {
       "name": "cucumber",
@@ -69,5 +70,6 @@
     10.0,
     10.0,
     10.0
-  ]
+  ],
+  "sim_dt_note": "2026-11-11: potato_003 uses DiSECt substep 8e-6 s (scenes default 1e-5 s). At 1e-5 s its mesh is unstable from step 1 at Young x2 / density x0.8 (inside the S0 range); at 8e-6 s it is stable up to Young x3 / density x0.8 with the same reference-cut peak forces (within 0.1 N). See RESULTS.md."
 }

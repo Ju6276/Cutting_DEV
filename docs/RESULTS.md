@@ -2168,3 +2168,22 @@ parameters identical in content to GPU7.
   material force, peak limit ratio, released springs) in `episodes.jsonl`; per-object
   success/force-limit/workspace/time-limit rates, returns and peaks, WM/critic/policy
   metrics in W&B and `updates.jsonl`.
+
+#### 2026-11-11 — base arm stopped at iteration 1474: potato_003 material instability
+
+- Failure: `FloatingPointError: Nonfinite DiSECt material state` in the potato_003 group
+  process (iteration 1474, joint stage, 74 policy updates). Not a learning failure.
+- Cause (measured): with the exported substep 1e-5 s, the potato_003 mesh diverges at the
+  first step with the knife at rest at Young ×2 / density ×0.8 (inside the S0 range), for
+  every cut-spring scale. Prism and cucumber_003 are stable on the full grid
+  (Young ×1–2, density ×0.8–1.25, cut springs ×0.5–2; rest plus reference cut). The
+  explicit step limit scales with √(mass/stiffness); log-uniform sampling reaches this
+  corner rarely, so the run met it only after ~2500 episodes.
+- Fix: per-group DiSECt substep (`sim_dt` in the object group config); potato_003 uses
+  8e-6 s in every S0 config. At 8e-6 s it is stable up to Young ×3 / density ×0.8, and
+  reference-cut peak forces equal the 1e-5 s values within 0.1 N where both are stable.
+  Force limits, success criteria and material ranges are unchanged.
+- Resume: `--resume` now also restores the replay snapshot written with the checkpoint
+  (checked to belong to that checkpoint and iteration); episodes open at the checkpoint
+  are closed so no training window spans the resume. Both arms continue from their own
+  latest checkpoint with this code, so they keep identical physics.

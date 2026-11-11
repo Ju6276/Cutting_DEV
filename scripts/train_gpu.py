@@ -36,6 +36,23 @@ def finalize_gpu_run(checkpoint, progress, tracker, output, status, iteration, u
         state=status)
 
 
+def restore_replay(replay, checkpoint_path, saved):
+    """Load the replay snapshot written with ``checkpoint_path``. Episodes in progress at the
+    checkpoint are closed: the environment restarts every world, so no training window may
+    join a pre-resume step to a post-resume step."""
+    path = Path(checkpoint_path).parent / 'replay.pt'
+    if not path.exists():
+        raise FileNotFoundError(f'{path} missing; use --resume-without-replay to start empty')
+    snapshot = torch.load(path, map_location='cpu', weights_only=False)
+    if snapshot.get('checkpoint') != Path(checkpoint_path).name or snapshot.get('iteration') != saved['iteration']:
+        raise ValueError(f"{path} belongs to {snapshot.get('checkpoint')} at iteration "
+                         f"{snapshot.get('iteration')}, not {Path(checkpoint_path).name} at {saved['iteration']}")
+    replay.load_state_dict(snapshot)
+    replay.buffer.end_episode(replay.ids)
+    replay.frame.zero_()
+    replay.episode += 1
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--backend-root', type=Path,
@@ -49,6 +66,9 @@ def main():
     parser.add_argument('--max-iterations', type=int)
     parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--resume', type=Path)
+    parser.add_argument('--resume-without-replay', action='store_true',
+                        help='With --resume: start from an empty replay instead of the replay.pt '
+                             'snapshot written with the checkpoint')
     parser.add_argument('--wandb-project', default='sliceit-supermimic')
     parser.add_argument('--wandb-entity')
     parser.add_argument('--wandb-mode', choices=('online', 'offline', 'disabled'), default='online')
@@ -196,6 +216,8 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
         torch.cuda.set_rng_state(saved['cuda_rng'].cpu())
     replay = BatchedOnlineReplay(args.worlds, spec.state_dim, device,
                                  capacity=schedule.replay_capacity, goal_dim=goal_dim)
+    if args.resume and not args.resume_without_replay:
+        restore_replay(replay, args.resume, saved)
     history = frame['observation'].float()[None].repeat(policy.history, 1, 1)
     state = spec.pack_batch(frame).float()
     returns = torch.zeros(args.worlds, device=device)

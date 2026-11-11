@@ -12,7 +12,9 @@ from .controller.fdcc import quat_mul
 
 
 class DiSECt:
-    def __init__(self, scene_path):
+    def __init__(self, scene_path, sim_dt=None):
+        """``sim_dt`` (s) overrides the scene's material substep, e.g. a smaller step for a
+        mesh whose explicit-integration stability margin is too small for its material range."""
         sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'third_party/disect'))
         import disect.dflex as df
 
@@ -25,7 +27,9 @@ class DiSECt:
         self.angular_velocity = scene['angular_velocity'].clone()
         self.reference_linear_velocity = self.linear_velocity.clone()
         self.reference_duration = scene['settings']['sim_duration']
-        self.dt = scene['settings']['sim_dt']
+        self.dt = scene['settings']['sim_dt'] if sim_dt is None else float(sim_dt)
+        if not self.dt > 0:
+            raise ValueError('sim_dt must be positive')
         self.spine_height = scene['spine_height']
         self.integrator = df.SemiImplicitIntegrator()
         self.steps = 0

@@ -69,10 +69,10 @@ MATERIAL_SCALES = {
 
 
 class BatchedDiSECt(DiSECt):
-    def __init__(self, scene_path, worlds):
+    def __init__(self, scene_path, worlds, sim_dt=None):
         if worlds < 1:
             raise ValueError('worlds must be positive')
-        super().__init__(scene_path)
+        super().__init__(scene_path, sim_dt=sim_dt)
         self.worlds = worlds
         self.particles = self.model.particle_count
         self.springs = self.model.cut_spring_count

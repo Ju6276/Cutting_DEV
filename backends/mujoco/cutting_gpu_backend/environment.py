@@ -20,10 +20,10 @@ from .robot import Robot
 class CuttingBatch:
     @torch.no_grad()
     def __init__(self, root, worlds=1, scene='runs/disect_source_v4/scene.pt', reference_trajectory=None,
-                 initial_lift=None):
+                 initial_lift=None, sim_dt=None):
         """``initial_lift`` (m, per world): start the knife this far above the captured start
         along DiSECt +y (vertical), same orientation, by inverse kinematics before the reset
-        state is settled and saved."""
+        state is settled and saved. ``sim_dt`` (s): DiSECt material substep, None keeps the scene's."""
         root = Path(root)
         self.worlds = worlds
         self.scene = scene
@@ -34,7 +34,7 @@ class CuttingBatch:
         self.task = json.loads((root / 'runs/source/task.json').read_text())
         episode = np.load(root / 'runs/source/episode_000.npz')
         task = self.task
-        self.material = BatchedDiSECt(root / scene, worlds)
+        self.material = BatchedDiSECt(root / scene, worlds, sim_dt=sim_dt)
         self.robot = Robot(root / 'runs/model_coupled/robot.mjb', episode['joint_q'][0], episode['joint_qd'][0], worlds)
         self.config = ControllerConfig.from_parameters(json.loads((root / 'runs/controller_source/controller_params.json').read_text()))
         self.chain = SerialChain(task['robot_xml'], task['robot_base'], task['robot_tip'], task['joint_names']).to(self.device, self.dtype)

@@ -35,6 +35,7 @@ class ObjectGroup:
     clearance: tuple = (.005, .03)  # knife edge above the object top (m), per world
     material: dict = field(default_factory=lambda: {k: (1., 1.) for k in MATERIAL_KEYS})
     target_speed: tuple = (.035, .065)  # m/s, per episode
+    sim_dt: float = None            # DiSECt material substep (s); None keeps the scene's
 
 
 def knife_clearance(backend_root, scene):
@@ -60,9 +61,9 @@ def _fixed(frame):
 class LocalGroup:
     """One object group simulated in this process."""
 
-    def __init__(self, backend_root, scene, worlds, lift, reward, force_limits):
+    def __init__(self, backend_root, scene, worlds, lift, reward, force_limits, sim_dt=None):
         self.env = GPUEnvironment(backend_root, worlds, reward=reward, scene=scene,
-                                  initial_lift=lift, force_limits=force_limits)
+                                  initial_lift=lift, force_limits=force_limits, sim_dt=sim_dt)
         self.env.target_speed = torch.zeros(worlds, device=self.env.device)
         self.metadata = self.env.metadata
         self.springs = torch.full((worlds, 1), float(self.env.current['cut_spring_ke'].shape[-1]),
@@ -130,12 +131,12 @@ class ProcessGroup:
     Commands are sent to every group before any result is awaited, so groups step
     concurrently; tensors cross the process boundary on the CPU."""
 
-    def __init__(self, backend_root, scene, worlds, lift, reward, force_limits):
+    def __init__(self, backend_root, scene, worlds, lift, reward, force_limits, sim_dt=None):
         import torch.multiprocessing as mp
         context = mp.get_context('spawn')
         self.connection, child = context.Pipe()
         self.process = context.Process(target=_group_worker, daemon=True, args=(
-            child, (str(backend_root), scene, worlds, lift.cpu(), reward, force_limits)))
+            child, (str(backend_root), scene, worlds, lift.cpu(), reward, force_limits, sim_dt)))
         self._closed = False
         try:
             self.process.start()
@@ -221,7 +222,8 @@ class MultiConditionEnvironment:
                         raise ValueError(f'{group.name}: bad material range {key}={low, high}')
                 lift = self._uniform(group.clearance, group.worlds) - knife_clearance(backend_root, group.scene)
                 maker = ProcessGroup if parallel else LocalGroup
-                self.members.append(maker(backend_root, group.scene, group.worlds, lift, reward, force_limits))
+                self.members.append(maker(backend_root, group.scene, group.worlds, lift, reward, force_limits,
+                                          group.sim_dt))
                 self.lift.append(lift)
                 self.slices.append(slice(start, start + group.worlds))
                 start += group.worlds
@@ -283,7 +285,8 @@ class MultiConditionEnvironment:
         groups = [ObjectGroup(name=g['name'], scene=g['scene'], worlds=int(g['worlds']),
                               clearance=tuple(g.get('clearance', (.005, .03))),
                               material={k: tuple(v) for k, v in g.get('material', {}).items()},
-                              target_speed=tuple(g.get('target_speed', (.035, .065))))
+                              target_speed=tuple(g.get('target_speed', (.035, .065))),
+                              sim_dt=None if g.get('sim_dt') is None else float(g['sim_dt']))
                   for g in config['groups']]
         return cls(backend_root, groups, reward=reward, seed=int(config.get('seed', 0)),
                    force_limits=config.get('force_limits'), parallel=bool(config.get('parallel', False)))

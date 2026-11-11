@@ -82,3 +82,13 @@ def test_material_scales_match_independent_scaled_worlds():
         batch.set_material_scales(every, poisson=1.)
     with pytest.raises(ValueError, match='positive'):
         batch.set_material_scales(every, density=0.)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason='CUDA material integration')
+def test_substep_override():
+    scene = Path('runs/disect_contact/scene.pt')
+    default = BatchedDiSECt(scene, 1)
+    finer = BatchedDiSECt(scene, 1, sim_dt=default.dt * .8)
+    assert finer.dt == pytest.approx(default.dt * .8)
+    with pytest.raises(ValueError):
+        DiSECt(scene, sim_dt=0.)
