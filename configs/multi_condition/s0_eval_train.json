@@ -1,0 +1,98 @@
+{
+  "description": "S0 in-distribution evaluation: the training objects and ranges with a different seed (new draws inside the training ranges), 32 worlds per object.",
+  "seed": 100,
+  "status": "2026-11-11: simulation setting chosen for this run: component-wise 50 N force and 5 N m torque limits for every object. Not a real-robot safety threshold; the Mini45-based limit is still to be set. Material scales are a simulation design range, not a measured calibration.",
+  "force_limits": [
+    50.0,
+    50.0,
+    50.0,
+    5.0,
+    5.0,
+    5.0
+  ],
+  "w_speed": 1.0,
+  "parallel": true,
+  "groups": [
+    {
+      "name": "prism",
+      "scene": "runs/disect_source_v4_fixed_bottom/scene.pt",
+      "worlds": 32,
+      "clearance": [
+        0.005,
+        0.03
+      ],
+      "material": {
+        "youngs_modulus": [
+          0.5,
+          2.0
+        ],
+        "density": [
+          0.8,
+          1.25
+        ],
+        "cut_spring_stiffness": [
+          0.5,
+          2.0
+        ]
+      },
+      "target_speed": [
+        0.01,
+        0.05
+      ]
+    },
+    {
+      "name": "potato_003",
+      "scene": "runs/sweep/food_potato_003/scene.pt",
+      "worlds": 32,
+      "clearance": [
+        0.005,
+        0.03
+      ],
+      "material": {
+        "youngs_modulus": [
+          0.5,
+          2.0
+        ],
+        "density": [
+          0.8,
+          1.25
+        ],
+        "cut_spring_stiffness": [
+          0.5,
+          2.0
+        ]
+      },
+      "target_speed": [
+        0.01,
+        0.05
+      ]
+    },
+    {
+      "name": "cucumber_003",
+      "scene": "runs/sweep/food_cucumber_003/scene.pt",
+      "worlds": 32,
+      "clearance": [
+        0.005,
+        0.03
+      ],
+      "material": {
+        "youngs_modulus": [
+          0.5,
+          2.0
+        ],
+        "density": [
+          0.8,
+          1.25
+        ],
+        "cut_spring_stiffness": [
+          0.5,
+          2.0
+        ]
+      },
+      "target_speed": [
+        0.01,
+        0.05
+      ]
+    }
+  ]
+}
