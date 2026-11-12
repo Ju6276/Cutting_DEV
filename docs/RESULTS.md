@@ -509,3 +509,47 @@ material parameter, reward or task threshold was changed in this re-review.
 Review handoff: [CONTACT_FIX_REVIEW](CONTACT_FIX_REVIEW.md), including derivation,
 evidence, scope boundaries and the test change requiring explicit review.
 No training restarted; Claude's untracked recording script was left untouched.
+
+## 2026-11-12 — Press vs sawing on three objects (net feedback), and Claude's check of the contact repairs
+
+**Measurement** (`runs/task_diagnosis_20261112/sawing_net/{prism_cucumber,potato}/report.json`;
+`measure_sawing.py` at `9b6357a`, i.e. **before** the contact-timing and edge-coordinate repairs
+of `38b85a5`/`4b229df`; Codex's prism rerun above changed mean net force by under 0.6 %).
+Reference trajectory, 3 cm/s downward, bottom-held scenes, net feedback, friction transition
+0.01 m/s (DiSECt paper default, not calibrated), force limit disabled. Values are end-of-control-step
+samples of the net contact force between first contact and 98 % spring release (a diagnostic
+window, not an approved completion rule). Young scale 1 unless noted.
+
+| Object | Motion | Vertical mean / peak (N) | Along blade mean (N) | Net norm mean / peak (N) | Peak sensor torque (N·m) |
+|---|---|---|---|---|---|
+| prism | press | 3.10 / 5.61 | 0.03 | 3.10 / 5.61 | 0.74 |
+| prism | saw 2 cm, 1 Hz | 1.41 / 3.63 | 2.14 | 2.70 / 4.64 | 0.86 |
+| prism | saw 2 cm, 2 Hz | 0.97 / 2.97 | 2.41 | 2.64 / 4.70 | 1.09 |
+| potato_003 (8e-6 s) | press | 5.81 / 11.74 | 0.05 | 5.90 / 11.97 | 1.54 |
+| potato_003 | saw 2 cm, 1 Hz | 2.50 / 7.48 | 3.95 | 5.08 / 11.70 | 2.27 |
+| potato_003 | saw 2 cm, 2 Hz | 1.58 / 4.94 | 4.41 | 4.84 / 11.33 | 2.07 |
+| cucumber_003 | press | 11.09 / 23.41 | 0.17 | 11.10 / 23.45 | 3.20 |
+| cucumber_003 | saw 2 cm, 1 Hz | 4.31 / 14.14 | 7.21 | 8.87 / 21.72 | 2.80 |
+| cucumber_003, Young x2 | press | 17.04 / 30.68 | 0.86 | 17.10 / 30.72 | 4.33 |
+| cucumber_003, Young x2 | saw 2 cm, 1 Hz | 6.50 / 19.87 | 11.73 | 14.05 / 33.57 | 4.07 |
+
+- Sawing lowers the vertical component (mean -55 to -73 %, peak -35 to -58 % at Young x1) and
+  moves force into the blade direction. The norm of the net force falls much less (mean -13 to
+  -20 %, peak 0 to -17 %) and rises for the stiff cucumber (peak 30.7 -> 33.6 N).
+- DiSECt's real-robot result is a reduction of the force **norm** (mean above 40 %). This model
+  reproduces friction redirection only; the fracture-side effect of slicing is not in DiSECt's
+  damage law. Which quantity a force limit applies to (per component vs norm) therefore decides
+  whether sawing helps in this simulation.
+- potato_003 at Young x2 released 239-240 of 245 springs in every motion (below the 98 % window).
+- Illustration: `runs/videos_sawing_20261112/prism_press_vs_saw.mp4` (`record_reference_cut.py`;
+  its force trace is the norm of the net force).
+
+**Check of `38b85a5` and `4b229df`** (read against the kernel source, no new runs):
+`edge_knife_sdf(u, a, b)` evaluates `a*u + b*(1-u)` and the search calls it with `(u, xj, xi)`, so
+the search point is `(1-u)*xi + u*xj`; upstream stored `1-u`, and the consumers interpolated
+position and velocity with `(1-c, c)` (the mirrored point) while scattering force with `(c, 1-c)`
+(the search point). Storing `u` and using `(1-c, c)` everywhere is consistent. The contact points
+of `knife_wrench()` at `9b6357a` used the mirrored coordinate and post-integration positions; both
+are corrected. `rigid_wrench_transform` was not changed by the repair. Agreed with the review
+handoff's open item: the replaced 4 ms per-spring equality test reduces long-horizon coverage and
+its trigger is unexplained.

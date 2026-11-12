@@ -70,3 +70,6 @@ used component-peak envelopes and are historical. Results depend on the feedback
 mode, friction setting and contact revision recorded in each report. The 98%
 spring-release marker is a diagnostic, not approved task completion; these samples
 do not resolve every material-substep peak.
+
+`record_reference_cut.py` records the geometry of a prescribed press or press-plus-sawing cut
+(no policy, force limit disabled) in the format `render_episode.py` reads; illustration only.
