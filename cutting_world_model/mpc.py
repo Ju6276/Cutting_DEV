@@ -49,7 +49,7 @@ class ModelRollout:
         self.wm = wm
         self.spec = wm.spec
         task = getattr(self.spec, 'metadata', {}).get('free_cut_task', {})
-        if task.get('version') == 'free_cut_v2' and discount != task['gamma']:
+        if task.get('version') in ('free_cut_v2', 'free_cut_v3') and discount != task['gamma']:
             raise ValueError('MPPI discount must match the free-cut task gamma')
         self.discount = discount
         self.goal = None

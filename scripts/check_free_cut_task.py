@@ -25,10 +25,10 @@ def main():
     parser.add_argument('--config', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--wall-seconds', type=float, default=1200.)
-    parser.add_argument('--cases', nargs='+', default=['press', 'saw', 'fast', 'stall', 'retract', 'slow', 'force_attempt', 'slow_press', 'hold_in_material'])
+    parser.add_argument('--cases', nargs='+', default=['press', 'saw', 'fast', 'stall', 'retract', 'slow', 'extreme_fast', 'slow_press', 'hold_in_material'])
     args = parser.parse_args()
     cfg = json.loads(args.config.read_text())
-    if cfg['task'].get('version') == 'free_cut_v2' and cfg['gamma'] != cfg['task']['gamma']:
+    if cfg['task'].get('version') in ('free_cut_v2', 'free_cut_v3') and cfg['gamma'] != cfg['task']['gamma']:
         raise ValueError('Evaluation discount must equal task discount')
     if args.output.exists():
         raise ValueError('Use a new output directory')
@@ -61,7 +61,7 @@ def main():
     frame = env.settle(cfg['settle_seconds'])
 
     for case in args.cases:
-        if case not in ('press', 'saw', 'fast', 'stall', 'retract', 'slow', 'force_attempt', 'slow_press', 'hold_in_material'):
+        if case not in ('press', 'saw', 'fast', 'stall', 'retract', 'slow', 'extreme_fast', 'force_attempt', 'slow_press', 'hold_in_material'):
             raise ValueError('Unknown reference case: ' + case)
         if time.monotonic() - start >= args.wall_seconds:
             report['incomplete'].append(case)
@@ -70,8 +70,8 @@ def main():
         dt = env.environment['agent_control_dt']
         distance = float((frame['observation'][0, 1] * env.heads.max_distance[1]).abs())
         nominal_distance = distance
-        speed = cfg['target_speed'] * (3 if case == 'fast' else 20 if case == 'force_attempt' else .25 if case == 'slow' else 1)
-        if case in ('force_attempt', 'slow_press'):
+        speed = cfg['target_speed'] * (3 if case == 'fast' else 20 if case in ('force_attempt', 'extreme_fast') else .25 if case == 'slow' else 1)
+        if case in ('force_attempt', 'extreme_fast', 'slow_press'):
             distance *= 2  # Continue pressing; workspace/force events still take precedence.
         horizon = cfg['task']['horizon_steps']
         times, velocities = [0.], []

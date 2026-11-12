@@ -1,4 +1,4 @@
-"""Compact WM state for free_cut_v1; v2 includes remaining time in policy observations."""
+"""Compact WM state for free_cut_v1; v2/v3 include time in policy observations."""
 import torch
 
 from .control_state import ControlStateSpec
@@ -53,7 +53,7 @@ class FreeCutStateSpec(ControlStateSpec):
 
     def completion_reward(self, state, logits):
         # Expected reward on entering completion, weighted by survival in imagine/MPPI.
-        # No exact rho==1 test and no invented progress threshold.
+        # No exact rho==1 test; v3 logits already enforce the release-fraction hazard bound.
         failure, _ = self.hard_events(state)
         return (~failure).to(logits.dtype) * logits.sigmoid() * self.free_task.weights['success']
 

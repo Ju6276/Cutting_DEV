@@ -108,7 +108,7 @@ class OnlineLearner:
         self.microbatch = microbatch
         self.wcfg, self.pcfg = wm_cfg or WMTrainerCfg(), policy_cfg or PolicyTrainerCfg()
         task = wm.spec.metadata.get('free_cut_task', {})
-        if task.get('version') == 'free_cut_v2':
+        if task.get('version') in ('free_cut_v2', 'free_cut_v3'):
             if policy_cfg is not None and policy_cfg.gamma != task['gamma']:
                 raise ValueError('Policy/critic discount must match the finite-horizon task')
             self.pcfg = replace(self.pcfg, gamma=task['gamma'])
@@ -369,7 +369,7 @@ class OnlineLearner:
                         event_metrics = {
                             'imag_hard_done_mean': spec.hard_termination(ro.states[1:]).float().mean(),
                             'imag_completion_probability_mean': self.wm.terminal_logits(
-                                ro.states[1:], goal).sigmoid().mean(),
+                                ro.states[1:], goal, ro.states[:-1]).sigmoid().mean(),
                             'imag_progress_mean': spec.field(ro.states[1:], 'cut_progress').mean(),
                         }
                     else:

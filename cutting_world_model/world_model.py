@@ -29,7 +29,7 @@ class CuttingWorldModel(nn.Module):
             spec_class = FreeCutStateSpec
         self.spec = spec_class(metadata)
         self.dynamics = DynamicsMLP(self.spec.dynamics_dim, 6, 7, hidden, self.spec.delta_dim)
-        if metadata.get('free_cut_task', {}).get('version') == 'free_cut_v2':
+        if metadata.get('free_cut_task', {}).get('version') in ('free_cut_v2', 'free_cut_v3'):
             import math
             fraction = metadata['free_cut_task']['initial_progress_fraction']
             with torch.no_grad():
@@ -55,20 +55,36 @@ class CuttingWorldModel(nn.Module):
         next_state, reward, done = self.spec.derive(state, fields, executed, goal)
         return next_state, reward
 
-    def terminal_logits(self, next_state, goal=None):
+    def terminal_logits(self, next_state, goal=None, previous_state=None):
         feats = self.spec.terminal_features(next_state, goal)
-        return self.term_head(torch.cat((feats, feats.abs()), -1)).squeeze(-1)
+        raw = self.term_head(torch.cat((feats, feats.abs()), -1)).squeeze(-1)
+        if self.spec.metadata.get('free_cut_task', {}).get('version') == 'free_cut_v3':
+            # Completion of a previously incomplete cut releases ALL remaining material.
+            # Bound the per-step completion hazard by the predicted fraction of the
+            # remainder released THIS step. A rho-only bound would still pay completion
+            # repeatedly at constant partial progress through accumulated hazard.
+            if previous_state is None:
+                raise ValueError('free_cut_v3 completion needs the previous progress state')
+            rho = self.spec.field(next_state, 'cut_progress')[..., 0].clamp(0, 1)
+            old = self.spec.field(previous_state, 'cut_progress')[..., 0].clamp(0, 1)
+            tiny = torch.finfo(rho.dtype).tiny
+            fraction = ((rho - old).clamp_min(0) / (1 - old).clamp_min(tiny)).clamp(0, 1)
+            log_fraction = fraction.clamp_min(tiny).log()
+            log_not_fraction = (1 - fraction).clamp_min(tiny).log()
+            return (log_fraction + F.logsigmoid(raw)
+                    - torch.logaddexp(log_not_fraction, log_fraction + F.logsigmoid(-raw)))
+        return raw
 
     def step(self, state, action, goal):
         next_state, reward = self.transition(state, action, goal)
-        logits = self.terminal_logits(next_state, goal)
+        logits = self.terminal_logits(next_state, goal, state)
         if hasattr(self.spec, 'free_task'):
             reward = reward + self.spec.completion_reward(next_state, logits)
         return next_state, reward, logits
 
     def _fit_step_head(self, state, action, goal):
         next_state, reward = self.transition(state, action, goal)
-        logits = self.terminal_logits(next_state.detach(), goal)
+        logits = self.terminal_logits(next_state.detach(), goal, state.detach())
         if hasattr(self.spec, 'free_task'):
             reward = reward + self.spec.completion_reward(next_state, logits)
         return next_state, reward, logits

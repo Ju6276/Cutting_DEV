@@ -6,8 +6,8 @@ import math
 import numpy as np
 import torch
 
-REVISION = 'free_cut_v2'
-SUPPORTED_REVISIONS = ('free_cut_v1', REVISION)
+REVISION = 'free_cut_v3'
+SUPPORTED_REVISIONS = ('free_cut_v1', 'free_cut_v2', REVISION)
 WEIGHTS = ('progress', 'speed', 'load', 'jerk', 'success', 'failure')
 
 
@@ -15,10 +15,10 @@ def validate_task(config):
     if not isinstance(config, dict) or config.get('version') not in SUPPORTED_REVISIONS:
         raise ValueError('Unsupported free-cut task version')
     required = {'version', 'horizon_steps', 'weights'}
-    if config['version'] == REVISION:
+    if config['version'] != 'free_cut_v1':
         required |= {'gamma', 'initial_progress_fraction', 'workspace'}
         if config.get('gamma') != 1.0:
-            raise ValueError('free_cut_v2 is an undiscounted finite-horizon task (gamma=1)')
+            raise ValueError('This free-cut version is an undiscounted finite-horizon task (gamma=1)')
         fraction = config.get('initial_progress_fraction', 0)
         if isinstance(fraction, bool) or not math.isfinite(fraction) or not 0 < fraction < 1:
             raise ValueError('Initial progress fraction must be strictly between 0 and 1')
@@ -81,10 +81,17 @@ class FreeCutTask:
         self.horizon = self.config['horizon_steps']
         self.weights = self.config['weights']
         self.dt = heads.env['agent_control_dt']
+        if self.config['version'] == 'free_cut_v3':
+            # Over one finite episode: sum positive delta-rho <= 1 and sum dt/T <= 1.
+            # Enforce settlement dominance for every accepted configuration, not one probe.
+            penalty_bound = (2 * self.weights['speed'] + self.horizon * self.dt *
+                             (self.weights['load'] + self.weights['jerk']))
+            if min(self.weights['success'], self.weights['failure']) <= self.weights['progress'] + penalty_bound:
+                raise ValueError('Terminal rewards must exceed progress plus the finite running-penalty bound')
 
     @property
     def observes_time(self):
-        return self.config['version'] == REVISION
+        return self.config['version'] != 'free_cut_v1'
 
     def observation(self, observation, step_count):
         if not self.observes_time:
@@ -95,7 +102,7 @@ class FreeCutTask:
     def workspace_features(self, observation, pose=None):
         if self.observes_time:
             if pose is None:
-                raise ValueError('free_cut_v2 workspace requires the robot-base EE pose')
+                raise ValueError('Free-cut workspace requires the robot-base EE pose')
             box = self.config['workspace']
             lo, hi = pose.new_tensor(box['lower']), pose.new_tensor(box['upper'])
             return ((pose[..., :3] - (lo + hi) / 2).abs() / ((hi - lo) / 2) - 1)
@@ -132,9 +139,18 @@ class FreeCutTask:
         mismatch = torch.tanh((speed - target_speed).abs() / target_speed)
         utilization = (peak.abs() / peak.new_tensor(self.heads.force_limits)).amax(-1)
         jerk = self.heads.jerkiness(observation).clamp(max=1)
-        return (w['progress'] * (progress - previous_progress)
-                - self.dt * (w['speed'] * mismatch + w['load'] * utilization.clamp(max=1)
-                             + w['jerk'] * jerk))
+        increment = progress - previous_progress
+        if self.config['version'] == 'free_cut_v3':
+            # Symmetric relative mismatch: reciprocal speeds v/v* and v*/v have
+            # equal cost per released fraction. Reverse motion has maximum cost.
+            mismatch = ((speed - target_speed) / (speed.abs() + target_speed)).square()
+            # Progress prevents fast completion evading cost; finite-time cost penalizes
+            # waiting/retraction without letting a long horizon defeat failure settlement.
+            speed_cost = w['speed'] * mismatch * (increment.clamp_min(0) + 1 / self.horizon)
+        else:
+            speed_cost = self.dt * w['speed'] * mismatch
+        return (w['progress'] * increment - speed_cost
+                - self.dt * (w['load'] * utilization.clamp(max=1) + w['jerk'] * jerk))
 
     def reward(self, previous_progress, progress, observation, peak, target_speed, events):
         result = self.step_reward(previous_progress, progress, observation, peak, target_speed)
