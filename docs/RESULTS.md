@@ -14,6 +14,7 @@ prism development) are in [archive/RESULTS_20261102_20261110](archive/RESULTS_20
 | potato_003 needs DiSECt substep 8e-6 s to be stable over the S0 material range | 2026-11-11 instability entry |
 | Parallel object groups: 2.5x faster, consistent with sequential within run-to-run variation | 2026-11-11 |
 | Risk penalty and official SuperMimic adaptation: failed first runs, causes identified | 2026-11-12 |
+| The simulated sensor force is the sum of contact-force magnitudes (direction-blind, no torque); lateral sawing has no effect on it | 2026-11-12 sawing check |
 
 **Superseded:** the 2026-11-11 "force needed to cut the held scanned objects" table (hold artefact
 for cucumber_003) and every success/force-limit rate of the S3 runs (defective task definition).
@@ -265,3 +266,27 @@ way to keep objects in place; how objects are constrained has to be decided per 
 geometry (scene preparation, not policy input) before any force limit, success rule
 or reward is fixed. The 2026-11-11 "force needed to cut the held scanned objects"
 table measured this artefact for cucumber_003.
+
+## 2026-11-12 — Sawing check: the simulated force signal is direction-blind
+
+`scripts/measure_sawing.py` (reference trajectory, 3 cm/s downward, optional lateral
+sinusoid along the blade, force limit disabled).
+
+- Fixed-bottom prism, Young x1 and x2, +-2 cm at 1 Hz (knife lateral speed up to 8.7 cm/s,
+  verified in the DiSECt knife state): mean 5.33 vs 5.34 N, peak 8.43 vs 8.42 N, same
+  cut-through step; the per-step force series agree to about 0.1 N. Sawing has no effect.
+- Cause 1 (code): the sensor force is `sum_i |f_i|` over per-spring knife contact forces, put
+  on the vertical axis with zero torque (`coupling.feedback`, inherited from SliceIt's bridge;
+  DiSECt's own knife force is the same scalar). Contact-force directions are discarded.
+- Cause 2 (parameters): tangential friction in `knife_contact_force` scales with
+  `|v_t| / sdf_kf`; with the official `sdf_kf = 50` it is negligible at cutting speeds.
+- Held cucumber_003, pure press: the scalar reaches 35.4 N while the vector sum of the same
+  contact forces is 1.0 N vertical and 2.7 N sideways. The scalar mostly counts the opposing
+  squeeze of the two cut faces on the blade; with sawing the vector sum changes by about 0.1 N.
+
+Consequences: (1) in the current simulation a policy has no reason to saw; (2) the simulated
+"force" is a calibrated proxy (DiSECt fits this scalar to measured force), not the net wrench
+a wrist sensor measures, and it carries no torque, so the torque limit is never active;
+(3) the hold-test forces above are values of this proxy. A sawing task needs a net-wrench
+force signal and a friction model calibrated to real curves (DiSECt reports real mean force
+reductions above 40 % from slicing).

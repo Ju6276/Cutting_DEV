@@ -57,4 +57,5 @@ plan. The nominal recording entry no longer imports their perturbation wrapper.
 `diagnose_rollout.py` runs the reference trajectory or a checkpoint's deterministic policy on a
 multi-condition config and records per-step pose errors, released cut springs, limit ratio and
 knife speed, the ending and the workspace dimension crossed. `check_material_stability.py` scans
-material scales per object for nonfinite DiSECt states (optionally with another substep).
+material scales per object for nonfinite DiSECt states (optionally with another substep). `measure_sawing.py` compares a pure press with
+press plus lateral sawing on exported scenes.
