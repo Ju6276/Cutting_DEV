@@ -182,6 +182,12 @@ class SliceItCoupling:
         self.filter_initialized = True
 
     def feedback(self, knife_f, sensor_pose_base, ee_pose_base, raw_sensor_wrench):
+        """Source scalar material proxy plus native robot wrench, then filtering.
+
+        Sum of contact magnitudes is not net contact force. The bridge adds no
+        material torque; raw_sensor_wrench may still include robot torque.
+        This convention is retained for historical reproduction.
+        """
         magnitude = torch.linalg.vector_norm(knife_f,dim=-1).sum(-1)
         wrench_disect = knife_f.new_zeros((*magnitude.shape,6))
         wrench_disect[...,1] = magnitude

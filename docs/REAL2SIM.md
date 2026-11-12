@@ -12,10 +12,17 @@ measured, not assumed. Nothing here runs before the open items are settled.
 |---|---|
 | UR5e | Available; same arm model as the simulation. Primary platform. |
 | Diana7 | Available; not used in the first pass (see "Later"). |
-| ATI Mini45 | Available. **Open:** calibration (SI-145-5: ±145 N Fx/Fy, ±290 N Fz, 1/16 N resolution; SI-290-10: ±290/580 N, 1/8 N), interface (Net F/T or DAQ), ROS version. The task force limit is not the inherited 50 N; it is set from this sensor's calibration, its mounting (axes, distance to the blade) and the experiment requirements (PLAN). |
+| ATI Mini45 | Available. **Open:** calibration (SI-145-5: ±145 N Fx/Fy, ±290 N Fz, 1/16 N resolution; SI-290-10: ±290/580 N, 1/8 N), installed calibration and software interface. The photo shows an ATI Net F/T 9105-NETBA box, not its calibration label. Old S0 used simulation thresholds 50 N / 5 N·m; real-task limits remain open and distinct from sensor range (PLAN). |
 | Knife and mount | **Open:** CAD or measured geometry and mass, to replace the simulated knife frame and tool payload. |
-| Object placement | The multi-object task holds each object by its bottom 6 mm except near the cut plane (scanned round objects slid away otherwise; RESULTS 2026-11-11); the benchmark prism has a static bottom layer. **Open:** the real holding method (fixture, stop or board friction) that matches this. |
+| Object placement | The old bottom-6-mm hold altered force/outcomes (RESULTS 2026-11-12); it is not an accepted fixture. **Open:** choose a realizable holding method, then model it. Historical free/fixed prism contracts remain distinct. |
 | Foods / specimens | **Open:** proposal below. |
+
+## Prerequisite: force quantity and completion
+
+The material bridge supplies a scalar contact-magnitude proxy, not net contact
+wrench at the sensor; native robot wrench is also present. Resolve the interface
+and completion definition before transferring policies or interpreting calibration.
+Neither a prescribed spring-release fraction nor board height proves separation.
 
 ## Steps (one change each)
 

@@ -1,5 +1,10 @@
 # Official SuperMimic on the cutting prism
 
+> Status 2026-11-12: retained adaptation, not a successful reproduction result.
+> The cutting run exposed a reward/soft-termination mismatch (RESULTS).
+> The upstream algorithm cannot be judged from it; these are not launch plans.
+
+
 Reference: [HybridRobotics/supermimic](https://github.com/HybridRobotics/supermimic) at
 `5efbf11` (Apache-2.0), read in full for the learners, world-model env, runner, models and
 replay. The project's earlier base (`third_party/supermimic`, "SuperMimic-Reproduced

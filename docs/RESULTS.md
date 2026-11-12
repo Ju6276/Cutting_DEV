@@ -14,11 +14,11 @@ prism development) are in [archive/RESULTS_20261102_20261110](archive/RESULTS_20
 | potato_003 needs DiSECt substep 8e-6 s to be stable over the S0 material range | 2026-11-11 instability entry |
 | Parallel object groups: 2.5x faster, consistent with sequential within run-to-run variation | 2026-11-11 |
 | Risk penalty and official SuperMimic adaptation: failed first runs, causes identified | 2026-11-12 |
-| The simulated sensor force is the sum of contact-force magnitudes (direction-blind, no torque); lateral sawing has no effect on it | 2026-11-12 sawing check |
+| The material bridge sums contact magnitudes and adds zero material torque; measured sawing variants had negligible effect in tested configurations | 2026-11-12 sawing check |
 
 **Superseded:** the 2026-11-11 "force needed to cut the held scanned objects" table (hold artefact
 for cucumber_003) and every success/force-limit rate of the S3 runs (defective task definition).
-Fixed-prism results of the base method (8/8 completions, archive) hold for the fixed prism only.
+Fixed-prism numbers (8/8 goal-pose completions, archive) retain that definition; they do not independently establish separation or wrist-force fidelity.
 
 ## 2026-11-11 — Multi-object task and force-risk constraint: implementation check
 
@@ -274,19 +274,43 @@ sinusoid along the blade, force limit disabled).
 
 - Fixed-bottom prism, Young x1 and x2, +-2 cm at 1 Hz (knife lateral speed up to 8.7 cm/s,
   verified in the DiSECt knife state): mean 5.33 vs 5.34 N, peak 8.43 vs 8.42 N, same
-  cut-through step; the per-step force series agree to about 0.1 N. Sawing has no effect.
-- Cause 1 (code): the sensor force is `sum_i |f_i|` over per-spring knife contact forces, put
+  cut-through step; the per-step force series agree to about 0.1 N. Sawing had negligible effect in these tested configurations.
+- Code observation (not an isolated causal experiment): the material-feedback scalar is `sum_i |f_i|` over per-spring knife contact forces, put
   on the vertical axis with zero torque (`coupling.feedback`, inherited from SliceIt's bridge;
   DiSECt's own knife force is the same scalar). Contact-force directions are discarded.
-- Cause 2 (parameters): tangential friction in `knife_contact_force` scales with
+- Parameter observation: tangential friction in `knife_contact_force` scales with
   `|v_t| / sdf_kf`; with the official `sdf_kf = 50` it is negligible at cutting speeds.
 - Held cucumber_003, pure press: the scalar reaches 35.4 N while the vector sum of the same
   contact forces is 1.0 N vertical and 2.7 N sideways. The scalar mostly counts the opposing
   squeeze of the two cut faces on the blade; with sawing the vector sum changes by about 0.1 N.
 
-Consequences: (1) in the current simulation a policy has no reason to saw; (2) the simulated
-"force" is a calibrated proxy (DiSECt fits this scalar to measured force), not the net wrench
-a wrist sensor measures, and it carries no torque, so the torque limit is never active;
-(3) the hold-test forces above are values of this proxy. A sawing task needs a net-wrench
-force signal and a friction model calibrated to real curves (DiSECt reports real mean force
-reductions above 40 % from slicing).
+Interpretation: tested variants did not exhibit the intended sawing benefit.
+This does not establish that all scenes, trajectories or DiSECt settings behave
+identically. The material bridge contributes a force proxy and zero material
+torque. `coupling.feedback` adds it to native MuJoCo wrench before filtering;
+zero material torque does not prove that total torque or torque-limit termination
+is always zero/inactive. Summed magnitudes are not net contact wrench; calibration
+of an upstream scalar does not establish calibration of these exported scenes.
+
+Changing the scalar to a vector sum alone is not a validated remedy for sawing:
+material/contact/friction models and mounting still need a physical basis.
+These are proxy measurements under recorded holds, not minimum real cutting forces.
+
+## 2026-11-12 — Consistency cleanup after task review
+
+No new experiment or physics/learning change. Entry descriptions and documents
+distinguish historical tasks from open decisions. S0 parameters/paths remain;
+their directory documents the retired task. B1 final data is marked used.
+
+The sawing tool's L2 summary of per-axis temporal maxima is relabeled a
+component-peak envelope: axes may peak at different times. Computation is
+unchanged; prior JSON labels remain historical records. Native robot wrench and
+material-proxy contributions are distinguished. Validation accompanies the cleanup
+commit. These changes do not authorize training.
+
+Validation on GPU7 (configured environment, optional MPPI enabled): root 273
+passed / 5 skipped; backend 29 passed. Upstream DiSECt AST deprecation warnings
+remain. Changed Markdown relative links and Git whitespace pass. Executable ASTs
+are unchanged after removing docstrings and accounting for the sawing output-label
+changes; no scene/config JSON changed. Logs: `runs/codex_consistency_20261112/`.
+These checks establish cleanup consistency, not physical task validity.

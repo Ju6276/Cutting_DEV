@@ -1,4 +1,8 @@
-"""Torch translations of SliceIt's observation, slicing reward and termination formulas."""
+"""Historical SliceIt-derived observation, reward and pose-goal termination.
+
+Pose-goal completion does not test separation. The corrected multi-object task
+is not defined here; preserve these formulas for reproduction.
+"""
 # Adapted from ur_python_utilities, copyright 2018-2021 Cristian Beltran.
 # MIT license: third_party/sliceit/LICENSE.
 import math

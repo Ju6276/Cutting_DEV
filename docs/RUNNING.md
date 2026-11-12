@@ -1,6 +1,8 @@
 # Running Cutting DEV
 
-Commands below run from the repository root. The GPU backend is bundled at
+Commands below are historical reproduction entries, not instructions to restart
+S3. The corrected task is undefined; follow [PLAN](PLAN.md).
+Commands run from the repository root. The GPU backend is bundled at
 `backends/mujoco`; `--backend-root` can select a separate prepared checkout.
 
 ## GPU environment
@@ -92,7 +94,12 @@ Training collects new physical transitions, updates WM, then policy/critic.
 The first 500 WM rounds leave policy/critic unchanged.
 
 `--resume RUN/last.pt` restores networks, optimizers and training counters.
-Physics and replay restart, then the original replay warmup runs.
+Physics restarts. By default replay loads from colocated `replay.pt` only when
+checkpoint name/iteration match; open replay episodes are closed at restart.
+Source warmup still applies. Use `--resume-without-replay` for old checkpoints
+without matching snapshots (the historical README command). One `replay.pt`
+is overwritten at every save: older checkpoints can be evaluated but cannot all
+resume with the latest replay. Empty-replay resume is not exact continuation.
 SIGUSR1 saves after the current iteration. Completion/SIGTERM writes
 `last.pt` and `progress.json`. Frozen evaluation performs zero optimizer updates.
 

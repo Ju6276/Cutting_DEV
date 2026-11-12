@@ -1,6 +1,11 @@
-# Novelty check — force-aware world model for force-limited cutting
+# Literature evidence and historical candidate assessments
 
-Status: paper and source review, updated 2026-11-10; contact-dynamics source inspection
+Status update 2026-11-12: the force-spike premise and S3 task claims are retired.
+Evidence retains its scope. Read papers for practical limitations, assumptions
+and measurements, not keyword absence. Verify primary sources before citing
+provisional exclusions in PAPER.
+
+Paper/source review through 2026-11-10; contact-dynamics source inspection
 included. Literature evidence and candidate gaps only; it does not add
 development tasks. The research argument and algorithm are in [PAPER](PAPER.md);
 current work is in [PLAN](PLAN.md). The proposed setting is now one shared WM
@@ -216,7 +221,7 @@ cutting experiment. Details and versions are in the individual reading records.
   force reported separately, success = goal-pose counter) are in
   [BENCHMARK](BENCHMARK.md) "Task definitions"; this document does not redefine them.
 
-### Implications for the current force-prediction failure
+### Historical interpretation of prediction failures (not the current premise)
 
 - The new contact papers establish precedents for event-aware dynamics and
   physics-linked state/contact predictions. These general ideas already exist;
@@ -290,7 +295,7 @@ is not supported by the contact-safety literature. Our old suite remains
 retired because it does not serve the chosen task/claim; this correction does
 not reactivate it.
 
-## Assessment and recommended focus
+## Historical assessment (2026-11-10; no longer the recommended plan)
 
 **How precedents are judged (user, 2026-11-10).** A related paper does not mean
 the problem is solved. Each precedent is judged by its setting, assumptions and
@@ -302,10 +307,9 @@ is the earlier synthesis and keeps its evidence; read its "not new" wording
 through this rule.
 
 
-**Method novelty is unresolved. It depends on B or another justified mechanism,
-not on S0–S4 integration succeeding.** B's +4-event pilot gate decides whether
-to spend the already capped control-screen budget; it does not establish novelty,
-a significant population improvement or safe deployment.
+Novelty remains unresolved. Passing B's small historical screen neither establishes
+a practical gap nor selects a method. Task diagnosis supersedes the B/S0–S4
+progression. Follow PLAN, not the historical recommendations below.
 
 The recommended candidate question is whether a history-conditioned cutting
 model can support useful action changes near changing contact, rather than
@@ -325,7 +329,7 @@ a constant safety margin, or giving the whole method a new name is not a method.
 
 Keep cutting as the task domain. Non-cutting papers provide formulation
 evidence, not a requirement to add insertion/pushing/grinding benchmarks.
-S0–S2 build the shared task distribution independently; S3 trains fresh networks.
+Old S0–S3 was implemented and its first runs stopped after task defects; it is not the next training plan.
 Historical B fits and old-checkpoint MPPI are bounded screens, not the main
 multi-condition learning evidence.
 

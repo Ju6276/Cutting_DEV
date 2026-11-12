@@ -8,10 +8,16 @@
   commands in `docs/RUNNING.md`; exclude assets, runs, credentials and environments
   from Git. Document source modifications in METHOD and preserve licenses.
 
-- Main setting: SuperMimic-Reproduced `ba610534` adapted to the SliceIt UR5e +
+- Current phase (2026-11-12): task/platform definition and problem-led literature
+  review. The force-spike premise and first S3 comparison are retired. Historical
+  pose success is not validated separation; scalar material feedback is not a
+  Mini45 contact wrench. Do not restart S3 or add modalities because old code
+  remains runnable. Follow PLAN.
+- Retained implementation: SuperMimic-Reproduced `ba610534` adapted to the SliceIt UR5e +
   FDCC + DiSECt task in the unified MuJoCo Warp environment (`docs/BENCHMARK.md`).
   The original SliceIt SAC in Gazebo stays an independent baseline. PLAN is the
-  single current task list; task and metric definitions live only in BENCHMARK.
+  single current task list; BENCHMARK defines the historical fixed-prism contract.
+  The corrected multi-object task is not yet defined.
 - The SuperMimic source configuration stays runnable as the `source` baseline
   variant: training objectives, update cadence, effective batch sizes, optimizer
   settings and network widths unchanged. Method changes enter as named variants,

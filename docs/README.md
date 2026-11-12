@@ -6,10 +6,10 @@
 | [PAPER](PAPER.md) | Topic under re-decision: why the old problem statement was retired, candidate topic, prior art, what must be shown |
 | [Literature search 2026-11-12](literature/force_adaptive_search_20261112.md) | Prior art for the candidate topic, searched outside the library (second-hand evidence levels) |
 | [OFFICIAL_SUPERMIMIC](OFFICIAL_SUPERMIMIC.md) | Official SuperMimic (5efbf11) adapted to the cutting prism: component mapping and every deviation |
-| [BENCHMARK](BENCHMARK.md) | Existing task, force/outcome definitions and evaluation commands |
+| [BENCHMARK](BENCHMARK.md) | Historical fixed-prism contract/commands, not the corrected multi-object task |
 | [RUNNING](RUNNING.md) | Installation, execution and validation |
 | [DATA](DATA.md) | Server data/checkpoint locations, status and cleanup record |
-| [METHOD](METHOD.md) | Implemented algorithms and named variants |
+| [METHOD](METHOD.md) | Implemented algorithms, retained variants and force-interface limitations |
 | [RESULTS](RESULTS.md) | Measurements from 2026-11-11 on, with a table of what currently holds; earlier entries are archived |
 | [NOVELTY](NOVELTY.md) | Literature evidence and candidate ideas, not implemented methods |
 | [READING_LIST](READING_LIST.md) | Literature/data entry points |

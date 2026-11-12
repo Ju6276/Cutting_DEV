@@ -57,7 +57,7 @@ in PLAN starts fresh; do not silently initialize it from these weights.
 - `videos_20261108` retains measured geometry NPZs, reports and MP4s. Generated
   PNG frame caches for three old videos were deleted; measured data/video
   checksums were checked before and after.
-- Historical reliability training/calibration/held-out data named in PLAN remain
+- Historical reliability training/calibration/used-test data recorded in RESULTS remain
   in their existing server locations. This cleanup did not open or move them.
 
 ## Multi-object task data (GPU7, 2026-11-11)
@@ -67,7 +67,7 @@ in PLAN starts fresh; do not silently initialize it from these weights.
 | `/dataHDD/dong/Research/food_meshes/omniobject3d/<object>/` | OmniObject3D scans (CC BY 4.0, from the HF mirror `AlbertS666/OmniObject3D-objects`): `Object.usd`, converted `surface.obj` |
 | `/dataHDD/dong/Research/food_meshes/tet/` | Tetrahedral meshes (`prepare_food_mesh.py`) with their parameter JSON |
 | `configs/food_scenes/*.json`, `backends/mujoco/runs/sweep/food_*` | DiSECt scene configs and exported scenes (apple_002, potato_003, cucumber_003, cucumber_002) |
-| `runs/food_force_20261111` | Cut-force measurement (PLAN step 1, in progress) |
+| `runs/food_force_20261111` | Historical force-proxy measurements; interpret with later diagnosis |
 | `runs/route_b1_20261110` | B1: five ensemble WMs, quantile head, `frozen.json`, dev and held-out reports |
 | `runs/critic_abl_a250_20261106/training`, `runs/wm_reliability_supplement_20261108`, `runs/wm_frozen_fit_20261105` | Copies from the A6000 used by B1 (identical files; originals stay on the A6000) |
 
@@ -94,8 +94,8 @@ W&B online runs `0xvf8zj7`, `5r1geoka` and their resumed runs remain on the serv
 
 | Path | Size | Role |
 |---|---:|---|
-| `critic_abl_a250_20261106/training/replay.pt` | 3.2 GB | Working-baseline training replay; PLAN route B1 fit data |
-| `wm_reliability_supplement_20261108` | 8 MB | Supplement episodes: `dev` = route B1 calibration, `final` = B1 held-out screen (sealed) |
+| `critic_abl_a250_20261106/training/replay.pt` | 3.2 GB | Historical working-baseline replay; B1 fit data |
+| `wm_reliability_supplement_20261108` | 8 MB | Supplement episodes: `dev` = route B1 calibration, `final` = B1 held-out screen (opened and used on 2026-11-10; not a fresh test set) |
 | `wm_reliability_20261108`, `wm_route_compare_20261108` | 1 MB, 1.5 GB | WM reliability evaluations and the fixed-data original-vs-A fits |
 | `a_pair_base_20261108`, `a_pair_head_20261108` | 4.6, 4.2 GB | A control pair: checkpoints at updates 150/200/250/300/last, frozen and perturbed evaluations |
 | `a_pair_reference_20261108`, `a_pair_compare_20261109` | <1 MB | Perturbed evaluation of the reference run; case-paired comparisons (retired protocol) |

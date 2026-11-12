@@ -16,25 +16,28 @@ knife down at 20-27 cm/s against a 1-5 cm/s speed command, and force-limit hits
 happen at that speed. Whether a force-spike problem remains once the task is
 corrected is unknown. A paper cannot rest on it.
 
-## 2. Candidate topic (proposed 2026-11-12, not decided)
+## 2. Task-first research scope (open)
 
-**Force-adaptive robotic cutting of unknown objects under one hard force limit.**
-One policy and one force/torque limit for objects of unknown shape and material.
-The policy receives no object identity or material label. It tracks a commanded
-cutting speed when the material allows it and slows down or changes compliance
-from its own force feedback when the force approaches the limit. Exceeding the
-limit is a failure, not a cost.
+A candidate application is cutting unknown deformable objects with force feedback.
+First specify the real operation, holding arrangement, desired outcome and
+measurable limits; then identify what practical limitation existing methods leave
+unresolved. No particular modality or learned architecture is required by this.
 
-The problem follows from the task (unknown material, hard hardware limit, speed
-command), not from an observed failure of a particular model.
+Force-adaptive speed/compliance control is a candidate, not a settled topic.
+The material-feedback scalar is not a Mini45 contact wrench. Force-limit
+termination detects a modeled violation; it does not guarantee a real robot
+stays below a bound.
 
-Candidate method: the working base (history-conditioned world model of robot state
-and sensor wrench including the within-interval peak; policy trained by
-backpropagation through short imagined rollouts with behaviour regularisation)
-with a constraint on the predicted peak force. The force prediction makes the
-speed-force trade-off differentiable.
+WM+BPTT, a risk head and conservative planning are available ingredients. Their
+implementation or failure on the old task does not establish a real need for
+them. Predicted force peaks are not an adopted core contribution.
 
-## 3. Prior art (2026-11-12 search; evidence levels in the search record)
+## 3. Preliminary prior art (requires primary-source verification)
+
+This table summarizes the linked preliminary search, including second-hand
+summaries, abstracts and snippets. Negative claims in "What it does not do"
+are provisional, not established exclusions. The candidate-oriented search
+cannot substitute for reading the practical problems the papers solve.
 
 The task framing alone is **not** new:
 
@@ -53,19 +56,21 @@ a formal constraint across unknown materials; a wrench-predicting world model us
 for backpropagated policy learning under a peak-force constraint; prediction of the
 within-interval force peak (policy at 20 Hz, sensor faster).
 
-A reviewer will ask: why not a model-free force-penalty policy (FORGE), a
-terminating safe-RL policy (SRL-VIC/CaT), or a hand-tuned force-feedback speed
-governor? The paper is defensible only as a **method** paper that beats these three
-in the same task, compared on force-limit violations at matched cutting speed.
+A force-feedback controller, model-free methods and learned-model planning
+are comparison candidates. The final set follows the task and claim; this is
+not a requirement to implement all of them now.
 
-## 4. What has to be true for this paper (to be tested, in this order)
+## 4. Evidence needed before a method claim
 
-1. The task is well defined for every object (PLAN step 1): success means the object
-   is cut, the reward makes speed tracking under the limit optimal.
-2. The base learns the corrected task on several objects.
-3. The constraint on predicted peak force lowers force-limit violations at matched
-   speed against the three baselines above, on held-out material/geometry/start.
-4. Real-robot validation with the external Mini45 ([REAL2SIM](REAL2SIM.md), draft).
+1. A real cutting requirement and credible completion/force definitions.
+2. A platform demonstration representing the required interactions, including
+   the fixture and sensor meaning, without success shortcuts.
+3. A literature-grounded limitation that matters in that task.
+4. A method addressing it, and comparisons capable of testing the claim.
+5. Real-robot evidence if the claim concerns physical cutting or force safety.
+
+Additional modalities and objects do not automatically provide novelty.
+A simulator-only claim must be scoped to the represented physics and outcomes.
 
 ## 5. What exists
 
@@ -74,5 +79,6 @@ in the same task, compared on force-limit violations at matched cutting speed.
 - Risk head + adaptive penalty (`--risk-constraint`) and the official SuperMimic
   adaptation: implemented; both failed in their first run for identified reasons
   (RESULTS 2026-11-12). Kept as code; not results.
-- Fixed-prism development results (archived PAPER §5) remain valid for the fixed
-  prism only.
+- Fixed-prism numbers (archived PAPER `5) retain their historical goal-pose
+  definitions; they do not alone validate separation, physical wrist-force
+  prediction or general cutting performance.

@@ -43,18 +43,22 @@ force limits and success counter remain in the shared task heads.
 
 ## Task definitions
 
-This section is the single definition of success, failure and force quantities;
-other documents refer to it.
+This defines the historical fixed-prism contract only. Its quantities do not
+establish separation or physical wrist-contact wrench. A corrected multi-object
+contract is not yet defined.
 
 - **Force-limit termination.** At every 2 ms coupling substep, the filtered
   sensor wrench in the hand frame (the observation wrench) is compared component
   by component with `max_force_torque` = [50, 50, 50 N, 10, 10, 10 N·m]; any
   exceedance ends the episode (`environment.py`, collision check). It is not a
   guarantee on the material contact force.
-- **Material contact force.** DiSECt's summed contact-force magnitude
+- **Material contact-force proxy.** DiSECt's summed contact-force magnitude
   (`feedback['force_magnitude']`); its maximum is `material_peak_force_n`. It is
   not used for termination and can exceed 50 N in an episode that ends in success
   (SAC step 85000, static bottom: 50.29 N; RESULTS 2026-11-08).
+- **Bridge limitation.** Scalar material proxy is injected on one axis with zero
+  material torque, added to native robot wrench and filtered. This is not a
+  validated net contact wrench at the Mini45; source transform ordering remains.
 - **World-model force fields.** Both are the observed sensor wrench, not the
   material force. `wrench_history` is the filtered wrench queue.
   `peak_wrench` is reset to zero at the start of every control step and holds,
@@ -106,7 +110,7 @@ parameters, valid placement transforms, goals, sampling weights and
 train/development/test splits. It must reuse the existing task/force definitions
 or explicitly version any changed definition; no new material range is defined
 by this paragraph. Same-range test draws and held-out materials/shapes support
-different claims. This task integration is planned, not already available.
+different claims. Grouping/randomization exist in old S0, whose task failed diagnosis. A corrected distribution remains to be defined.
 
 ## Retired diagnostic protocol
 

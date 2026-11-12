@@ -5,7 +5,9 @@ Each exported scene runs prescribed knife trajectories on the full UR5e/FDCC/DiS
 environment with the force-limit termination disabled: a constant downward speed, alone
 or with a sinusoidal lateral motion along the blade (DiSECt z). Worlds differ only in
 the Young's-modulus scale. Reports, per world, the released cut springs, the step of
-cut-through, and mean/peak sensor and material force up to cut-through.
+cut-through, and material proxy/component-peak sensor summaries up to cut-through.
+L2 of per-axis temporal maxima is an envelope, not simultaneous force. Results
+are specific to the measured scenes, parameters and trajectories.
 """
 import argparse
 import json
@@ -104,8 +106,8 @@ def main():
                 row = {'scene': scene, 'young_scale': args.young_scales[w], 'amplitude_m': amplitude,
                        'frequency_hz': frequency, 'down_speed_mps': args.down_speed, 'ending': ending[w],
                        'released': s[-1][5], 'total_springs': total, 'cut_through_step': cut, 'contact_step': contact,
-                       'mean_sensor_force_n': sum(r[1] for r in phase) / len(phase) if phase else None,
-                       'peak_sensor_force_n': max((r[1] for r in phase), default=None),
+                       'mean_sensor_component_peak_l2_n': sum(r[1] for r in phase) / len(phase) if phase else None,
+                       'peak_sensor_component_peak_l2_n': max((r[1] for r in phase), default=None),
                        'peak_sensor_component_n': max((r[2] for r in phase), default=None),
                        'peak_sensor_torque_nm': max((r[3] for r in phase), default=None),
                        'mean_material_force_n': sum(r[4] for r in phase) / len(phase) if phase else None,
@@ -119,9 +121,10 @@ def main():
             print('# wall', round(time.monotonic() - started), 's', flush=True)
             (args.output / 'report.json').write_text(json.dumps(
                 {'git': git_revision(ROOT), 'command': sys.argv, 'rows': rows,
-                 'series_columns': ['step', 'sensor_force_norm', 'sensor_force_max_component', 'sensor_torque_max',
+                 'series_columns': ['step', 'sensor_component_peak_l2', 'sensor_force_max_component', 'sensor_torque_max',
                                     'material_force', 'released_springs'],
-                 'force_limit_termination': 'disabled (measurement)'}) + '\n')
+                 'force_limit_termination': 'disabled (measurement)',
+                  'force_summary_definition': 'L2 of per-axis temporal maxima; not simultaneous force norm'}) + '\n')
 
 
 if __name__ == '__main__':

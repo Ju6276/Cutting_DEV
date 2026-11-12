@@ -1,11 +1,12 @@
 # Script entry points
 
 Run commands from the repository root; installation is in [RUNNING](../docs/RUNNING.md).
-The current task is in [PLAN](../docs/PLAN.md). `train_gpu.py` runs the fixed
+The current task is in [PLAN](../docs/PLAN.md). Training entries remain for
+historical reproduction; their availability does not schedule a new run. `train_gpu.py` runs the fixed
 prism by default and the multi-object task with `--conditions <json>`; the
 force-risk constraint is `--risk-constraint`.
 
-## Current execution
+## Retained execution entries (historical task definitions)
 
 | Purpose | Entry |
 |---|---|
@@ -19,12 +20,17 @@ force-risk constraint is `--risk-constraint`.
 | Record a nominal physical episode | `record_episode.py` |
 | Render saved geometry | `render_episode.py` |
 
+The separately adapted official implementation is `train_official_supermimic.py`;
+see [its mapping and limitations](../docs/OFFICIAL_SUPERMIMIC.md). Its first cutting
+run is not a successful reproduction result. Do not confuse it with the
+SuperMimic-Reproduced `source` configuration in `train_gpu.py`.
+
 ## Assets and independent source reproduction
 
 Scanned objects: `prepare_food_mesh.py` (scan surface -> tetrahedral mesh),
 `make_food_configs.py` (DiSECt scene configs with official materials), then
 `backends/mujoco/scripts/export_disect_scene.py`. `measure_cut_force.py` measures the
-force needed to cut each exported object (PLAN step 1).
+force-proxy response under the specified hold/trajectory, not minimum real cutting force.
 
 `prepare_backend.py`, `checkout_sliceit.py` and `export_disect_trajectory.py`
 prepare assets or reference trajectories. Backend-specific exporters and robot
@@ -58,4 +64,6 @@ plan. The nominal recording entry no longer imports their perturbation wrapper.
 multi-condition config and records per-step pose errors, released cut springs, limit ratio and
 knife speed, the ending and the workspace dimension crossed. `check_material_stability.py` scans
 material scales per object for nonfinite DiSECt states (optionally with another substep). `measure_sawing.py` compares a pure press with
-press plus lateral sawing on exported scenes.
+press plus lateral sawing on exported scenes. L2 summaries use per-axis time
+maxima (component-peak envelopes), not simultaneous force norms. Negligible
+sawing benefit is a result limited to the measured configurations.

@@ -200,8 +200,11 @@ changes the number of physical transitions collected per vector step. It does
 not change the eight-step world-model loss or 32-step actor BPTT horizon.
 `--max-hours` and `--max-iterations` bound wall time and physical vector steps.
 LR and the step endpoint use vector steps. Checkpoints record
-`vector_steps_v1` and the environment count. Resume refills replay with the source
-warmup; checkpoints using transition-rescaled schedule units require conversion.
+`vector_steps_v1` and the environment count. Resume loads colocated replay only
+when checkpoint name/iteration match, closes open episodes and restarts physics
+with source warmup. `--resume-without-replay` starts empty explicitly. There is one
+overwritten `replay.pt`, not one per checkpoint. Transition-rescaled schedule
+units require conversion.
 
 The GPU physical snapshot layout `coupled_recurrent_v1` has 8944 coordinates. It includes
 FDCC integration velocity/error/position-command history, cached tip pose, the
@@ -554,6 +557,9 @@ knife publishing, and `cutting/ros_visualizer.py:update_knife_pose` /
 
 ## Multi-condition task (`--conditions`)
 
+Implemented, retired S0, not a validated new task. Keep numerical settings for
+reproduction; see [configuration status](../configs/multi_condition/README.md).
+
 `cutting_world_model/multi_env.py`. A JSON config lists object groups (exported
 scene, worlds, start-clearance range, material-scale ranges, target-speed range),
 `w_speed` and a required `force_limits` vector of six finite positive values shared by all objects. Each group is a
@@ -576,6 +582,9 @@ task defaults. Objects: scanned surfaces
 materials (`scripts/make_food_configs.py`), exported with `export_disect_scene.py`.
 
 ## Adaptive force-risk penalty (`--risk-constraint`)
+
+Retained variant, not the selected paper method. Old S3 cannot establish control
+benefit. B1 is a historical screen with an already-used test split.
 
 `OnlineLearner(risk_constraint=...)`, `cutting_world_model/force_risk.py`.
 R(s_t, a_t) = max_i |peak_wrench_i(t+1)| / limit_i. A `QuantileHead` on the last
@@ -615,3 +624,16 @@ started group on initialization failure. Training closes groups even when learne
 setup/checkpoint loading or finalization fails. Normal close waits up to 30 s,
 then warns and terminates a stuck worker (with kill fallback). This is process
 cleanup, not a physics timeout or a changed task termination rule.
+
+## Material feedback and diagnostic labels
+
+`SliceItCoupling.feedback` sums contact magnitudes into a single-axis material
+proxy with zero material torque, then adds native MuJoCo wrench before filtering.
+It is not net material contact wrench at the Mini45 mounting. Zero material
+torque does not imply zero total sensor torque. `source_wrench_transform`
+preserves upstream block ordering, not a newly validated general transform.
+A revised physical interface must be derived, validated and versioned separately.
+
+`measure_sawing.py` summarizes temporal maxima per component. Their L2 norm,
+`sensor_component_peak_l2`, is an envelope, not a simultaneous force norm;
+axes may peak at different times. Relabeling changes no numerical computation.
