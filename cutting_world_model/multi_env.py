@@ -238,10 +238,18 @@ class MultiConditionEnvironment:
             if parallel:
                 for member in self.members:
                     member.finish_start(self.device)
-            self.metadata = self.members[0].metadata
+            # Friction can differ by object. Observation/limit frames must still agree.
+            self.metadata = dict(self.members[0].metadata)
+            shared = lambda m: {k: v for k, v in m.items() if k != 'material_contact'}
             for member, group in zip(self.members[1:], self.groups[1:]):
-                if member.metadata != self.metadata:
+                if shared(member.metadata) != shared(self.metadata):
                     raise ValueError(f'{group.name}: task metadata differs from {self.groups[0].name}')
+            if any('material_contact' in m.metadata for m in self.members):
+                self.metadata.pop('material_contact', None)
+                self.metadata['group_material_contact'] = [
+                    {'name': g.name, 'scene': g.scene, **m.metadata.get('material_contact', {
+                        'force_model': 'scalar', 'friction_velocity_override_mps': None})}
+                    for g, m in zip(self.groups, self.members)]
             from .task_heads import SliceItHeads
             self.heads = SliceItHeads(self.metadata['environment'], self.metadata['controller'])
             self.group_index = torch.cat([torch.full((g.worlds,), i, dtype=torch.long)

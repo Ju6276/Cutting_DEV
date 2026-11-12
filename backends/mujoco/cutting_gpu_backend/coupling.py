@@ -74,6 +74,13 @@ def rigid_wrench_transform(wrench, target_from_source):
     return torch.cat((force,moment),-1)
 
 
+def observation_wrench(sensor_wrench, ee_pose_base, *, net=False):
+    """Net model: sensor axes, moment about the sensor origin, matching force history.
+    Historical scalar reproduction retains ur_control's original block convention.
+    """
+    return sensor_wrench.clone() if net else source_wrench_transform(sensor_wrench, ee_pose_base)
+
+
 def source_angular_velocity(current_quaternion, previous_quaternion, dt=0.002):
     return (2*quat_mul(previous_quaternion-current_quaternion,
                        quat_inverse(current_quaternion))/dt)[...,:3]
@@ -218,7 +225,10 @@ class SliceItCoupling:
         if not self.filter_initialized:
             self.reset_filter(raw)
         filtered = self.wrench_filter.update(raw+external_sensor)
-        observation = source_wrench_transform(filtered,ee_pose_base)
-        return {'force_magnitude':magnitude,'force_proxy':proxy,'wrench_base':wrench_base,
-                'external_sensor_wrench':external_sensor,'sensor_wrench':filtered,
-                'observation_wrench':observation}
+        observation = observation_wrench(filtered, ee_pose_base, net=net_wrench is not None)
+        result = {'force_magnitude':magnitude,'force_proxy':proxy,'wrench_base':wrench_base,
+                  'external_sensor_wrench':external_sensor,'sensor_wrench':filtered,
+                  'observation_wrench':observation}
+        if net_wrench is not None:
+            result['material_wrench_disect'] = net_wrench
+        return result

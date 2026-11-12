@@ -322,3 +322,74 @@ remain. Changed Markdown relative links and Git whitespace pass. Executable ASTs
 are unchanged after removing docstrings and accounting for the sawing output-label
 changes; no scene/config JSON changed. Logs: `runs/codex_consistency_20261112/`.
 These checks establish cleanup consistency, not physical task validity.
+
+
+## 2026-11-12 — Codex net-wrench repair and physical rerun
+
+This fixes the optional net sensor interface and its measurements, not task success,
+friction calibration or a learned sawing policy. Historical scalar reproduction is
+unchanged. User authorized these repairs and a real simulation check; no learning ran.
+
+Confirmed defects corrected:
+
+- The final source observation transform mixed moment into force: a pure 2 N m
+  couple and 0.3 m offset produced a fictitious 0.6 N force. Net observations/limits
+  now use sensor axes/about-sensor moments, matching controller input and history;
+  replay restoration follows the same convention. Scalar retains source behavior.
+- Knife moments used particle positions after integration with forces evaluated
+  before it. The last force-evaluation positions are now cached per world and
+  covered by pause/reset checks.
+- The last 2 ms sample could escape the net limit check before pose success.
+  It is now checked in the same control step.
+- The measurement's integer world indices were passed to a boolean material mask,
+  skipping world 0. The rerun deliberately uses E scales in order [2, 1].
+- End-of-step vertical force and within-step maximum total force were mixed.
+  Schema `simultaneous_coupling_samples_v2` records simultaneous 500 Hz vectors and
+  uses a common contact-to-release interval. Contact onset remains an explicit
+  0.5 N sum-of-contact-magnitudes diagnostic; release fraction is 0.98.
+- Net work now includes lateral and angular power, using the moment about the
+  knife origin. It no longer multiplies total force magnitude by downward speed.
+- Nondefault force/friction modes record their revision and effective friction
+  values; multi-object metadata retains per-group values and common signal frames.
+
+Physical check on GPU7: fixed-bottom prism, down 3 cm/s, pure press vs
+±2 cm at 1 Hz, net feedback, friction transition 0.01 m/s. Force-limit termination
+disabled only for this measurement, matching the previous measurement design.
+Budget cap was 20 minutes; completed in 159 + 155 seconds. All four runs reached
+the diagnostic 98% release fraction; final releases were 298–304 of 304 springs.
+The script's `ending=success` is still historical goal-pose completion, not a
+separate validation of material separation.
+
+| E scale | Trajectory | 98% release time (s) | Vertical mean (N) | Net-force mean / peak (N) | Filtered sensor torque max component (N m) |
+|---|---|---:|---:|---:|---:|
+| 2 | press | 2.332 | 3.883 | 3.884 / 6.433 | 0.847 |
+| 1 | press | 2.548 | 3.134 | 3.135 / 5.665 | 0.738 |
+| 2 | saw | 2.264 | 1.552 | 3.271 / 5.232 | 0.943 |
+| 1 | saw | 2.328 | 1.362 | 2.737 / 4.909 | 0.861 |
+
+
+For E x1, vertical mean fell about 57%, while total-force mean fell about 13%.
+Do not describe this as halving total force, or compare these means with the old
+mean-of-step-peaks statistic. These are prescribed trajectories in one parameterized
+scene, not learned-policy results or validation against real cutting forces.
+
+Evidence: `runs/codex_net_wrench_fix_20261112/press_saw/report.json` includes
+all samples, code hashes, scene hash and command; `report_check.json` independently
+recomputes summaries with NumPy and verifies finite, uniformly sampled traces and
+matching source hashes. `implementation.patch` captures the pre-commit implementation.
+Backend final suite: 32 passed (3.97 s). Root final suite: 286 passed / 5 skipped
+(196.48 s), with CUTTING_BACKEND_ROOT set and optional MPPI environment enabled.
+The five skips are legacy SAC/TensorFlow checks (missing gym, source checkpoint,
+explicit bridge opt-in, and Python 3.8 tf2rl); the new GPU checks executed.
+Logs: `backend_final.log` and `root_final.log` in the same run directory.
+Tests include pure-couple and point-force examples, full rigid-transform power
+invariance, four-world contact cache/pause/reset, net snapshot restoration, and the
+last-sample torque-limit event.
+
+Separate source finding, not silently changed here: the bundled DiSECt contact
+kernel evaluates a point with endpoint weights (1-c, c), but distributes that
+contact force with (c, 1-c). Consequently its nodal moment need not equal the
+contact-point moment. METHOD records the exact scope: this repair reports the
+wrench at the source's evaluated contact point; it does not validate angular
+momentum conservation of the material discretization. Fixing that source formula
+would change material dynamics and is distinct from sensor-interface correction.

@@ -204,9 +204,9 @@ class CuttingBatch:
         self.peak.copy_(frame['peak_wrench'])
         self.frames = self.chain(self.robot.q.to(self.dtype), mass_matrix=False)[0]
         self.feedback['sensor_wrench'] = self.wrench_queue[:, -1].clone()
-        from .coupling import source_wrench_transform
-        self.feedback['observation_wrench'] = source_wrench_transform(
-            self.feedback['sensor_wrench'], self.frames[self.chain.tip])
+        from .coupling import observation_wrench
+        self.feedback['observation_wrench'] = observation_wrench(
+            self.feedback['sensor_wrench'], self.frames[self.chain.tip], net=self.force_model == 'net')
 
     def controller_command(self, arguments, active):
         if bool(active.all()):
@@ -250,7 +250,7 @@ class CuttingBatch:
         self.motion_initialized[mask] = initialized
 
     @torch.no_grad()
-    def step(self, action, reference=False):
+    def step(self, action, reference=False, sample_callback=None):
         action = action.to(device=self.device, dtype=self.dtype)
         if action.shape != (self.worlds, 6):
             raise ValueError('Expected one six-component action per environment')
@@ -295,12 +295,34 @@ class CuttingBatch:
             self.material.advance(.002, active=active)
             raw = -self.robot.sensor_wrench(self.config.sensor_ref_link).to(self.dtype)
             self.feedback = self._feedback(raw)
-            self.metrics.accumulate(self.feedback['force_magnitude'], twist[:, :3], active, .002)
+            work = {} if self.force_model == 'scalar' else {
+                'net_wrench': self.feedback['material_wrench_disect'],
+                'knife_position': self.material.position,
+                'angular_velocity_disect': twist[:, 3:]}
+            self.metrics.accumulate(self.feedback['force_magnitude'], twist[:, :3], active, .002, **work)
             self.wrench_queue = torch.cat((self.wrench_queue[:, 1:], self.feedback['sensor_wrench'][:, None]), 1)
             peak_force = torch.where(collision, peak_force, torch.maximum(peak_force, self.feedback['force_magnitude'].float()))
             self.sim_time += active * .002
             if paused is not None:
                 self.restore_recurrence(collision, paused)
+            if sample_callback is not None:
+                # Read-only diagnostic at the 500 Hz coupling boundary, after feedback.
+                sample_callback(self, active)
+        if self.force_model == 'net':
+            # Include the final 500 Hz sample before task heads can declare success.
+            # The source scalar path retains its historical boundary convention.
+            observed = self.feedback['observation_wrench'].abs()
+            self.peak = torch.where(collision[:, None], self.peak, torch.maximum(self.peak, observed))
+            self.metrics.check_wrench(observed, self.force_limits, ~collision)
+            newly_done = (~collision) & (observed > self.force_limits).any(-1)
+            if newly_done.any():
+                current = self.frame()
+                if terminal is None:
+                    terminal = current
+                else:
+                    for k in current:
+                        terminal[k][newly_done] = current[k][newly_done]
+                collision |= newly_done
         frame = self.frame()
         if terminal is not None:
             for k in frame:

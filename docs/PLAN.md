@@ -101,3 +101,9 @@ Check `nvidia-smi` before using a GPU. Not to be launched without a new approved
 `train_gpu.py --conditions configs/multi_condition/s0_*.json` (with or without
 `--risk-constraint`), `train_official_supermimic.py`, `train_sac_gpu.py` on S0. Preserve historical
 contracts and evidence. Do not restart S3 from a reproduction command.
+
+
+Net-wrench interface repairs and the bounded press/saw rerun are recorded in
+[RESULTS](RESULTS.md#2026-11-12--codex-net-wrench-repair-and-physical-rerun).
+The nodal-weight inconsistency in the bundled contact kernel is a separate source finding;
+these interface checks do not close material-model validation or authorize training.

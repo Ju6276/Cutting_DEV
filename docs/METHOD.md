@@ -634,24 +634,34 @@ torque does not imply zero total sensor torque. `source_wrench_transform`
 preserves upstream block ordering, not a newly validated general transform.
 A revised physical interface must be derived, validated and versioned separately.
 
-`measure_sawing.py` summarizes temporal maxima per component. Their L2 norm,
-`sensor_component_peak_l2`, is an envelope, not a simultaneous force norm;
-axes may peak at different times. Relabeling changes no numerical computation.
+Historical reports from `measure_sawing.py` used temporal component maxima;
+their L2 norm is an envelope, not a simultaneous force norm. Reports with schema
+`simultaneous_coupling_samples_v2` instead sample at 500 Hz: every component and
+vector norm uses the same contact-to-release window. Means are means of those
+samples, not means of 50 ms peaks. Contact onset uses the explicitly recorded
+sum-of-magnitudes threshold (default 0.5 N); 98% spring release remains a diagnostic
+fraction, not a validated task-success definition.
 
 ## Material force model option (`force_model`, `friction_velocity`) — 2026-11-12
 
 Default `force_model='scalar'` is the source bridge described above (sum of contact-force
 magnitudes on one axis, no material torque) and stays the reproduction path.
 `force_model='net'` (per scene: `CuttingBatch`, `GPUEnvironment`, object-group config
-keys `force_model`, `friction_velocity`) changes only what the material contributes to
-the sensor wrench:
+keys `force_model`, `friction_velocity`) selects a different, explicitly versioned sensor-feedback convention:
 
 - `BatchedDiSECt.knife_wrench()` returns the vector sum of the per-contact forces on the
   knife and their moment about the DiSECt origin; contact points are the interpolated
-  points on the cut edges that `eval_spring_sdf_contacts` uses.
+  points on the cut edges that `eval_spring_sdf_contacts` uses. The particle positions
+  are cached immediately before the final material substep's force evaluation,
+  because the in-place integrator subsequently overwrites them. The cache participates
+  in per-world pause and reset; this does not change material integration.
 - `coupling.rigid_wrench_transform` carries that wrench to the base and sensor frames
   (force rotated, moment += p x force), replacing the source `convert_wrench` ordering
-  for this term. Filtering, the observation transform and the limit check are unchanged.
+  for this term. Filtering is unchanged. Net observations and force-limit checks use
+  sensor axes and moments about the sensor origin, matching the controller input and
+  wrench history. They do not use the historical scalar observation conversion,
+  which mixes torque into force. The final coupling sample is checked before task
+  heads may declare success. Scalar reproduction retains its original convention.
 - `friction_velocity` overwrites the scene's `sdf_kf`. The DiSECt contact kernel divides
   the tangential speed by this value (Brown's three-parameter friction law), so it is a
   transition velocity: with the exported 50 (or 1000 in other public configs) friction is
@@ -663,3 +673,35 @@ compliance controller reading the sensor wrench). Not validated: friction coeffi
 transition velocity against real cuts, the moment arm against a real mount, and whether
 friction redirection alone accounts for the real sawing benefit (the fracture-side effect
 of slicing is not in DiSECt's damage law). Measurements: RESULTS 2026-11-12.
+
+
+The net metadata identifier is `net_contact_sensor_v1`; nondefault force/friction
+settings also record `material_contact` with the revision, override and effective
+friction values. Object groups record these values per group and must share the
+same observation/limit convention. Default scalar metadata stays unchanged for
+historical checkpoint reproduction. Older unversioned net runs cannot be treated
+as measurements from this corrected convention.
+
+The optional `sample_callback` on single-group steps is a read-only diagnostic
+hook at each 2 ms coupling boundary. It does not alter actions, rewards or material
+updates; the measurement script copies the tensors immediately. These samples
+resolve coupling-rate forces, not every microsecond material-substep peak.
+
+
+Net-mode work statistics use `-(F · v + tau_knife · omega)`, with the moment
+shifted from the DiSECt origin to the knife origin. This includes lateral sawing
+and rotation; gross work integrates the absolute net power. The historical scalar
+downward-only proxy is retained in scalar mode. These are 2 ms coupling quadrature
+statistics, not an exact material energy balance.
+
+
+Bundled DiSECt discretization caveat (source inspection, no dynamics change here):
+`eval_spring_sdf_contacts` evaluates its left contact at
+`x1*(1-c) + x2*c` but distributes that contact force to the two particles with
+weights `c` and `1-c`. The right side uses the analogous reversed endpoint
+ordering. Thus the contact-point moment reported here is not, in general, the
+negative moment of that kernel's distributed nodal forces. The new interface
+follows the point at which the source evaluates contact; it does not establish
+angular-momentum conservation of the upstream discretization. Correcting nodal
+weights would change material dynamics and needs an explicitly separate source
+correction, not a silent change to this sensor-interface repair.

@@ -56,3 +56,20 @@ def test_safety_margin_is_max_ratio_and_freezes_after_collision():
     torch.testing.assert_close(metrics.safety_margin, torch.tensor([1.5, 1.5], dtype=torch.float64))
     metrics.zero_()
     assert not metrics.safety_margin.any() and not metrics.knife_work.any()
+
+
+def test_net_work_includes_lateral_translation_rotation_and_pause():
+    metrics = StepMetrics(3, 'cpu')
+    # Reaction F=-4z, moment about origin = p x F + (0,-3,0); p=(.2,0,0).
+    # Knife v=2z, omega=1y gives power to material 8+3=11 W, not zero.
+    wrench = torch.tensor([[0., 0., -4., 0., -2.2, 0.]], dtype=torch.float64).repeat(3, 1)
+    velocity = torch.tensor([[0., 0., 2.]], dtype=torch.float64).repeat(3, 1)
+    angular = torch.tensor([[0., 1., 0.]], dtype=torch.float64).repeat(3, 1)
+    velocity[1] *= -1
+    angular[1] *= -1
+    metrics.accumulate(torch.full((3,), 4.), velocity, torch.tensor([True, True, False]), .1,
+                       net_wrench=wrench, knife_position=torch.tensor([[.2, 0., 0.]]).repeat(3, 1),
+                       angular_velocity_disect=angular)
+    torch.testing.assert_close(metrics.knife_work, torch.tensor([1.1, -1.1, 0.], dtype=torch.float64))
+    torch.testing.assert_close(metrics.knife_gross_work, torch.tensor([1.1, 1.1, 0.], dtype=torch.float64))
+    torch.testing.assert_close(metrics.material_impulse, torch.tensor([.4, .4, 0.], dtype=torch.float64))

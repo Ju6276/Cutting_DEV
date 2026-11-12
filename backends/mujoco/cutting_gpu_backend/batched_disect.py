@@ -1,5 +1,6 @@
 """Packed independent copies of one exported DiSECt scene, in local world coordinates."""
 import copy
+import math
 import torch
 
 from .disect import DiSECt
@@ -73,6 +74,10 @@ class BatchedDiSECt(DiSECt):
         """``friction_velocity`` (m/s) replaces the scene's knife-contact ``sdf_kf``, which the
         contact kernel uses as the tangential transition velocity of its friction law; None keeps
         the exported value."""
+        if friction_velocity is not None and (
+                isinstance(friction_velocity, bool) or not math.isfinite(float(friction_velocity))
+                or float(friction_velocity) <= 0):
+            raise ValueError('friction_velocity must be positive and finite')
         if worlds < 1:
             raise ValueError('worlds must be positive')
         super().__init__(scene_path, sim_dt=sim_dt)
@@ -94,8 +99,6 @@ class BatchedDiSECt(DiSECt):
                               for name in spec['scaled'] + spec['inverse']}
         self.material_scales = {key: torch.ones(worlds, device=self.position.device) for key in MATERIAL_SCALES}
         if friction_velocity is not None:
-            if not float(friction_velocity) > 0:
-                raise ValueError('friction_velocity must be positive')
             self.model.sdf_kf.fill_(float(friction_velocity))
         springs = self.model.cut_spring_indices.reshape(-1, 2).long()   # cut edges (left, right) per spring
         edges = self.model.cut_edge_indices.reshape(-1, 2).long()       # particles of each cut edge
@@ -104,6 +107,9 @@ class BatchedDiSECt(DiSECt):
         self._contact_edge = springs.reshape(-1)
         self._contact_first = torch.stack((edges[springs[:, 0], 0], edges[springs[:, 1], 1]), 1).reshape(-1)
         self._contact_second = torch.stack((edges[springs[:, 0], 1], edges[springs[:, 1], 0]), 1).reshape(-1)
+        # no_grad integration overwrites particle_q after evaluating knife_f.
+        # Keep the positions from that force evaluation for its moment arm.
+        self.state.knife_contact_q = self.state.particle_q.clone()
         self.save_reset_state()
 
     @torch.no_grad()
@@ -113,7 +119,7 @@ class BatchedDiSECt(DiSECt):
         material; the knife receives the opposite force at the contact point on the cut edge."""
         force = self.state.knife_f
         coord = self.model.cut_edge_contact_coord[self._contact_edge][:, None]
-        q = self.state.particle_q
+        q = self.state.knife_contact_q
         point = q[self._contact_first] * (1. - coord) + q[self._contact_second] * coord
         moment = torch.linalg.cross(point, force)
         return -torch.cat((force.reshape(self.worlds, -1, 3).sum(1),
@@ -213,13 +219,15 @@ class BatchedDiSECt(DiSECt):
         increment = torch.cat((factor * self.angular_velocity, torch.cos(half)), -1)
         q = self.state.joint_q.reshape(self.worlds, -1)
         qd = self.state.joint_qd.reshape(self.worlds, -1)
-        for _ in range(count):
+        for substep in range(count):
             self.position.add_(self.dt * self.linear_velocity)
             self.rotation.copy_(quat_mul(increment, self.rotation))
             q[:, :3] = self.position
             q[:, 3:7] = self.rotation
             qd[:, :3] = self.linear_velocity
             qd[:, 3:6] = self.angular_velocity
+            if substep == count - 1:
+                self.state.knife_contact_q.copy_(self.state.particle_q)
             self.state = self.integrator.forward(self.model, self.state, self.dt, update_mass_matrix=False)
         self.steps += count
         if paused is not None:

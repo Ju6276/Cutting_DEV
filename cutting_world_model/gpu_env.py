@@ -41,6 +41,16 @@ class GPUEnvironment:
         self.metadata['physical_backend'] = 'mujoco_warp_disect'
         self.metadata['state_layout'] = 'coupled_recurrent_v1'
         self.metadata['material_feedback'] = 'tensor_filter_controller'
+        if force_model != 'scalar' or friction_velocity is not None:
+            self.metadata['material_contact'] = {
+                'revision': 'contact_wrench_v1',
+                'force_model': force_model,
+                'friction_velocity_override_mps': friction_velocity,
+                'effective_friction_velocity_mps': sorted(
+                    self.physics.material.model.sdf_kf.detach().cpu().unique().tolist()),
+            }
+        if force_model == 'net':
+            self.metadata['material_feedback'] = 'net_contact_sensor_v1'
         self.metadata['reset_observation'] = 'post_reset'
         self.environment = self.metadata['environment']
         self.controller = self.metadata['controller']
@@ -103,13 +113,14 @@ class GPUEnvironment:
         self.current = {k: v.clone() for k, v in frame.items()}
 
     @torch.no_grad()
-    def step(self, action, reference=False):
+    def step(self, action, reference=False, sample_callback=None):
         if self.needs_reset.any():
             raise RuntimeError('Reset completed worlds before the next batched action')
         action = action.to(self.device)
         low, high = action.new_tensor(self.metadata['action_bounds'])
         action = torch.maximum(torch.minimum(action, high), low)
-        frame, collision, peak_force = self.physics.step(action, reference=reference)
+        diagnostics = {} if sample_callback is None else {'sample_callback': sample_callback}
+        frame, collision, peak_force = self.physics.step(action, reference=reference, **diagnostics)
         self.step_count += 1
         frame = self._observe(frame, action)
         terminated, success, outside, counter = self.heads.termination(

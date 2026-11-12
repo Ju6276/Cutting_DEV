@@ -89,3 +89,45 @@ def test_augmented_state_observes_memory_and_restores_contact_transition():
     args = env.physics.mapper(action.double(), env.physics.target, env.physics.frames[env.physics.chain.tip])
     command2 = env.physics.controller_command(args, active).clone()
     torch.testing.assert_close(command1, command2, atol=0, rtol=0)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available() or not os.environ.get('CUTTING_BACKEND_ROOT'), reason='CUDA backend assets')
+def test_net_sensor_frame_restore_metadata_and_diagnostic_sampling(monkeypatch):
+    root = os.environ['CUTTING_BACKEND_ROOT']
+    sys.path.insert(0, root)
+    from cutting_world_model.gpu_env import GPUEnvironment
+    env = GPUEnvironment(root, 2, force_model='net', friction_velocity=.01)
+    assert env.metadata['material_feedback'] == 'net_contact_sensor_v1'
+    assert env.metadata['material_contact']['friction_velocity_override_mps'] == .01
+    assert env.metadata['material_contact']['effective_friction_velocity_mps'] == pytest.approx([.01])
+    initial = {k: v.clone() for k, v in env.current.items()}
+    samples = []
+    def sample(p, active):
+        torch.testing.assert_close(p.feedback['sensor_wrench'], p.feedback['observation_wrench'])
+        samples.append((p.sim_time.clone(), active.clone()))
+    first, *_ = env.step(torch.zeros(2, 6, device='cuda'), sample_callback=sample)
+    assert len(samples) == 25
+    torch.testing.assert_close(samples[-1][0], torch.full_like(samples[-1][0], .05))
+    env.restore_frame(initial)
+    torch.testing.assert_close(env.physics.feedback['observation_wrench'], initial['wrench_queue'][:, -1])
+    second, *_ = env.step(torch.zeros(2, 6, device='cuda'))
+    torch.testing.assert_close(first['joint_q'], second['joint_q'], atol=1e-7, rtol=1e-6)
+    torch.testing.assert_close(first['wrench_queue'], second['wrench_queue'], atol=1e-3, rtol=1e-3)
+
+    env.restore_frame(initial)
+    feedback = env.physics._feedback
+    calls = 0
+    def last_sample_overload(raw):
+        nonlocal calls
+        result = feedback(raw)
+        calls += 1
+        if calls == 25:
+            # Last coupling sample: pure couple must trip torque, never create force.
+            result['sensor_wrench'][0] = 0
+            result['sensor_wrench'][0, 4] = env.physics.force_limits[0, 4] + 1
+            result['observation_wrench'][0] = result['sensor_wrench'][0]
+        return result
+    monkeypatch.setattr(env.physics, '_feedback', last_sample_overload)
+    frame, _, terminated, _, info = env.step(torch.zeros(2, 6, device='cuda'))
+    assert info['collision'][0] and terminated[0]
+    assert frame['peak_wrench'][0, 4] > env.physics.force_limits[0, 4]

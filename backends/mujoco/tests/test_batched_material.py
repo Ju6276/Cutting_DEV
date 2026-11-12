@@ -111,3 +111,23 @@ def test_net_knife_wrench_is_minus_the_contact_force_sum_and_friction_option():
     assert torch.all(force.norm(dim=-1).sum(-1) >= wrench[:, :3].norm(dim=-1) - 1e-5)
     with pytest.raises(ValueError):
         BatchedDiSECt(scene, 1, friction_velocity=0.)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason='CUDA material integration')
+def test_contact_cache_matches_last_integrator_input_and_selective_pause(monkeypatch):
+    batch = BatchedDiSECt(Path('runs/disect_contact/scene.pt'), 4, friction_velocity=.01)
+    twist = torch.tensor([[0., -.03, .05, 0., 0., 0.]], device='cuda').repeat(4, 1)
+    batch.set_motion(twist)
+    forward = batch.integrator.forward
+    captured = {}
+    def trace(model, state, dt, **kwargs):
+        captured['q'] = state.particle_q.clone()
+        return forward(model, state, dt, **kwargs)
+    monkeypatch.setattr(batch.integrator, 'forward', trace)
+    batch.advance(.002)
+    torch.testing.assert_close(batch.state.knife_contact_q, captured['q'], atol=0, rtol=0)
+    assert not torch.equal(batch.state.knife_contact_q, batch.state.particle_q)
+    before = batch.capture_rows(torch.tensor([False, True, False, True], device='cuda'))
+    batch.advance(.002, active=torch.tensor([True, False, True, False], device='cuda'))
+    for key, value in before[0].items():
+        torch.testing.assert_close(batch.state_field(key)[[1, 3]], value, atol=0, rtol=0)
