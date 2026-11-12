@@ -81,6 +81,9 @@ class BatchedDiSECt(DiSECt):
         if worlds < 1:
             raise ValueError('worlds must be positive')
         super().__init__(scene_path, sim_dt=sim_dt)
+        self._scene_path = scene_path
+        self._friction_velocity = friction_velocity
+        self._settle_batches = {}
         self.worlds = worlds
         self.particles = self.model.particle_count
         self.springs = self.model.cut_spring_count
@@ -124,6 +127,91 @@ class BatchedDiSECt(DiSECt):
             target = getattr(self.model, name).reshape(self.worlds, -1)
             target[mask] = initial.reshape_as(target)[mask]
         self.state_field('cut_spring_ke')[mask] *= self.material_scales['cut_spring_stiffness'][mask, None]
+
+    @torch.no_grad()
+    def settle_selected(self, seconds, mask):
+        """Settle only resetting rows in cached packed scratch batches.
+
+        Each row uses its actual material, pose and export state. Padding duplicates a row
+        but never participates in feedback or contact tests. No live world is advanced.
+        """
+        indices = mask.nonzero(as_tuple=False).flatten()
+        n = len(indices)
+        if not n:
+            return
+        capacity = 1 << (n - 1).bit_length()
+        if capacity not in self._settle_batches:
+            self._settle_batches[capacity] = BatchedDiSECt(
+                self._scene_path, capacity, sim_dt=self.dt,
+                friction_velocity=self._friction_velocity)
+        scratch = self._settle_batches[capacity]
+        all_rows = torch.ones(capacity, dtype=torch.bool, device=self.position.device)
+        padded = torch.cat((indices, indices[-1:].expand(capacity - n)))
+        scales = {k: v[padded] for k, v in self.material_scales.items()}
+        scratch.set_material_scales(all_rows, **scales)
+        state, contact, motion = self.capture_rows(mask)
+        def pad(v):
+            return torch.cat((v, v[-1:].expand(capacity - n, *v.shape[1:])), 0)
+        scratch.restore_rows(all_rows, tuple({k: pad(v) for k, v in group.items()}
+                                            for group in (state, contact, motion)))
+        peak = scratch.advance_stationary(seconds)
+        if bool((peak[:n] > 0).any()):
+            raise ValueError('The knife touches the object while it settles; settling needs a free start')
+        saved = scratch.capture_rows(all_rows)
+        self.restore_rows(mask, tuple({k: v[:n] for k, v in group.items()} for group in saved))
+
+    @torch.no_grad()
+    def advance_stationary(self, duration):
+        """Same integrator, CUDA graph of 32 substeps, contact checked at every substep.
+
+        Intended only for reset settling with a stationary knife. Does not shorten time,
+        clear velocities, alter damage or skip contacts.
+        """
+        count = round(duration / self.dt)
+        if not math.isfinite(duration) or count < 1 or abs(count * self.dt - duration) > 1e-12:
+            raise ValueError('Settling duration must contain whole material substeps')
+        if bool((self.linear_velocity != 0).any() | (self.angular_velocity != 0).any()):
+            raise ValueError('Stationary settling requires zero knife velocity')
+        if not hasattr(self, '_settle_graph'):
+            # The pybind kernel signature takes a host float. Cache this immutable scalar
+            # before capture instead of triggering a GPU-to-host conversion each substep.
+            self.model.sdf_radius = float(self.model.sdf_radius)
+            self._settle_peak = torch.zeros(self.worlds, device=self.position.device)
+            def step():
+                q = self.state.joint_q.reshape(self.worlds, -1)
+                qd = self.state.joint_qd.reshape(self.worlds, -1)
+                q[:, :3] = self.position
+                q[:, 3:7] = self.rotation
+                qd[:, :6] = 0
+                self.state.knife_contact_q.copy_(self.state.particle_q)
+                self.state = self.integrator.forward(self.model, self.state, self.dt,
+                                                     update_mass_matrix=False)
+                now = torch.linalg.vector_norm(self.state_field('knife_f'), dim=-1).sum(-1)
+                torch.maximum(self._settle_peak, now, out=self._settle_peak)
+            self._stationary_step = step
+            mask = torch.ones(self.worlds, dtype=torch.bool, device=self.position.device)
+            saved = self.capture_rows(mask)
+            # Compile/warm up kernels before capture. Wrappers honor the PyTorch stream.
+            stream = torch.cuda.Stream()
+            stream.wait_stream(torch.cuda.current_stream())
+            with torch.cuda.stream(stream):
+                step()
+            torch.cuda.current_stream().wait_stream(stream)
+            self.restore_rows(mask, saved)
+            self._settle_graph = torch.cuda.CUDAGraph()
+            with torch.cuda.graph(self._settle_graph):
+                for _ in range(32):
+                    step()
+            self.restore_rows(mask, saved)
+        self._settle_peak.zero_()
+        for _ in range(count // 32):
+            self._settle_graph.replay()
+        for _ in range(count % 32):
+            self._stationary_step()
+        self.steps += count
+        if not bool(torch.isfinite(self.state.particle_q).all() & torch.isfinite(self.state.cut_spring_ke).all()):
+            raise FloatingPointError('Nonfinite stationary settling state')
+        return self._settle_peak.clone()
 
     @torch.no_grad()
     def knife_wrench(self):

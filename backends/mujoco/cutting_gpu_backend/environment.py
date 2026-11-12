@@ -120,7 +120,7 @@ class CuttingBatch:
         if not mask.any():
             return
         self.material.restore_export(mask)
-        self._settle_material(seconds, mask)
+        self.material.settle_selected(seconds, mask)
         self.material.save_reset_state(mask)
         self.settle_seconds = float(seconds)
 

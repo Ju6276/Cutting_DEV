@@ -3314,7 +3314,7 @@ class SemiImplicitIntegrator:
                             model.shape_transform,
                             model.shape_body,
                             model.shape_geo_type,
-                            torch.tensor(0, device=model.adapter),
+                            torch.zeros((), dtype=torch.int64, device=model.adapter),
                             model.shape_geo_scale,
                             model.shape_materials,
                             model.contact_ke,

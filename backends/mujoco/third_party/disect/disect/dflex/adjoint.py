@@ -1228,6 +1228,7 @@ T cast(torch::Tensor t)
 '''
 
 cuda_module_header = '''
+#include <c10/cuda/CUDAStream.h>
 #define CUDA
 
 #include "adjoint.h"
@@ -1301,7 +1302,7 @@ cuda_module_template = '''
 // Python entry points
 void {name}_cuda_forward(int dim, {forward_args})
 {{
-    {name}_cuda_kernel_forward<<<(dim + 256 - 1) / 256, 256>>>(dim, {forward_params});
+    {name}_cuda_kernel_forward<<<(dim + 256 - 1) / 256, 256, 0, c10::cuda::getCurrentCUDAStream()>>>(dim, {forward_params});
 
     //check_cuda(cudaPeekAtLastError());
     //check_cuda(cudaDeviceSynchronize());
@@ -1309,7 +1310,7 @@ void {name}_cuda_forward(int dim, {forward_args})
 
 void {name}_cuda_backward(int dim, {forward_args}, {reverse_args})
 {{
-    {name}_cuda_kernel_backward<<<(dim + 256 - 1) / 256, 256>>>(dim, {forward_params}, {reverse_params});
+    {name}_cuda_kernel_backward<<<(dim + 256 - 1) / 256, 256, 0, c10::cuda::getCurrentCUDAStream()>>>(dim, {forward_params}, {reverse_params});
 
     //check_cuda(cudaPeekAtLastError());
     //check_cuda(cudaDeviceSynchronize());
@@ -1886,7 +1887,7 @@ def compile():
         cache_string = f.read()
         f.close()
 
-        if (cache_string == cpp_source):
+        if (cache_string == cpp_source + cuda_source):
             print("Using cached kernels")
             module = import_module("kernels", build_path)
 
@@ -1954,7 +1955,7 @@ def compile():
 
     # update cache
     f = open(cache_file, 'w')
-    f.write(cpp_source)
+    f.write(cpp_source + cuda_source)
     f.close()
 
     # register kernel methods

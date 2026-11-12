@@ -143,3 +143,30 @@ def test_contact_cache_matches_last_integrator_input_and_selective_pause(monkeyp
     batch.advance(.002, active=torch.tensor([True, False, True, False], device='cuda'))
     for key, value in before[0].items():
         torch.testing.assert_close(batch.state_field(key)[[1, 3]], value, atol=0, rtol=0)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason='CUDA material integration')
+def test_stationary_graph_matches_eager_material_and_checks_all_contacts():
+    scene = Path('runs/sweep/free_cucumber_003/scene.pt')
+    if not scene.exists():
+        pytest.skip('free cucumber asset')
+    m = BatchedDiSECt(scene, 3, friction_velocity=.01)
+    mask = torch.ones(3, dtype=torch.bool, device='cuda')
+    m.set_material_scales(mask, youngs_modulus=torch.tensor([1., 1.5, 2.], device='cuda'))
+    m.set_motion(torch.zeros(3, 6, device='cuda'))
+    m.restore_export(mask)
+    # One complete graph replay, not the eager remainder path. Longer per-particle
+    # velocity comparisons are nondeterministic even between two eager runs; see
+    # FREE_CUT_REPAIR for the independently measured 4 ms and .75 s comparisons.
+    saved = m.capture_rows(mask)
+    _, expected_peak = m.advance(32 * m.dt, track_peak=True)
+    expected = m.capture_rows(mask)
+    m.restore_rows(mask, saved)
+    actual_peak = m.advance_stationary(32 * m.dt)
+    torch.testing.assert_close(actual_peak, expected_peak, atol=1e-6, rtol=1e-5)
+    torch.testing.assert_close(m.state_field('particle_q'), expected[0]['particle_q'], atol=1e-6, rtol=1e-5)
+    torch.testing.assert_close(m.state_field('particle_qd'), expected[0]['particle_qd'], atol=1e-3, rtol=1e-3)
+    torch.testing.assert_close(m.state_field('cut_spring_ke'), expected[0]['cut_spring_ke'], atol=1e-3, rtol=1e-5)
+    m.linear_velocity[0, 1] = -.01
+    with pytest.raises(ValueError, match='zero knife velocity'):
+        m.advance_stationary(32 * m.dt)
