@@ -20,13 +20,20 @@ from .robot import Robot
 class CuttingBatch:
     @torch.no_grad()
     def __init__(self, root, worlds=1, scene='runs/disect_source_v4/scene.pt', reference_trajectory=None,
-                 initial_lift=None, sim_dt=None, force_model='scalar', friction_velocity=None):
+                 initial_lift=None, sim_dt=None, force_model='scalar', friction_velocity=None,
+                 settle_seconds=0.):
         """``initial_lift`` (m, per world): start the knife this far above the captured start
         along DiSECt +y (vertical), same orientation, by inverse kinematics before the reset
         state is settled and saved. ``sim_dt`` (s): DiSECt material substep, None keeps the scene's.
         ``force_model``: 'scalar' (source: sum of contact-force magnitudes on one axis, no material
         torque) or 'net' (vector sum of the contact forces and their moment at the sensor).
         ``friction_velocity`` (m/s): knife-contact friction transition velocity, None keeps the scene's."""
+        # settle_seconds: advance the material this long with the knife held at its start, before
+        # the reset state is saved, so episodes start from an object resting on the board instead
+        # of the exported (unsettled) state. The knife must not touch the object at the start.
+        if not settle_seconds >= 0:
+            raise ValueError('settle_seconds must be non-negative')
+        self.settle_seconds = float(settle_seconds)
         if force_model not in ('scalar', 'net'):
             raise ValueError("force_model must be 'scalar' or 'net'")
         self.force_model = force_model
@@ -66,6 +73,10 @@ class CuttingBatch:
         self.frames = self.chain(self.robot.q.to(self.dtype), mass_matrix=False)[0]
         knife = self.knife_chain(self.robot.q.to(self.dtype), mass_matrix=False)[0]['b_bot_knife_sim']
         self.material.set_motion(torch.zeros((worlds, 6), device=self.device), self.coupling.reset_pose(knife).float())
+        if self.settle_seconds > 0:
+            touching = self.material.advance(self.settle_seconds)
+            if bool((touching > 0).any()):
+                raise ValueError('The knife touches the object at the start; settling needs a free start')
         self.material.advance(.002)
         self.feedback = self._feedback(raw)
         self.wrench_queue = self.feedback['sensor_wrench'][:, None].repeat(1, 25, 1)

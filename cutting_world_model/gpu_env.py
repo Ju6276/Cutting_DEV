@@ -9,7 +9,7 @@ from .task_heads import REWARD_KEYS, SliceItHeads, pose_error, TASK_INTERFACE_RE
 class GPUEnvironment:
     def __init__(self, backend_root, worlds=1, reference_trajectory=None, reward=None, scene=None,
                  initial_lift=None, force_limits=None, sim_dt=None, force_model='scalar',
-                 friction_velocity=None):
+                 friction_velocity=None, settle_seconds=0.):
         """``reward`` optionally selects the force penalty, e.g. {'force_penalty': 'linear',
         'force_penalty_scale': 50.}; None keeps the source SliceIt reward and metadata.
         ``scene`` is an exported DiSECt scene relative to ``backend_root``; None keeps the
@@ -22,7 +22,7 @@ class GPUEnvironment:
         scene = {} if scene is None else {'scene': scene}
         self.physics = CuttingBatch(backend_root, worlds, reference_trajectory=reference_trajectory,
                                     initial_lift=initial_lift, sim_dt=sim_dt, force_model=force_model,
-                                    friction_velocity=friction_velocity, **scene)
+                                    friction_velocity=friction_velocity, settle_seconds=settle_seconds, **scene)
         if force_limits is not None:
             limits = force_limits
             self.physics.task = {**self.physics.task, 'controller': {**self.physics.task['controller'],
@@ -52,6 +52,8 @@ class GPUEnvironment:
             }
         if force_model == 'net':
             self.metadata['material_feedback'] = 'net_contact_sensor_v1'
+        if settle_seconds:
+            self.metadata['settle_seconds'] = float(settle_seconds)
         self.metadata['reset_observation'] = 'post_reset'
         self.environment = self.metadata['environment']
         self.controller = self.metadata['controller']

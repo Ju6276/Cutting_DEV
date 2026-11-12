@@ -3,6 +3,7 @@
 | Document | Role |
 |---|---|
 | [PLAN](PLAN.md) | Sole current task list: current state, decisions by the user, what has to be resolved, conditional options |
+| [TASK_FREE_CUT](TASK_FREE_CUT.md) | Proposal (not approved): reward, episode settlement and world-model implementation of the free-object single cut |
 | [PAPER](PAPER.md) | Research scope (open): why the old problem statement was retired, task-first scope, preliminary prior art, evidence needed |
 | [Literature search 2026-11-12](literature/force_adaptive_search_20261112.md) | Prior art for the candidate topic, searched outside the library (second-hand evidence levels) |
 | [OFFICIAL_SUPERMIMIC](OFFICIAL_SUPERMIMIC.md) | Official SuperMimic (5efbf11) adapted to the cutting prism: component mapping and every deviation |

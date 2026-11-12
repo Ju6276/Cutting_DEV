@@ -125,3 +125,17 @@ def test_saw_summary_uses_simultaneous_samples_not_component_envelope_or_endpoin
     assert result['mean_net_vertical_n'] == pytest.approx(10/3)
     assert result['material_impulse_ns'] == pytest.approx(.04)
     assert result['cut_through_time_s'] == .006
+
+
+def test_group_settle_seconds_from_config(monkeypatch):
+    captured = {}
+
+    def init(self, backend_root, groups, **kwargs):
+        captured['groups'] = groups
+
+    monkeypatch.setattr(MultiConditionEnvironment, '__init__', init)
+    config = {'force_limits': [50.] * 3 + [5.] * 3, 'groups': [
+        {'name': 'a', 'scene': 'a.pt', 'worlds': 2, 'settle_seconds': .75},
+        {'name': 'b', 'scene': 'b.pt', 'worlds': 2}]}
+    MultiConditionEnvironment.from_config(ROOT / 'backends/mujoco', config)
+    assert [g.settle_seconds for g in captured['groups']] == [.75, 0.]

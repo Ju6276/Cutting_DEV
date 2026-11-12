@@ -1,130 +1,62 @@
 # Plan
 
-Updated 2026-11-12 after task/platform review. The only current task list.
-Research scope: [PAPER](PAPER.md); measurements: [RESULTS](RESULTS.md);
-implementation: [METHOD](METHOD.md); assets: [DATA](DATA.md).
-Earlier plans: [2026-11-12 before the review](archive/PLAN_20261112_pre_review.md)
-(defect table, ordered steps, topic options), [2026-11-11](archive/PLAN_20261111.md),
-[2026-11-10](archive/PLAN_20261110.md).
+Updated 2026-11-12 (free-object task). The only current task list. Research scope:
+[PAPER](PAPER.md); measurements and history: [RESULTS](RESULTS.md); implementation:
+[METHOD](METHOD.md); task proposal: [TASK_FREE_CUT](TASK_FREE_CUT.md); assets: [DATA](DATA.md).
+Earlier plans are in `archive/` (latest: [before the task decision](archive/PLAN_20261112_pre_review.md)).
 
-## Current state
+## Current task (user decisions)
 
-- First S3 multi-object runs are stopped. Their task-level comparison is
-  withdrawn; retained evidence and deletion records are in RESULTS and DATA.
-- The force-spike problem statement is retired. The research question is open.
-- WM+BPTT, risk penalties, official SuperMimic adaptation, SAC and MPPI are
-  implemented code, not selected contributions or proof of task validity.
-- The initial cleanup changed only documentation/labels. Subsequent authorized
-  repairs changed net-wrench handling and material contact coordinates (below);
-  they did not change rewards or success thresholds and did not restart learning.
-- Machine availability is a timestamped observation; check before launching work.
+- Method paper for ICRA/IROS/RA-L; platform, objects and baselines are experiments. The
+  paper's core must follow from the task, not from a failure seen in our own runs.
+- **Task:** single cut of an object placed freely on the board. No fixture. Passive sliding
+  is recorded, has no threshold and no penalty; active rolling and repositioning are out of
+  scope. Sawing is part of the task (a pure press is not enough to show a method).
+- **Success:** the slice is fully separated from the body (no remaining material connection)
+  **and** no force-limit event occurred. Separation, force-limit events and task success are
+  recorded separately. A remaining connection is incomplete; 98 % release is a diagnostic.
+- **Failure endings:** force limit, timeout, explicit workspace bounds. "The object left the
+  blade's reach" is not a termination rule.
+- One shared WM/policy/critic across objects and materials; one force limit; no object
+  identity, material label or per-object reward/success setting reaches the learner.
+  The per-component six-axis sensor limit is kept as the interface in use; force norm and
+  torque are recorded. It is a simulation convention, not a Mini45-derived safety limit.
+- Simulation first, sim-to-real intended; real robot later (materials calibrated then).
+- One change at a time; a written plan with a budget is approved before training.
 
-## Decisions by the user
+## State
 
-Standing decisions (unchanged since before the review):
-- Method paper for ICRA/IROS/RA-L. Platform, objects and baselines are experiments.
-- One shared WM/policy/critic over scanned objects, randomized materials, knife start
-  height, target cutting speed as a task input.
-- One force limit for every object; no object identity, material label or per-object
-  reward/success setting reaches the learner; it adapts from force feedback. Historical
-  S0 used [50, 50, 50 N, 5, 5, 5 N·m]: a simulation threshold, not a Mini45 rating or
-  real-robot safety limit.
-- The paper's core must follow from the task, not from a failure seen in our own runs.
-- One change at a time; a written plan is approved before a paid run. New experiments
-  need a question, setting, decision rule and bounded budget.
-- No action-perturbation suite, additional seeds or new long training is scheduled.
+- Platform check of the free-object task on one scene: done (RESULTS). Severed-state check
+  defined for it (mesh has two components joined only by cut springs).
+- Reset from a settled object: implemented (`settle_seconds`), verified on that scene.
+- Net contact wrench feedback and friction transition velocity: implemented, repaired and
+  re-measured (RESULTS); friction and ground parameters are uncalibrated.
+- No training is running. Old S0 configs and held scenes are reproduction inputs only.
 
-Decisions and assessments of 2026-11-12:
-- Assessment: the candidate topic's motivation is too simple and has too few modalities
-  for ICRA/IROS as it stands; "fixing the WM's force spike" was a pseudo-problem.
-- Goal: one policy that cuts through several objects. Sawing is required (a pure press
-  is not enough to show a method). Hardness is not classified or given; the policy has
-  to learn it while cutting.
-- Simulation first, sim-to-real intended. The real robot is available from the following
-  week and is not the current focus; the user calibrates materials on it later.
-- Objects stay held by their bottom for now.
-- The simulation is to be changed so that sawing is represented (approved); other
-  simulators were surveyed (RESULTS). Geometry input is favoured; tactile sensing was
-  considered and not adopted (no credible sim-to-real path).
-- Hand-tuned speed-governor baselines are not a current step and not a gate.
+## Next steps, in order
 
-Decision after the fixture/label discussion (2026-11-12, supersedes "objects stay held by
-their bottom" above for the new task):
-- Task: single cut of an object placed freely on the board. Slight passive sliding is allowed
-  and is not a failure; active rolling and repositioning are out of scope. New fixture schemes
-  are cancelled.
-- Success: the slice is fully separated from the body (no remaining material connection)
-  without a force-limit event. A remaining connection is recorded as incomplete; 98 % spring
-  release is a diagnostic, not completion.
-- Order: one representative scene confirms object-board contact, knife contact and the
-  severed-state check (done, RESULTS "Free-object single-cut task"); then the reward for this
-  task; then training with a stated budget. The fixed reference need not succeed on every object.
+1. **Reward and its WM implementation** — proposal in [TASK_FREE_CUT](TASK_FREE_CUT.md),
+   awaiting the user's approval. No task code changes before that.
+2. After approval: implement the task version, run the fixed-trajectory reward preference
+   check stated there, then submit a training plan with a budget.
+3. New exported objects get the same topology check (two components joined only by cut
+   springs) as part of asset preparation.
 
-Cautions kept from the review: a method must address a practical limitation supported by
-literature and task evidence; more modalities or objects do not by themselves establish
-novelty; a shared multi-object policy is the chosen setting, not by itself a contribution.
+## Known limits of the platform (not a repair queue)
 
-## What has to be resolved
-
-1. **Real task and completion.** Specify the intended cut/product, knife,
-   realizable fixture, allowable movement, desired speed and unacceptable
-   outcomes. Reaching a pose does not establish separation. Proposed and not yet
-   approved by the user: released cut-spring fraction >= 0.98 without a force-limit
-   event (real robot: knife at board height); its relation to physical separation
-   has to be checked first.
-2. **Platform and force meaning.** The inherited material bridge sums contact
-   magnitudes, places the scalar on one axis and contributes zero material torque;
-   native MuJoCo wrench is also present. Optional net feedback is now implemented
-   and checked for contact location, sign, frame, moment and sampling consistency.
-   Select the task's feedback convention and calibrate it; implementation checks
-   do not validate friction or real cutting. Model a real fixture rather than
-   tuning holds per object to obtain desired force curves.
-3. **A bounded reference demonstration.** Once 1–2 are specified, use a few
-   representative cuts to distinguish separation, sliding, blade-face contact
-   and board contact. Reference travel must reflect the actual start. Residual
-   force is not automatically wrong while the blade remains in contact. Check
-   reward preferences against intended behavior before another long run.
-4. **Research question and comparison.** Read the closest task papers for real
-   limitations, assumptions, measurements and deployment requirements. A simple
-   force-feedback controller is a useful baseline after task correction. Its
-   success does not invalidate the field; its failure does not prove a WM is
-   necessary. Select the method and comparisons from the remaining practical gap.
-5. **Training after that decision.** Version the corrected task and write the
-   bounded training/comparison plan. Old S0 files remain reproduction inputs,
-   not launch-ready replacements for a corrected task.
-
-These are decisions for one task closure, not an open-ended diagnostic queue.
-This cleanup introduces no numerical acceptance thresholds or material ranges.
-The old proposal (98% release, <3 mm shift, zero residual force) is unapproved,
-not a task contract.
-
-## Conditional options
-
-Geometry input is useful only if the task needs information unavailable from
-proprioception/force. The early scalar/high-transition-velocity measurements showed
-negligible sawing benefit. Later net-feedback measurements with transition velocity
-0.01 m/s showed a lower vertical force and a smaller reduction in net force on the
-prism (RESULTS). These are configuration-specific reference cuts, not a learned
-sawing policy or real-material validation. Heterogeneous materials
-need their own practical motivation and validated representation. More modalities
-or objects do not by themselves establish novelty.
+- The cut plane is fixed in the object and the knife is constrained to one plane. On the
+  free cucumber a sideways offset of about 1 mm between them changed the peak force from
+  about 2 N to 16 N and left the cut incomplete (RESULTS). Sliding across the cut plane is
+  therefore not represented faithfully; sliding along the blade is.
+- From a settled start the free cucumber is separated by a plain press at 1.5-2.5 N for
+  Young x1 and x2: this scene alone poses no force difficulty.
+- Sawing changes force direction through friction only; the fracture-side effect is not in
+  DiSECt's damage law. Long-horizon per-spring damage repeatability is an open item.
 
 ## Storage and execution
 
-Use Remote SSH on GPU7, /dataHDD/dong/Projects/Cutting_DEV, main; the A6000 holds a
-second checkout. Code, data, environments and outputs stay on servers, not the Mac.
-Check `nvidia-smi` before using a GPU. Not to be launched without a new approved plan:
+Use Remote SSH on GPU7, /dataHDD/dong/Projects/Cutting_DEV, main; the A6000 holds a second
+checkout. Code, data, environments and outputs stay on servers, not the Mac. Check
+`nvidia-smi` before using a GPU. Not to be launched without a new approved plan:
 `train_gpu.py --conditions configs/multi_condition/s0_*.json` (with or without
-`--risk-constraint`), `train_official_supermimic.py`, `train_sac_gpu.py` on S0. Preserve historical
-contracts and evidence. Do not restart S3 from a reproduction command.
-
-
-Net-wrench interface repairs and the bounded press/saw rerun are recorded in
-[RESULTS](RESULTS.md#2026-11-12--codex-net-wrench-repair-and-physical-rerun).
-The contact-coordinate correction is implemented as `edge_coordinate_consistent_v2`.
-Kernel confirmation and the bounded press/saw comparison are recorded in
-[RESULTS](RESULTS.md#2026-11-12--contact-coordinate-correction-and-kernel-confirmation).
-It resolves the source inconsistency identified in that interface review; it does not
-replace material calibration or approve restarting training.
-
-Review handoff for Claude: [CONTACT_FIX_REVIEW](CONTACT_FIX_REVIEW.md).
+`--risk-constraint`), `train_official_supermimic.py`, `train_sac_gpu.py` on S0.

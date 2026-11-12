@@ -49,6 +49,7 @@ def main():
     parser.add_argument('--hold-seconds', type=float, default=.5)
     parser.add_argument('--retract', type=float, default=.03, help='upward retraction after the hold (m)')
     parser.add_argument('--sim-dt', type=float)
+    parser.add_argument('--settle-seconds', type=float, default=0.)
     parser.add_argument('--friction-velocity', type=float, default=.01)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
@@ -58,7 +59,8 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     n = len(args.young_scales)
     env = GPUEnvironment(str(args.backend_root), n, scene=args.scene, sim_dt=args.sim_dt,
-                         force_model='net', friction_velocity=args.friction_velocity)
+                         force_model='net', friction_velocity=args.friction_velocity,
+                         settle_seconds=args.settle_seconds)
     physics, material = env.physics, env.physics.material
     physics.force_limits = torch.full_like(physics.force_limits, 1e6)
     model = material.model

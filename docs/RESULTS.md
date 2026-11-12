@@ -593,3 +593,32 @@ Assessment: on this scene the platform expresses the three things the task needs
 board, knife contact with a net wrench, a well-defined severed state), with two known issues to handle
 in the task definition rather than by fixing objects: episodes must start from a settled object, and
 ground/knife friction are uncalibrated simulation settings.
+
+#### 2026-11-12 — Settled start; correction of the free-cucumber table above
+
+`settle_seconds` advances the material with the knife held at its (non-touching) start before the
+reset state is saved (0.75 s used). With it the 1 s rest moves the object by under 0.06 mm.
+From the settled start (`cucumber_{press,saw}_settled/report.json`):
+
+| Young scale | Motion | Released | Separated | Peak net force |
+|---|---|---|---|---|
+| 1 | press | 65/65 | yes | 2.4 N |
+| 2 | press | 65/65 | yes | 1.5 N |
+| 1 | press + saw 2 cm, 1 Hz | 65/65 | yes | 2.5 N |
+| 2 | press + saw 2 cm, 1 Hz | 65/65 | yes | 1.9 N |
+
+**Corrections to the entry above.**
+- The Young x2 press that stayed incomplete at 16.4 N started from the unsettled export, in which
+  that world's object had moved about 1 mm across the cut plane during the rest; from the settled
+  start the same press separates the object at 1.5 N. The difference between press and saw in that
+  table is therefore not evidence about sawing or about a need for an adaptive policy. The fixed
+  press and the fixed saw both complete this scene and stay as reference comparisons.
+- "The object stays on the board" holds for rest and cutting; in the incomplete case the object was
+  lifted about 24 mm with the retracting knife.
+- These runs had the force limit disabled: "separated" is not "task success under the limit".
+
+**Platform limit seen here:** the cut plane is fixed in the object and the knife is constrained to
+one plane; about 1 mm of sideways offset between them changed the peak force from about 2 N to
+16 N. Sliding along the blade is represented; sliding across the cut plane is not represented
+faithfully. Scope of the separation check: this scene only; new exported objects need the same
+topology check during asset preparation.
