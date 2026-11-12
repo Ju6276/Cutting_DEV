@@ -1,5 +1,39 @@
 # Free-cut review repair, 2026-11-12
 
+**Latest: the second-review v3 repair below supersedes v2 as the current candidate.**
+The v2 reward table is historical; its tiny high-speed margin was not training-ready.
+
+
+## Latest handoff: free_cut_v3
+
+Code: 0ef9718 (reset cache/timing), c720cd9 (v3 reward and completion), abe84b2
+(stable completion gradients and actual emitted-probability metrics). Review branch remains
+codex/free-cut-v1; not merged into main, and no long training was started.
+
+- Reward: physical normal / 3x / 20x / completed-slow returns are
+  109.82 / 105.21 / 94.30 / 99.62. All nine reference cases finished; no weak .08 speed margin.
+- Completion: conditional release-fraction hazard bound, shared reward/survival, and direct
+  sigmoid fractions on the BPTT path to avoid float32 subtraction instability near rho=1.
+- Reset: bounded scratch cache with immediate object release; .75 s material-specific settling
+  and inactive-world preservation unchanged. Reset remains a measured cost, not free.
+- Actual execution: 32 staggered iterations x 256 worlds, WM/actor/real-critic updates, full-size
+  eager update profile, all cache sizes, and an isolated real sensor-limit abort.
+- Final regression: root 310 passed / 7 skipped; backend 38 passed; MPPI environment 12 passed.
+  Root's two missing-MPPI skips are exercised in that dedicated environment; the remaining
+  five are optional historical SAC/Gym/TensorFlow checks, not claimed as passing.
+
+Observed whole-device memory in the full-size eager profile was 2892 MiB. Physical/reset
+means were 3.025 / 5.473 seconds per vector step in the staggered stress; the source-sized
+WM update took 103.687 seconds, actor/real-critic update 26.134 seconds. These are a
+one-object eager workload, not a compiled three-object training budget.
+
+Specific remaining boundaries: completion calibration and useful policy learning require
+training data/validation; nominal trajectories did not naturally hit the original force
+limits; the lower-limit probe checks wiring only. No physical calibration or algorithmic
+advantage is claimed. Formulas: TASK_FREE_CUT section 9. Full measurements below; raw
+reports are on GPU7 under runs/free_cut_second_review_20261112/.
+
+
 Authorized by the user after Claude reviewed 48fcbef. No long training.
 
 One connected repair: reduce material-specific reset cost without changing the distribution
@@ -170,3 +204,143 @@ For Claude: inspect the execution-stream/cache changes, explicit v2 interface/di
 the real-label diagnostics (which are not a hard consistency constraint), and the recorded
 reward ordering. Next is a bounded WM-pretraining / engineering-training proposal after review,
 not another series of local numerical diagnostics or a revived S3 experiment.
+
+
+## Second review repair (bounded validation, user authorized)
+
+Claude correctly identified that v2 only ranked the sampled speeds, with an insufficient
+0.08 return gap for the 20x-speed trajectory. It also had diagnostics but no completion
+consistency constraint. This section supersedes any implication that v2 was training-ready.
+
+Connected scope: explicit v3 reward and completion parameterization; bounded reset cache;
+measure actual short-loop throughput and memory. Do not change materials, friction, force
+limits, settling duration, or launch long training.
+
+Bounded checks on GPU7 (sequential to avoid timing interference):
+- Recompute v3 rewards on the existing stored physical traces, then repeat reference cases
+  using the unchanged nominal physical setup, <= 35 GPU minutes.
+- 32 real-control iterations with 256 worlds and full-width networks, real WM/actor/critic
+  updates with explicit small review batches, material-randomized resets; <= 20 GPU minutes.
+  A 16-step review deadline stresses resets; this is not the production training horizon,
+  update budget or evidence of learning. Record per-stage time and allocated/reserved/device
+  memory; visit all power-of-two reset sizes and exercise a full-duration sparse reset.
+- Isolated physical force-abort wiring check with explicitly LOWER TEST-ONLY limits, <= 5
+  GPU minutes. This is not evidence that the nominal 50 N / 5 Nm task is challenging, and
+  its results must never be pooled with the unchanged-task references.
+- Required root/backend suites including GPU cases. No statistical performance claims.
+
+
+### Second-review implementation
+
+- `0ef9718`: reset scratch capacity is bounded by one rounded-up parent material batch.
+  Eviction breaks the cached Python step's self-reference; a weak-reference regression
+  proves evicted scratch objects release immediately. Training logs separate reset time.
+- `c720cd9` and `abe84b2`: opt-in free_cut_v3; old v1/v2 stay reproducible.
+  Speed cost is paid per released fraction plus a bounded time cost. Exact formula and
+  provisional weights are in TASK_FREE_CUT section 9. Physical limits/materials are unchanged.
+- The finite cost bound is checked for every accepted v3 configuration. With H=100,
+  dt=.05 and the review weights, successful return >=54.5, unfinished return in [-45.5,10],
+  and force/workspace failure return <=-90. This excludes intentional failure as a way
+  to avoid a larger accumulated penalty under the stated task signals.
+- Completion hazard is bounded by this step's predicted fraction of remaining material
+  released, not just total progress. Consequently constant partial progress cannot
+  accumulate an arbitrary completion probability. Expected success reward and survival
+  use the same probability; head-only fitting detaches both progress inputs and the
+  fraction, while policy BPTT retains them. No new spring-release threshold.
+- A float32 diagnostic demonstrated why the original network fraction must be used:
+  reconstructing f from two rounded progress states, with true f=.9 and old rho=.99999994,
+  produced recovered f=1 and a spurious d(f)/d(rho) of 1,677,722. At rho=1 it reached
+  -7.66e37. The differentiable path now uses the network sigmoid directly; state-only
+  reconstruction refuses state gradients. Tests cover the endpoints and near-complete
+  values. Imagination logs retain the actual emitted probability rather than reconstructing it.
+- The third-party current-stream/cache changes were from 1b287d5, not newly added here.
+  METHOD explicitly lists their files and forward/backward/global scope. No new physical
+  kernel, fracture, contact or friction modification was made in this review.
+
+The completion constraint is an internal probability/expected-progress consistency bound,
+not proof that the WM predicts real events correctly. Short update checks cannot establish
+calibration, convergence or a useful policy. Eager one-object timing cannot promise memory
+or wall time for compiled three-object training on another GPU.
+
+### Harness provenance
+
+The first timing attempt (`throughput`) failed before its first update because eight stored
+rows did not yet provide a sampleable eight-transition window; it also overallocated replay
+by treating capacity as total rather than per world. Both were in the new measurement script,
+not train_gpu.py. The corrected harness uses the source 1000 rows per world and starts updates
+at iteration 12. Logs are retained. Intermediate profiles used the earlier total-progress
+completion bound; final implementation numbers must come from `throughput_final`.
+All short profiles use an explicit 16-step deadline for reset stress and small early update
+batches. The final full-size update is separately timed; do not multiply the small-batch loop
+average by production iterations to estimate a long run.
+
+
+### Second-review physical reward results
+
+| Trajectory | Ending | Steps | v3 return | 2 ms net-force peak |
+|---|---|---:|---:|---:|
+| press | success | 43 | 109.821 | 4.146 N |
+| saw | success | 46 | 109.720 | 1.880 N |
+| fast | success | 17 | 105.210 | 6.172 N |
+| stall | timeout | 100 | -19.999 | 0.000 N |
+| retract | timeout | 100 | -14.555 | 1.122 N |
+| slow | timeout | 100 | -6.594 | 3.769 N |
+| extreme_fast | success | 5 | 94.300 | 9.677 N |
+| slow_press | success | 94 | 99.625 | 3.807 N |
+| hold_in_material | timeout | 100 | -12.566 | 2.576 N |
+
+All nine cases completed their task ending (success or timeout) within the measurement
+budget. Normal press versus 20x press now differs by 15.52, rather than .08 in v2.
+No original-limit violation was triggered in this nominal condition; the lower-limit
+physical abort probe is isolated and is not task-performance evidence. The earlier
+rescoring of stored v2 traces agrees in ordering but is not substituted for these reruns.
+
+
+### Isolated physical abort probe
+
+To test the actual 500 Hz sensor-event path, a separate TEST-ONLY config used limits
+[.1,.1,.1,.01,.01,.01]; the task/reference config remains [50,50,50,5,5,5]. Normal pressing
+terminated at step 18 with collision=True, success=False, outside=False, timeout=False,
+rho=0. The first sensor torque component reached .0102196 Nm against .01 Nm (utilisation
+1.02196); net material force peak was .116932 N. Episode return -100.26715, last-step reward
+-100.05671. The one failure settlement was charged and the episode ended. This is a physical
+wiring/termination test, not evidence of difficulty or risk under the nominal task limits.
+Raw report: runs/free_cut_second_review_20261112/force_abort/report.json.
+
+
+### Final-code throughput and memory
+
+GPU7 RTX 4090, one free-cucumber group, 256 worlds, full-width networks, source replay
+capacity 1000 rows/world. The reset stress deliberately starts worlds with staggered
+remaining deadlines in a 16-step test horizon; it is not a task-performance experiment.
+32 real-control iterations = 8192 physical transitions, 16 timeouts/reset rows each step,
+512 ended episodes in total. Materials are redrawn before each .75 s settle. Actual WM,
+actor and real-critic updates ran, with finite reported losses/gradients. All episode endings
+were deadline endings; no learned cutting-success claim or completion calibration is made.
+
+| Timing | Measured |
+|---|---:|
+| Physical vector step, mean | 3.025 s |
+| Reset of 16 selected rows, mean | 5.473 s |
+| Small-review-update loop, mean total | 8.724 s |
+| Full-duration one-world reset after cache stress | 4.700 s |
+| One source-sized WM update: 10 x 2048, window 8 | 103.687 s |
+| One actor/real-critic update: actor 4096, h8; critic 5 x 4 | 26.134 s |
+
+The first loop uses batch 32, one WM minibatch, one critic epoch/minibatch, updating every
+four physical steps after its data warmup. The final source-sized update uses microbatch
+64 and eager execution. They are intentionally reported separately. Neither the 8–9 second
+small-update loop nor these eager timings are a validated compiled multi-object long-run
+budget. At source cadence 0.4 updates/vector step, the full update costs must be amortized
+in addition to physical/reset time; do not omit them.
+
+At the full-update measurement: PyTorch peak allocated 1961.7 MiB,
+reserved 2284.0 MiB; observed whole-device used 2891.8 MiB.
+The cache stress visited all capacities 1,2,4,...,256 and never retained more than
+256 scratch-world capacity. Inactive material rows stayed bitwise unchanged.
+This measures one-object eager allocation. Three object workers, different meshes and
+compiled graph pools can cost more and are not certified to fit by this result.
+
+Evidence: runs/free_cut_second_review_20261112/throughput_final/report.json, per-iteration
+metrics and source diff. Whole final profile took 438.2 s including initialization,
+cache pressure and the full-size updates. It produced no trained-policy checkpoint.

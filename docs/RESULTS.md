@@ -750,3 +750,103 @@ Branch codex/free-cut-v1, code 1b287d5 / 5362975. No long training.
 Current limits: no trained v2 WM/policy; completion calibration after pretraining is unverified;
 no actual physical force-failure / near-limit slow-press case in this bounded batch; the
 100-step horizon and EE box are review-only configuration, not a general multi-object setup.
+
+
+## 2026-11-12 — Free-cut v3 second-review repair
+
+This is an engineering reward/termination/reset check, not a trained-policy comparison.
+The v2 ordering claim is superseded: its 20x-speed penalty margin was only about 0.08.
+V3 uses progress-weighted speed error plus a finite time-budget cost; formulas, cost bounds,
+release-consistent completion hazard and provenance are in TASK_FREE_CUT / FREE_CUT_REPAIR.
+Simulation limits remain [50,50,50,5,5,5], free cucumber, nominal material, .75 s settling,
+friction transition .01, H=100, gamma=1. No physical parameter was tuned to make the task hard.
+
+### Actual reference rerun
+
+| Trajectory | Ending | Steps | v3 return | 2 ms net-force peak |
+|---|---|---:|---:|---:|
+| press | success | 43 | 109.821 | 4.146 N |
+| saw | success | 46 | 109.720 | 1.880 N |
+| fast | success | 17 | 105.210 | 6.172 N |
+| stall | timeout | 100 | -19.999 | 0.000 N |
+| retract | timeout | 100 | -14.555 | 1.122 N |
+| slow | timeout | 100 | -6.594 | 3.769 N |
+| extreme_fast | success | 5 | 94.300 | 9.677 N |
+| slow_press | success | 94 | 99.625 | 3.807 N |
+| hold_in_material | timeout | 100 | -12.566 | 2.576 N |
+
+Normal press exceeds 20x press by 15.52 return, 3x press by 4.61 and the completed slow-press
+case by 10.20. This repairs the measured reward preference; it does not prove the absence
+of every reward exploit or that a learned critic will be accurate. Sawing is allowed, not
+rewarded merely for being sawing. Every row was recomputed by the task during physical
+execution, not only rescored afterward. The run finished all nine cases, with no natural
+force-limit event in this nominal condition. The force-abort wiring probe is separately
+labelled and must not be pooled with this table.
+
+Different reruns need not have identical force peaks or release times (e.g. sawing completed
+at 46 steps here versus 43 in the old record). Existing long-duration floating repeatability
+limits remain; no numerical rule was relaxed in this review. These are case observations,
+not a statistical force comparison or evidence of real-world calibration.
+
+Raw evidence on GPU7: runs/free_cut_second_review_20261112/. The reference report contains
+configuration/hash, source diff/hash, script snapshot and per-step rows. Intermediate timing
+harness attempts are retained; only throughput_final is the final implementation profile.
+
+
+### Isolated physical abort probe
+
+To test the actual 500 Hz sensor-event path, a separate TEST-ONLY config used limits
+[.1,.1,.1,.01,.01,.01]; the task/reference config remains [50,50,50,5,5,5]. Normal pressing
+terminated at step 18 with collision=True, success=False, outside=False, timeout=False,
+rho=0. The first sensor torque component reached .0102196 Nm against .01 Nm (utilisation
+1.02196); net material force peak was .116932 N. Episode return -100.26715, last-step reward
+-100.05671. The one failure settlement was charged and the episode ended. This is a physical
+wiring/termination test, not evidence of difficulty or risk under the nominal task limits.
+Raw report: runs/free_cut_second_review_20261112/force_abort/report.json.
+
+
+### Final-code throughput and memory
+
+GPU7 RTX 4090, one free-cucumber group, 256 worlds, full-width networks, source replay
+capacity 1000 rows/world. The reset stress deliberately starts worlds with staggered
+remaining deadlines in a 16-step test horizon; it is not a task-performance experiment.
+32 real-control iterations = 8192 physical transitions, 16 timeouts/reset rows each step,
+512 ended episodes in total. Materials are redrawn before each .75 s settle. Actual WM,
+actor and real-critic updates ran, with finite reported losses/gradients. All episode endings
+were deadline endings; no learned cutting-success claim or completion calibration is made.
+
+| Timing | Measured |
+|---|---:|
+| Physical vector step, mean | 3.025 s |
+| Reset of 16 selected rows, mean | 5.473 s |
+| Small-review-update loop, mean total | 8.724 s |
+| Full-duration one-world reset after cache stress | 4.700 s |
+| One source-sized WM update: 10 x 2048, window 8 | 103.687 s |
+| One actor/real-critic update: actor 4096, h8; critic 5 x 4 | 26.134 s |
+
+The first loop uses batch 32, one WM minibatch, one critic epoch/minibatch, updating every
+four physical steps after its data warmup. The final source-sized update uses microbatch
+64 and eager execution. They are intentionally reported separately. Neither the 8–9 second
+small-update loop nor these eager timings are a validated compiled multi-object long-run
+budget. At source cadence 0.4 updates/vector step, the full update costs must be amortized
+in addition to physical/reset time; do not omit them.
+
+At the full-update measurement: PyTorch peak allocated 1961.7 MiB,
+reserved 2284.0 MiB; observed whole-device used 2891.8 MiB.
+The cache stress visited all capacities 1,2,4,...,256 and never retained more than
+256 scratch-world capacity. Inactive material rows stayed bitwise unchanged.
+This measures one-object eager allocation. Three object workers, different meshes and
+compiled graph pools can cost more and are not certified to fit by this result.
+
+Evidence: runs/free_cut_second_review_20261112/throughput_final/report.json, per-iteration
+metrics and source diff. Whole final profile took 438.2 s including initialization,
+cache pressure and the full-size updates. It produced no trained-policy checkpoint.
+
+
+Final regression on the repaired code: root **310 passed, 7 skipped**; backend **38 passed**;
+MPPI environment **12 passed**. Root's two MPPI dependency skips were covered by the dedicated
+run; five historical SAC/Gym/TensorFlow checks remain explicitly skipped. Logs and commands
+are in runs/free_cut_second_review_20261112/regression_final.json and *_final.log.
+Code: 0ef9718, c720cd9, abe84b2. The latter removes demonstrated float32 cancellation in
+release-fraction gradients and logs emitted probabilities directly. No long training,
+S3 restart, merge to main or new learned policy was produced by this review.

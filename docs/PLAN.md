@@ -38,17 +38,22 @@ Earlier plans are in `archive/` (latest: [before the task decision](archive/PLAN
 - free_cut_v2 adds time input, gamma=1, explicit workspace and conservative progress
   initialization. Reset batching/graph execution, physical references and one actual update have been checked.
   See [FREE_CUT_REPAIR](FREE_CUT_REPAIR.md) for the bounded repair evidence.
-- No training is running. Old S0 configs and held scenes are reproduction inputs only.
+- free_cut_v3 is the current review candidate: progress-weighted speed cost, finite penalty
+  bound, release-consistent completion hazard and bounded reset cache. Actual reference
+  reruns and final-code 256-world timing are in FREE_CUT_REPAIR and RESULTS.
+- No long training is running. Old S0 configs and held scenes are reproduction inputs only.
 
 ## Next steps, in order
 
-1. Authorized connected repair complete: reset timing, reference rewards, actual update and
-   regression results are in FREE_CUT_REPAIR. No long training or physics/limit tuning.
-2. Claude reviews the code and FREE_CUT_REPAIR. Reward preference results are
-   evidence about the measured reference trajectories only; unresolved cases are explicit.
-3. Then submit a bounded end-to-end engineering training plan, including WM pretraining and
-   physical calibration of progress/completion before policy improvement. A one-update check
-   is not evidence that the completion head is accurate or the task has been learned.
+1. The authorized v3 repair and bounded measurements are complete; see FREE_CUT_REPAIR.
+   Nominal physics/limits were not tuned. The isolated lower-limit physical abort probe is
+   labelled only as an integration test, never nominal task evidence.
+2. Claude reviews the v3 reward formula, completion-gradient path, reset cache and recorded
+   evidence. The reward preference is established for the measured references, not all policies.
+3. Then submit a bounded engineering training plan: actual production horizon/materials,
+   update sizes/cadence, compilation mode, WM warmup and physical calibration before trusting
+   imagined policy returns. Include reset time and full-size WM/actor updates in its budget.
+   The small-update loop timing is not a long-run estimate. No automatic S3 restart.
 4. New exported objects get the same topology check during asset preparation.
 
 ## Known limits of the platform (not a repair queue)

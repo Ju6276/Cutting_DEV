@@ -2,8 +2,10 @@
 
 Status 2026-11-12: **implementation and bounded update checks authorized; long training not authorized.** Task decisions are in
 [PLAN](PLAN.md); evidence in [RESULTS](RESULTS.md). The historical v1 check is configs/free_cut/interface_check.json (gamma=.99, rejected
-speed preference). The review candidate is configs/free_cut/review_v2.json (gamma=1).
-Both contain explicit provisional weights, not approved long-training configurations.
+speed preference). v2 is preserved for reproduction but its speed penalty was too weak.
+The CURRENT review candidate is configs/free_cut/review_v3.json (gamma=1); section 9
+defines its reward and completion bound. All review configs have explicit provisional
+weights and are not approved long-training configurations.
 Review evidence and bounded validation: [FREE_CUT_REPAIR](FREE_CUT_REPAIR.md).
 
 ## 1. Quantities
@@ -22,14 +24,14 @@ Per control step t (0.05 s):
 |---|---|---|---|
 | Separated (rho = 1), no limit event in the episode | yes | +R_s | task success |
 | Force-limit event (u > 1), including the step in which rho reaches 1 | yes | -R_f | failure; separation recorded separately |
-| Workspace bound crossed (v2: explicit robot-base XYZ bounds of the end-effector pose) | yes | -R_f | failure |
+| Workspace bound crossed (v2/v3: explicit robot-base XYZ bounds of the end-effector pose) | yes | -R_f | failure |
 | Time limit T | yes; **terminal, no bootstrap** | 0 | incomplete (not a success) |
 
 The task is one cut within a time limit, so nothing is earned after T: the time limit is a true
-terminal state for the critic and for imagination (the step count is included in the WM/critic state; v2 also gives the policy normalized remaining time). A step that both separates and violates the limit is a failure (the limit takes precedence, as in
+terminal state for the critic and for imagination (the step count is included in the WM/critic state; v2/v3 also give the policy normalized remaining time). A step that both separates and violates the limit is a failure (the limit takes precedence, as in
 the existing `success & ~collision`). Object displacement is logged and has no reward term.
 
-## 3. Step reward
+## 3. Historical v1/v2 step reward (v3 uses section 9)
 
 r_t = w_p * (rho_t - rho_{t-1})                                   progress; sums to w_p over a full cut
     - dt * w_v * tanh(abs(v_t - v*) / v*)                        feed-speed tracking
@@ -60,7 +62,7 @@ Required ordering: completed cuts that respect the speed command and the limit r
 others; fast impact, stalling, retraction and deliberate failure have no advantage. The check can
 exclude gross errors; it cannot prove the absence of other reward exploits.
 
-## 5. World-model implementation
+## 5. Shared world-model implementation (v3 completion coupling in section 9)
 
 The policy is trained on imagined rollouts, so every reward term must be computable from the
 predicted state:
@@ -147,3 +149,69 @@ Review entry: [FREE_CUT_REVIEW](FREE_CUT_REVIEW.md). No new policy checkpoint ex
   The knife is stationary. Duration/material draws are unchanged, velocities are not cleared,
   and only selected rows are copied back. GPU parallel sums can produce floating differences;
   numerical comparisons and cost are reported in FREE_CUT_REPAIR.
+
+
+## 9. Current review candidate: free_cut_v3 (supersedes v2 for new checks)
+
+v2's observed ranking was insufficient: 20x-speed pressing lost only 0.08 return.
+Old v1/v2 configs still reproduce their equations; v3 changes task metadata and cannot
+silently resume an old task checkpoint. Physical separation, six-component simulation
+limits, workspace, friction and settling duration are unchanged.
+
+Let rho be cut progress, v the signed downward speed, v* > 0 the command, H the
+finite episode horizon and dt the control interval. Define
+
+    e = ((v - v*) / (abs(v) + v*))^2                   in [0,1]
+    c_speed = w_speed * e * (max(rho_next - rho, 0) + 1/H)
+    r_step = w_progress * (rho_next - rho) - c_speed
+             - dt * (w_load * min(utilization,1) + w_jerk * min(jerk,1))
+
+Success/failure settlement and gamma=1 are unchanged. This is a task reward design,
+not a claimed new RL method or a physically measured cost. The progress part charges
+for speed mismatch on each released fraction regardless of how few steps the cut takes.
+Reciprocal forward speeds have equal mismatch (3x and 1/3x); the finite-time term also
+penalizes waiting/retraction. No additional sliding or sawing penalty is introduced.
+The review chooses w_speed=20 explicitly: a full cut at extreme mismatch can lose up
+to 20 from the progress part, plus at most 20 over the full time budget. Other review
+weights remain progress=10, load=1, jerk=.1, success=failure=100. These are engineering
+reward units, not calibrated physical parameters or a promise that a critic is accurate.
+
+The running-penalty upper bound is P = 2*w_speed + H*dt*(w_load+w_jerk).
+The constructor requires BOTH terminal magnitudes > w_progress + P. For the review
+H=100 and dt=.05, P=45.5: successful return >=54.5, unfinished nonfailure return >=-45.5,
+unfinished return <=10, force/workspace failure return <=-90. Thus a deliberate failure
+cannot beat an otherwise unfinished nonfailure, and a completed nonfailure beats any
+unfinished episode, under these bounded signals. This is a reward bound, not a guarantee
+that a learned model/critic predicts the correct return. A longer production horizon is
+validated against the same condition and must not inherit this config unquestioningly.
+
+Completion/progress coupling in v3:
+
+    f = clamp((rho_next-rho)/(1-rho), 0, 1)
+    p_complete_this_step = f * sigmoid(raw_completion_head)
+
+The old state is required. With no new release the completion hazard is zero up to dtype
+tiny. Across an imagined rollout, cumulative completion probability is bounded by
+(rho_final-rho_initial)/(1-rho_initial), apart from floating error. A weaker bound using
+rho_next alone would allow repeated hazards to accumulate success at constant partial
+progress; that candidate was discarded during this review. At already-complete inputs
+f=0 (there is no new completion event). Physical complete rows are terminal replay targets,
+not new episode starts.
+
+WM BCE, completion reward, survival and MPPI receive the corresponding stable logit.
+For differentiable prediction, f is taken directly from the network sigmoid that generated
+the progress increment, NOT reconstructed by subtracting rounded float32 states near 1.
+State-only reconstruction is allowed for diagnostics without state gradients. Imagination
+metrics retain the actual emitted probability instead of reconstructing it afterward. This necessary consistency bound follows because a new
+completion releases all remaining material. It is not a 98% threshold, nor an assumption
+that mean progress equals completion probability. The head still learns physical separation
+labels. It can satisfy the bound and remain inaccurate; calibration is empirical.
+Head-only fitting detaches BOTH predicted and previous progress states. Policy BPTT keeps
+both paths through progress, the head, reward and survival. Only dtype tiny is used for
+numerically finite endpoint logits, not an experiment-defined threshold.
+
+Reset cache: LRU eviction limits the sum of cached scratch-world capacities to the
+next power of two of the parent batch size. Eviction breaks the cached-step closure
+cycle so tensor/graph memory is not left waiting for Python GC. This bounds scratch
+capacity, not total device memory: replay, networks, allocator reserves and graphs are
+measured separately. Evictions can cause later recapture; do not claim zero reset cost.

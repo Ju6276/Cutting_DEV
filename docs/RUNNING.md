@@ -287,3 +287,18 @@ PYTHONPATH=. .venv/bin/python scripts/check_free_cut_learning.py --output runs/N
 Use fresh output directories. The final command is one gradient-update execution check with
 a short test deadline and small batches, not a recommended training setup. No policy efficacy
 can be inferred from it. Review details: [FREE_CUT_REPAIR](FREE_CUT_REPAIR.md).
+
+
+Second-review checks (fresh output directories; GPU7, source runs/sac_env.sh):
+~~~bash
+PYTHONPATH=. .venv/bin/python scripts/check_free_cut_task.py --config configs/free_cut/review_v3.json --output runs/NEW_V3_REFERENCES --wall-seconds 2100
+PYTHONPATH=. .venv/bin/python scripts/check_free_cut_throughput.py --worlds 256 --iterations 32 --staggered-start --full-update-profile --output runs/NEW_V3_TIMING --wall-seconds 1200
+~~~
+The throughput script executes real controller transitions and gradient updates, with an
+explicit artificial 16-step deadline and optionally staggered initial remaining deadlines
+for reset stress. Initial updates use small batches; the optional final profile uses source
+batch counts (WM 10x2048, actor 4096, real critic 5 epochs x4 minibatches), horizon 8,
+microbatch 64, full networks and eager execution. It is not a convergence experiment, does
+not produce a trained policy, and does not authorize long training. CUDA compilation memory
+and different-object worker processes are not bounded by this one-object eager profile.
+The source training logger now separates time/reset from time/physics.

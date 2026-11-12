@@ -23,7 +23,7 @@ holding setup, reward and reference trajectory confounded the results. The
 default material-force bridge remains a scalar proxy. Optional net force/moment
 feedback and its contact-coordinate correction are implemented and locally checked;
 neither mode has been calibrated as a real Mini45 measurement.
-The opt-in free-cut task (v1 and v2 review revision) is implemented for engineering review (complete
+The opt-in free-cut task (v1/v2 history and v3 review candidate) is implemented for engineering review (complete
 separation, force/workspace failures, finite deadline, explicit rewards and WM
 progress). See [task contract](docs/TASK_FREE_CUT.md) and
 [current review handoff](docs/FREE_CUT_REPAIR.md). Only bounded execution checks have run; there is no new trained task policy.

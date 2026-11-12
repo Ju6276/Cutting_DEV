@@ -765,3 +765,25 @@ material draws and the original duration; a stationary 32-substep CUDA graph rem
 dispatch overhead. The vendored DFlex wrappers now launch on PyTorch's current CUDA stream,
 the extension cache checks both CPU and CUDA generated source, and a per-step scalar zero
 allocation is graph-compatible. These are execution changes, not new contact/damage equations.
+
+
+## Free-cut v3 review and DiSECt execution changes
+
+The opt-in v3 task uses the progress-weighted, finite-budget speed cost and bounded
+completion probability in TASK_FREE_CUT section 9. Source/v1/v2 formulas are preserved.
+This task-specific reward/parameterization is not evidence of a new algorithm or success.
+
+Third-party execution changes introduced in 1b287d5 affect ALL DiSECt paths, including
+legacy tasks; they are not a free-cut-only physical patch:
+- `backends/mujoco/third_party/disect/disect/dflex/adjoint.py`: generated forward AND backward
+  kernels launch on PyTorch's current CUDA stream. Necessary for dependent tensor operations
+  and CUDA graph capture to execute in order. Compilation cache identity includes generated
+  CPU and CUDA sources, so stale CUDA launch code cannot be loaded as an unchanged module.
+- `.../dflex/sim.py`: scalar zero initialization uses device `torch.zeros` (same int64 value),
+  avoiding a host-to-device scalar copy inside graph capture.
+
+These change scheduling/cache/initialization, not the contact/fracture equations. Numerical
+bitwise reproducibility is not promised. Original third-party licenses remain. New v3 work
+adds no further third-party kernel changes. GPU regression includes packed materials,
+controller/coupling, graph/eager comparisons and scratch eviction; passing these does not
+establish real-world physical calibration. Full provenance lives in FREE_CUT_REPAIR.
