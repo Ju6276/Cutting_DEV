@@ -9,6 +9,7 @@
 | [BENCHMARK](BENCHMARK.md) | Historical fixed-prism contract/commands, not the corrected multi-object task |
 | [RUNNING](RUNNING.md) | Installation, execution and validation |
 | [DATA](DATA.md) | Server data/checkpoint locations, status and cleanup record |
+| [CONTACT_FIX_REVIEW](CONTACT_FIX_REVIEW.md) | Review handoff for the contact correction: derivation, evidence, test-coverage change and limitations |
 | [METHOD](METHOD.md) | Implemented algorithms, retained variants and force-interface limitations |
 | [RESULTS](RESULTS.md) | Measurements from 2026-11-11 on, with a table of what currently holds; earlier entries are archived |
 | [NOVELTY](NOVELTY.md) | Literature evidence and candidate ideas, not implemented methods |

@@ -63,8 +63,8 @@ def test_material_scales_match_independent_scaled_worlds():
     torch.testing.assert_close(batch.state_field('cut_spring_ke')[0], reset_ke[0], atol=0, rtol=0)
     twist = torch.tensor([[0., -.03, 0., 0., 0., 0.]], device='cuda').repeat(3, 1)
     batch.set_motion(twist)
-    # Check identical-input transitions before float32 atomic accumulation can
-    # change a later discrete contact/damage branch (including single vs single).
+    # Check identical-input transitions separately from the measured long-run
+    # single-vs-single damage variation; its exact triggering branch is unresolved.
     batch.advance(batch.dt)
     first_q = batch.state_field('particle_q').clone()
     first_ke = batch.state_field('cut_spring_ke').clone()
@@ -82,8 +82,9 @@ def test_material_scales_match_independent_scaled_worlds():
         single.advance(.004 - single.dt)
         torch.testing.assert_close(batch.state_field('particle_q')[i], single.state_field('particle_q')[0],
                                    atol=1e-6, rtol=1e-5)
-        # Long-run per-spring equality is not required: single-world repeats also
-        # switch contact branches. Keep position tolerance and damage irreversibility.
+        # Single-world repeats also differed in long-run spring stiffness.
+        # This narrows coverage; it does not prove long-run damage equivalence.
+        # Keep position tolerance and damage irreversibility (see RESULTS).
         for final, initial in ((batch.state_field('cut_spring_ke')[i], first_ke[i]),
                                (single.state_field('cut_spring_ke')[0], single_first_ke)):
             assert torch.isfinite(final).all() and (final >= 0).all() and (final <= initial).all()

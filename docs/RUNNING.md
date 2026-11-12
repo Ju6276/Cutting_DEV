@@ -7,8 +7,9 @@ Commands run from the repository root. The GPU backend is bundled at
 
 
 **Physics version:** main now uses `edge_coordinate_consistent_v2` (contact-coordinate
-bug correction; see METHOD). Historical checkpoint commands/results below require
-an isolated checkout of `38b85a5` and its own kernel cache. Do not remove metadata
+bug correction; see METHOD). Historical checkpoint reproduction requires the code/configuration recorded
+in that run's manifest and an isolated kernel cache. `38b85a5` is the immediate
+pre-coordinate-fix reference, not the exact revision of every historical run. Do not remove metadata
 checks to reuse old checkpoints as identical-physics results. No training restart
 is authorized by this correction.
 
@@ -112,8 +113,10 @@ SIGUSR1 saves after the current iteration. Completion/SIGTERM writes
 
 The shared fixed-environment evaluation commands are in [BENCHMARK](BENCHMARK.md).
 The current task list is in [PLAN](PLAN.md).
-Checkpoints from before the absorbing-terminal repair are usable for frozen
-evaluation, while training requires the current terminal-rule metadata.
+The absorbing-terminal repair permits older checkpoints in frozen evaluation only
+when the environment/physics metadata also match. Training additionally requires
+compatible terminal-rule metadata. This does not override the contact-revision
+requirement above.
 
 ## Independent Gazebo reproduction
 

@@ -64,6 +64,9 @@ plan. The nominal recording entry no longer imports their perturbation wrapper.
 multi-condition config and records per-step pose errors, released cut springs, limit ratio and
 knife speed, the ending and the workspace dimension crossed. `check_material_stability.py` scans
 material scales per object for nonfinite DiSECt states (optionally with another substep). `measure_sawing.py` compares a pure press with
-press plus lateral sawing on exported scenes. L2 summaries use per-axis time
-maxima (component-peak envelopes), not simultaneous force norms. Negligible
-sawing benefit is a result limited to the measured configurations.
+press plus lateral sawing on exported scenes. Current net-force norms use
+simultaneous 2 ms samples (500 Hz), not per-axis temporal maxima. Early reports
+used component-peak envelopes and are historical. Results depend on the feedback
+mode, friction setting and contact revision recorded in each report. The 98%
+spring-release marker is a diagnostic, not approved task completion; these samples
+do not resolve every material-substep peak.

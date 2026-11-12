@@ -1,5 +1,11 @@
 # Backend and source mapping
 
+The initial robot-only probe and historical scalar coupling are documented below.
+Current changes, including optional net feedback, are specified in the root
+[METHOD](../../../docs/METHOD.md). Bundled material contact now uses
+`edge_coordinate_consistent_v2`; it is not equation-identical to the pinned source.
+Historical measurements retain their original code revisions.
+
 The task's `UR3eDisectSlicingEnv-v1` identifier is a legacy class name. Its current `b_bot` XML uses **UR5e** geometry and inertia, matching the robot specified by SliceIt. This importer reads that exact XML from the running task capture and preserves the six named arm joints, fixed attachments, collision meshes, mass, COM and compound rigid-body inertia.
 
 | Item | Current SliceIt / source | This backend probe | Reason |
@@ -30,7 +36,7 @@ and original action mapping. Hardware updates are 1 ms, material exchange
 | Position execution | Gazebo `SetPosition(..., true)` plus ODE zero-velocity motor with `fmax=URDF effort` | Assign qpos, retain generalized qvel, and use MuJoCo bounded friction constraints with the same effort bounds; reference acceleration `-qvel/dt` |
 | Motor constraint | ODE velocity constraint, effort `[150,150,150,28,28,28]` Nm | MuJoCo `solref=[0,-1/dt]`, impedance 1 subject to MuJoCo's built-in maximum 0.9999; six extra scalar constraints |
 | Self collision | ODE excludes joint-connected rigid bodies; task enables other arm self collisions | Explicit exclusions across adjacent fixed-body groups, preserving all non-adjacent collisions |
-| Material | DiSECt `db7de0f`, 10 µs steps in ROSVisualizer | Same DFlex FEM/contact/spring/integration equations; exported Model/State loaded without ROS or Qt |
+| Material | DiSECt `db7de0f`, 10 µs steps in ROSVisualizer | DFlex FEM/spring/integration with the documented contact-coordinate correction; exported Model/State loaded without ROS or Qt |
 | Force signal | Sum of per-contact force magnitudes along DiSECt +y; source wrench transform and 200-sample Butterworth window | Same aggregation/filter, converted into the wrist sensor frame, added to the MuJoCo native rigid-body sensor with Gazebo's child-to-parent sign |
 | Live ROS wiring | Both existing masters publish `/disect/wrench` with no subscriber; controller FT input has no publisher | Direct tensor feedback connects material force to the controller and observation; existing runs retain their original wiring |
 
@@ -65,8 +71,9 @@ DiSECt's prescribed cut topology remains fixed within an episode.
 
 `BatchedDiSECt` copies the exported model into disjoint particle, tetrahedron,
 spring, joint and contact ranges. Index offsets select each world's own knife;
-particle/shape contact pairs are generated within a world. The original FEM,
-contact, damage and integration functions retain their formulas and 10 µs step.
+particle/shape contact pairs are generated within a world. FEM, damage and integration retain their formulas; contact coordinates/scattering
+include the correction documented in the root METHOD. The default material step is
+10 µs; scene-specific overrides must be recorded (some scanned assets use 8 µs).
 Shared topology and material configuration come from the public scene. Triangle
 self-collision pair batching is rejected explicitly when that source option is
 enabled; the exported scene has it disabled.

@@ -2,7 +2,9 @@
 
 SliceIt's UR5e, tensor FDCC compliance controller and DiSECt material dynamics
 run together in independent GPU worlds. The learning code and entry points are
-at the [repository root](../../README.md).
+at the [repository root](../../README.md). Current bundled contact uses
+`edge_coordinate_consistent_v2`; optional net feedback and historical scalar
+feedback are distinct conventions. See the root [METHOD](../../docs/METHOD.md).
 
 Use the root Python 3.12 environment and follow
 [RUNNING](../../docs/RUNNING.md) to prepare robot meshes, the captured reset,

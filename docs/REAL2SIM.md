@@ -19,8 +19,10 @@ measured, not assumed. Nothing here runs before the open items are settled.
 
 ## Prerequisite: force quantity and completion
 
-The material bridge supplies a scalar contact-magnitude proxy, not net contact
-wrench at the sensor; native robot wrench is also present. Resolve the interface
+Default material feedback is a scalar contact-magnitude proxy; optional net
+feedback now computes force/moment at the sensor with corrected contact coordinates
+and frame/timing handling (METHOD). Native robot wrench is also present. Numerical
+interface checks do not calibrate a real sensor/mount. Select the feedback convention
 and completion definition before transferring policies or interpreting calibration.
 Neither a prescribed spring-release fraction nor board height proves separation.
 
@@ -75,8 +77,10 @@ first repeated real measurements (real repeat spread is the reference).
 - **Specimens.** Start with a controlled phantom (gelatin of fixed concentration,
   close to the jello config) plus two foods with different stiffness (proposal:
   potato and apple, which have published compression data and DiSECt
-  calibrations). Cut specimens with a mould to the simulated prism dimensions and
-  rest them on the board unclamped, as in the free-bottom benchmark.
+  calibrations). Cut specimens with a mould to the simulated prism dimensions.
+  Objects remain bottom-held in the current simulation decision; choose a realizable
+  fixture and reproduce its constraints in both simulation and the real experiment.
+  The historical free-bottom benchmark is not the current fixture prescription.
 - **Measurements per material.**
   1. Slow indentation/compression with the robot and the Mini45, giving an
      elastic-modulus prior. Food is viscoelastic and moduli depend on geometry
@@ -87,11 +91,12 @@ first repeated real measurements (real repeat spread is the reference).
   error, as in DiSECt (Heiden et al., RSS 2021: apple MAE 0.253 N, potato
   0.379 N on the Jamdagni and Jia data). SliceIt reports that one real slice per
   food item suffices for its fit. Here: fit on one speed, validate on held-out
-  speeds and on the slicing motions. Gradient fitting needs a static bottom (free
-  bottom gives NaN adjoints); fitting with a static bottom against free-resting
-  real specimens is a mismatch to report, or a gradient-free fit is needed.
+  speeds and on the slicing motions. Earlier free-bottom optimization trials produced
+  nonfinite adjoints; that observation does not establish that all gradient fitting
+  requires a static bottom. Use matching fixture conditions and validate the chosen
+  fitting procedure before adopting it.
 - **Variability.** Real repetitions define the noise band. The randomization
-  ranges for the multi-object stage (PLAN, P2/P3) come from the fitted
+  ranges for a future multi-object task come from the fitted
   parameter spread across specimens, not from guessed multipliers.
 
 Decision: validation force-profile error within the real repeat spread for each

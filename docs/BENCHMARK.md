@@ -5,6 +5,13 @@
 > definition is being revised in [PLAN](PLAN.md). `RESULTS <date>` references up to 2026-11-10 are in
 > [archive/RESULTS_20261102_20261110](archive/RESULTS_20261102_20261110.md).
 
+The contract and numerical tables below describe historical scalar-feedback runs.
+Current main also has optional net feedback and contact revision
+`edge_coordinate_consistent_v2`; these do not retroactively change the old
+benchmark results. Reproduction uses the recorded run revision/configuration and
+an isolated kernel cache, not an arbitrary current checkout. See
+[METHOD](METHOD.md#contact-coordinate-consistency-correction--2026-11-12).
+
 Every method executes in **UR5e + MuJoCo Warp + the SliceIt compliance controller
 + DiSECt**, using `GPUEnvironment`. The current case is
 `public-prism-ur5e-v1`: one prism, one material configuration, one initial state
@@ -330,7 +337,7 @@ first-step and jump zeroing).
 | `total_cut_springs`, `cut_fraction` | number of cut springs (304); `released_springs / total_cut_springs` (includes springs released at reset) |
 | `mean_jerk` | mean over control steps of SliceIt's reward jerkiness, the norm of the observed jerk over `target_dims` divided by 500 (`SliceItHeads.jerkiness`; dimensionless, the reward clamps it at 1) |
 
-**Work sign and frame.** DiSECt y is up; the scene reference presses at
+**Historical scalar-mode work sign and frame.** DiSECt y is up; the scene reference presses at
 v_y = -0.05 m/s. The coupling applies the material force to the knife purely
 along +y of the DiSECt frame (`wrench_disect[..., 1] = magnitude`), opposing the
 press, so the power delivered to the material is `-F_knife · v = F (-v_y)`:
@@ -340,7 +347,10 @@ coupling because the applied force has no z component.
 
 The safety margin uses the checks at the start of each substep, so the
 wrench after the final substep of an episode is not included, as in the
-collision check itself.
+collision check itself. These statements describe the retained scalar convention.
+Current net mode instead accounts for vector force and moment in work, and checks
+the final coupling sample for a limit event; see METHOD. Do not combine statistics
+from the two conventions as the same measured quantity.
 
 `report.json` also contains `summary`: over completed episodes, the mean and
 population std (`ddof=0`) of every numeric row field, plus `success_rate` and

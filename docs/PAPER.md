@@ -24,7 +24,9 @@ measurable limits; then identify what practical limitation existing methods leav
 unresolved. No particular modality or learned architecture is required by this.
 
 Force-adaptive speed/compliance control is a candidate, not a settled topic.
-The material-feedback scalar is not a Mini45 contact wrench. Force-limit
+The historical/default material-feedback scalar is not a Mini45 contact wrench.
+Optional net feedback is now implemented and locally checked (METHOD), but has
+not been calibrated against a real sensor and mount. Force-limit
 termination detects a modeled violation; it does not guarantee a real robot
 stays below a bound.
 

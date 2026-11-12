@@ -14,7 +14,9 @@ prism development) are in [archive/RESULTS_20261102_20261110](archive/RESULTS_20
 | potato_003 needs DiSECt substep 8e-6 s to be stable over the S0 material range | 2026-11-11 instability entry |
 | Parallel object groups: 2.5x faster, consistent with sequential within run-to-run variation | 2026-11-11 |
 | Risk penalty and official SuperMimic adaptation: failed first runs, causes identified | 2026-11-12 |
-| The material bridge sums contact magnitudes and adds zero material torque; measured sawing variants had negligible effect in tested configurations | 2026-11-12 sawing check |
+| Default scalar feedback is a contact-magnitude proxy; optional net feedback now includes the contact moment, corrected frame/timing and final-sample checks | 2026-11-12 net-wrench repair |
+| Early scalar/high-transition-velocity sawing measurements had negligible effect; later net/0.01 m/s measurements reduce vertical force, with a smaller net-force reduction on the prism | 2026-11-12 press/saw reruns |
+| Contact search, interpolation and force scattering now agree; four rerun mean net forces changed by <0.6%, not a demonstrated large performance gain | 2026-11-12 contact-coordinate correction |
 
 **Superseded:** the 2026-11-11 "force needed to cut the held scanned objects" table (hold artefact
 for cucumber_003) and every success/force-limit rate of the S3 runs (defective task definition).
@@ -475,3 +477,35 @@ contain kernel outputs; `press_saw/report.json` contains every sample and source
 (including the modified kernel) and scene hashes; `comparison.json` contains the
 independent summary and old/new comparison. Documentation and measurement checks
 do not reopen retired S3 training.
+
+## 2026-11-12 — Contact repair re-review and documentation reconciliation
+
+Re-reviewed `38b85a5` / `4b229df` at the user's request. The coordinate producer,
+both cut-side consumers, optional triangle scattering, force sign and pre-integration
+contact-point cache agree with the corrected transfer identities. No further
+physics-formula change was made. The eight source hashes in the previous physical
+press/saw report still match current source; that rerun remains applicable.
+
+Fresh GPU7 checks: **backend 36 passed** (3.96 s); **root 286 passed / 5 skipped**
+(198.83 s), with GPU assets and optional MPPI enabled. The skips are the same legacy
+SAC/TensorFlow dependency/checkpoint/opt-in cases; production CUDA contact tests ran.
+Logs and source-hash verification:
+`runs/codex_contact_recheck_20261112/{backend.log,root.log,physical_source_check.json}`.
+
+Corrected current documentation's stale scalar-only description, temporal peak
+envelope description, blanket negligible-sawing finding, unmodified-source claim,
+unclamped real-specimen prescription, and obsolete P2/P3 reference. Clarified that
+`38b85a5` is an immediate pre-fix reference, not every historical run's exact code.
+Repaired **31 relocated archive links** without changing archived conclusions;
+**219 local Markdown link targets** exist (external URLs/heading anchors were not
+validated by this check). `git diff --check` passed.
+
+Two test comments had overstated a contact-branch switch as the proven trigger of
+long-run damage variation; corrected them. The exact trigger remains unresolved,
+and replacing the 4 ms per-spring equality check with single-step consistency plus
+longer position/damage-bound checks narrows coverage. No assertion, tolerance,
+material parameter, reward or task threshold was changed in this re-review.
+
+Review handoff: [CONTACT_FIX_REVIEW](CONTACT_FIX_REVIEW.md), including derivation,
+evidence, scope boundaries and the test change requiring explicit review.
+No training restarted; Claude's untracked recording script was left untouched.

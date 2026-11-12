@@ -14,8 +14,9 @@ Earlier plans: [2026-11-12 before the review](archive/PLAN_20261112_pre_review.m
 - The force-spike problem statement is retired. The research question is open.
 - WM+BPTT, risk penalties, official SuperMimic adaptation, SAC and MPPI are
   implemented code, not selected contributions or proof of task validity.
-- This cleanup changes documentation, entry descriptions and diagnostic labels,
-  not physics, rewards, success rules or training behavior.
+- The initial cleanup changed only documentation/labels. Subsequent authorized
+  repairs changed net-wrench handling and material contact coordinates (below);
+  they did not change rewards or success thresholds and did not restart learning.
 - Machine availability is a timestamped observation; check before launching work.
 
 ## Decisions by the user
@@ -61,9 +62,10 @@ novelty; a shared multi-object policy is the chosen setting, not by itself a con
    has to be checked first.
 2. **Platform and force meaning.** The inherited material bridge sums contact
    magnitudes, places the scalar on one axis and contributes zero material torque;
-   native MuJoCo wrench is also present. Decide whether the study can use that
-   proxy or needs validated net contact wrench/other physics. Replacing the sum
-   alone does not validate friction or cutting. Model a real fixture rather than
+   native MuJoCo wrench is also present. Optional net feedback is now implemented
+   and checked for contact location, sign, frame, moment and sampling consistency.
+   Select the task's feedback convention and calibrate it; implementation checks
+   do not validate friction or real cutting. Model a real fixture rather than
    tuning holds per object to obtain desired force curves.
 3. **A bounded reference demonstration.** Once 1–2 are specified, use a few
    representative cuts to distinguish separation, sliding, blade-face contact
@@ -87,9 +89,11 @@ not a task contract.
 ## Conditional options
 
 Geometry input is useful only if the task needs information unavailable from
-proprioception/force. Sawing first needs evidence that the platform represents
-its physical effect: the measured configurations showed negligible benefit,
-not a universal result about DiSECt or real sawing. Heterogeneous materials
+proprioception/force. The early scalar/high-transition-velocity measurements showed
+negligible sawing benefit. Later net-feedback measurements with transition velocity
+0.01 m/s showed a lower vertical force and a smaller reduction in net force on the
+prism (RESULTS). These are configuration-specific reference cuts, not a learned
+sawing policy or real-material validation. Heterogeneous materials
 need their own practical motivation and validated representation. More modalities
 or objects do not by themselves establish novelty.
 
@@ -110,3 +114,5 @@ Kernel confirmation and the bounded press/saw comparison are recorded in
 [RESULTS](RESULTS.md#2026-11-12--contact-coordinate-correction-and-kernel-confirmation).
 It resolves the source inconsistency identified in that interface review; it does not
 replace material calibration or approve restarting training.
+
+Review handoff for Claude: [CONTACT_FIX_REVIEW](CONTACT_FIX_REVIEW.md).

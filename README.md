@@ -20,14 +20,17 @@ gradients pass through the learned world model.
 The research question and multi-object task are being redefined. The force-spike
 problem statement and first S3 comparison are retired: the success rule,
 holding setup, reward and reference trajectory confounded the results. The
-material-force bridge is a scalar proxy, not a measured Mini45 contact wrench.
+default material-force bridge remains a scalar proxy. Optional net force/moment
+feedback and its contact-coordinate correction are implemented and locally checked;
+neither mode has been calibrated as a real Mini45 measurement.
 [PLAN](docs/PLAN.md) is the only current task list. The commands below do not
 schedule new training.
 
 
 **Physics version:** main now uses `edge_coordinate_consistent_v2` (contact-coordinate
-bug correction; see METHOD). Historical checkpoint commands/results below require
-an isolated checkout of `38b85a5` and its own kernel cache. Do not remove metadata
+bug correction; see METHOD). Historical checkpoint reproduction requires the code/configuration recorded
+in that run's manifest and an isolated kernel cache. `38b85a5` is the immediate
+pre-coordinate-fix reference, not the exact revision of every historical run. Do not remove metadata
 checks to reuse old checkpoints as identical-physics results. No training restart
 is authorized by this correction.
 
@@ -121,8 +124,9 @@ has appeared before.
 
 WM+BPTT, risk penalties, official SuperMimic adaptation, SAC and WM+MPPI remain
 available implementations. None is selected as a new contribution by this
-cleanup. Additional sensing, sawing and heterogeneous materials are conditional
-options. Historical numerical results retain their original task definitions;
+cleanup. Sawing is part of the user's chosen task direction; reference-trajectory
+measurements now exist, but no learned sawing result is established. Geometry input
+is favoured; additional sensing and heterogeneous materials remain conditional. Historical numerical results retain their original task definitions;
 they cannot establish physical separation or real-robot force safety.
 
 [Current plan](docs/PLAN.md) · [Benchmark and definitions](docs/BENCHMARK.md) ·

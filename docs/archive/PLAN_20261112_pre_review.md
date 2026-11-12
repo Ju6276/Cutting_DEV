@@ -4,9 +4,9 @@
 # Plan
 
 Updated 2026-11-12 (after the repository clean-up). The only active plan. Topic and prior
-art: [PAPER](PAPER.md); measurements: [RESULTS](RESULTS.md); code: [METHOD](METHOD.md);
-data: [DATA](DATA.md). Previous plans: [PLAN_20261111](archive/PLAN_20261111.md),
-[PLAN_20261110](archive/PLAN_20261110.md).
+art: [PAPER](../PAPER.md); measurements: [RESULTS](../RESULTS.md); code: [METHOD](../METHOD.md);
+data: [DATA](../DATA.md). Previous plans: [PLAN_20261111](../archive/PLAN_20261111.md),
+[PLAN_20261110](../archive/PLAN_20261110.md).
 
 ## Where we are
 
@@ -63,7 +63,7 @@ data: [DATA](DATA.md). Previous plans: [PLAN_20261111](archive/PLAN_20261111.md)
 4. **Topic decision (user)** with step 3 and PAPER §3.
 5. Base on the corrected task; baselines (FORGE-style recurrent force-penalty policy,
    terminating safe RL or SAC, governor); constraint on predicted peak force; held-out
-   evaluation; real robot ([REAL2SIM](REAL2SIM.md)). Planned in detail after step 4.
+   evaluation; real robot ([REAL2SIM](../REAL2SIM.md)). Planned in detail after step 4.
 
 ## Topic options (discussion, 2026-11-12)
 
