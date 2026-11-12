@@ -15,8 +15,9 @@ physical state/history into the next replan.
 
 The free_cut_v3 reward, gamma=1, bounded completion hazard, workspace failures,
 force-limit priority and finite-time terminal behavior come from the same WM/task
-used in training. Only environment count, selected group, evaluation seed and
-local rather than multiprocess execution differ. The full training distribution
+used in training. By default only environment count, selected group, evaluation seed and
+local rather than multiprocess execution differ. The explicit unseen-scene option
+below additionally changes the object asset; it is not a same-distribution evaluation. The full training distribution
 must equal checkpoint metadata; physical/task metadata and the selected group's
 contact model are checked again after environment construction. Older pose-task
 checkpoints, changed reward/horizon/force limits and unmatched physics are rejected.
@@ -149,3 +150,95 @@ Main files for review:
 No merge to main and no long training. At the final GPU check, our evaluation had
 exited; A6000 GPU0 was idle. GPU1 had acquired a process owned by user tu (~262 MiB
 process memory, 287 MiB device memory); it was not interrupted.
+
+
+## Unseen-prism transfer (2026-11-13)
+
+The user requested reusing the cucumber WM341 on the free prism. Add
+--transfer-scene runs/disect_source_v4/scene.pt to the command above, keeping the
+original cucumber --conditions and --group. The runtime group gets a __transfer
+suffix and the manifest records source/evaluation scenes and both asset hashes.
+The checkpoint keeps its original training identity. No task/reward/force limit,
+state interface or contact-code revision mismatch is permitted.
+
+The planner replans EVERY control step from new physical state/force/history.
+Horizon, sample count, refinement count, temperature and noise are solver settings;
+holding them constant never replays a cucumber trajectory. Both the WM weights and
+solver settings stay unchanged for this first transfer trial. This is not a rule
+that MPC parameters can never be chosen differently; tuning would be a separately
+labelled experiment.
+
+Asset inspection: cucumber 328 particles/65 springs; prism 1187/304; both have zero
+fixed particles and zero cut-spring residual damping. Knife vertices, triangles,
+parameters and spine height match exactly. Runtime topology validation still
+requires two material components joined only by cut springs.
+
+| Native asset setting | Cucumber | Prism |
+| --- | ---: | ---: |
+| Young's modulus Pa | 2600000 | 40000 |
+| Density kg/m3 | 950 | 830 |
+| Cut-spring stiffness | 200 | 1800 |
+| Contact normal stiffness | 500 | 1200 |
+
+Material scales, speed and start-clearance sampling stay the same, applied to each
+asset's own base settings. Effective knife friction velocity is overridden to .01
+in both, as in the checkpoint's conditions. This is combined geometry/material
+transfer, not an isolated force-response experiment or calibrated real-material test.
+The prism asset hash is
+54e0099ffe6e27d5e314aeebf845b41902e3e9d47d0465534f8b9b69f76e67b2.
+
+
+### Prism outcome
+
+One requested episode, seed0, no retry or planner tuning: **incomplete**. At the
+180-step finite horizon (9.0 simulated seconds), 281/304 springs were released
+(92.434%); 23 positive-stiffness connections remained. No force-limit or workspace
+event occurred. This is a true task timeout, not exhaustion of the 900 s wall budget.
+
+| Quantity | Prism WM341 + MPPI |
+| --- | ---: |
+| Return | -12.08995 |
+| Peak net material force | 12.93654 N |
+| Mean net material force | 2.22340 N |
+| Material impulse | 20.01063 N s |
+| Maximum componentwise sensor-limit utilization | 0.35490 |
+| Replans / physical actions | 180 / 180 |
+| Mean planning time | 0.18829 s |
+| Total wall time including setup | 320.28 s |
+| WM / policy / critic optimizer updates | 0 / 0 / 0 |
+
+All weights remained unchanged. Six action dimensions changed during the run
+(recorded standard deviations .187/.119/.124/.102/.114/.093); this is replanning,
+not a fixed command or replayed cucumber trajectory. The 181 state frames and
+180 transitions align, including recorded progress. No relaxation of separation
+criteria: 92.4% is failure, not success.
+
+There is a visible prediction mismatch at the end: the final plan predicts
++56.53 task return before the deadline, whereas the actual last transition has
+negative reward and does not separate the object. This does not isolate the
+failure cause or establish that solver tuning would (or would not) fix it.
+No additional diagnosis, model fitting or parameter search was launched.
+Prior cucumber success and this prism failure together establish only the
+outcomes of these particular frozen-checkpoint cases, not generalization rates.
+
+The same seed draws material scales (1.49723, .86638, .81350) and feed .0332536 m/s.
+Prism lift relative to export is .0200913 m, adjusted by the existing clearance
+sampler for its higher top; the above-object clearance distribution is unchanged.
+Both native geometry and absolute material/contact parameters differ from cucumber.
+
+Artifacts:
+- A6000: /dataHDD/dong/Projects/Cutting_DEV_mppi_v3/runs/free_cut_prism_mppi_20261113/
+- GPU7 review copy: /dataHDD/dong/Experiments/Cutting_DEV/runs/free_cut_prism_mppi_20261113/a6000/
+- prism_seed0/report.json, planning.json, episode_000.npz, manifest.json and trajectory_check.json.
+
+The run used 5f6df09 plus the explicit transfer patch, recorded in executed.patch
+and the manifest's source hashes. One subsequent metadata-only guard also rejects
+a checkpoint whose contact-scene identity contradicts its own training config;
+it cannot change this run's actions/physics. Final targeted planner tests cover it.
+
+Validation: root suite 316 passed / 8 skipped; backend 38 passed; dedicated
+planner/benchmark suite 30 passed (including optional MPPI tests). Root/backend
+logs are alongside the run directory on GPU7. An initial launch used the stale
+script before server synchronization and rejected the new flag before simulation;
+pre_sync_attempt.log preserves it. It is not a physical trial.
+GPU0 returned to 43 MiB / 0% after completion; another user's GPU1 job was untouched.

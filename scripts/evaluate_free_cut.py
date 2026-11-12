@@ -26,6 +26,8 @@ def argument_parser():
     p.add_argument('--conditions', type=Path, required=True,
                    help='Exact conditions file recorded by the training checkpoint')
     p.add_argument('--group', required=True)
+    p.add_argument('--transfer-scene',
+                   help='Explicit unseen object .pt path relative to backend; keeps the training task and solver')
     p.add_argument('--backend-root', type=Path, default=ROOT / 'backends/mujoco')
     p.add_argument('--checkpoint', type=Path)
     p.add_argument('--paired-checkpoint', type=Path)
@@ -54,7 +56,7 @@ def main():
     if args.paired_checkpoint is not None and args.method != 'wm-mppi':
         parser.error('--paired-checkpoint applies only to MPPI')
     conditions = json.loads(args.conditions.read_text())
-    selected = selected_config(conditions, args.group, args.seed)
+    selected = selected_config(conditions, args.group, args.seed, args.transfer_scene)
     gamma = conditions['task']['gamma']
     args.mpc_discount = gamma if args.mpc_discount is None else args.mpc_discount
     if args.mpc_discount != gamma:
@@ -75,13 +77,22 @@ def main():
     manifest = {
         'git': git_revision(ROOT), 'command': sys.argv, 'method': args.method,
         'training_conditions': conditions, 'runtime_conditions': selected,
+        'scene_transfer': {
+            'source_group': args.group,
+            'source_scene': next(g['scene'] for g in conditions['groups'] if g['name'] == args.group),
+            'evaluation_scene': selected['groups'][0]['scene'],
+            'unseen_scene': args.transfer_scene is not None,
+            'scope': 'Native geometry/material parameters change with the asset; no model updates.',
+        },
         'conditions_sha256': file_digest(args.conditions),
         'checkpoint': str(args.checkpoint.resolve()) if args.checkpoint else None,
         'checkpoint_sha256': file_digest(args.checkpoint) if args.checkpoint else None,
         'worlds': 1, 'requested_episodes': args.episodes, 'wall_budget_seconds': args.wall_seconds,
         'reset_mode': 'randomized_material_and_speed_per_episode_clearance_per_world',
         'physics_assets': {str(path): file_digest(args.backend_root / path) for path in (
-            Path(selected['groups'][0]['scene']), Path('runs/model_coupled/robot.mjb'),
+            Path(selected['groups'][0]['scene']),
+            Path(next(g['scene'] for g in conditions['groups'] if g['name'] == args.group)),
+            Path('runs/model_coupled/robot.mjb'),
             Path('runs/controller_source/controller_params.json'))},
         'gpu': torch.cuda.get_device_name(0),
         'runtime': {'python': platform.python_version(), 'packages': {
@@ -95,7 +106,8 @@ def main():
     write_json(args.output / 'manifest.json', manifest)
     env = policy = None
     try:
-        env = FreeCutEvaluationEnvironment(args.backend_root, conditions, args.group, args.seed)
+        env = FreeCutEvaluationEnvironment(args.backend_root, conditions, args.group, args.seed,
+                                           args.transfer_scene)
         write_json(args.output / 'task.json', env.metadata)
         policy = make_controller(args, env, manifest)
         manifest['setup_seconds'] = time.monotonic() - started

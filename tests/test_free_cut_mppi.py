@@ -142,3 +142,34 @@ def test_transition_progress_does_not_overwrite_state_trajectory(tmp_path):
     with np.load(tmp_path/'episode_000.npz') as data:
         np.testing.assert_array_equal(data['cut_progress'][:, 0], [0., .5, 1.])
         np.testing.assert_array_equal(data['transition_cut_progress'], [.5, 1.])
+
+
+def test_unseen_scene_requires_explicit_declaration_preserves_every_other_setting():
+    conditions = distribution()
+    original = deepcopy(conditions)
+    scene = 'runs/free_prism/scene.pt'
+    runtime = selected_config(conditions, 'cucumber', 0, scene)
+    assert runtime['groups'] == [{**conditions['groups'][0], 'worlds': 1,
+                                  'scene': scene, 'name': 'cucumber__transfer'}]
+    assert conditions == original
+    for invalid in ('cucumber.pt', 'potato.pt', '/absolute.pt', '../outside.pt', 'scene.json'):
+        with pytest.raises(ValueError):
+            selected_config(conditions, 'cucumber', 0, invalid)
+    saved = {'task_conditions': conditions, 'group_material_contact': [
+        {'name': g['name'], 'scene': g['scene'], 'friction': .01}
+        for g in conditions['groups']], 'horizon': 180,
+        'limits': conditions['force_limits'], 'revision': 'edge_coordinate_consistent_v2'}
+    actual = {k: deepcopy(v) for k, v in saved.items() if k != 'task_conditions'}
+    actual['group_material_contact'] = [
+        {**saved['group_material_contact'][0], 'name': 'cucumber__transfer', 'scene': scene}]
+    with pytest.raises(ValueError, match='free_cut_evaluation'):
+        checked_metadata(actual, saved, conditions, 'cucumber')
+    assert checked_metadata(actual, saved, conditions, 'cucumber', scene) == saved
+    inconsistent = deepcopy(saved)
+    inconsistent['group_material_contact'][0]['scene'] = 'wrong.pt'
+    with pytest.raises(ValueError, match='checkpoint_source_scene'):
+        checked_metadata(actual, inconsistent, conditions, 'cucumber', scene)
+    for key, value in [('horizon', 900), ('limits', [100]*6), ('revision', 'legacy'),
+                       ('group_material_contact', [{**actual['group_material_contact'][0], 'friction': 50}])]:
+        with pytest.raises(ValueError, match='free_cut_evaluation'):
+            checked_metadata({**actual, key: value}, saved, conditions, 'cucumber', scene)

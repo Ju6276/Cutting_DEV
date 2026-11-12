@@ -787,3 +787,13 @@ bitwise reproducibility is not promised. Original third-party licenses remain. N
 adds no further third-party kernel changes. GPU regression includes packed materials,
 controller/coupling, graph/eager comparisons and scratch eviction; passing these does not
 establish real-world physical calibration. Full provenance lives in FREE_CUT_REPAIR.
+
+
+## Frozen free-cut planner evaluation
+
+[FREE_CUT_MPPI](FREE_CUT_MPPI.md) documents the one-world frozen planner entry and
+its privileged simulator-progress observation. An explicit --transfer-scene may
+replace a training object's asset for a requested unseen-object evaluation. Only
+the declared scene/name metadata are projected; all task, state interface and
+contact implementation checks remain strict. The manifest retains the original
+training identity, actual scene and hashes. The WM is not updated during planning.

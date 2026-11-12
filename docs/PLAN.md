@@ -105,3 +105,31 @@ Integration outcome: two bounded frozen runs completed full separation (34/35 st
 without force or workspace failures. See FREE_CUT_MPPI. No training launched here.
 The available early WM supports this case; this does not approve a full method
 comparison or resolve missing real-world progress observations.
+
+
+## Authorized transfer check: cucumber WM341 to free prism (2026-11-13)
+
+The user requested an unseen-prism trial with the same frozen cucumber WM. One
+A6000 GPU0 episode, 900 s wall budget (plus termination grace); H8/512 samples/one
+refinement, temperature1/noise0.5/gamma1/no critic/seed0, exactly the cucumber solver.
+Replan from the actual robot/force history every step: fixed solver settings do
+not mean a fixed trajectory. No training, solver search or extra success attempts.
+
+Use runs/disect_source_v4/scene.pt: zero fixed particles, 304 springs, same knife
+mesh/params/spine as cucumber. Native geometry AND materials differ (prism E40kPa,
+density830, spring1800 vs cucumber E2.6MPa/density950/spring200); use the same sampled
+scale distribution without retuning. Explicit --transfer-scene changes only the
+declared object asset; all task/interface/contact-revision checks remain enabled.
+The source training conditions and weight hash stay unchanged. Export-native
+absolute material constants are not equal merely because scale draws match.
+
+Measure full separation, termination reason, remaining springs, force/impulse,
+actual actions, model plans, runtime and unchanged weights. Success supports only
+this unseen-scene case; failure stays failure. Neither outcome alone establishes
+causal adaptation to force or general unseen-object performance.
+
+
+Outcome: completed this bounded check. Prism timed out at 180 steps with 281/304
+springs released (23 remain), peak net force 12.94 N, no force/workspace failure.
+180 real-state replans; weights unchanged. See FREE_CUT_MPPI and RESULTS.
+No further trials, solver tuning or training started automatically.

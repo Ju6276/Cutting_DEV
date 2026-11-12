@@ -875,3 +875,24 @@ Validation: final root 315 passed/8 skipped; backend 38 passed; dedicated planne
 benchmark 29 passed. The planner run covers three base-environment dependency skips.
 See FREE_CUT_MPPI for exact commands, source/asset verification and the corrected
 backend test working-directory invocation. No physics or training code was changed.
+
+
+## 2026-11-13 — Frozen cucumber WM341 transferred to a free prism
+
+User-requested single transfer case; no model update, planner search or change to
+free_cut_v3 rewards/limits. Same H8/512 candidates/one refinement/gamma1/no critic,
+seed 0 and sampled-condition ranges as the previous cucumber evaluation. Each step
+replanned from the actual state/force/history; settings held fixed, not the trajectory.
+
+Native prism geometry/materials differ from the cucumber training asset; knife
+mesh/params/spine agree, no fixed particles, 304 zero-damping cut springs.
+Outcome: 180-step timeout, 281/304 released, **23 connections remain, not success**.
+Peak net material force 12.9365 N, impulse 20.0106 N s, component sensor-limit ratio
+.35490; no force/workspace failure. Return -12.08995, total wall 320.28 s.
+All 180 plans/actions and 181 states recorded; weights unchanged, zero updates.
+
+The prior cucumber 65/65 success does not establish transfer to this prism.
+At the last decision the WM plan predicted +56.53 before the deadline but actual
+execution did not separate; this is a recorded mismatch, not a root-cause verdict.
+No automatic extra tests or tuning. Full command/provenance/runtime and source
+validation: [FREE_CUT_MPPI](FREE_CUT_MPPI.md#unseen-prism-transfer-2026-11-13).
