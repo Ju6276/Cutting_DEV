@@ -16,6 +16,15 @@ from .controller.fdcc import quat_apply
 FORMAT = 'cutting-knife-velocity-v1'
 
 
+def lifted_durations(duration, downward_speed, lift):
+    """Per-world duration of a constant downward reference whose start was moved up by
+    ``lift`` (m, negative: down). The travel changes by the lift, so every world's reference
+    ends at the height the scene's own reference ends at."""
+    if not downward_speed > 0:
+        raise ValueError('The start-height correction needs a downward reference speed')
+    return (duration + lift / downward_speed).clamp(min=0.)
+
+
 class KnifeTrajectory:
     def __init__(self, times, linear_velocity, metadata=None):
         self.times = torch.as_tensor(times, dtype=torch.float64).flatten()

@@ -13,7 +13,7 @@ from .controller.fdcc import (ControllerConfig, FDCCController, SerialChain, Sli
                               pose_error, quat_apply)
 from .coupling import SliceItCoupling
 from .metrics import StepMetrics
-from .reference import KnifeTrajectory
+from .reference import KnifeTrajectory, lifted_durations
 from .robot import Robot
 
 
@@ -111,16 +111,25 @@ class CuttingBatch:
         return q
 
     def set_reference_trajectory(self, trajectory=None):
-        """None restores the scene's constant knife velocity over its duration."""
+        """None restores the scene's constant knife velocity. Its duration is the scene's,
+        changed per world by the start lift over the downward speed, so a lifted start
+        still ends at the scene reference's end height (identical when the lift is zero).
+        A given trajectory is used as is for every world."""
+        self.reference_time_limit = None
         if trajectory is None:
-            trajectory = KnifeTrajectory.constant(
-                self.material.reference_linear_velocity.reshape(-1, 3)[0].to(self.dtype),
-                self.material.reference_duration, kind='scene_constant_velocity')
+            velocity = self.material.reference_linear_velocity.reshape(-1, 3)[0].to(self.dtype)
+            duration = float(self.material.reference_duration)
+            if bool((self.initial_lift != 0).any()) and float(velocity[1]) < 0:
+                self.reference_time_limit = lifted_durations(duration, -float(velocity[1]), self.initial_lift)
+                duration = max(duration, float(self.reference_time_limit.max()))
+            trajectory = KnifeTrajectory.constant(velocity, duration, kind='scene_constant_velocity')
         self.reference_trajectory = trajectory
 
     def reference_target(self, time):
         """Controller target after ``time`` seconds of the DiSECt-frame knife trajectory."""
         target = self.reference_start.clone()
+        if self.reference_time_limit is not None:
+            time = torch.minimum(time, self.reference_time_limit.to(time))
         target[:, :3] += self.reference_trajectory.displacement(time, self.coupling.base_from_disect[3:])
         return target
 
