@@ -15,7 +15,8 @@ Earlier plans are in `archive/` (latest: [before the task decision](archive/PLAN
 - **Success:** the slice is fully separated from the body (no remaining material connection)
   **and** no force-limit event occurred. Separation, force-limit events and task success are
   recorded separately. A remaining connection is incomplete; 98 % release is a diagnostic.
-- **Failure endings:** force limit, timeout, explicit workspace bounds. "The object left the
+- **Failure endings:** force limit, explicit workspace bounds; a cut not completed within
+  the time limit is incomplete (its handling in training is specified in TASK_FREE_CUT). "The object left the
   blade's reach" is not a termination rule.
 - One shared WM/policy/critic across objects and materials; one force limit; no object
   identity, material label or per-object reward/success setting reaches the learner.
@@ -28,7 +29,8 @@ Earlier plans are in `archive/` (latest: [before the task decision](archive/PLAN
 
 - Platform check of the free-object task on one scene: done (RESULTS). Severed-state check
   defined for it (mesh has two components joined only by cut springs).
-- Reset from a settled object: implemented (`settle_seconds`), verified on that scene.
+- Reset from a settled object: implemented (`settle()` with each world's material; contact
+  checked over every substep), verified on that scene.
 - Net contact wrench feedback and friction transition velocity: implemented, repaired and
   re-measured (RESULTS); friction and ground parameters are uncalibrated.
 - No training is running. Old S0 configs and held scenes are reproduction inputs only.
@@ -44,12 +46,15 @@ Earlier plans are in `archive/` (latest: [before the task decision](archive/PLAN
 
 ## Known limits of the platform (not a repair queue)
 
-- The cut plane is fixed in the object and the knife is constrained to one plane. On the
-  free cucumber a sideways offset of about 1 mm between them changed the peak force from
-  about 2 N to 16 N and left the cut incomplete (RESULTS). Sliding across the cut plane is
-  therefore not represented faithfully; sliding along the blade is.
-- From a settled start the free cucumber is separated by a plain press at 1.5-2.5 N for
-  Young x1 and x2: this scene alone poses no force difficulty.
+- The cut plane is fixed in the object and the knife is constrained to one plane; this bounds
+  what sliding across the cut can mean in this simulator. Its quantitative effect is not
+  measured (an earlier "1 mm offset" explanation was withdrawn, RESULTS).
+- Results depend on initialization: every world is settled with its own material before
+  episodes (`settle()`); a nominal-material settle followed by a material change is not used.
+- Free-cucumber forces with 2 ms sampling: peaks 2.7-23 N, utilisation 0.06-0.64 of the old
+  S0 limits over six reference cases (RESULTS). No scene, free or held, is validated against
+  this project's real cuts; parameters are not tuned to make the task harder. Whether the
+  paper can centre on the force limit is decided with real measurements, not in simulation.
 - Sawing changes force direction through friction only; the fracture-side effect is not in
   DiSECt's damage law. Long-horizon per-spring damage repeatability is an open item.
 

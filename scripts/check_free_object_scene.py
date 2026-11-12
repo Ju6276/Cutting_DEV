@@ -6,7 +6,10 @@ Answers three questions with a prescribed knife motion (rest, press down, hold, 
 2. Knife contact: does the press produce a finite net contact wrench and move/cut the object?
 3. Severed-state check: are the two sides of the cut plane connected only through cut springs
    (mesh connectivity), and are all of them released at the end?
-Force-limit termination is disabled; this is a measurement, not a task episode.
+Force-limit termination is disabled; this is a measurement, not a task episode. Forces are
+sampled at every 2 ms coupling step (the rate of the limit check): the net contact force on
+the knife and the six-component sensor wrench the limit applies to. Each world is settled
+with its own material scales before the episode.
 """
 import argparse
 import json
@@ -45,11 +48,15 @@ def main():
     parser.add_argument('--young-scales', type=float, nargs='+', default=[1., 2.])
     parser.add_argument('--down-speed', type=float, default=.03)
     parser.add_argument('--saw', default='0:0', help='amplitude(m):frequency(Hz) during the press')
-    parser.add_argument('--rest-seconds', type=float, default=1.)
+    parser.add_argument('--rest-seconds', type=float, default=.25)
+    parser.add_argument('--cut-spring-scales', type=float, nargs='+', help='per world; default 1')
+    parser.add_argument('--limits', type=float, nargs=6, default=[50., 50., 50., 5., 5., 5.],
+                        help='sensor limits used only to report utilisation (old S0 simulation values)')
     parser.add_argument('--hold-seconds', type=float, default=.5)
     parser.add_argument('--retract', type=float, default=.03, help='upward retraction after the hold (m)')
     parser.add_argument('--sim-dt', type=float)
-    parser.add_argument('--settle-seconds', type=float, default=0.)
+    parser.add_argument('--settle-seconds', type=float, default=.75,
+                        help='settling with each world\'s material before the episode; 0 keeps the export')
     parser.add_argument('--friction-velocity', type=float, default=.01)
     parser.add_argument('--output', type=Path, required=True)
     args = parser.parse_args()
@@ -59,15 +66,18 @@ def main():
     args.output.mkdir(parents=True, exist_ok=True)
     n = len(args.young_scales)
     env = GPUEnvironment(str(args.backend_root), n, scene=args.scene, sim_dt=args.sim_dt,
-                         force_model='net', friction_velocity=args.friction_velocity,
-                         settle_seconds=args.settle_seconds)
+                         force_model='net', friction_velocity=args.friction_velocity)
     physics, material = env.physics, env.physics.material
     physics.force_limits = torch.full_like(physics.force_limits, 1e6)
     model = material.model
     scales = {k: v.clone() for k, v in material.material_scales.items()}
     scales['youngs_modulus'] = torch.tensor(args.young_scales, device=env.device).to(scales['youngs_modulus'])
-    material.set_material_scales(torch.arange(n, device=env.device), **scales)
-    frame = env.reset(torch.ones(n, dtype=torch.bool, device=env.device))
+    if args.cut_spring_scales:
+        scales['cut_spring_stiffness'] = torch.tensor(args.cut_spring_scales, device=env.device).to(
+            scales['cut_spring_stiffness'])
+    every = torch.ones(n, dtype=torch.bool, device=env.device)
+    material.set_material_scales(every, **scales)
+    frame = env.settle(args.settle_seconds) if args.settle_seconds > 0 else env.reset(every)
 
     # --- mesh connectivity of one world
     particles = model.particles_per_world
@@ -118,9 +128,30 @@ def main():
     total = int(frame['cut_spring_ke'].shape[-1])
     zero = torch.zeros(n, 6, device=env.device)
     rows = [[] for _ in range(n)]
+    limits = torch.tensor(args.limits, device=env.device, dtype=torch.float64)
+    peak_net = torch.zeros(n, device=env.device, dtype=torch.float64)
+    peak_sensor = torch.zeros(n, 6, device=env.device, dtype=torch.float64)
+    step_net = torch.zeros(n, device=env.device, dtype=torch.float64)
+    step_util = torch.zeros(n, device=env.device, dtype=torch.float64)
+    first_released = [None] * n
+
+    def sample(p, active):
+        net = p.material.knife_wrench()[:, :3].double().norm(dim=-1)
+        sensor = p.feedback['observation_wrench'].abs().double()
+        peak_net.copy_(torch.maximum(peak_net, net))
+        peak_sensor.copy_(torch.maximum(peak_sensor, sensor))
+        step_net.copy_(torch.maximum(step_net, net))
+        step_util.copy_(torch.maximum(step_util, (sensor / limits).amax(-1)))
+        done = (p.material.state_field('cut_spring_ke') == 0).all(-1)
+        for w in torch.nonzero(done).flatten().tolist():
+            if first_released[w] is None:
+                first_released[w] = {'sim_time_s': float(p.sim_time[w]), 'phase': name, 'step': step}
+
     for step, name in enumerate(phase_of, 1):
         env.needs_reset.zero_()
-        frame, reward, terminated, truncated, info = env.step(zero, reference=True)
+        step_net.zero_()
+        step_util.zero_()
+        frame, reward, terminated, truncated, info = env.step(zero, reference=True, sample_callback=sample)
         q, qd = state()
         net = material.knife_wrench()
         released = (frame['cut_spring_ke'] == 0).sum(-1)
@@ -128,12 +159,15 @@ def main():
             shift = [(q[w][side[k]].mean(0) - q0[w][side[k]].mean(0)).tolist() for k in range(side.shape[0])]
             rows[w].append({'step': step, 'phase': name, 'released': int(released[w]),
                             'net_force_n': float(net[w, :3].norm()), 'net_vertical_n': float(net[w, 1]),
+                            'step_peak_net_force_n': float(step_net[w]), 'step_peak_utilisation': float(step_util[w]),
                             'min_particle_y_mm': float(q[w][:, 1].min()) * 1000,
                             'max_particle_speed_mps': float(qd[w].norm(dim=-1).max()),
                             'side_shift_mm': [[round(1000 * x, 3) for x in s] for s in shift],
                             'finite': bool(torch.isfinite(q[w]).all())})
     report = {'git': git_revision(ROOT), 'command': sys.argv, 'scene': args.scene, 'connectivity': connectivity,
-              'total_springs': total, 'force_limit_termination': 'disabled (measurement)', 'worlds': []}
+              'total_springs': total, 'force_limit_termination': 'disabled (measurement)',
+              'sampling': '2 ms coupling steps for peaks; step-end values in series', 'limits': args.limits,
+              'settle_seconds': args.settle_seconds, 'worlds': []}
     for w in range(n):
         r = rows[w]
 
@@ -146,12 +180,18 @@ def main():
             'young_scale': args.young_scales[w], 'finite': all(x['finite'] for x in r),
             'rest': {'side_shift_mm': rest['side_shift_mm'], 'min_particle_y_mm': rest['min_particle_y_mm'],
                      'max_particle_speed_mps': rest['max_particle_speed_mps'], 'net_force_n': rest['net_force_n']},
-            'press': {'released_at_end': press['released'], 'peak_net_force_n': max(x['net_force_n'] for x in r),
+            'press': {'released_at_end': press['released'],
+                      'step_end_max_net_force_n': max(x['net_force_n'] for x in r),
                       'side_shift_mm': press['side_shift_mm']},
             'end': {'released': end['released'], 'all_released': end['released'] == total,
                     'intact_springs': int(intact.sum()), 'side_shift_mm': end['side_shift_mm'],
                     'net_force_n': end['net_force_n']},
-            'first_step_all_released': next((x['step'] for x in r if x['released'] == total), None),
+            'first_all_released': first_released[w],
+            'peak_net_force_n_2ms': float(peak_net[w]),
+            'peak_sensor_force_component_n_2ms': float(peak_sensor[w, :3].max()),
+            'peak_sensor_torque_component_nm_2ms': float(peak_sensor[w, 3:].max()),
+            'peak_limit_utilisation_2ms': float((peak_sensor[w] / limits).max()),
+            'cut_spring_scale': (args.cut_spring_scales or [1.] * n)[w],
             'series': r}
         report['worlds'].append(summary)
         print(json.dumps({k: v for k, v in summary.items() if k != 'series'}), flush=True)

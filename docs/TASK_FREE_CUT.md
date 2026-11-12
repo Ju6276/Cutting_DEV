@@ -21,9 +21,12 @@ Per control step t (0.05 s):
 | Separated (rho = 1), no limit event in the episode | yes | +R_s | task success |
 | Force-limit event (u > 1), including the step in which rho reaches 1 | yes | -R_f | failure; separation recorded separately |
 | Workspace bound crossed (explicit geometric bounds of the knife pose) | yes | -R_f | failure |
-| Time limit T | yes (truncation, value bootstrapped) | 0 | incomplete |
+| Time limit T | yes; **terminal, no bootstrap** | 0 | incomplete (not a success) |
 
-A step that both separates and violates the limit is a failure (the limit takes precedence, as in
+The task is one cut within a time limit, so nothing is earned after T: the time limit is a true
+terminal state for the critic and for imagination (the remaining time is part of the critic input or
+the episode is short enough for the step count in the state to identify it; to be fixed at
+implementation). A step that both separates and violates the limit is a failure (the limit takes precedence, as in
 the existing `success & ~collision`). Object displacement is logged and has no reward term.
 
 ## 3. Step reward
@@ -38,9 +41,16 @@ Moving faster than commanded is always penalised; moving slower is penalised les
 approaches the limit, so slowing down under resistance does not conflict with the limit. There is
 no separate step cost and no penalty on lateral (sawing) motion beyond the smoothness term.
 
-Time scales that must hold (checked in section 4, not assumed): the largest per-step penalty times
-the time limit must stay below R_f, so that ending an episode by failing is never better than
-continuing; w_p and R_s must make a completed cut better than stalling until the time limit.
+Time scales (design conditions, **not guarantees**): with discount gamma, the worst discounted sum of
+step penalties over the remaining time, plus what an unfinished episode forgoes, has to stay below
+the discounted failure penalty, otherwise failing early can pay; and a completed cut has to beat
+stalling until the time limit. These depend on gamma, R_s, R_f, T and the critic's terminal handling
+together, so they are evaluated numerically in section 4 for the chosen values instead of being
+asserted from one inequality.
+
+The load-dependent relief of the under-speed penalty is a **candidate**: it could reward holding a
+high load to cancel the speed penalty. The preference check compares it with the plain form
+(w_v * [over_t + under_t]) and with a trajectory that deliberately presses hard and slowly.
 
 ## 4. Reward preference check before any training
 
@@ -58,9 +68,11 @@ predicted state:
 - v_t (from predicted joint velocity through the kinematics) and u_t (from the predicted
   within-step peak wrench) already are.
 - **rho is added to the world-model state as one predicted scalar.** The model predicts a
-  non-negative increment (monotone by construction, since damage is irreversible), supervised by
-  the simulator value in recorded transitions. The imagined progress reward is the predicted
-  increment and is differentiable with respect to the actions.
+  non-negative increment that cannot exceed the remaining fraction: rho' = rho + (1 - rho) * s with
+  s in [0, 1], so rho stays in [0, 1] and is monotone (damage is irreversible). It is supervised by
+  the simulator value in recorded transitions. The imagined progress reward is the realised increase
+  rho' - rho, so the total imagined progress reward of a rollout is bounded by w_p * (1 - rho_0) and
+  the model cannot keep paying out progress; it is differentiable with respect to the actions.
 - Separation in imagination uses the predicted rho through the existing termination mechanism
   (learned terminal head, fitted on the recorded separation label); the force-limit event uses the
   predicted peak wrench as now.
@@ -73,9 +85,9 @@ in ordering.
 
 ## 6. Open risks stated up front
 
-- On the settled free cucumber a plain press separates the object at 1.5-2.5 N; if every training
-  object behaves like this the task has no force difficulty and cannot show a method.
-- A sideways offset of about 1 mm between knife plane and cut plane changes the simulated force
-  several-fold (platform limit). Start poses must keep the two aligned, or this artefact becomes
-  the main difficulty.
+- Simulated forces are unvalidated for free and held objects alike. If real free cutting turns out
+  to need little force, that is a fact about the task; the paper's emphasis on the force limit is
+  then reconsidered, and the simulation is not tuned to be harder.
+- The first training on this task is an engineering check of the pipeline (reset, reward, WM
+  progress, termination), not evidence of an algorithmic advantage.
 - rho is a simulator-internal label; a real-robot stop signal is a separate later question.

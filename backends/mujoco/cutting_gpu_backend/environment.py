@@ -74,9 +74,7 @@ class CuttingBatch:
         knife = self.knife_chain(self.robot.q.to(self.dtype), mass_matrix=False)[0]['b_bot_knife_sim']
         self.material.set_motion(torch.zeros((worlds, 6), device=self.device), self.coupling.reset_pose(knife).float())
         if self.settle_seconds > 0:
-            touching = self.material.advance(self.settle_seconds)
-            if bool((touching > 0).any()):
-                raise ValueError('The knife touches the object at the start; settling needs a free start')
+            self._settle_material(self.settle_seconds)
         self.material.advance(.002)
         self.feedback = self._feedback(raw)
         self.wrench_queue = self.feedback['sensor_wrench'][:, None].repeat(1, 25, 1)
@@ -100,6 +98,25 @@ class CuttingBatch:
         self._initial_queue = self.wrench_queue.clone()
         self._initial_previous_knife = knife.clone()
         self.spring_reference = self.material.state_field('cut_spring_ke').clone()
+
+    @torch.no_grad()
+    def _settle_material(self, seconds):
+        """Advance the material with the knife held still. The knife must stay out of contact
+        in every substep; the state is produced by the physics, velocities are not zeroed."""
+        _, peak = self.material.advance(seconds, track_peak=True)
+        if bool((peak > 0).any()):
+            raise ValueError('The knife touches the object while it settles; settling needs a free start')
+
+    @torch.no_grad()
+    def settle(self, seconds):
+        """Settle every world from its reset state with its current material scales and save the
+        result as the new reset state. Call right after resetting all worlds (knife at the start
+        pose, zero twist), e.g. once after per-world material scales are assigned."""
+        if not seconds > 0:
+            raise ValueError('settle needs a positive duration')
+        self._settle_material(seconds)
+        self.material.save_reset_state()
+        self.settle_seconds = float(seconds)
 
     @torch.no_grad()
     def lifted_configuration(self, q, lift, iterations=50, tolerance=1e-7):

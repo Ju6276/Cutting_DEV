@@ -116,6 +116,16 @@ class GPUEnvironment:
         self.current = {k: v.clone() for k, v in frame.items()}
 
     @torch.no_grad()
+    def settle(self, seconds):
+        """Settle all worlds with their current material scales and make that the reset state
+        (``CuttingBatch.settle``). Resets every world before and after."""
+        every = torch.ones(self.worlds, dtype=torch.bool, device=self.device)
+        self.reset(every)
+        self.physics.settle(seconds)
+        self.metadata['settle_seconds'] = float(seconds)
+        return self.reset(every)
+
+    @torch.no_grad()
     def step(self, action, reference=False, sample_callback=None):
         if self.needs_reset.any():
             raise RuntimeError('Reset completed worlds before the next batched action')

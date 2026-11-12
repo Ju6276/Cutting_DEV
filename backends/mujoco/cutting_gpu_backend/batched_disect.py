@@ -206,7 +206,9 @@ class BatchedDiSECt(DiSECt):
             self.rotation[active] = pose[active, 3:]
 
     @torch.no_grad()
-    def advance(self, duration, active=None):
+    def advance(self, duration, active=None, track_peak=False):
+        """``track_peak``: also return the largest summed contact-force magnitude over every
+        substep (not only the last one), as (last, peak)."""
         paused = None
         if active is not None and not bool(active.all()):
             paused = self.capture_rows(~active)
@@ -229,9 +231,13 @@ class BatchedDiSECt(DiSECt):
             if substep == count - 1:
                 self.state.knife_contact_q.copy_(self.state.particle_q)
             self.state = self.integrator.forward(self.model, self.state, self.dt, update_mass_matrix=False)
+            if track_peak:
+                now = torch.linalg.vector_norm(self.state_field('knife_f'), dim=-1).sum(-1)
+                peak = now if substep == 0 else torch.maximum(peak, now)
         self.steps += count
         if paused is not None:
             self.restore_rows(~active, paused)
         if not torch.isfinite(self.state.particle_q).all() or not torch.isfinite(self.state.cut_spring_ke).all():
             raise FloatingPointError('Nonfinite DiSECt material state')
-        return torch.linalg.vector_norm(self.state_field('knife_f'), dim=-1).sum(-1)
+        last = torch.linalg.vector_norm(self.state_field('knife_f'), dim=-1).sum(-1)
+        return (last, peak) if track_peak else last

@@ -622,3 +622,48 @@ one plane; about 1 mm of sideways offset between them changed the peak force fro
 16 N. Sliding along the blade is represented; sliding across the cut plane is not represented
 faithfully. Scope of the separation check: this scene only; new exported objects need the same
 topology check during asset preparation.
+
+## 2026-11-12 — Free cucumber re-measured: per-world settling, 2 ms sampling (supersedes the two tables above)
+
+Review corrections accepted: (1) the two earlier free-cucumber tables used step-end samples of the net
+force (one value per 0.05 s), not the 2 ms samples the limit check uses; (2) the "settled" table settled
+every world with the nominal material and then changed the material, so its Young x2 rows started from
+a state that does not belong to that material; (3) the explanation "about 1 mm sideways offset causes
+16 N" was a guess from two runs that differed in initialization, material order and state, and is
+**withdrawn**; (4) "this scene poses no force difficulty" is **withdrawn**.
+
+Implementation: `GPUEnvironment.settle()` / `CuttingBatch.settle()` settle every world with its own
+material scales and save that as the reset state; the contact check during settling covers every
+material substep (`advance(track_peak=True)`), not only the last one. `check_free_object_scene.py`
+samples the net contact force and the six-component observation wrench at every 2 ms coupling step.
+
+Free cucumber, 0.75 s settling per world, 0.25 s rest, press at 3 cm/s to the scene goal height, 0.5 s
+hold, 3 cm retraction; net feedback, friction transition 0.01 m/s (uncalibrated), force limit disabled;
+utilisation is reported against the old S0 simulation limits [50, 50, 50 N, 5, 5, 5 N·m].
+Reports: `runs/free_object_check_20261112/cucumber_{press,saw}_2ms/report.json`.
+
+| Young / cut-spring scale | Motion | Separated | Peak net force, 2 ms (N) | Peak sensor force component (N) | Peak sensor torque (N·m) | Peak utilisation | Notes |
+|---|---|---|---|---|---|---|---|
+| 1 / 1 | press | yes, first hold step | 7.7 | 5.3 | 0.75 | 0.15 | pieces move under 2 mm |
+| 2 / 1 | press | **no** | 18.0 | 16.3 | 3.20 | 0.64 | object lifted about 25 mm with the retracting knife |
+| 2 / 2 | press | yes, hold | 19.8 | 18.0 | 2.43 | 0.49 | |
+| 1 / 1 | press + saw 2 cm, 1 Hz | yes, first hold step | 2.7 | 1.5 | 0.29 | 0.06 | pieces dragged 12-16 mm along the blade |
+| 2 / 1 | press + saw | yes, hold | 14.5 | 12.1 | 1.99 | 0.40 | one piece displaced 31 mm across the cut |
+| 2 / 2 | press + saw | yes, hold | 23.0 | 14.0 | 2.39 | 0.48 | |
+
+- Rest motion after per-world settling is under 0.04 mm in every world.
+- The free object does not have uniformly small forces: 2 ms peaks range from 2.7 to 23 N and peak
+  utilisation from 0.06 to 0.64 over these six cases; step-end sampling understated them
+  (e.g. 5.2 N vs 7.7 N, 0.9 N vs 2.7 N).
+- With each world settled for its own material, the Young x2 press again leaves the object attached
+  (not separated) while the same press with sawing separates it. One scene, one saw setting,
+  uncalibrated friction, limit disabled: an observation that the motion changes the outcome, not
+  evidence that a learned policy is needed. Fixed press and fixed saw stay as reference comparisons.
+- Not decomposed: the recorded knife force combines contact normal force, damping and friction;
+  no reading here separates "fracture resistance" from "pinching". Earlier statements attributing about
+  2 N to fracture and the rest to the hold are withdrawn; what is supported is that the hold and the
+  initialization change the knife force strongly.
+- Validation status: neither the free nor the held scenes are validated against this project's real
+  cuts. The scanned objects carry material values copied from official DiSECt configs onto different
+  meshes with our scene settings; similarity of the held forces to the paper's curve is an
+  order-of-magnitude comparison only (the paper's 12-15 N is the late plateau of the curve, not a mean).
