@@ -89,7 +89,12 @@ def copy_frame(frame):
 def save_episode(output, row, states, transitions):
     arrays = {key: np.stack([state[key] for state in states]) for key in states[0]}
     for key in transitions[0] if transitions else ():
-        arrays[key] = np.stack([transition[key] for transition in transitions])
+        # New free-cut info repeats cut_progress, which is also a T+1 state.
+        # Keep both instead of silently overwriting the state trajectory with T rows.
+        name = 'transition_' + key if key in arrays else key
+        if name in arrays:
+            raise ValueError(f'Duplicate episode field {name}')
+        arrays[name] = np.stack([transition[key] for transition in transitions])
     if not transitions:
         arrays.update(action=np.empty((0, 6)), reward=np.empty(0),
                       terminated=np.empty(0, dtype=bool), truncated=np.empty(0, dtype=bool))
@@ -123,6 +128,9 @@ def summarize(episodes):
                'collision_rate': (sum(row['collision'] for row in completed) / len(completed)
                                   if completed else None)}
     if completed:
+        for key in ('outside', 'timeout', 'separated'):
+            if all(key in row for row in completed):
+                summary[key + '_rate'] = sum(bool(row[key]) for row in completed) / len(completed)
         for key, value in completed[0].items():
             if key in SUMMARY_EXCLUDED or isinstance(value, bool) or not isinstance(value, (int, float)):
                 continue
@@ -153,13 +161,21 @@ class ReferencePolicy(ConstantPolicy):
     reference = True
 
 
+def checkpoint_metadata(env, saved_metadata):
+    """Strict task validation; grouped evaluation explicitly projects execution axes only."""
+    if hasattr(env, 'checkpoint_metadata'):
+        return env.checkpoint_metadata(saved_metadata)
+    from .control_state import ControlStateSpec
+    return ControlStateSpec.metadata_from_frame(env.metadata, copy_frame(env.current))
+
+
 class WorldModelPolicy:
     def __init__(self, checkpoint, env):
         from .control_state import ControlStateSpec
         from .policy import SliceItPolicy
 
         saved = torch.load(checkpoint, map_location='cpu', weights_only=False)
-        metadata = ControlStateSpec.metadata_from_frame(env.metadata, copy_frame(env.current))
+        metadata = checkpoint_metadata(env, saved['metadata'])
         # The benchmark scores every method with its own reward; a policy trained with
         # another force penalty is still evaluated on the same physical task.
         if without_reward_settings(metadata) != without_reward_settings(saved['metadata']):
@@ -222,7 +238,7 @@ def evaluate(env, policy, output, episodes, deadline, clock=time.monotonic, on_f
             if reset.keys() != initial.keys():
                 raise ValueError('Physical reset fields changed')
             for key in initial:
-                if not np.array_equal(reset[key], initial[key]):
+                if getattr(env, 'reset_is_fixed', True) and not np.array_equal(reset[key], initial[key]):
                     raise ValueError(f'Physical reset changed {key}')
             policy.reset(frame)
             synchronize(env.device)
@@ -240,6 +256,8 @@ def evaluate(env, policy, output, episodes, deadline, clock=time.monotonic, on_f
                    'success': False, 'collision': False, 'outside': False,
                    'terminated': False, 'truncated': False,
                    'total_cut_springs': int(frame['cut_spring_ke'].shape[-1])}
+            if hasattr(env, 'conditions'):
+                row['conditions'] = env.conditions([0])[0]
             row.update(episode_metrics(row, totals))
             if on_frame is not None:
                 on_frame(frame, None)
@@ -275,6 +293,9 @@ def evaluate(env, policy, output, episodes, deadline, clock=time.monotonic, on_f
                            success=bool(info['success'][0]), collision=bool(info['collision'][0]),
                            outside=bool(info['outside'][0]), terminated=bool(terminated[0]),
                            truncated=bool(truncated[0]))
+                for key in ('separated', 'timeout'):
+                    if key in info:
+                        row[key] = bool(info[key][0])
                 for key in ('material_impulse', 'knife_work', 'knife_gross_work'):
                     totals[key] += float(info[key][0])
                 # Jerk is observed only with jerkiness_as_obs; otherwise mean_jerk is None.

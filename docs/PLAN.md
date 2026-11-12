@@ -77,3 +77,31 @@ checkout. Code, data, environments and outputs stay on servers, not the Mac. Che
 `nvidia-smi` before using a GPU. Not to be launched without a new approved plan:
 `train_gpu.py --conditions configs/multi_condition/s0_*.json` (with or without
 `--risk-constraint`), `train_official_supermimic.py`, `train_sac_gpu.py` on S0.
+
+## Authorized integration: free_cut_v3 + frozen MPPI (2026-11-12)
+
+The user requested checking A6000 availability and connecting MPPI to the current task.
+Work is isolated in codex/free-cut-mppi; do not modify Claude's active GPU7 checkout.
+Question: can the existing planner load an exact v3 checkpoint, execute physical
+transitions, terminate and report the new task outcomes? This is integration, not a
+new training experiment or evidence of controller quality.
+
+Budget: one A6000 GPU, at most 30 GPU minutes including setup and two bounded
+evaluations (each <= 900 s); no optimizer updates or threshold changes. Start with
+one selected cucumber group, the exact short-training conditions, H8/512 candidates,
+one refinement, task gamma=1 and no terminal critic (the available checkpoint has
+zero critic/policy updates). No search over solver settings. Record source revision,
+checkpoint hash/identity, episode conditions, separation/timeout/force/outside,
+returns, force metrics, inference/reset/physics time, and untouched weights.
+WM341 is an early fit, not the approved final pretrained model.
+
+Pass means task/physics metadata validation, finite bounded actions, correct
+physical terminal logging and unchanged weights; cutting success is reported
+separately. Stop at the budget; do not extend it to chase a successful cut.
+The current planner observes simulator cut progress while the policy does not;
+record this privileged-state difference, never present it as identical information.
+
+Integration outcome: two bounded frozen runs completed full separation (34/35 steps),
+without force or workspace failures. See FREE_CUT_MPPI. No training launched here.
+The available early WM supports this case; this does not approve a full method
+comparison or resolve missing real-world progress observations.

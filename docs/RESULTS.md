@@ -850,3 +850,28 @@ are in runs/free_cut_second_review_20261112/regression_final.json and *_final.lo
 Code: 0ef9718, c720cd9, abe84b2. The latter removes demonstrated float32 cancellation in
 release-fraction gradients and logs emitted probabilities directly. No long training,
 S3 restart, merge to main or new learned policy was produced by this review.
+
+## 2026-11-12 — free_cut_v3 frozen MPPI integration on A6000
+
+See [FREE_CUT_MPPI](FREE_CUT_MPPI.md) for the exact setup, artifact paths,
+information-access difference and review instructions. This is a bounded integration
+check, not a training-method comparison. The frozen early checkpoint is WM341,
+policy/critic updates 0, iteration 894; no learning was performed by the evaluator.
+
+Two repeats of one sampled free-cucumber case: all 65 springs released, no force,
+workspace or timeout failures. First run 34 steps /105.125 return /6.212 N net material
+peak; final recorder run 35 steps /105.218 return /7.923 N. The repeated-case variation
+is not a measured algorithm improvement. Final planner time averages 0.184 s/control
+step, exceeding the 0.05 s control period. Its full wall time was 73.68 s including setup.
+
+The new entry retains exact training task/distribution metadata checks, projects
+only batch/group execution axes, and records separation and timeout independently.
+A discovered NPZ name collision now preserves T+1 state progress separately from
+T transition progress. The final file's 36/35 alignment was directly verified.
+The planner observes simulator cut_progress; the actor does not. It must be labelled
+a privileged-state planning baseline, not equal-information or real-robot-ready MPC.
+
+Validation: final root 315 passed/8 skipped; backend 38 passed; dedicated planner/
+benchmark 29 passed. The planner run covers three base-environment dependency skips.
+See FREE_CUT_MPPI for exact commands, source/asset verification and the corrected
+backend test working-directory invocation. No physics or training code was changed.

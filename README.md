@@ -140,3 +140,6 @@ they cannot establish physical separation or real-robot force safety.
 
 The two original Git histories are retained. Third-party licenses are listed
 in [NOTICE](NOTICE.md). Data, credentials and environments stay outside Git.
+
+Free-cut v3 planning entry and A6000 integration evidence:
+[WM + MPPI](docs/FREE_CUT_MPPI.md). This remains a frozen, privileged-state baseline.
