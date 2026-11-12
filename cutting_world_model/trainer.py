@@ -283,9 +283,12 @@ class OnlineLearner:
                 risks.append(torch.where(absorbed, torch.zeros_like(risk), risk))
             next_state, reward, logits = self.wm.predict(state, action, goal)
             collision = (spec.field(next_state, 'peak_wrench') > spec.limits(goal)).any(-1)
-            task_done, _, _, _ = spec.heads.termination(
-                spec.field(next_state, 'observation'),
-                spec.field(state, 'success_counter'), collision)
+            if hasattr(spec, 'hard_termination'):
+                task_done = spec.hard_termination(next_state)
+            else:
+                task_done, _, _, _ = spec.heads.termination(
+                    spec.field(next_state, 'observation'),
+                    spec.field(state, 'success_counter'), collision)
             # The transition into a terminal state keeps its reward exactly once.
             reward = torch.where(absorbed, torch.zeros_like(reward), reward)
             next_state = torch.where(absorbed[:, None], state, next_state)

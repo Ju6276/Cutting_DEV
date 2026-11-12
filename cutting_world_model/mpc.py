@@ -53,7 +53,7 @@ class ModelRollout:
         self.critic = critic
 
     def initial(self, state, goal):
-        if state.shape[0] != 1 or goal.shape != (1, 7):
+        if state.shape[0] != 1 or goal.shape != (1, getattr(self.spec, 'goal_dim', 7)):
             raise ValueError('MPPI plans for one physical environment at a time')
         self.goal = goal
         return torch.cat((state, state.new_ones((1, 1)), state.new_zeros((1, 2))), -1)[0]
@@ -71,9 +71,12 @@ class ModelRollout:
         next_state = torch.where(absorbed[:, None], state, predicted)
         reward = torch.where(absorbed, 0., reward)
         collision = (self.spec.field(next_state, 'peak_wrench') > self.spec.force_limits).any(-1)
-        done, _, _, _ = self.spec.heads.termination(
-            self.spec.field(next_state, 'observation'),
-            self.spec.field(state, 'success_counter'), collision)
+        if hasattr(self.spec, 'hard_termination'):
+            done = self.spec.hard_termination(next_state)
+        else:
+            done, _, _, _ = self.spec.heads.termination(
+                self.spec.field(next_state, 'observation'),
+                self.spec.field(state, 'success_counter'), collision)
         absorbed = absorbed | done
         probability = torch.where(absorbed, 1., logits.sigmoid())
         cost = -(self.discount ** t) * survival * reward

@@ -22,9 +22,14 @@ class CuttingWorldModel(nn.Module):
         if layout not in (None, 'control_history_v2'):
             raise ValueError('Unsupported prediction layout: ' + str(layout))
         spec_class = ControlStateSpec if layout == 'control_history_v2' else CuttingStateSpec
+        if metadata.get('free_cut_task'):
+            if layout != 'control_history_v2':
+                raise ValueError('free_cut requires the compact control-history layout')
+            from .free_cut_state import FreeCutStateSpec
+            spec_class = FreeCutStateSpec
         self.spec = spec_class(metadata)
         self.dynamics = DynamicsMLP(self.spec.dynamics_dim, 6, 7, hidden, self.spec.delta_dim)
-        self.term_head = MLP(26, (64, 64), 1)
+        self.term_head = MLP(2 * getattr(self.spec, 'terminal_feature_dim', 13), (64, 64), 1)
         self.terminal_gradient = 'dynamics'
 
     @property
@@ -51,11 +56,17 @@ class CuttingWorldModel(nn.Module):
 
     def step(self, state, action, goal):
         next_state, reward = self.transition(state, action, goal)
-        return next_state, reward, self.terminal_logits(next_state, goal)
+        logits = self.terminal_logits(next_state, goal)
+        if hasattr(self.spec, 'free_task'):
+            reward = reward + self.spec.completion_reward(next_state, logits)
+        return next_state, reward, logits
 
     def _fit_step_head(self, state, action, goal):
         next_state, reward = self.transition(state, action, goal)
-        return next_state, reward, self.terminal_logits(next_state.detach(), goal)
+        logits = self.terminal_logits(next_state.detach(), goal)
+        if hasattr(self.spec, 'free_task'):
+            reward = reward + self.spec.completion_reward(next_state, logits)
+        return next_state, reward, logits
 
     def enable_compile(self, mode="default"):
         compile = (lambda f: torch.compile(f, mode=mode, dynamic=False)) if mode else (lambda f: f)
@@ -71,9 +82,16 @@ class CuttingWorldModel(nn.Module):
             return self.predict(state, action, goal)
         return getattr(self, '_fit_head_fn', self._fit_step_head)(state, action, goal)
 
+    def completion_labels(self, states, done):
+        # Physical separation, independent of force failures and finite task deadlines.
+        if hasattr(self.spec, 'free_task'):
+            return (self.spec.field(states[1:], 'cut_progress')[..., 0] >= 1).to(done.dtype)
+        return done
+
     def window_loss(self, states, actions, goal, done, valid_steps=None):
         if valid_steps is not None:
             return self.masked_window_loss(states, actions, goal, done, valid_steps)
+        done = self.completion_labels(states, done)
         state = states[0]
         loss_state = states.new_zeros(())
         loss_term = states.new_zeros(())
@@ -97,6 +115,7 @@ class CuttingWorldModel(nn.Module):
         if not valid_steps[0].all() or (valid_steps[1:] & ~valid_steps[:-1]).any():
             raise ValueError('Each window must contain a nonempty valid prefix')
         count = valid_steps.sum()
+        done = self.completion_labels(states, done)
         state = states[0]
         loss_state = states.new_zeros(())
         loss_term = states.new_zeros(())

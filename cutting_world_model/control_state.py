@@ -15,6 +15,9 @@ class ControlStateSpec(CuttingStateSpec):
 
     @classmethod
     def metadata_from_frame(cls, task, frame):
+        if task.get('free_cut_task') and cls is ControlStateSpec:
+            from .free_cut_state import FreeCutStateSpec
+            return FreeCutStateSpec.metadata_from_frame(task, frame)
         result = dict(task)
         result['prediction_layout'] = 'control_history_v2'
         result['prediction_history'] = PolicyTrainerCfg().history

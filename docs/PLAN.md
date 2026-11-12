@@ -11,7 +11,7 @@ Earlier plans are in `archive/` (latest: [before the task decision](archive/PLAN
   paper's core must follow from the task, not from a failure seen in our own runs.
 - **Task:** single cut of an object placed freely on the board. No fixture. Passive sliding
   is recorded, has no threshold and no penalty; active rolling and repositioning are out of
-  scope. Sawing is part of the task (a pure press is not enough to show a method).
+  scope. Sawing is allowed; neither learned sawing nor an advantage over pure pressing is presumed.
 - **Success:** the slice is fully separated from the body (no remaining material connection)
   **and** no force-limit event occurred. Separation, force-limit events and task success are
   recorded separately. A remaining connection is incomplete; 98 % release is a diagnostic.
@@ -33,16 +33,23 @@ Earlier plans are in `archive/` (latest: [before the task decision](archive/PLAN
   checked over every substep), verified on that scene.
 - Net contact wrench feedback and friction transition velocity: implemented, repaired and
   re-measured (RESULTS); friction and ground parameters are uncalibrated.
+- free_cut_v1 implementation and GPU/grouped-reset/gradient checks are complete.
+  The first explicit reward weights FAILED the speed-preference check (fast press
+  93.33 vs commanded press 72.77). This is not an approved training configuration.
 - No training is running. Old S0 configs and held scenes are reproduction inputs only.
 
 ## Next steps, in order
 
-1. **Reward and its WM implementation** — proposal in [TASK_FREE_CUT](TASK_FREE_CUT.md),
-   awaiting the user's approval. No task code changes before that.
-2. After approval: implement the task version, run the fixed-trajectory reward preference
-   check stated there, then submit a training plan with a budget.
-3. New exported objects get the same topology check (two components joined only by cut
-   springs) as part of asset preparation.
+1. Claude reviews [FREE_CUT_REVIEW](FREE_CUT_REVIEW.md), code and the four completed
+   physical checks. Implementation authorized by the user; no long training launched.
+2. Set explicit reward weights consistent with commanded-speed preference. The first
+   candidate is rejected, so the remaining retract/slow trials were stopped rather
+   than spending the full 1200 s budget. No physics or limits are tuned to help it pass.
+   Recheck the same reference cases with revised weights before a training plan.
+3. Once accepted, submit a bounded end-to-end engineering training plan. Newly fitted
+   WM multi-step progress/completion and return ordering remain unverified until data
+   and fitting exist. This is not a paper performance claim.
+4. New exported objects get the same topology check during asset preparation.
 
 ## Known limits of the platform (not a repair queue)
 

@@ -111,6 +111,19 @@ class BatchedDiSECt(DiSECt):
         # Keep the positions from that force evaluation for its moment arm.
         self.state.knife_contact_q = self.state.particle_q.clone()
         self.save_reset_state()
+        # Immutable export snapshot: re-settle from here after material randomization,
+        # never from the last episode's deformed/settled geometry.
+        self.export_state = {k: v.clone() for k, v in self.initial_state.items()}
+        self.export_contact = {k: v.clone() for k, v in self.initial_contact.items()}
+
+    @torch.no_grad()
+    def restore_export(self, mask):
+        for name, initial in self.export_state.items():
+            self.state_field(name)[mask] = initial.reshape_as(self.state_field(name))[mask]
+        for name, initial in self.export_contact.items():
+            target = getattr(self.model, name).reshape(self.worlds, -1)
+            target[mask] = initial.reshape_as(target)[mask]
+        self.state_field('cut_spring_ke')[mask] *= self.material_scales['cut_spring_stiffness'][mask, None]
 
     @torch.no_grad()
     def knife_wrench(self):
@@ -129,7 +142,15 @@ class BatchedDiSECt(DiSECt):
         value = getattr(self.state, name)
         return value.reshape(self.worlds, -1, *value.shape[1:])
 
-    def save_reset_state(self):
+    def save_reset_state(self, mask=None):
+        if mask is not None:
+            for name, initial in self.initial_state.items():
+                initial.reshape(self.worlds, -1)[mask] = getattr(self.state, name).reshape(self.worlds, -1)[mask]
+            for name, initial in self.initial_contact.items():
+                initial.reshape(self.worlds, -1)[mask] = getattr(self.model, name).reshape(self.worlds, -1)[mask]
+            for name, initial in self.initial_motion.items():
+                initial[mask] = getattr(self, name)[mask]
+            return
         self.initial_state = {k: v.detach().clone() for k, v in vars(self.state).items()
                               if isinstance(v, torch.Tensor)}
         self.initial_contact = {k: getattr(self.model, k).clone() for k in
@@ -212,9 +233,13 @@ class BatchedDiSECt(DiSECt):
         paused = None
         if active is not None and not bool(active.all()):
             paused = self.capture_rows(~active)
+        if not math.isfinite(duration) or duration <= 0:
+            raise ValueError('Material advance duration must be finite and positive')
         count = round(duration / self.dt)
         if abs(count * self.dt - duration) > 1e-12:
             raise ValueError('Coupling duration must contain whole DiSECt substeps')
+        if count < 1:
+            raise ValueError('Material advance needs at least one substep')
         norm = torch.linalg.vector_norm(self.angular_velocity, dim=-1, keepdim=True)
         half = norm * self.dt / 2
         factor = torch.sinc(half / torch.pi) * self.dt / 2

@@ -1,9 +1,9 @@
 """Per-episode records and aggregate episode metrics of the online training loop."""
 
 
-def ending(success, collision, outside, truncated):
+def ending(success, collision, outside, truncated, timeout=False):
     return ('success' if success else 'force_limit' if collision else 'workspace' if outside
-            else 'time_limit' if truncated else 'other')
+            else 'time_limit' if truncated or timeout else 'other')
 
 
 def episode_metrics(prefix, mask, returns, lengths, info, truncated, peak_material, peak_ratio):
@@ -15,6 +15,9 @@ def episode_metrics(prefix, mask, returns, lengths, info, truncated, peak_materi
             prefix + 'collision_rate': float(info['collision'][mask].float().mean()),
             prefix + 'outside_rate': float(info['outside'][mask].float().mean()),
             prefix + 'truncated_rate': float(truncated[mask].float().mean()),
+            **({prefix + 'timeout_rate': float(info['timeout'][mask].float().mean()),
+                prefix + 'separated_rate': float(info['separated'][mask].float().mean())}
+               if 'timeout' in info else {}),
             prefix + 'peak_material_force_mean': float(peak_material[mask].float().mean()),
             prefix + 'peak_limit_ratio_mean': float(peak_ratio[mask].float().mean())}
 
@@ -38,11 +41,15 @@ def episode_row(e, episode, iteration, returns, lengths, info, truncated, peak_m
     row = {'env': e, 'episode': episode, 'iteration': iteration,
            'return': float(returns[e]), 'steps': int(lengths[e]),
            'ending': ending(bool(info['success'][e]), bool(info['collision'][e]),
-                            bool(info['outside'][e]), bool(truncated[e])),
+                            bool(info['outside'][e]), bool(truncated[e]),
+                            bool(info['timeout'][e]) if 'timeout' in info else False),
            'success': bool(info['success'][e]), 'collision': bool(info['collision'][e]),
            'outside': bool(info['outside'][e]), 'truncated': bool(truncated[e]),
            'released_springs': int(info['released_springs'][e]),
            'peak_material_force_n': float(peak_material[e]), 'peak_limit_ratio': float(peak_ratio[e])}
+    if 'timeout' in info:
+        row.update(timeout=bool(info['timeout'][e]), separated=bool(info['separated'][e]),
+                   cut_progress=float(info['cut_progress'][e]))
     if condition is not None:
         row['condition'] = condition
     return row

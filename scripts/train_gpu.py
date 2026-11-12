@@ -256,7 +256,7 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
         'actor_bc_alpha': learner.actor_bc_alpha, 'actor_objective': learner.actor_objective,
         'wm_terminal_gradient': learner.wm.terminal_gradient,
         'wm_terminal_gradient_changed_at_resume': args.change_wm_terminal_gradient,
-        'reward': reward_settings(metadata['environment']) or 'sliceit',
+        'reward': metadata.get('free_cut_task') or reward_settings(metadata['environment']) or 'sliceit',
         'replay_snapshot': 'replay.pt rewritten with every checkpoint',
     }
     write_json(output / 'manifest.json', manifest)

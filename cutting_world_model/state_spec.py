@@ -77,6 +77,7 @@ class CuttingStateSpec(nn.Module):
                                np.array([.3] * 3 + [.5] * 3)),
             'wrench_history': (np.tile(force, self.heads.history),) * 3,
             'peak_wrench': (force,) * 3,
+            'cut_progress': (1., 1., 1.),
         }
         for name in ('controller_q', 'controller_previous_position_command', 'controller_measured_q'):
             source[name] = source['joint_q']
@@ -116,6 +117,7 @@ class CuttingStateSpec(nn.Module):
             'previous_acceleration': [1.] * 6, 'observation': [1.] * 24,
             'success_counter': [metadata['environment']['successes_threshold'] + 1.],
         }
+        history_scale['step_count'] = [metadata.get('free_cut_task', {}).get('horizon_steps', 1)]
         history_scale.update(controller_tare_compensation=force.tolist(), filter_offset=force.tolist())
         for name in self.history_fields:
             scales_in.extend(history_scale[name])

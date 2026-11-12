@@ -1,7 +1,7 @@
 # Running Cutting DEV
 
 Commands below are historical reproduction entries, not instructions to restart
-S3. The corrected task is undefined; follow [PLAN](PLAN.md).
+S3. The opt-in free_cut_v1 contract is in [TASK_FREE_CUT](TASK_FREE_CUT.md); follow [PLAN](PLAN.md).
 Commands run from the repository root. The GPU backend is bundled at
 `backends/mujoco`; `--backend-root` can select a separate prepared checkout.
 

@@ -667,3 +667,58 @@ Reports: `runs/free_object_check_20261112/cucumber_{press,saw}_2ms/report.json`.
   cuts. The scanned objects carry material values copied from official DiSECt configs onto different
   meshes with our scene settings; similarity of the held forces to the paper's curve is an
   order-of-magnitude comparison only (the paper's 12-15 N is the late plateau of the curve, not a mean).
+
+
+## 2026-11-12 — free_cut_v1 implementation and rejected reward candidate
+
+User authorized the opt-in task implementation and verification, not long training.
+Parent e529161; see [FREE_CUT_REVIEW](FREE_CUT_REVIEW.md) and the versioned contract
+[TASK_FREE_CUT](TASK_FREE_CUT.md). No historical pose task or material parameters
+were replaced.
+
+Implementation: complete-separation settlement, force/workspace failure precedence
+(charged once), true finite deadline/no bootstrap, deterministic step_count in the
+WM/critic, bounded supervised progress and separation-only completion head.
+The same completion probability weights expected completion reward and survival.
+Policy input stays 10 x 24 observations + the 8-D pose/speed goal. Material-randomized
+resets re-settle selected worlds from immutable exported state, preserving live worlds.
+
+Verification on GPU7:
+- Root suite with CUTTING_BACKEND_ROOT enabled and the MPPI Python: **298 passed,
+  5 skipped**, 232.39 s (final code). Skips are legacy gym/TensorFlow assets and opt-in source bridge.
+- Backend suite: **36 passed**, 4.83 s.
+- New tests include finite-difference BPTT, learnable force outputs at the source zero initialization, an actual small supervised WM optimizer
+  update, deterministic horizon absorption, true terminal timeout records, masked
+  GPU reset and both local/process grouped environments. These do not establish
+  fitted WM accuracy or successful policy training.
+
+Physical task/reward check (force limits ACTIVE): one free cucumber, nominal
+material, 0.75 s settling, target 3 cm/s, net contact, friction transition 0.01 m/s,
+limits [50,50,50 N,5,5,5 Nm]. Reference starts pressing immediately after reset;
+it is not the earlier rest/press/hold/retract measurement protocol.
+Provisional weights: progress 10, speed/load rates 1/s each, normalized jerk
+rate 0.1/s, completion +100, failure -100, gamma .99, 100-step/5 s deadline.
+
+| Reference | Ending | Steps | Discounted return | Peak net contact force (2 ms) |
+|---|---|---:|---:|---:|
+| Press at 3 cm/s | success | 43 | 72.77 | 3.37 N |
+| Press + saw (2 cm, 1 Hz) | success | 45 | 71.44 | 1.88 N |
+| Fast press (9 cm/s) | success | 17 | 93.33 | 5.88 N |
+| Stationary above object | terminal timeout, incomplete | 100 | -2.41 | 0 N |
+
+**Reward preference FAILED.** The earlier discounted completion bonus outweighs
+the speed penalty. It is an objective/weight issue, not evidence of a learned
+policy exploiting a WM: no learner participated. These weights must not be used
+for a new long run. No coefficient, force limit or physical parameter was adjusted
+to hide this negative result. After these four completed cases the checker was
+stopped; retract and slow-press references were not run. Intended physical force
+violation and high-load slow pressing are also not covered by this batch.
+Failure precedence/once-only penalties are covered by task tests, and final
+coupling-sample force termination by existing GPU regression tests.
+
+Artifacts (GPU7, not Git or Mac): runs/free_cut_v1_review_20261112/report.json,
+runs/free_cut_v1_review_20261112.log, runs/free_cut_root_final.log,
+runs/free_cut_backend_suite.log; final focused tests: 11 passed (35.37 s). The report includes exact per-step reward and
+progress, parent revision, dirty-diff fingerprint, and full provisional config.
+It predates the checker's newly added speed/jerk/utilization row fields, which
+enable offline reward rescoring in future runs. No new policy checkpoint exists.

@@ -1,6 +1,7 @@
 """Batched UR5e, source FDCC and DiSECt transitions at the SliceIt control periods."""
 import copy
 import json
+import math
 import os
 from pathlib import Path
 
@@ -31,7 +32,7 @@ class CuttingBatch:
         # settle_seconds: advance the material this long with the knife held at its start, before
         # the reset state is saved, so episodes start from an object resting on the board instead
         # of the exported (unsettled) state. The knife must not touch the object at the start.
-        if not settle_seconds >= 0:
+        if not math.isfinite(settle_seconds) or settle_seconds < 0:
             raise ValueError('settle_seconds must be non-negative')
         self.settle_seconds = float(settle_seconds)
         if force_model not in ('scalar', 'net'):
@@ -100,22 +101,27 @@ class CuttingBatch:
         self.spring_reference = self.material.state_field('cut_spring_ke').clone()
 
     @torch.no_grad()
-    def _settle_material(self, seconds):
+    def _settle_material(self, seconds, mask=None):
         """Advance the material with the knife held still. The knife must stay out of contact
         in every substep; the state is produced by the physics, velocities are not zeroed."""
-        _, peak = self.material.advance(seconds, track_peak=True)
-        if bool((peak > 0).any()):
+        _, peak = self.material.advance(seconds, active=mask, track_peak=True)
+        if bool((peak > 0).any() if mask is None else (peak[mask] > 0).any()):
             raise ValueError('The knife touches the object while it settles; settling needs a free start')
 
     @torch.no_grad()
-    def settle(self, seconds):
-        """Settle every world from its reset state with its current material scales and save the
-        result as the new reset state. Call right after resetting all worlds (knife at the start
-        pose, zero twist), e.g. once after per-world material scales are assigned."""
-        if not seconds > 0:
-            raise ValueError('settle needs a positive duration')
-        self._settle_material(seconds)
-        self.material.save_reset_state()
+    def settle(self, seconds, mask=None):
+        """Re-settle selected reset worlds from the immutable export at current material.
+        Other worlds' material state, contact cache, motion and reset snapshots are preserved.
+        """
+        if not math.isfinite(seconds) or seconds <= 0:
+            raise ValueError('settle needs a finite positive duration')
+        if mask is None:
+            mask = torch.ones(self.worlds, device=self.device, dtype=torch.bool)
+        if not mask.any():
+            return
+        self.material.restore_export(mask)
+        self._settle_material(seconds, mask)
+        self.material.save_reset_state(mask)
         self.settle_seconds = float(seconds)
 
     @torch.no_grad()

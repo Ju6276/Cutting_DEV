@@ -76,3 +76,8 @@ do not resolve every material-substep peak.
 
 `check_free_object_scene.py` is the platform check of the free-object single-cut task on one
 scene: mesh connectivity across the cut plane, rest on the board, press/hold/retract, severed state.
+
+
+- check_free_cut_task.py: bounded physical reference/reward checks for the opt-in
+  free_cut_v1 task; requires an explicit config and writes complete episode rows.
+  No policy training. See docs/FREE_CUT_REVIEW.md.

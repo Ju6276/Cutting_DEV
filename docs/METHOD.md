@@ -733,3 +733,14 @@ strip the key to resume old training as an identical-physics run. Reproduce the
 old material implementation from commit `38b85a5` or earlier in an isolated checkout.
 This correction changes future material motion and therefore can change cutting
 forces, despite leaving all numerical parameters unchanged.
+
+
+## Opt-in free-object task (2026-11-12)
+
+The historical pose task above is unchanged. The user-authorized implementation
+free_cut_v1 is described in [TASK_FREE_CUT](TASK_FREE_CUT.md); source and verification
+entry points are in [FREE_CUT_REVIEW](FREE_CUT_REVIEW.md). Its compact WM adds
+cut_progress and deterministic step_count; completion supervision uses physical
+separation, not pose success or failure labels. Force/workspace/deadline endings
+absorb imagined trajectories. The policy inputs remain unchanged. This is a new
+task/head interface, not evidence of successful training or a new method claim.
