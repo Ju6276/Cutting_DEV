@@ -48,6 +48,18 @@ Decisions and assessments of 2026-11-12:
   considered and not adopted (no credible sim-to-real path).
 - Hand-tuned speed-governor baselines are not a current step and not a gate.
 
+Decision after the fixture/label discussion (2026-11-12, supersedes "objects stay held by
+their bottom" above for the new task):
+- Task: single cut of an object placed freely on the board. Slight passive sliding is allowed
+  and is not a failure; active rolling and repositioning are out of scope. New fixture schemes
+  are cancelled.
+- Success: the slice is fully separated from the body (no remaining material connection)
+  without a force-limit event. A remaining connection is recorded as incomplete; 98 % spring
+  release is a diagnostic, not completion.
+- Order: one representative scene confirms object-board contact, knife contact and the
+  severed-state check (done, RESULTS "Free-object single-cut task"); then the reward for this
+  task; then training with a stated budget. The fixed reference need not succeed on every object.
+
 Cautions kept from the review: a method must address a practical limitation supported by
 literature and task evidence; more modalities or objects do not by themselves establish
 novelty; a shared multi-object policy is the chosen setting, not by itself a contribution.

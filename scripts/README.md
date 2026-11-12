@@ -73,3 +73,6 @@ do not resolve every material-substep peak.
 
 `record_reference_cut.py` records the geometry of a prescribed press or press-plus-sawing cut
 (no policy, force limit disabled) in the format `render_episode.py` reads; illustration only.
+
+`check_free_object_scene.py` is the platform check of the free-object single-cut task on one
+scene: mesh connectivity across the cut plane, rest on the board, press/hold/retract, severed state.

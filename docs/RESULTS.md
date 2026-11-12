@@ -553,3 +553,43 @@ of `knife_wrench()` at `9b6357a` used the mirrored coordinate and post-integrati
 are corrected. `rigid_wrench_transform` was not changed by the repair. Agreed with the review
 handoff's open item: the replaced 4 ms per-spring equality test reduces long-horizon coverage and
 its trigger is unexplained.
+
+## 2026-11-12 — Free-object single-cut task: platform check on one scene
+
+Task decision (user): the object is placed freely on the board, one cut, slight passive sliding
+allowed, no active rolling or repositioning; new fixture schemes are cancelled. Success means the
+slice is fully separated from the body (no remaining material connection) without a force-limit
+event; a remaining connection is recorded as incomplete.
+
+Scene: `configs/free_scenes/cucumber_003.json` (the scanned cucumber with no static vertices; ground
+contact and friction 0.2 as exported) -> `backends/mujoco/runs/sweep/free_cucumber_003`. Check:
+`scripts/check_free_object_scene.py`, net feedback, friction transition 0.01 m/s (not calibrated),
+force limit disabled; knife motion: 1 s rest, press at 3 cm/s to the scene goal height, 0.5 s hold,
+3 cm retraction, 0.5 s hold. Reports: `runs/free_object_check_20261112/cucumber_{press,saw}/report.json`.
+
+**Severed-state check.** The tetrahedral mesh has exactly two connected components (175 and 153
+particles) and all 65 cut springs join one to the other, so the cut springs are the only material
+connection across the cut plane. "All cut springs released" is therefore the separation check for
+this scene; the released fraction is a progress diagnostic only.
+
+| Young scale | Motion | Released at end | Separated | Peak net force | Side displacement at the end (mm; x across the cut, y up, z along the blade) |
+|---|---|---|---|---|---|
+| 1 | press | 65/65 (step 63) | yes | 3.0 N | (1.3, -1.8, -2.3) and (-0.8, -2.7, -2.4) |
+| 2 | press | 62/65 | **no** | 16.4 N | (-0.6, **+23.8**, -3.1) and (-4.2, +5.5, +4.5): the object is lifted with the retracting knife, 10 N still acting |
+| 1 | press + saw 2 cm, 1 Hz | 65/65 (step 63) | yes | 1.9 N | (1.7, -1.8, 11.0) and (-1.4, -3.2, -2.5) |
+| 2 | press + saw 2 cm, 1 Hz | 65/65 (step 64) | yes | 16.3 N | (2.0, -1.8, 12.8) and (-0.8, -2.7, 13.4) |
+
+- **Object-board contact:** the unheld object stays on the ground (lowest particle 0.55 mm below the
+  ground plane, i.e. within the 1 mm contact radius) and all states stay finite. During the 1 s rest
+  it settles by about 2 mm downward and 2 mm along the blade and still moves at about 2.7 mm/s at the
+  end of the rest: the exported state is not a settled state.
+- **Knife contact:** finite net wrench; the knife cuts without pushing the object away across the cut
+  (under 2 mm), and sawing drags the pieces 7-13 mm along the blade.
+- **Completion is condition dependent:** at Young x2 the pure press does not separate the object and
+  lifts it on retraction, while the same press with sawing separates it. One scene, one saw setting,
+  uncalibrated friction: an observation, not a general result.
+
+Assessment: on this scene the platform expresses the three things the task needs (free object on the
+board, knife contact with a net wrench, a well-defined severed state), with two known issues to handle
+in the task definition rather than by fixing objects: episodes must start from a settled object, and
+ground/knife friction are uncalibrated simulation settings.
