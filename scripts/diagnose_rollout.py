@@ -39,7 +39,7 @@ def main():
         from cutting_world_model.world_model import CuttingWorldModel
         saved = torch.load(args.checkpoint, map_location=device, weights_only=False)
         spec = CuttingWorldModel(saved['metadata']).spec.to(device)
-        policy = SliceItPolicy(int(saved['metadata'].get('goal_dim', 7))).to(device)
+        policy = SliceItPolicy(int(saved['metadata'].get('goal_dim', 7)), int(saved['metadata']['state_shapes']['observation'][0])).to(device)
         policy.load_state_dict(saved['learner']['policy'])
         policy.eval()
     frame = env.current

@@ -48,6 +48,9 @@ class ModelRollout:
     def __init__(self, wm, discount, critic=None):
         self.wm = wm
         self.spec = wm.spec
+        task = getattr(self.spec, 'metadata', {}).get('free_cut_task', {})
+        if task.get('version') == 'free_cut_v2' and discount != task['gamma']:
+            raise ValueError('MPPI discount must match the free-cut task gamma')
         self.discount = discount
         self.goal = None
         self.critic = critic
@@ -143,7 +146,7 @@ class MPPIPolicy:
         self.critic = None
         self.critic_weights = None
         if config.terminal_value == 'critic':
-            self.critic = SliceItCritic(self.spec.state_dim).to(env.device).eval()
+            self.critic = SliceItCritic(self.spec.state_dim, self.spec.goal_dim).to(env.device).eval()
             self.critic_weights = saved['learner']['critic']
             self.critic.load_state_dict(self.critic_weights)
             self.critic.requires_grad_(False)
@@ -187,7 +190,10 @@ class MPPIPolicy:
     def act(self, frame):
         synchronize(self.state.device)
         started = time.monotonic()
-        initial = self.rollout.initial(self.state, frame['target_pose'].float())
+        goal = frame['target_pose'].float()
+        if self.spec.goal_dim == 8:
+            goal = torch.cat((goal, frame['target_speed'].float()), -1)
+        initial = self.rollout.initial(self.state, goal)
         for i in range(self.config.refinements):
             normalized = self.planner.command(
                 initial, shift_nominal_trajectory=(self.step > 0 and i == 0))

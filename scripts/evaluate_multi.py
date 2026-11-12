@@ -44,11 +44,13 @@ def main():
     if goal_dim != 8:
         raise ValueError('The checkpoint was not trained on the multi-object task (goal_dim 8)')
     spec = CuttingWorldModel(metadata).spec.to(device)
-    policy = SliceItPolicy(goal_dim).to(device)
+    policy = SliceItPolicy(goal_dim, int(metadata["state_shapes"]["observation"][0])).to(device)
     policy.load_state_dict(saved['learner']['policy'])
     policy.eval()
     config = json.loads(args.conditions.read_text())
     reward = {'w_speed': float(config['w_speed'])} if config.get('w_speed') else None
+    if config.get('task') != metadata.get('free_cut_task'):
+        raise ValueError('Evaluation task must match checkpoint task')
     env = MultiConditionEnvironment.from_config(ROOT / 'backends/mujoco', config, reward=reward)
     heads, dt = env.heads, metadata['environment']['agent_control_dt']
     (args.output / 'manifest.json').write_text(json.dumps({
@@ -60,7 +62,7 @@ def main():
     n = env.worlds
     done_count = torch.zeros(n, dtype=torch.long, device=device)
     acc = {k: torch.zeros(n, device=device) for k in
-           ('steps', 'peak_material', 'peak_ratio', 'impulse', 'speed_error', 'speed_steps')}
+           ('steps', 'peak_material', 'peak_ratio', 'impulse', 'speed_error', 'speed_steps', 'return')}
     rows = []
     conditions = env.conditions(range(n))
     with (args.output / 'episodes.jsonl').open('w') as log, torch.no_grad():
@@ -75,9 +77,11 @@ def main():
             action = spec.execute(policy(history, goal))
             frame, reward, terminated, truncated, info = env.step(action)
             obs = frame['observation']
-            cutting = (obs[:, 1] * heads.max_distance[1]).abs() > heads.env['goal_threshold'][1]
+            cutting = ((obs[:, 1] * heads.max_distance[1]).abs() > heads.env['goal_threshold'][1]
+                       if not metadata.get('free_cut_task') else torch.ones(n, device=device, dtype=torch.bool))
             speed_error = (heads.cutting_speed(obs) - frame['target_speed'][:, 0]).abs()
             acc['steps'] += 1
+            acc['return'] += reward
             acc['peak_material'] = torch.maximum(acc['peak_material'], info['peak_force'].float())
             acc['peak_ratio'] = torch.maximum(acc['peak_ratio'], info['safety_margin'].float())
             acc['impulse'] += info['material_impulse'].float()
@@ -87,9 +91,10 @@ def main():
             ended = terminated | truncated
             for w in ended.nonzero().flatten().tolist():
                 if int(done_count[w]) < args.episodes:
-                    ending = ('goal' if info['success'][w] else 'force_limit' if info['collision'][w]
+                    ending = (('separated' if metadata.get('free_cut_task') else 'goal') if info['success'][w] else 'force_limit' if info['collision'][w]
                               else 'workspace' if info['outside'][w] else 'time_limit')
                     row = {'world': w, 'episode': int(done_count[w]), **conditions[w], 'ending': ending,
+                           'return_undiscounted': float(acc['return'][w]),
                            'steps': int(acc['steps'][w]), 'seconds': float(acc['steps'][w]) * dt,
                            'peak_material_force_n': float(acc['peak_material'][w]),
                            'peak_limit_ratio': float(acc['peak_ratio'][w]),
@@ -98,6 +103,9 @@ def main():
                            'released_springs': int(info['released_springs'][w]),
                            'speed_error_mps': float(acc['speed_error'][w] / acc['speed_steps'][w])
                            if acc['speed_steps'][w] > 0 else None}
+                    if metadata.get('free_cut_task'):
+                        row.update(separated=bool(info['separated'][w]), success=bool(info['success'][w]),
+                                   timeout=bool(info['timeout'][w]), truncated=bool(truncated[w]))
                     rows.append(row)
                     log.write(json.dumps(row) + '\n')
                     log.flush()
@@ -115,7 +123,7 @@ def main():
         count = len(members)
         summary[group] = {'episodes': count,
                           **{f'{e}_rate': sum(r['ending'] == e for r in members) / count
-                             for e in ('goal', 'force_limit', 'workspace', 'time_limit')},
+                             for e in (('separated' if metadata.get('free_cut_task') else 'goal'), 'force_limit', 'workspace', 'time_limit')},
                           'mean_seconds': sum(r['seconds'] for r in members) / count,
                           'mean_peak_material_force_n': sum(r['peak_material_force_n'] for r in members) / count,
                           'mean_peak_limit_ratio': sum(r['peak_limit_ratio'] for r in members) / count}

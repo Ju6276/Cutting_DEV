@@ -164,9 +164,12 @@ class WorldModelPolicy:
         # another force penalty is still evaluated on the same physical task.
         if without_reward_settings(metadata) != without_reward_settings(saved['metadata']):
             raise ValueError('Checkpoint and physical task metadata differ')
-        self.training_reward = reward_settings(saved['metadata']['environment']) or 'sliceit'
-        self.spec = ControlStateSpec(metadata).to(env.device)
-        self.policy = SliceItPolicy().to(env.device).eval()
+        self.training_reward = (saved['metadata'].get('free_cut_task')
+                                or reward_settings(saved['metadata']['environment']) or 'sliceit')
+        from .free_cut_state import FreeCutStateSpec
+        spec_type = FreeCutStateSpec if metadata.get('free_cut_task') else ControlStateSpec
+        self.spec = spec_type(metadata).to(env.device)
+        self.policy = SliceItPolicy(self.spec.goal_dim, int(metadata['state_shapes']['observation'][0])).to(env.device).eval()
         self.weights = saved['learner']['policy']
         self.policy.load_state_dict(self.weights)
         self.updates = saved['learner']['updates']
@@ -177,7 +180,10 @@ class WorldModelPolicy:
         self.history = frame['observation'].float()[None].repeat(self.policy.history, 1, 1)
 
     def act(self, frame):
-        return self.spec.execute(self.policy(self.history, frame['target_pose'].float()))
+        goal = frame['target_pose'].float()
+        if self.spec.goal_dim == 8:
+            goal = torch.cat((goal, frame['target_speed'].float()), -1)
+        return self.spec.execute(self.policy(self.history, goal))
 
     def observe(self, frame):
         self.history = torch.cat((self.history[1:], frame['observation'].float()[None]), 0)

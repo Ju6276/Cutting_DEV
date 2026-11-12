@@ -88,6 +88,8 @@ class GPUEnvironment:
         jerk = (acceleration - self.previous_acceleration) / dt
         observation = self.heads.observation(pose_error(frame['target_pose'], pose), velocity, jerk,
                                             action, frame['wrench_history'])
+        if self.free_task is not None:
+            observation = self.free_task.observation(observation, self.step_count)
         frame.update(ee_pose=pose, previous_ee_pose=pose, previous_velocity=velocity,
                      previous_acceleration=acceleration, observation=observation,
                      success_counter=self.success_counter[:, None].clone(),
@@ -158,7 +160,7 @@ class GPUEnvironment:
         task_info = {}
         if self.free_task is not None:
             events = self.free_task.events(frame['observation'], frame['peak_wrench'],
-                                           frame['cut_progress'][:, 0], self.step_count, collision)
+                                           frame['cut_progress'][:, 0], self.step_count, collision, pose=frame['ee_pose'])
             reward = self.free_task.reward(self.current['cut_progress'][:, 0],
                                           frame['cut_progress'][:, 0], frame['observation'],
                                           frame['peak_wrench'], self.target_speed, events)

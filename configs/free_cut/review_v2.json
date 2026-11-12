@@ -1,0 +1,51 @@
+{
+  "purpose": "Review candidate only: gamma=1, explicit robot-base EE workspace, time observation; no long training authorization",
+  "scene": "runs/sweep/free_cucumber_003/scene.pt",
+  "force_limits": [
+    50,
+    50,
+    50,
+    5,
+    5,
+    5
+  ],
+  "friction_velocity": 0.01,
+  "settle_seconds": 0.75,
+  "target_speed": 0.03,
+  "material": {
+    "youngs_modulus": 1,
+    "density": 1,
+    "cut_spring_stiffness": 1
+  },
+  "gamma": 1.0,
+  "saw_amplitude": 0.02,
+  "saw_frequency": 1,
+  "task": {
+    "version": "free_cut_v2",
+    "horizon_steps": 100,
+    "weights": {
+      "progress": 10,
+      "speed": 1,
+      "load": 1,
+      "jerk": 0.1,
+      "success": 100,
+      "failure": 100
+    },
+    "gamma": 1.0,
+    "initial_progress_fraction": 0.001,
+    "workspace": {
+      "frame": "robot_base",
+      "point": "ee",
+      "lower": [
+        0.038,
+        0.405,
+        0.096
+      ],
+      "upper": [
+        0.238,
+        0.605,
+        0.269
+      ]
+    }
+  }
+}

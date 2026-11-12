@@ -1,7 +1,7 @@
 """SuperMimic world-model and BPTT/GAE updates with effective-batch accumulation."""
 # Adapted from SuperMimic-Reproduced ba610534; MIT, third_party/supermimic/LICENSE.
 from copy import deepcopy
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from types import SimpleNamespace
 
 import torch
@@ -107,6 +107,11 @@ class OnlineLearner:
         wm.terminal_gradient = wm_terminal_gradient
         self.microbatch = microbatch
         self.wcfg, self.pcfg = wm_cfg or WMTrainerCfg(), policy_cfg or PolicyTrainerCfg()
+        task = wm.spec.metadata.get('free_cut_task', {})
+        if task.get('version') == 'free_cut_v2':
+            if policy_cfg is not None and policy_cfg.gamma != task['gamma']:
+                raise ValueError('Policy/critic discount must match the finite-horizon task')
+            self.pcfg = replace(self.pcfg, gamma=task['gamma'])
         self.wopt = torch.optim.Adam(wm.parameters(), lr=self.wcfg.lr, weight_decay=self.wcfg.weight_decay)
         self.popt = torch.optim.Adam(policy.parameters(), lr=self.pcfg.lr, betas=self.pcfg.betas)
         self.copt = torch.optim.Adam(critic.parameters(), lr=self.pcfg.critic_lr)
@@ -359,10 +364,23 @@ class OnlineLearner:
                     if cfg.use_critic:
                         bootstrap = ((cfg.gamma ** self.actor_horizon) * ro.survival[-1] * terminal).mean()
                     spec = self.wm.spec
-                    collision = (spec.field(ro.states[1:], 'peak_wrench') > spec.limits(goal)).any(-1)
-                    analytic_done, _, _, _ = spec.heads.termination(
-                        spec.field(ro.states[1:], 'observation'),
-                        spec.field(ro.states[:-1], 'success_counter'), collision)
+                    if hasattr(spec, 'free_task'):
+                        # These are imagined events, not calibration against physical truth.
+                        event_metrics = {
+                            'imag_hard_done_mean': spec.hard_termination(ro.states[1:]).float().mean(),
+                            'imag_completion_probability_mean': self.wm.terminal_logits(
+                                ro.states[1:], goal).sigmoid().mean(),
+                            'imag_progress_mean': spec.field(ro.states[1:], 'cut_progress').mean(),
+                        }
+                    else:
+                        collision = (spec.field(ro.states[1:], 'peak_wrench') > spec.limits(goal)).any(-1)
+                        analytic_done, _, _, _ = spec.heads.termination(
+                            spec.field(ro.states[1:], 'observation'),
+                            spec.field(ro.states[:-1], 'success_counter'), collision)
+                        event_metrics = {
+                            'imag_analytic_done_mean': analytic_done.float().mean(),
+                            'imag_terminal_brier': (ro.dhat[1:] - analytic_done.float()).square().mean(),
+                        }
                     if cfg.use_critic and self.critic_target == 'imagined':
                         states = ro.states[:-1].detach().cpu()
                         goals = goal[None].expand(self.actor_horizon, -1, -1).cpu()
@@ -375,8 +393,7 @@ class OnlineLearner:
                         'imag_return_undisc': (ro.survival[:-1] * ro.rewards).detach().sum(0).mean(),
                         'imag_survival_H': ro.survival[-1].detach().mean(),
                         'imag_dhat_mean': ro.dhat[1:].mean(),
-                        'imag_analytic_done_mean': analytic_done.float().mean(),
-                        'imag_terminal_brier': (ro.dhat[1:] - analytic_done.float()).square().mean(),
+                        **event_metrics,
                         'action_abs_mean': ro.actions.detach().abs().mean(),
                     }
                     if cfg.use_critic and self.critic_target == 'imagined':

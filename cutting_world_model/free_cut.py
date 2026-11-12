@@ -6,15 +6,30 @@ import math
 import numpy as np
 import torch
 
-REVISION = 'free_cut_v1'
+REVISION = 'free_cut_v2'
+SUPPORTED_REVISIONS = ('free_cut_v1', REVISION)
 WEIGHTS = ('progress', 'speed', 'load', 'jerk', 'success', 'failure')
 
 
 def validate_task(config):
-    if not isinstance(config, dict) or config.get('version') != REVISION:
-        raise ValueError('free_cut task requires version free_cut_v1')
-    if set(config) != {'version', 'horizon_steps', 'weights'}:
-        raise ValueError('free_cut requires only version, horizon_steps and weights')
+    if not isinstance(config, dict) or config.get('version') not in SUPPORTED_REVISIONS:
+        raise ValueError('Unsupported free-cut task version')
+    required = {'version', 'horizon_steps', 'weights'}
+    if config['version'] == REVISION:
+        required |= {'gamma', 'initial_progress_fraction', 'workspace'}
+        if config.get('gamma') != 1.0:
+            raise ValueError('free_cut_v2 is an undiscounted finite-horizon task (gamma=1)')
+        fraction = config.get('initial_progress_fraction', 0)
+        if isinstance(fraction, bool) or not math.isfinite(fraction) or not 0 < fraction < 1:
+            raise ValueError('Initial progress fraction must be strictly between 0 and 1')
+        box = config.get('workspace', {})
+        if set(box) != {'frame', 'point', 'lower', 'upper'} or box['frame'] != 'robot_base' or box['point'] != 'ee':
+            raise ValueError('Specify workspace for the EE in the robot_base frame')
+        lo, hi = np.asarray(box['lower']), np.asarray(box['upper'])
+        if lo.shape != (3,) or hi.shape != (3,) or not np.isfinite([lo, hi]).all() or not (lo < hi).all():
+            raise ValueError('Workspace needs finite ordered XYZ bounds')
+    if set(config) != required:
+        raise ValueError('Free-cut task fields do not match its version')
     if type(config['horizon_steps']) is not int or config['horizon_steps'] < 1:
         raise ValueError('horizon_steps must be a positive integer')
     weights = config['weights']
@@ -24,7 +39,7 @@ def validate_task(config):
         raise ValueError('Free-cut weights must be finite and nonnegative')
     if weights['success'] <= 0 or weights['failure'] <= 0:
         raise ValueError('Success and failure magnitudes must be positive')
-    return {'version': REVISION, 'horizon_steps': config['horizon_steps'], 'weights': dict(weights)}
+    return {**config, 'weights': dict(weights)}
 
 
 def validate_topology(material):
@@ -67,17 +82,39 @@ class FreeCutTask:
         self.weights = self.config['weights']
         self.dt = heads.env['agent_control_dt']
 
-    def workspace(self, observation):
+    @property
+    def observes_time(self):
+        return self.config['version'] == REVISION
+
+    def observation(self, observation, step_count):
+        if not self.observes_time:
+            return observation
+        remaining = (1 - step_count.to(observation.dtype) / self.horizon).clamp(0, 1)
+        return torch.cat((observation, remaining[..., None]), -1)
+
+    def workspace_features(self, observation, pose=None):
+        if self.observes_time:
+            if pose is None:
+                raise ValueError('free_cut_v2 workspace requires the robot-base EE pose')
+            box = self.config['workspace']
+            lo, hi = pose.new_tensor(box['lower']), pose.new_tensor(box['upper'])
+            return ((pose[..., :3] - (lo + hi) / 2).abs() / ((hi - lo) / 2) - 1)
+        return ((observation[..., :3] * observation.new_tensor(self.heads.max_distance)).abs()
+                / observation.new_tensor(self.heads.env['workspace_limit']) - 1)
+
+    def workspace(self, observation, pose=None):
+        if self.observes_time:
+            return (self.workspace_features(observation, pose) > 0).any(-1)
         error = (observation[..., :len(self.heads.dims)] *
                  observation.new_tensor(self.heads.max_distance)).abs()
         return (error > error.new_tensor(self.heads.env['workspace_limit'])).any(-1)
 
-    def events(self, observation, peak, progress, step_count, collision=None):
+    def events(self, observation, peak, progress, step_count, collision=None, pose=None):
         limits = peak.new_tensor(self.heads.force_limits)
         force = (peak.abs() > limits).any(-1)
         if collision is not None:
             force = force | collision
-        outside = self.workspace(observation)
+        outside = self.workspace(observation, pose)
         separated = progress >= 1
         success = separated & ~force & ~outside
         # Precedence: force/workspace failure > completion > timeout.

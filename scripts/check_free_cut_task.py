@@ -25,9 +25,11 @@ def main():
     parser.add_argument('--config', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--wall-seconds', type=float, default=1200.)
-    parser.add_argument('--cases', nargs='+', default=['press', 'saw', 'fast', 'stall', 'retract', 'slow'])
+    parser.add_argument('--cases', nargs='+', default=['press', 'saw', 'fast', 'stall', 'retract', 'slow', 'force_attempt', 'slow_press', 'hold_in_material'])
     args = parser.parse_args()
     cfg = json.loads(args.config.read_text())
+    if cfg['task'].get('version') == 'free_cut_v2' and cfg['gamma'] != cfg['task']['gamma']:
+        raise ValueError('Evaluation discount must equal task discount')
     if args.output.exists():
         raise ValueError('Use a new output directory')
     args.output.mkdir(parents=True)
@@ -35,6 +37,8 @@ def main():
     from cutting_world_model.gpu_env import GPUEnvironment
     from cutting_gpu_backend.reference import KnifeTrajectory
 
+    (args.output / 'working.patch').write_bytes(subprocess.check_output(['git', 'diff', 'HEAD'], cwd=ROOT))
+    (args.output / 'check_script.py').write_text(Path(__file__).read_text())
     start = time.monotonic()
     results = []
     report = dict(config=cfg, config_sha256=hashlib.sha256(args.config.read_bytes()).hexdigest(),
@@ -46,29 +50,38 @@ def main():
         report['elapsed_seconds'] = time.monotonic() - start
         (args.output / 'report.json').write_text(json.dumps(report, indent=2) + '\n')
 
+    env = GPUEnvironment(str(args.backend_root), 1, scene=cfg['scene'], task=cfg['task'],
+                         force_limits=cfg['force_limits'], force_model='net',
+                         friction_velocity=cfg['friction_velocity'])
+    env.target_speed = torch.tensor([cfg['target_speed']], device=env.device)
+    every = torch.ones(1, dtype=torch.bool, device=env.device)
+    scales = {k: torch.tensor([cfg['material'].get(k, 1.)], device=env.device)
+              for k in env.physics.material.material_scales}
+    env.physics.material.set_material_scales(every, **scales)
+    frame = env.settle(cfg['settle_seconds'])
+
     for case in args.cases:
-        if case not in ('press', 'saw', 'fast', 'stall', 'retract', 'slow'):
+        if case not in ('press', 'saw', 'fast', 'stall', 'retract', 'slow', 'force_attempt', 'slow_press', 'hold_in_material'):
             raise ValueError('Unknown reference case: ' + case)
         if time.monotonic() - start >= args.wall_seconds:
             report['incomplete'].append(case)
             continue
-        env = GPUEnvironment(str(args.backend_root), 1, scene=cfg['scene'], task=cfg['task'],
-                             force_limits=cfg['force_limits'], force_model='net',
-                             friction_velocity=cfg['friction_velocity'])
-        env.target_speed = torch.tensor([cfg['target_speed']], device=env.device)
-        every = torch.ones(1, dtype=torch.bool, device=env.device)
-        scales = {k: torch.tensor([cfg['material'].get(k, 1.)], device=env.device)
-                  for k in env.physics.material.material_scales}
-        env.physics.material.set_material_scales(every, **scales)
-        frame = env.settle(cfg['settle_seconds'])
+        frame = env.reset()
         dt = env.environment['agent_control_dt']
         distance = float((frame['observation'][0, 1] * env.heads.max_distance[1]).abs())
-        speed = cfg['target_speed'] * (3 if case == 'fast' else .25 if case == 'slow' else 1)
+        nominal_distance = distance
+        speed = cfg['target_speed'] * (3 if case == 'fast' else 20 if case == 'force_attempt' else .25 if case == 'slow' else 1)
+        if case in ('force_attempt', 'slow_press'):
+            distance *= 2  # Continue pressing; workspace/force events still take precedence.
         horizon = cfg['task']['horizon_steps']
         times, velocities = [0.], []
         for i in range(horizon):
             t = i * dt
             down = speed if t < distance / speed else 0.
+            if case == 'slow_press' and t >= .5 * nominal_distance / speed:
+                down = speed * .25
+            if case == 'hold_in_material' and t >= .5 * nominal_distance / speed:
+                down = 0.
             if case == 'stall':
                 down = 0.
             if case == 'retract' and t > .5 * distance / speed:
@@ -93,7 +106,7 @@ def main():
             frame, reward, term, trunc, info = env.step(torch.zeros(1, 6, device=env.device),
                                                        reference=True, sample_callback=sample)
             total += cfg['gamma'] ** i * float(reward[0])
-            rows.append(dict(step=i + 1, reward=float(reward[0]), progress=float(frame['cut_progress'][0, 0]),
+            rows.append(dict(step=i + 1, prescribed_velocity_disect=velocities[i], reward=float(reward[0]), progress=float(frame['cut_progress'][0, 0]),
                              peak_wrench=frame['peak_wrench'][0].tolist(),
                              speed_mps=float(env.heads.cutting_speed(frame['observation'])[0]),
                              jerk_normalized=float(env.heads.jerkiness(frame['observation'])[0]),
@@ -111,15 +124,19 @@ def main():
         results.append(record)
         save()
         print(json.dumps({k: v for k, v in record.items() if k != 'rows'}), flush=True)
-        del env
-        torch.cuda.empty_cache()
     complete = [r for r in results if r['outcome'] == 'success' and r['case'] in ('press', 'saw')]
     other = [r for r in results if r['case'] not in ('press', 'saw') and r['outcome'] != 'wall_budget']
     report['preference'] = ('not_checked' if not complete or not other else
                            'pass_observed_cases' if min(r['discounted_return'] for r in complete) >
                            max(r['discounted_return'] for r in other) else 'mixed_or_failed')
-    report['not_covered'] = ['deliberate high-load slow pressing', 'intentional physical force violation',
-                              'fitted WM rollout ordering (no new WM has been trained)']
+    report['not_covered'] = ['fitted WM rollout ordering (no new WM has been trained)']
+    if not any(r['outcome'] == 'force' for r in results):
+        report['not_covered'].append('physical force violation: attempted trajectories did not trigger it')
+    slow_rows = [row for r in results if r['case'] == 'slow_press' for row in r['rows']]
+    report['slow_press_max_limit_utilization'] = max((row['utilization'] for row in slow_rows), default=None)
+    # Do not call a modest measured load a deliberately high-load example.
+    report['not_covered'].append('near-limit slow pressing is not certified by a trajectory name')
+
     save()
 
 

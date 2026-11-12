@@ -9,11 +9,14 @@ class SliceItPolicy(nn.Module):
     history = 10
     observation_terms = (3, 3, 3, 6, 9)
 
-    def __init__(self, goal_dim=7):
+    def __init__(self, goal_dim=7, observation_dim=24):
         super().__init__()
+        if observation_dim not in (24, 25):
+            raise ValueError('Policy supports source observations or free-cut observations with time')
+        self.observation_terms = type(self).observation_terms + ((1,) if observation_dim == 25 else ())
         hidden = (2048, 1024, 512, 256)
         self.encoder = MLP(goal_dim, hidden, 32)
-        self.decoder = MLP(32 + self.history * 24, hidden, 6, last_gain=.01)
+        self.decoder = MLP(32 + self.history * observation_dim, hidden, 6, last_gain=.01)
 
     def forward(self, history, target_pose):
         # history is (time, batch, 24), oldest first, matching the source's term-major layout.

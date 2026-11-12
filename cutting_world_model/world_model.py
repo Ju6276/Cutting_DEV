@@ -29,6 +29,11 @@ class CuttingWorldModel(nn.Module):
             spec_class = FreeCutStateSpec
         self.spec = spec_class(metadata)
         self.dynamics = DynamicsMLP(self.spec.dynamics_dim, 6, 7, hidden, self.spec.delta_dim)
+        if metadata.get('free_cut_task', {}).get('version') == 'free_cut_v2':
+            import math
+            fraction = metadata['free_cut_task']['initial_progress_fraction']
+            with torch.no_grad():
+                self.dynamics.mlp.net[-1].bias[self.spec.delta_slices['cut_progress']] = math.log(fraction / (1 - fraction))
         self.term_head = MLP(2 * getattr(self.spec, 'terminal_feature_dim', 13), (64, 64), 1)
         self.terminal_gradient = 'dynamics'
 
@@ -89,6 +94,8 @@ class CuttingWorldModel(nn.Module):
         return done
 
     def window_loss(self, states, actions, goal, done, valid_steps=None):
+        if valid_steps is None and hasattr(self.spec, 'free_task'):
+            valid_steps = torch.ones_like(done, dtype=torch.bool)
         if valid_steps is not None:
             return self.masked_window_loss(states, actions, goal, done, valid_steps)
         done = self.completion_labels(states, done)
@@ -120,6 +127,10 @@ class CuttingWorldModel(nn.Module):
         loss_state = states.new_zeros(())
         loss_term = states.new_zeros(())
         correct = states.new_zeros(())
+        completion_metrics = {k: states.new_zeros(()) for k in
+                              ('completion_brier_physical', 'completion_probability_excess',
+                               'completion_false_positive_fraction', 'completion_incomplete_fraction',
+                               'completion_missed_fraction', 'completion_positive_fraction')}
         last_error = states.new_zeros(states.shape[1])
         for t in range(len(actions)):
             valid = valid_steps[t]
@@ -136,6 +147,19 @@ class CuttingWorldModel(nn.Module):
             bce = F.binary_cross_entropy_with_logits(logits, labels, reduction='none')
             loss_term = loss_term + torch.where(valid, bce, 0.).sum()
             correct = correct + (valid & ((logits.detach() > 0) == labels.bool())).sum()
+            if hasattr(self.spec, 'free_task'):
+                probability = logits.detach().sigmoid()
+                rho = self.spec.field(predicted.detach(), 'cut_progress')[..., 0]
+                completion_metrics['completion_brier_physical'] += torch.where(
+                    valid, (probability - labels).square(), 0.).sum()
+                completion_metrics['completion_probability_excess'] += torch.where(
+                    valid, (probability - rho).clamp_min(0), 0.).sum()
+                completion_metrics['completion_false_positive_fraction'] += (
+                    valid & (probability >= .5) & ~labels.bool()).sum()
+                completion_metrics['completion_incomplete_fraction'] += (valid & ~labels.bool()).sum()
+                completion_metrics['completion_missed_fraction'] += (
+                    valid & (probability < .5) & labels.bool()).sum()
+                completion_metrics['completion_positive_fraction'] += (valid & labels.bool()).sum()
             error = sq.detach().mean(-1)
             last_error = torch.where(valid, error, last_error)
             if t == 0:
@@ -145,4 +169,6 @@ class CuttingWorldModel(nn.Module):
         return loss, {'state_loss': loss_state.detach() / count,
                       'term_bce': loss_term.detach() / count,
                       'nse_1step': first_error, 'nse_kstep': last_error.mean(),
-                      'term_acc': correct.detach() / count}
+                      'term_acc': correct.detach() / count,
+                      **({key: value.detach() / count for key, value in completion_metrics.items()}
+                         if hasattr(self.spec, 'free_task') else {})}

@@ -28,6 +28,7 @@ def window_loss_components(wm, states, actions, goal, done, valid_steps):
     if valid_steps.shape != done.shape or valid_steps.dtype != torch.bool:
         raise ValueError('Valid-step mask must be boolean and align with termination labels')
     spec = wm.spec
+    done = wm.completion_labels(states, done)
     slices = field_slices(spec, states[0])
     fields = {name: states.new_zeros(()) for name in slices}
     terminal = states.new_zeros(())
@@ -80,3 +81,41 @@ def cosine_matrix(vectors):
     unit = stacked / stacked.norm(dim=1, keepdim=True).clamp_min(1e-30)
     cos = unit @ unit.T
     return {a: {b: float(cos[i, j]) for j, b in enumerate(names)} for i, a in enumerate(names)}
+
+
+@torch.no_grad()
+def completion_progress_report(wm, states, actions, goal, valid_steps=None):
+    """Open-loop completion calibration against *physical* next states.
+
+    Reports disagreement rather than masking the completion head with an invented
+    progress threshold. The probability-minus-progress gap is a diagnostic: physical
+    completion implies progress=1, hence P(complete) <= E[progress].
+    """
+    if not hasattr(wm.spec, 'free_task'):
+        raise ValueError('Completion diagnostics require a free-cut WM')
+    if valid_steps is None:
+        valid_steps = torch.ones(actions.shape[:2], dtype=torch.bool, device=actions.device)
+    if valid_steps.shape != actions.shape[:2] or valid_steps.dtype != torch.bool:
+        raise ValueError('Valid mask must match time and batch')
+    state = states[0]
+    records = []
+    for t in range(len(actions)):
+        valid = valid_steps[t]
+        predicted, _, logits = wm.predict(state, actions[t], goal)
+        rho = wm.spec.field(predicted, 'cut_progress')[..., 0]
+        truth_rho = wm.spec.field(states[t + 1], 'cut_progress')[..., 0]
+        labels = truth_rho >= 1
+        probability = logits.sigmoid()
+        if bool(valid.any()):
+            prob, truth, pred_rho = probability[valid], labels[valid], rho[valid]
+            incomplete = ~truth
+            records.append(dict(
+                step=t + 1, samples=int(valid.sum()), physical_complete=int(truth.sum()),
+                brier=float((prob - truth.to(prob.dtype)).square().mean()),
+                progress_mae=float((pred_rho - truth_rho[valid]).abs().mean()),
+                probability_excess_over_progress=float((prob - pred_rho).clamp_min(0).mean()),
+                false_complete_at_half=int(((prob >= .5) & incomplete).sum()),
+                incomplete_probability_mean=float(prob[incomplete].mean()) if bool(incomplete.any()) else None,
+                missed_complete_at_half=int(((prob < .5) & truth).sum())))
+        state = torch.where(valid[:, None], predicted, state)
+    return records

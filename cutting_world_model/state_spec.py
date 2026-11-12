@@ -114,7 +114,7 @@ class CuttingStateSpec(nn.Module):
         history_scale = {
             'motion_command': [1.] * 6, 'previous_ee_pose': [1.] * 7,
             'previous_velocity': [1.] * 3 + [2.] * 3,
-            'previous_acceleration': [1.] * 6, 'observation': [1.] * 24,
+            'previous_acceleration': [1.] * 6, 'observation': [1.] * int(np.prod(self.shapes['observation'])),
             'success_counter': [metadata['environment']['successes_threshold'] + 1.],
         }
         history_scale['step_count'] = [metadata.get('free_cut_task', {}).get('horizon_steps', 1)]
@@ -213,17 +213,13 @@ class CuttingStateSpec(nn.Module):
                                       torch.nn.functional.normalize(rotation, dim=-1)), -1)
         return fields
 
-    def derive(self, old, fields, action, goal):
+    def derive_motion(self, old, fields, action, goal):
         pose = self.fk(fields['joint_q'])
         velocity = observation_velocity(pose, self.field(old, 'previous_ee_pose'), self.dt)
         acceleration = (velocity - self.field(old, 'previous_velocity')) / self.dt
         jerk = (acceleration - self.field(old, 'previous_acceleration')) / self.dt
         target, target_speed = self.goal_parts(goal)
         obs = self.heads.observation(pose_error(target, pose), velocity, jerk, action, fields['wrench_history'])
-        collision = (fields['peak_wrench'] > self.force_limits).any(-1)
-        done, success, outside, counter = self.heads.termination(
-            obs, self.field(old, 'success_counter'), collision)
-        reward = self.heads.reward(obs, collision, success, outside, target_speed)
         direction = action.new_tensor([1., 0., 0., 0., 0., 0.])
         rotation_direction = action.new_tensor([0., 0., 0., 0., -1., 0.])
         limits = self.metadata['controller']['max_twist']
@@ -231,7 +227,18 @@ class CuttingStateSpec(nn.Module):
         motion = self.field(old, 'motion_command') + dt_robot * (
             limits[0] * action[..., 4:5] * direction + limits[1] * action[..., 5:6] * rotation_direction)
         fields.update(motion_command=motion, previous_ee_pose=pose, previous_velocity=velocity,
-                      previous_acceleration=acceleration, observation=obs, success_counter=counter)
+                      previous_acceleration=acceleration, observation=obs)
+        return fields, target_speed
+
+
+    def derive(self, old, fields, action, goal):
+        fields, target_speed = self.derive_motion(old, fields, action, goal)
+        obs = fields['observation']
+        collision = (fields['peak_wrench'] > self.force_limits).any(-1)
+        done, success, outside, counter = self.heads.termination(
+            obs, self.field(old, 'success_counter'), collision)
+        fields['success_counter'] = counter
+        reward = self.heads.reward(obs, collision, success, outside, target_speed)
         return self.assemble(fields), reward, done
 
     def error_vector(self, pred, true):

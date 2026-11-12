@@ -195,7 +195,7 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
     write_json(output / 'task.json', metadata)
     wm = CuttingWorldModel(metadata).to(device)
     spec = wm.spec
-    policy = SliceItPolicy(goal_dim).to(device)
+    policy = SliceItPolicy(goal_dim, int(metadata["state_shapes"]["observation"][0])).to(device)
     critic = SliceItCritic(spec.state_dim, goal_dim).to(device)
     learner = OnlineLearner(wm, policy, critic, args.microbatch,
                             wm_only_updates=args.wm_only_updates,
