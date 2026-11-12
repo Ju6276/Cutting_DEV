@@ -36,6 +36,8 @@ class ObjectGroup:
     material: dict = field(default_factory=lambda: {k: (1., 1.) for k in MATERIAL_KEYS})
     target_speed: tuple = (.035, .065)  # m/s, per episode
     sim_dt: float = None            # DiSECt material substep (s); None keeps the scene's
+    force_model: str = 'scalar'     # 'scalar' (source proxy) or 'net' (contact wrench at the sensor)
+    friction_velocity: float = None  # knife friction transition velocity (m/s); None keeps the scene's
 
 
 def knife_clearance(backend_root, scene):
@@ -61,9 +63,11 @@ def _fixed(frame):
 class LocalGroup:
     """One object group simulated in this process."""
 
-    def __init__(self, backend_root, scene, worlds, lift, reward, force_limits, sim_dt=None):
+    def __init__(self, backend_root, scene, worlds, lift, reward, force_limits, sim_dt=None,
+                 force_model='scalar', friction_velocity=None):
         self.env = GPUEnvironment(backend_root, worlds, reward=reward, scene=scene,
-                                  initial_lift=lift, force_limits=force_limits, sim_dt=sim_dt)
+                                  initial_lift=lift, force_limits=force_limits, sim_dt=sim_dt,
+                                  force_model=force_model, friction_velocity=friction_velocity)
         self.env.target_speed = torch.zeros(worlds, device=self.env.device)
         self.metadata = self.env.metadata
         self.springs = torch.full((worlds, 1), float(self.env.current['cut_spring_ke'].shape[-1]),
@@ -131,12 +135,14 @@ class ProcessGroup:
     Commands are sent to every group before any result is awaited, so groups step
     concurrently; tensors cross the process boundary on the CPU."""
 
-    def __init__(self, backend_root, scene, worlds, lift, reward, force_limits, sim_dt=None):
+    def __init__(self, backend_root, scene, worlds, lift, reward, force_limits, sim_dt=None,
+                 force_model='scalar', friction_velocity=None):
         import torch.multiprocessing as mp
         context = mp.get_context('spawn')
         self.connection, child = context.Pipe()
         self.process = context.Process(target=_group_worker, daemon=True, args=(
-            child, (str(backend_root), scene, worlds, lift.cpu(), reward, force_limits, sim_dt)))
+            child, (str(backend_root), scene, worlds, lift.cpu(), reward, force_limits, sim_dt,
+                    force_model, friction_velocity)))
         self._closed = False
         try:
             self.process.start()
@@ -223,7 +229,7 @@ class MultiConditionEnvironment:
                 lift = self._uniform(group.clearance, group.worlds) - knife_clearance(backend_root, group.scene)
                 maker = ProcessGroup if parallel else LocalGroup
                 self.members.append(maker(backend_root, group.scene, group.worlds, lift, reward, force_limits,
-                                          group.sim_dt))
+                                          group.sim_dt, group.force_model, group.friction_velocity))
                 self.lift.append(lift)
                 self.slices.append(slice(start, start + group.worlds))
                 start += group.worlds
@@ -286,7 +292,10 @@ class MultiConditionEnvironment:
                               clearance=tuple(g.get('clearance', (.005, .03))),
                               material={k: tuple(v) for k, v in g.get('material', {}).items()},
                               target_speed=tuple(g.get('target_speed', (.035, .065))),
-                              sim_dt=None if g.get('sim_dt') is None else float(g['sim_dt']))
+                              sim_dt=None if g.get('sim_dt') is None else float(g['sim_dt']),
+                              force_model=g.get('force_model', 'scalar'),
+                              friction_velocity=(None if g.get('friction_velocity') is None
+                                                 else float(g['friction_velocity'])))
                   for g in config['groups']]
         return cls(backend_root, groups, reward=reward, seed=int(config.get('seed', 0)),
                    force_limits=config.get('force_limits'), parallel=bool(config.get('parallel', False)))

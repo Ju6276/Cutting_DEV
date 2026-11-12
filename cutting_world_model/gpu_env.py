@@ -8,7 +8,8 @@ from .task_heads import REWARD_KEYS, SliceItHeads, pose_error, TASK_INTERFACE_RE
 
 class GPUEnvironment:
     def __init__(self, backend_root, worlds=1, reference_trajectory=None, reward=None, scene=None,
-                 initial_lift=None, force_limits=None, sim_dt=None):
+                 initial_lift=None, force_limits=None, sim_dt=None, force_model='scalar',
+                 friction_velocity=None):
         """``reward`` optionally selects the force penalty, e.g. {'force_penalty': 'linear',
         'force_penalty_scale': 50.}; None keeps the source SliceIt reward and metadata.
         ``scene`` is an exported DiSECt scene relative to ``backend_root``; None keeps the
@@ -16,10 +17,12 @@ class GPUEnvironment:
         # initial_lift (m, per world): knife start height (CuttingBatch). force_limits (6 values)
         # replaces the task's force/torque limits for every world (one hardware limit).
         # sim_dt (s): DiSECt material substep of this scene, None keeps the exported one.
+        # force_model / friction_velocity: material force signal and knife friction (CuttingBatch).
         force_limits = validate_force_limits(force_limits)
         scene = {} if scene is None else {'scene': scene}
         self.physics = CuttingBatch(backend_root, worlds, reference_trajectory=reference_trajectory,
-                                    initial_lift=initial_lift, sim_dt=sim_dt, **scene)
+                                    initial_lift=initial_lift, sim_dt=sim_dt, force_model=force_model,
+                                    friction_velocity=friction_velocity, **scene)
         if force_limits is not None:
             limits = force_limits
             self.physics.task = {**self.physics.task, 'controller': {**self.physics.task['controller'],

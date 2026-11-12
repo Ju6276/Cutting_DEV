@@ -66,6 +66,14 @@ def source_wrench_transform(wrench, target_from_source):
     return torch.cat((force,rotated_torque),-1)
 
 
+def rigid_wrench_transform(wrench, target_from_source):
+    """Wrench (force, moment about the source origin) in the target frame about its origin."""
+    pose = target_from_source.expand(*wrench.shape[:-1],7)
+    force = quat_apply(pose[...,3:],wrench[...,:3])
+    moment = quat_apply(pose[...,3:],wrench[...,3:]) + torch.linalg.cross(pose[...,:3],force)
+    return torch.cat((force,moment),-1)
+
+
 def source_angular_velocity(current_quaternion, previous_quaternion, dt=0.002):
     return (2*quat_mul(previous_quaternion-current_quaternion,
                        quat_inverse(current_quaternion))/dt)[...,:3]
@@ -181,23 +189,36 @@ class SliceItCoupling:
         self.wrench_filter.reset(raw_sensor_baseline)
         self.filter_initialized = True
 
-    def feedback(self, knife_f, sensor_pose_base, ee_pose_base, raw_sensor_wrench):
+    def feedback(self, knife_f, sensor_pose_base, ee_pose_base, raw_sensor_wrench, net_wrench=None):
         """Source scalar material proxy plus native robot wrench, then filtering.
 
         Sum of contact magnitudes is not net contact force. The bridge adds no
-        material torque; raw_sensor_wrench may still include robot torque.
+        material torque. raw_sensor_wrench is MuJoCo's inverse-dynamics internal wrench
+        at the sensor body (distal-link gravity/inertia, tared); DiSECt forces are not
+        applied to the MuJoCo robot, so it contains no material reaction.
         This convention is retained for historical reproduction.
+
+        ``net_wrench`` (DiSECt frame, force and moment about its origin) selects the net
+        model instead: the material contributes the vector sum of the contact forces and
+        their moment, carried to the sensor frame by the rigid wrench transform.
+        ``force_proxy`` is the source scalar in both models.
         """
-        magnitude = torch.linalg.vector_norm(knife_f,dim=-1).sum(-1)
-        wrench_disect = knife_f.new_zeros((*magnitude.shape,6))
-        wrench_disect[...,1] = magnitude
-        wrench_base = source_wrench_transform(wrench_disect,self.base_from_disect)
-        external_sensor = source_wrench_transform(wrench_base,inverse_pose(sensor_pose_base))
+        proxy = torch.linalg.vector_norm(knife_f,dim=-1).sum(-1)
+        if net_wrench is None:
+            magnitude = proxy
+            wrench_disect = knife_f.new_zeros((*magnitude.shape,6))
+            wrench_disect[...,1] = magnitude
+            wrench_base = source_wrench_transform(wrench_disect,self.base_from_disect)
+            external_sensor = source_wrench_transform(wrench_base,inverse_pose(sensor_pose_base))
+        else:
+            magnitude = torch.linalg.vector_norm(net_wrench[...,:3],dim=-1)
+            wrench_base = rigid_wrench_transform(net_wrench,self.base_from_disect)
+            external_sensor = rigid_wrench_transform(wrench_base,inverse_pose(sensor_pose_base))
         raw = raw_sensor_wrench
         if not self.filter_initialized:
             self.reset_filter(raw)
         filtered = self.wrench_filter.update(raw+external_sensor)
         observation = source_wrench_transform(filtered,ee_pose_base)
-        return {'force_magnitude':magnitude,'wrench_base':wrench_base,
+        return {'force_magnitude':magnitude,'force_proxy':proxy,'wrench_base':wrench_base,
                 'external_sensor_wrench':external_sensor,'sensor_wrench':filtered,
                 'observation_wrench':observation}

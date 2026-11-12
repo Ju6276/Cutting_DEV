@@ -1,6 +1,7 @@
 # Literature search — force-adaptive cutting under a hard force limit (2026-11-12)
 
-Purpose: prior art for the candidate topic in [PAPER](../PAPER.md) §2, searched
+Purpose: prior art for the candidate topic (defined in
+[archive/PAPER_20261112_pre_review](../archive/PAPER_20261112_pre_review.md) §2; PAPER now keeps it open), searched
 outside the existing library. 38 web-search queries by a search agent (arXiv,
 publisher and project pages; IEEE Xplore and Google Scholar not searched directly).
 **Evidence levels:** *summary* = the agent queried the paper's full HTML through a

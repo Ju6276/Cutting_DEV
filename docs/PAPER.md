@@ -58,7 +58,10 @@ within-interval force peak (policy at 20 Hz, sensor faster).
 
 A force-feedback controller, model-free methods and learned-model planning
 are comparison candidates. The final set follows the task and claim; this is
-not a requirement to implement all of them now.
+not a requirement to implement all of them now. Candidate comparison from the
+search (not decided): a recurrent force-penalty policy (FORGE style), terminating
+safe RL (SRL-VIC/CaT style) and a force-feedback speed governor, compared on
+force-limit violations at matched cutting speed.
 
 ## 4. Evidence needed before a method claim
 
@@ -79,6 +82,6 @@ A simulator-only claim must be scoped to the represented physics and outcomes.
 - Risk head + adaptive penalty (`--risk-constraint`) and the official SuperMimic
   adaptation: implemented; both failed in their first run for identified reasons
   (RESULTS 2026-11-12). Kept as code; not results.
-- Fixed-prism numbers (archived PAPER `5) retain their historical goal-pose
+- Fixed-prism numbers (archived PAPER §5) retain their historical goal-pose
   definitions; they do not alone validate separation, physical wrist-force
   prediction or general cutting performance.

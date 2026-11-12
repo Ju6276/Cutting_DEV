@@ -39,8 +39,8 @@ Do not recreate the ambiguous filename. The empty historical
 WM562 path above for the old resume command. Same-WM comparisons still require
 the evaluator's exact tensor pairing check.
 
-These checkpoints are historical/dev resources. New multi-condition learning
-in PLAN starts fresh; do not silently initialize it from these weights.
+These checkpoints are historical/dev resources. Any new multi-condition learning
+(none is scheduled in PLAN) starts fresh; do not silently initialize it from these weights.
 
 ## Retained data and their roles
 

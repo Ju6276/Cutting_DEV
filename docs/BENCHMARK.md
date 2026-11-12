@@ -58,7 +58,10 @@ contract is not yet defined.
   (SAC step 85000, static bottom: 50.29 N; RESULTS 2026-11-08).
 - **Bridge limitation.** Scalar material proxy is injected on one axis with zero
   material torque, added to native robot wrench and filtered. This is not a
-  validated net contact wrench at the Mini45; source transform ordering remains.
+  validated net contact wrench at the Mini45. `source_wrench_transform` keeps the upstream
+  `convert_wrench` ordering (force += p x rotated torque), not the standard rigid transform.
+  The optional `force_model='net'` uses the vector sum of contact forces, their moment and
+  the rigid transform instead (METHOD).
 - **World-model force fields.** Both are the observed sensor wrench, not the
   material force. `wrench_history` is the filtered wrench queue.
   `peak_wrench` is reset to zero at the start of every control step and holds,
@@ -103,8 +106,8 @@ Results of different entries are never pooled.
 
 ## Proposed multi-condition task distribution
 
-PLAN now calls for one shared WM/policy trained on material variation and grouped
-prepared geometries. The existing `public-prism-ur5e-v1` contract remains frozen.
+The user's setting is one shared WM/policy trained on material variation and grouped
+prepared geometries (PLAN, decisions); its corrected task definition is not written yet. The existing `public-prism-ur5e-v1` contract remains frozen.
 A new versioned distribution must declare scene hashes, physical material
 parameters, valid placement transforms, goals, sampling weights and
 train/development/test splits. It must reuse the existing task/force definitions

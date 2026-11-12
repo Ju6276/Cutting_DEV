@@ -7,9 +7,9 @@ provisional exclusions in PAPER.
 
 Paper/source review through 2026-11-10; contact-dynamics source inspection
 included. Literature evidence and candidate gaps only; it does not add
-development tasks. The research argument and algorithm are in [PAPER](PAPER.md);
-current work is in [PLAN](PLAN.md). The proposed setting is now one shared WM
-and policy trained across materials and prepared geometries (single-cut episodes).
+development tasks. The research scope is in [PAPER](PAPER.md) (open since 2026-11-12);
+current work is in [PLAN](PLAN.md). The setting chosen by the user is one shared WM
+and policy trained across materials and prepared geometries.
 The question remains how learning robot/force response helps physical cutting
 control. Multiple objects do not by themselves establish novelty. Action-noise
 evaluations are retired and excluded from the paper. Candidate uncertainty-aware

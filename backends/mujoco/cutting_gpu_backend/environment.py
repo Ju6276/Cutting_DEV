@@ -20,10 +20,16 @@ from .robot import Robot
 class CuttingBatch:
     @torch.no_grad()
     def __init__(self, root, worlds=1, scene='runs/disect_source_v4/scene.pt', reference_trajectory=None,
-                 initial_lift=None, sim_dt=None):
+                 initial_lift=None, sim_dt=None, force_model='scalar', friction_velocity=None):
         """``initial_lift`` (m, per world): start the knife this far above the captured start
         along DiSECt +y (vertical), same orientation, by inverse kinematics before the reset
-        state is settled and saved. ``sim_dt`` (s): DiSECt material substep, None keeps the scene's."""
+        state is settled and saved. ``sim_dt`` (s): DiSECt material substep, None keeps the scene's.
+        ``force_model``: 'scalar' (source: sum of contact-force magnitudes on one axis, no material
+        torque) or 'net' (vector sum of the contact forces and their moment at the sensor).
+        ``friction_velocity`` (m/s): knife-contact friction transition velocity, None keeps the scene's."""
+        if force_model not in ('scalar', 'net'):
+            raise ValueError("force_model must be 'scalar' or 'net'")
+        self.force_model = force_model
         root = Path(root)
         self.worlds = worlds
         self.scene = scene
@@ -34,7 +40,7 @@ class CuttingBatch:
         self.task = json.loads((root / 'runs/source/task.json').read_text())
         episode = np.load(root / 'runs/source/episode_000.npz')
         task = self.task
-        self.material = BatchedDiSECt(root / scene, worlds, sim_dt=sim_dt)
+        self.material = BatchedDiSECt(root / scene, worlds, sim_dt=sim_dt, friction_velocity=friction_velocity)
         self.robot = Robot(root / 'runs/model_coupled/robot.mjb', episode['joint_q'][0], episode['joint_qd'][0], worlds)
         self.config = ControllerConfig.from_parameters(json.loads((root / 'runs/controller_source/controller_params.json').read_text()))
         self.chain = SerialChain(task['robot_xml'], task['robot_base'], task['robot_tip'], task['joint_names']).to(self.device, self.dtype)
@@ -119,8 +125,10 @@ class CuttingBatch:
         return target
 
     def _feedback(self, raw):
+        net = self.material.knife_wrench().to(self.dtype) if self.force_model == 'net' else None
         return self.coupling.feedback(self.material.state_field('knife_f').to(self.dtype),
-                                     self.frames[self.config.sensor_ref_link], self.frames[self.chain.tip], raw)
+                                     self.frames[self.config.sensor_ref_link], self.frames[self.chain.tip], raw,
+                                     net_wrench=net)
 
     @torch.no_grad()
     def reset(self, mask=None):

@@ -12,7 +12,7 @@ measured, not assumed. Nothing here runs before the open items are settled.
 |---|---|
 | UR5e | Available; same arm model as the simulation. Primary platform. |
 | Diana7 | Available; not used in the first pass (see "Later"). |
-| ATI Mini45 | Available. **Open:** calibration (SI-145-5: ±145 N Fx/Fy, ±290 N Fz, 1/16 N resolution; SI-290-10: ±290/580 N, 1/8 N), installed calibration and software interface. The photo shows an ATI Net F/T 9105-NETBA box, not its calibration label. Old S0 used simulation thresholds 50 N / 5 N·m; real-task limits remain open and distinct from sensor range (PLAN). |
+| ATI Mini45 | Available. **Open:** calibration (SI-145-5: ±145 N Fx/Fy, ±290 N Fz, 1/16 N resolution; SI-290-10: ±290/580 N, 1/8 N), installed calibration and software interface. A photo sent by the user (2026-11-11, not in the repository) shows an ATI Net F/T 9105-NETBA box, not the transducer's calibration label. Old S0 used simulation thresholds 50 N / 5 N·m; real-task limits remain open and distinct from sensor range (PLAN). |
 | Knife and mount | **Open:** CAD or measured geometry and mass, to replace the simulated knife frame and tool payload. |
 | Object placement | The old bottom-6-mm hold altered force/outcomes (RESULTS 2026-11-12); it is not an accepted fixture. **Open:** choose a realizable holding method, then model it. Historical free/fixed prism contracts remain distinct. |
 | Foods / specimens | **Open:** proposal below. |

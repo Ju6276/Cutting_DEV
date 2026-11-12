@@ -92,3 +92,22 @@ def test_substep_override():
     assert finer.dt == pytest.approx(default.dt * .8)
     with pytest.raises(ValueError):
         DiSECt(scene, sim_dt=0.)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason='CUDA material integration')
+def test_net_knife_wrench_is_minus_the_contact_force_sum_and_friction_option():
+    scene = Path('runs/disect_contact/scene.pt')
+    batch = BatchedDiSECt(scene, 2, friction_velocity=.01)
+    assert torch.all(batch.model.sdf_kf == .01)
+    twist = torch.tensor([[0., -.03, 0., 0., 0., 0.], [0., -.03, .05, 0., 0., 0.]], device='cuda')
+    batch.set_motion(twist)
+    batch.advance(.002)
+    wrench = batch.knife_wrench()
+    force = batch.state_field('knife_f')
+    assert wrench.shape == (2, 6)
+    assert torch.allclose(wrench[:, :3], -force.sum(1), atol=1e-5)
+    assert float(force.norm(dim=-1).sum()) > 0          # the scene is in contact
+    # Sum of magnitudes can only exceed the magnitude of the vector sum.
+    assert torch.all(force.norm(dim=-1).sum(-1) >= wrench[:, :3].norm(dim=-1) - 1e-5)
+    with pytest.raises(ValueError):
+        BatchedDiSECt(scene, 1, friction_velocity=0.)

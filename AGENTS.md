@@ -11,8 +11,9 @@
 - Current phase (2026-11-12): task/platform definition and problem-led literature
   review. The force-spike premise and first S3 comparison are retired. Historical
   pose success is not validated separation; scalar material feedback is not a
-  Mini45 contact wrench. Do not restart S3 or add modalities because old code
-  remains runnable. Follow PLAN.
+  Mini45 contact wrench. Do not restart S3 from a reproduction command. Sawing and
+  geometry input are directions chosen or favoured by the user (PLAN); start work on
+  them from PLAN, not because old code remains runnable. Follow PLAN.
 - Retained implementation: SuperMimic-Reproduced `ba610534` adapted to the SliceIt UR5e +
   FDCC + DiSECt task in the unified MuJoCo Warp environment (`docs/BENCHMARK.md`).
   The original SliceIt SAC in Gazebo stays an independent baseline. PLAN is the

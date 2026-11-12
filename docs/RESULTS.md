@@ -273,7 +273,7 @@ table measured this artefact for cucumber_003.
 sinusoid along the blade, force limit disabled).
 
 - Fixed-bottom prism, Young x1 and x2, +-2 cm at 1 Hz (knife lateral speed up to 8.7 cm/s,
-  verified in the DiSECt knife state): mean 5.33 vs 5.34 N, peak 8.43 vs 8.42 N, same
+  verified in the DiSECt knife state): material proxy mean 5.33 vs 5.34 N, peak 8.43 vs 8.42 N, same
   cut-through step; the per-step force series agree to about 0.1 N. Sawing had negligible effect in these tested configurations.
 - Code observation (not an isolated causal experiment): the material-feedback scalar is `sum_i |f_i|` over per-spring knife contact forces, put
   on the vertical axis with zero torque (`coupling.feedback`, inherited from SliceIt's bridge;
@@ -287,10 +287,18 @@ sinusoid along the blade, force limit disabled).
 Interpretation: tested variants did not exhibit the intended sawing benefit.
 This does not establish that all scenes, trajectories or DiSECt settings behave
 identically. The material bridge contributes a force proxy and zero material
-torque. `coupling.feedback` adds it to native MuJoCo wrench before filtering;
-zero material torque does not prove that total torque or torque-limit termination
-is always zero/inactive. Summed magnitudes are not net contact wrench; calibration
-of an upstream scalar does not establish calibration of these exported scenes.
+torque. `coupling.feedback` adds it to the MuJoCo sensor-body wrench before filtering.
+That wrench is the tared inverse-dynamics load of the distal links and tool; DiSECt forces
+are not applied to the MuJoCo robot, so it contains no material reaction. It was
+0.001-0.003 N·m in the reference cuts of `runs/food_force*_20261111` (limit 5 N·m), so the
+torque limit was inactive there; not measured for policy rollouts. Summed magnitudes are
+not net contact wrench. DiSECt fits this scalar to measured force; that does not establish
+calibration of these exported scenes.
+
+With this bridge and `sdf_kf = 50`, insensitivity to lateral motion is structural (per
+contact |f| does not depend on the sliding direction, and friction is negligible), so a
+policy has no incentive to saw. DiSECt reports real mean force reductions above 40 % from
+slicing, which this configuration does not reproduce.
 
 Changing the scalar to a vector sum alone is not a validated remedy for sawing:
 material/contact/friction models and mounting still need a physical basis.

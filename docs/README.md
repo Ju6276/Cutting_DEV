@@ -2,8 +2,8 @@
 
 | Document | Role |
 |---|---|
-| [PLAN](PLAN.md) | Sole current plan: where we are, fixed decisions, task defects, next steps |
-| [PAPER](PAPER.md) | Topic under re-decision: why the old problem statement was retired, candidate topic, prior art, what must be shown |
+| [PLAN](PLAN.md) | Sole current task list: current state, decisions by the user, what has to be resolved, conditional options |
+| [PAPER](PAPER.md) | Research scope (open): why the old problem statement was retired, task-first scope, preliminary prior art, evidence needed |
 | [Literature search 2026-11-12](literature/force_adaptive_search_20261112.md) | Prior art for the candidate topic, searched outside the library (second-hand evidence levels) |
 | [OFFICIAL_SUPERMIMIC](OFFICIAL_SUPERMIMIC.md) | Official SuperMimic (5efbf11) adapted to the cutting prism: component mapping and every deviation |
 | [BENCHMARK](BENCHMARK.md) | Historical fixed-prism contract/commands, not the corrected multi-object task |
@@ -21,6 +21,7 @@ reproduction and targeted analysis.
 
 ## Archive
 
+[PLAN_20261112_pre_review](archive/PLAN_20261112_pre_review.md) and [PAPER_20261112_pre_review](archive/PAPER_20261112_pre_review.md) (candidate topic definition, defect table, ordered steps and topic options before the review rewrite),
 [PAPER_20261111](archive/PAPER_20261111.md) and [PLAN_20261111](archive/PLAN_20261111.md) (retired problem statement and S3 launch plan),
 [PLAN_20261110](archive/PLAN_20261110.md) (route B screening rules and S0–S4 rationale),
 [RESULTS_20261102_20261110](archive/RESULTS_20261102_20261110.md) (fixed-prism development measurements),

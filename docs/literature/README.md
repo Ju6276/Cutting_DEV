@@ -4,7 +4,7 @@ This is the per-paper evidence ledger requested by the user, produced by Codex
 with one literature subagent. It covers the named method papers in READING_LIST
 and NOVELTY, with separately identified simulator and data references.
 [Synthesis](../NOVELTY.md), [paper argument](../PAPER.md) and
-[bounded candidate / S0–S4 plan](../PLAN.md) have different roles.
+[current task list](../PLAN.md) have different roles.
 
 Each record states **what was actually read**, method and data, relevant
 experiments/metrics, limitations, and inspected code/version where available.

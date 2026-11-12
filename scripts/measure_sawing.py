@@ -51,6 +51,8 @@ def main():
     parser.add_argument('--saws', nargs='+', default=['0:0', '0.01:1', '0.02:1', '0.02:2'],
                         help='amplitude(m):frequency(Hz) variants; 0:0 is the pure press')
     parser.add_argument('--sim-dt', type=float, help='DiSECt substep override')
+    parser.add_argument('--force-model', choices=('scalar', 'net'), default='scalar')
+    parser.add_argument('--friction-velocity', type=float, help='knife friction transition velocity (m/s)')
     parser.add_argument('--cut-fraction', type=float, default=.98)
     parser.add_argument('--extra-seconds', type=float, default=1.)
     parser.add_argument('--output', type=Path, required=True)
@@ -63,7 +65,8 @@ def main():
         for saw in args.saws:
             amplitude, frequency = (float(x) for x in saw.split(':'))
             started = time.monotonic()
-            env = GPUEnvironment(str(args.backend_root), n, scene=scene, sim_dt=args.sim_dt)
+            env = GPUEnvironment(str(args.backend_root), n, scene=scene, sim_dt=args.sim_dt,
+                                 force_model=args.force_model, friction_velocity=args.friction_velocity)
             physics = env.physics
             physics.force_limits = torch.full_like(physics.force_limits, 1e6)
             material = physics.material
@@ -89,10 +92,12 @@ def main():
                 frame, reward, terminated, truncated, info = env.step(zero, reference=True)
                 peak = frame['peak_wrench'].abs()
                 released = (frame['cut_spring_ke'] == 0).sum(-1)
+                net = material.knife_wrench()   # DiSECt frame at the end of the step: y up, z along the blade
                 for w in range(n):
                     if alive[w]:
                         series[w].append([step, float(peak[w, :3].norm()), float(peak[w, :3].max()),
-                                          float(peak[w, 3:].max()), float(info['peak_force'][w]), int(released[w])])
+                                          float(peak[w, 3:].max()), float(info['peak_force'][w]), int(released[w]),
+                                          float(net[w, 1]), float(net[w, 2]), float(net[w, 0])])
                         if bool(terminated[w]) or bool(truncated[w]):
                             ending[w] = ('success' if bool(info['success'][w]) else
                                          'outside' if bool(info['outside'][w]) else 'terminated')
@@ -112,6 +117,10 @@ def main():
                        'peak_sensor_torque_nm': max((r[3] for r in phase), default=None),
                        'mean_material_force_n': sum(r[4] for r in phase) / len(phase) if phase else None,
                        'peak_material_force_n': max((r[4] for r in phase), default=None),
+                       'mean_net_vertical_n': sum(r[6] for r in phase) / len(phase) if phase else None,
+                       'peak_net_vertical_n': max((r[6] for r in phase), default=None),
+                       'mean_abs_net_along_blade_n': sum(abs(r[7]) for r in phase) / len(phase) if phase else None,
+                       'force_model': args.force_model, 'friction_velocity': args.friction_velocity,
                        'object_centroid_shift_mm': float(shift[w]), 'series': s}
                 rows.append(row)
                 print(json.dumps({k: (round(v, 2) if isinstance(v, float) else v) for k, v in row.items() if k != 'series'}),
@@ -122,9 +131,12 @@ def main():
             (args.output / 'report.json').write_text(json.dumps(
                 {'git': git_revision(ROOT), 'command': sys.argv, 'rows': rows,
                  'series_columns': ['step', 'sensor_component_peak_l2', 'sensor_force_max_component', 'sensor_torque_max',
-                                    'material_force', 'released_springs'],
+                                    'material_force', 'released_springs', 'net_vertical', 'net_along_blade',
+                                    'net_sideways'],
                  'force_limit_termination': 'disabled (measurement)',
-                  'force_summary_definition': 'L2 of per-axis temporal maxima; not simultaneous force norm'}) + '\n')
+                  'force_summary_definition': ('L2 norm of per-axis maxima within each 0.05 s control step (upper bound on the '
+                                              'simultaneous force norm in that step); row values are its mean/max over '
+                                              'contact..cut-through')}) + '\n')
 
 
 if __name__ == '__main__':

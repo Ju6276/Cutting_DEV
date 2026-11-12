@@ -69,7 +69,10 @@ MATERIAL_SCALES = {
 
 
 class BatchedDiSECt(DiSECt):
-    def __init__(self, scene_path, worlds, sim_dt=None):
+    def __init__(self, scene_path, worlds, sim_dt=None, friction_velocity=None):
+        """``friction_velocity`` (m/s) replaces the scene's knife-contact ``sdf_kf``, which the
+        contact kernel uses as the tangential transition velocity of its friction law; None keeps
+        the exported value."""
         if worlds < 1:
             raise ValueError('worlds must be positive')
         super().__init__(scene_path, sim_dt=sim_dt)
@@ -90,7 +93,31 @@ class BatchedDiSECt(DiSECt):
                               for spec in MATERIAL_SCALES.values()
                               for name in spec['scaled'] + spec['inverse']}
         self.material_scales = {key: torch.ones(worlds, device=self.position.device) for key in MATERIAL_SCALES}
+        if friction_velocity is not None:
+            if not float(friction_velocity) > 0:
+                raise ValueError('friction_velocity must be positive')
+            self.model.sdf_kf.fill_(float(friction_velocity))
+        springs = self.model.cut_spring_indices.reshape(-1, 2).long()   # cut edges (left, right) per spring
+        edges = self.model.cut_edge_indices.reshape(-1, 2).long()       # particles of each cut edge
+        # Same order as state.knife_f (spring * 2 + side); the right edge is traversed reversed,
+        # as in eval_spring_sdf_contacts.
+        self._contact_edge = springs.reshape(-1)
+        self._contact_first = torch.stack((edges[springs[:, 0], 0], edges[springs[:, 1], 1]), 1).reshape(-1)
+        self._contact_second = torch.stack((edges[springs[:, 0], 1], edges[springs[:, 1], 0]), 1).reshape(-1)
         self.save_reset_state()
+
+    @torch.no_grad()
+    def knife_wrench(self):
+        """Net contact wrench on the knife in the DiSECt frame, [worlds, 6]: force and moment
+        about the DiSECt origin. ``state.knife_f`` holds the force each contact applies to the
+        material; the knife receives the opposite force at the contact point on the cut edge."""
+        force = self.state.knife_f
+        coord = self.model.cut_edge_contact_coord[self._contact_edge][:, None]
+        q = self.state.particle_q
+        point = q[self._contact_first] * (1. - coord) + q[self._contact_second] * coord
+        moment = torch.linalg.cross(point, force)
+        return -torch.cat((force.reshape(self.worlds, -1, 3).sum(1),
+                           moment.reshape(self.worlds, -1, 3).sum(1)), -1)
 
     def state_field(self, name):
         value = getattr(self.state, name)
