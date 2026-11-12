@@ -170,3 +170,28 @@ def test_stationary_graph_matches_eager_material_and_checks_all_contacts():
     m.linear_velocity[0, 1] = -.01
     with pytest.raises(ValueError, match='zero knife velocity'):
         m.advance_stationary(32 * m.dt)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason='CUDA material reset cache')
+def test_reset_cache_has_capacity_bound_and_preserves_inactive_worlds():
+    import weakref
+    scene = Path('runs/sweep/free_cucumber_003/scene.pt')
+    if not scene.exists():
+        pytest.skip('free cucumber asset')
+    m = BatchedDiSECt(scene, 4, friction_velocity=.01)
+    m.set_motion(torch.zeros(4, 6, device='cuda'))
+    for n in (1, 2, 4, 1, 2, 1):
+        mask = torch.arange(4, device='cuda') < n
+        m.restore_export(mask)
+        saved = m.capture_rows(~mask)
+        previous = {k: weakref.ref(v) for k,v in m._settle_batches.items()}
+        m.settle_selected(32*m.dt, mask)
+        for k, ref in previous.items():
+            if k not in m._settle_batches:
+                assert ref() is None  # no retained Python closure/tensor cycle
+        assert sum(m._settle_batches) <= 4
+        assert list(m._settle_batches)[-1] == n
+        actual = m.capture_rows(~mask)
+        for a, b in zip(saved, actual):
+            for name in a:
+                torch.testing.assert_close(a[name], b[name], rtol=0, atol=0)

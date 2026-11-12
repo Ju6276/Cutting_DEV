@@ -141,10 +141,22 @@ class BatchedDiSECt(DiSECt):
             return
         capacity = 1 << (n - 1).bit_length()
         if capacity not in self._settle_batches:
+            # LRU world-capacity budget: at most one rounded-up full material batch
+            # in scratch storage, rather than retaining 1+2+...+N forever.
+            budget = 1 << (self.worlds - 1).bit_length()
+            while self._settle_batches and sum(self._settle_batches) + capacity > budget:
+                oldest = next(iter(self._settle_batches))
+                evicted = self._settle_batches.pop(oldest)
+                # The cached Python step closes over its material. Break that cycle so
+                # graph/tensor allocations release now, not at an arbitrary GC pass.
+                if hasattr(evicted, '_stationary_step'):
+                    del evicted._stationary_step
+                del evicted
             self._settle_batches[capacity] = BatchedDiSECt(
                 self._scene_path, capacity, sim_dt=self.dt,
                 friction_velocity=self._friction_velocity)
-        scratch = self._settle_batches[capacity]
+        scratch = self._settle_batches.pop(capacity)
+        self._settle_batches[capacity] = scratch
         all_rows = torch.ones(capacity, dtype=torch.bool, device=self.position.device)
         padded = torch.cat((indices, indices[-1:].expand(capacity - n)))
         scales = {k: v[padded] for k, v in self.material_scales.items()}

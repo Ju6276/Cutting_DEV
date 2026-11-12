@@ -305,7 +305,7 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
     physical_limit = (None if args.max_iterations is None else
                       schedule.iteration + args.max_iterations)
     status['state'] = 'running'
-    timing = {'physics': 0., 'world_model': 0., 'policy': 0.}
+    timing = {'physics': 0., 'reset': 0., 'world_model': 0., 'policy': 0.}
     error = None
     try:
         while schedule.iteration < schedule.config.total_iterations:
@@ -345,7 +345,9 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
                     peak_material, peak_ratio, env.conditions([e])[0] if conditions is not None else None))
             schedule.after_environment_step()
             if ended.any():
+                tick = time.monotonic()
                 frame = env.reset(ended)
+                timing['reset'] += time.monotonic() - tick
                 state = spec.reset_batch_history(frame, state, ended)
                 history[:, ended] = frame['observation'][ended].float()[None]
                 peak_material[ended] = 0
