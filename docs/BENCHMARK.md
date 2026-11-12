@@ -1,5 +1,10 @@
 # Fixed cutting benchmark
 
+> 2026-11-12: this file defines the **fixed prism** benchmark. Its success rule (knife at the goal
+> pose) and reward are not valid for the multi-object task (RESULTS 2026-11-12); that task's
+> definition is being revised in [PLAN](PLAN.md). `RESULTS <date>` references up to 2026-11-10 are in
+> [archive/RESULTS_20261102_20261110](archive/RESULTS_20261102_20261110.md).
+
 Every method executes in **UR5e + MuJoCo Warp + the SliceIt compliance controller
 + DiSECt**, using `GPUEnvironment`. The current case is
 `public-prism-ur5e-v1`: one prism, one material configuration, one initial state

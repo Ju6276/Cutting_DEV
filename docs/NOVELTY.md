@@ -222,7 +222,7 @@ cutting experiment. Details and versions are in the individual reading records.
   physics-linked state/contact predictions. These general ideas already exist;
   the candidate contribution concerns their effect on compliant cutting and
   BPTT policy learning [T/I].
-- The A comparison in [RESULTS](RESULTS.md#2026-11-08--wm-reliability-check-steps-1-and-3-route-a-vs-original)
+- The A comparison in [RESULTS](archive/RESULTS_20261102_20261110.md)
   separates two observations: removing BCE gradients from dynamics improves
   position prediction, while force-limit misses remain. The fixed-fit training
   split contains no force-limit failures. Current evidence leaves both coverage

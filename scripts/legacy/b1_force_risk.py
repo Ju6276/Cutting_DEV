@@ -21,7 +21,7 @@ import time
 import numpy as np
 import torch
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(ROOT), str(ROOT / 'backends/mujoco')]
 from cutting_world_model import force_risk as fr
 from cutting_world_model.policy import SliceItCritic, SliceItPolicy

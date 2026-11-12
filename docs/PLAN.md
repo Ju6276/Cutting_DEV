@@ -1,68 +1,86 @@
 # Plan
 
-Updated 2026-11-12. The only active plan. Topic and prior art: [PAPER](PAPER.md);
-measurements: [RESULTS](RESULTS.md); code: [METHOD](METHOD.md); data: [DATA](DATA.md).
-Previous plans: [PLAN_20261111](archive/PLAN_20261111.md) (S3 launch, retired
-problem statement), [PLAN_20261110](archive/PLAN_20261110.md).
+Updated 2026-11-12 (after the repository clean-up). The only active plan. Topic and prior
+art: [PAPER](PAPER.md); measurements: [RESULTS](RESULTS.md); code: [METHOD](METHOD.md);
+data: [DATA](DATA.md). Previous plans: [PLAN_20261111](archive/PLAN_20261111.md),
+[PLAN_20261110](archive/PLAN_20261110.md).
 
 ## Where we are
 
-- The first multi-object runs (base, base + risk penalty, official SuperMimic on the
-  prism) are stopped. The risk and official runs failed; the base run exposed defects
-  in the task definition (RESULTS 2026-11-12). All three shared these defects.
-- The problem statement "WM under-predicts the contact-onset force spike" is retired
-  (PAPER §1). The candidate topic is force-adaptive cutting of unknown objects under
-  one hard force limit (PAPER §2); **the user has not decided it yet**.
+- No job of ours is running (GPU7 and both A6000 GPUs free of our jobs).
+- The first multi-object runs are stopped and deleted. The risk-penalty and official
+  SuperMimic runs failed; the base run exposed four defects in the task definition
+  (below). The problem statement "the WM under-predicts the contact-onset force spike"
+  is retired (PAPER §1).
+- **Topic: open.** Candidate: force-adaptive cutting of unknown objects under one hard
+  force limit (PAPER §2). The user's assessment (2026-11-12): motivation too simple and
+  too few modalities for ICRA/IROS as it stands. The prior-art search agrees it is
+  incremental as a task claim (PAPER §3). Options to strengthen it are listed in
+  "Topic options"; nothing is decided.
 
 ## Fixed decisions (user)
 
-- Method paper. Platform, objects and baselines are experiments, not contributions.
+- Method paper for ICRA/IROS/RA-L. Platform, objects and baselines are experiments.
 - One shared WM/policy/critic over scanned objects, randomized materials, knife start
   height, target cutting speed as a task input.
-- One force limit for every object; the learner gets no object identity, material
-  label or per-object setting and adapts from force feedback. Simulation limit in the
-  first runs: `[50, 50, 50 N, 5, 5, 5 N·m]`, a simulation setting, not a real-robot
-  threshold (external ATI Mini45 on the real robot).
-- No per-object reward or success parameters (they would hard-code object identity).
-- One change at a time; a plan is approved before a paid run.
+- One force limit for every object; no object identity, material label or per-object
+  reward/success setting reaches the learner; it adapts from force feedback. Simulation
+  limit used so far: `[50, 50, 50 N, 5, 5, 5 N·m]` (not a real-robot threshold; the real
+  robot has an external ATI Mini45).
+- The paper's core must follow from the task, not from a failure seen in our own runs.
+- One change at a time; a written plan is approved before a paid run.
 
-## Task defects found (RESULTS 2026-11-12)
+## Task defects (RESULTS 2026-11-12)
 
 | # | Defect | Evidence |
 |---|---|---|
-| 1 | Success = knife at one fixed pose (the prism's board height), not "object cut" | Held potato: 245/245 springs cut, not success. Unheld potato: pushed 32 mm, 57/245 cut, success |
-| 2 | The bottom hold pinches the knife: residual force after the cut, and inflated cutting force | cucumber_003 needs 37 N held but 5.6 N unheld (and then reaches the goal); the unheld potato is pushed 32 mm and stays uncut |
-| 3 | Reward makes "as fast as possible" optimal; lateral drift is free | Policy 20-27 cm/s against a 1-5 cm/s command; prism force-limit hits at that speed; steady x drift to the workspace limit |
-| 4 | The reference trajectory is a fixed displacement | Reaches the goal only when the start lift is ~0 |
+| 1 | Success = knife at one fixed pose, not "object cut" | Held potato: 245/245 springs cut, not success. Unheld potato: pushed 32 mm, 57/245 cut, success |
+| 2 | The bottom hold pinches the knife and inflates force | cucumber_003: 37 N held, 5.6 N unheld (and then reaches the goal); the unheld potato is pushed away |
+| 3 | Reward makes "as fast as possible" optimal; lateral drift is free | Policy 20-27 cm/s against a 1-5 cm/s command; force-limit hits at that speed |
+| 4 | Reference trajectory is a fixed displacement | Reaches the goal only with start lift ~0 |
 
 ## Next steps, in order
 
-1. **Task definition (needs user approval before coding).** Proposal:
-   - Success: released cut-spring fraction >= a threshold (e.g. 0.98) without a
-     force-limit event; real-robot equivalent: knife at board height.
-   - How each object is constrained, decided from its geometry in scene preparation (not a
-     policy input): the unheld cucumber cuts cleanly, the unheld potato is pushed away, the
-     bottom hold inflates force up to about 7x. This comes first; force limit, success rule
-     and reward depend on it.
-   - Reward, identical for every object: progress = released fraction; speed tracking
-     as the main shaped term; no step cost that rewards speed; lateral-drift penalty;
-     force-limit event = failure.
-   - Check every training/held-out condition is feasible within the limit, or define
-     "stop without violating the limit" as the correct outcome when it is not.
-2. **Topic decision (user)** with the prior-art record (PAPER §3).
-3. **Base only on the corrected task** (A6000): does one policy cut all training
-   objects at the commanded speed within the limit? Deterministic evaluation, not
-   training episodes, decides.
-4. **Baselines the reviewer will ask for**: model-free force-penalty recurrent policy
-   (FORGE style), terminating safe RL (SRL-VIC/CaT style) or SAC, hand-tuned
-   force-feedback speed governor. Official SuperMimic needs a non-negative step reward
-   or a failure penalty at soft termination before it is a fair comparator.
-5. **Constraint on predicted peak force**: normalised objective or PI-Lagrangian,
-   every failure ending counted; one change at a time.
-6. Held-out evaluation, then real robot ([REAL2SIM](REAL2SIM.md)).
+1. **Object constraint per scene (first; everything else depends on the forces it gives).**
+   For each object decide how it is kept in place so that it neither slides nor pinches
+   the knife (candidates: no hold for long objects that stay put; side/end hold away from
+   the cut plane; friction increase). Check: reference cut at 3 cm/s cuts >= 98% of the
+   springs, object shift < 3 mm, no residual force after the cut. Scene preparation only;
+   nothing reaches the policy. About half a day on GPU7.
+2. **Task definition (user approval of the written formulas before coding).**
+   - Success: released cut-spring fraction >= 0.98 without a force-limit event (real robot:
+     knife at board height).
+   - Reward, identical for every object: progress = released fraction; speed tracking as
+     the main shaped term; no step cost that rewards speed; lateral-drift penalty.
+   - Feasibility of every training/held-out condition within the limit, from step 1 forces.
+3. **Decision experiment: hand-tuned force-feedback speed governor** on the corrected task
+   (never implemented so far). If it cuts every object at the commanded speed within the
+   limit, the candidate topic is void as stated and one of the topic options is needed.
+   If it fails in identifiable conditions, those conditions are the motivation. 1-2 days.
+4. **Topic decision (user)** with step 3 and PAPER §3.
+5. Base on the corrected task; baselines (FORGE-style recurrent force-penalty policy,
+   terminating safe RL or SAC, governor); constraint on predicted peak force; held-out
+   evaluation; real robot ([REAL2SIM](REAL2SIM.md)). Planned in detail after step 4.
+
+## Topic options (discussion, 2026-11-12)
+
+| Option | Idea | Cost |
+|---|---|---|
+| A. Geometry input | Height profile of the object in the cut plane (simulation: known; real: depth camera). Vision gives where/when contact happens and thickness, force gives hardness | Medium; low-dimensional, no image rendering |
+| B. Sawing as a learned action | Use lateral motion to reduce normal force when the limit is near (DiSECt reports large real force reductions from sawing) instead of only slowing down | Medium; lateral action exists, reward changes |
+| C. Heterogeneous objects | Skin/core/layers: force changes abruptly, anticipation needed | High; new assets, harder real validation |
+
+Assistant's recommendation: A + B, IROS timeline (deadline usually early March) rather
+than a one-month draft; real-robot experiments on a few foods are needed either way.
+
+## Code kept but not results
+
+Risk head + adaptive penalty (`--risk-constraint`), official SuperMimic adaptation
+(`cutting_world_model/official`), SAC bridge, WM-MPPI: kept until the topic is decided.
+Retired diagnostics are in `scripts/legacy/`. Historical run folders of 2026-11-04..10
+are kept on the servers (DATA).
 
 ## Storage and execution
 
-Code and data live on GPU7 (`/dataHDD/dong/Projects/Cutting_DEV`, branch `main`) and
-the A6000; the Mac keeps nothing. Both A6000 GPUs and GPU7 are free of our jobs since
-2026-11-12. Check `nvidia-smi` before using a GPU.
+Code and data live on GPU7 (`/dataHDD/dong/Projects/Cutting_DEV`, branch `main`) and the
+A6000; the Mac keeps nothing. Check `nvidia-smi` before using a GPU.

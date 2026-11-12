@@ -8,7 +8,7 @@ import sys
 import numpy as np
 import torch
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from cutting_world_model.control_state import ControlStateSpec
 from cutting_world_model.policy import SliceItCritic
 from cutting_world_model.provenance import git_revision
@@ -68,7 +68,7 @@ def check(checkpoint, episode_paths, device='cpu', gamma=PolicyTrainerCfg().gamm
     return {
         'checkpoint': str(checkpoint),
         'checkpoint_git': saved.get('git'),
-        'git': git_revision(Path(__file__).resolve().parents[1]),
+        'git': git_revision(Path(__file__).resolve().parents[2]),
         'update': saved['learner']['updates'],
         'gamma': gamma,
         'return_type': 'observed_behavior_policy_discounted_return',

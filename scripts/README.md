@@ -24,8 +24,7 @@ force-risk constraint is `--risk-constraint`.
 Scanned objects: `prepare_food_mesh.py` (scan surface -> tetrahedral mesh),
 `make_food_configs.py` (DiSECt scene configs with official materials), then
 `backends/mujoco/scripts/export_disect_scene.py`. `measure_cut_force.py` measures the
-force needed to cut each exported object (PLAN step 1). `b1_force_risk.py` is the
-completed B1 risk screen.
+force needed to cut each exported object (PLAN step 1).
 
 `prepare_backend.py`, `checkout_sliceit.py` and `export_disect_trajectory.py`
 prepare assets or reference trajectories. Backend-specific exporters and robot
@@ -41,8 +40,7 @@ workers (`collect_coupled.py`, `coupled_bridge.py`, `train_coupled*.py`,
 ## Targeted analysis, not a queue to rerun
 
 `check_*.py` validates recorded interfaces, restart consistency, materials or
-reference scenes. `collect_reliability_data.py`, `wm_reliability_eval.py`,
-`wm_branch_check.py`, `wm_fixed_fit.py`, `wm_loss_gradients.py` and `value_eval.py`
+reference scenes. The retired diagnostics (`scripts/legacy/`: reliability, branch check, fixed fit, loss gradients, value evaluation, B1)
 remain available for named analysis. Their existence does not schedule a new
 diagnostic or reopen a completed experiment; PLAN selects their use.
 

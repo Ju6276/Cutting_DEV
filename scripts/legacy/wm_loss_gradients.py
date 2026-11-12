@@ -18,7 +18,7 @@ import time
 import numpy as np
 import torch
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from cutting_world_model.policy import SliceItCritic, SliceItPolicy
 from cutting_world_model.provenance import git_revision

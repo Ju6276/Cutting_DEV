@@ -16,7 +16,7 @@ import time
 
 import torch
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 sys.path[:0] = [str(ROOT), str(ROOT / 'backends/mujoco')]
 from cutting_world_model.policy import SliceItCritic, SliceItPolicy
 from cutting_world_model.provenance import git_revision
