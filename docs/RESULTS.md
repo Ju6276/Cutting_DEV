@@ -722,3 +722,31 @@ runs/free_cut_backend_suite.log; final focused tests: 11 passed (35.37 s). The r
 progress, parent revision, dirty-diff fingerprint, and full provisional config.
 It predates the checker's newly added speed/jerk/utilization row fields, which
 enable offline reward rescoring in future runs. No new policy checkpoint exists.
+
+
+## 2026-11-12 — Free-cut review repair and bounded physical checks
+
+Full implementation/evidence handoff: [FREE_CUT_REPAIR](FREE_CUT_REPAIR.md).
+Branch codex/free-cut-v1, code 1b287d5 / 5362975. No long training.
+
+- Reset: 256 worlds / one reset, 25.66 -> 4.43 seconds; all 256 reset, 25.47 -> 16.03.
+  Material draws and settling duration unchanged. Inactive rows preserved exactly; evolved
+  rows are not bitwise-repeatable (including eager/eager repeats). See the handoff's numerical
+  comparison and its explicit limits.
+- Gamma=1 candidate: normal press 109.819, sawing 109.806, 3x press 109.285, 20x reference
+  109.735; stall -3.808, retract -1.778, slow incomplete .449. The 20x probe did not exceed
+  the force limit and is not counted as a force-failure test.
+- Corrected profiles, paired with a new press reference: press 109.811; mid-cut slowdown
+  107.561 (94 steps, separated); mid-cut hold .029 (100 steps, incomplete). Observed ordering
+  matches the intended preference. Fixed reference motions are not six-action WM training data.
+- 32 actual six-action transitions followed by one WM/actor/real-critic update all produced
+  finite values. This is an execution check, not learned performance. Physical-label diagnostics
+  exposed the untrained completion head's false completion probability (~.513); one update
+  is not used to judge its learnability.
+- Root 303 passed / 5 skipped; subsequent affected tests 29 passed; backend 37 passed.
+  The new graph comparison checks a full 32-substep replay. A proposed 4 ms pointwise velocity
+  tolerance failed for repeated eager runs too; no existing backend test was weakened.
+
+Current limits: no trained v2 WM/policy; completion calibration after pretraining is unverified;
+no actual physical force-failure / near-limit slow-press case in this bounded batch; the
+100-step horizon and EE box are review-only configuration, not a general multi-object setup.

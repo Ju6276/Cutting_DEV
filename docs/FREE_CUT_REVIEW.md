@@ -1,3 +1,5 @@
+> Historical handoff for 48fcbef / free_cut_v1. Current repairs and evidence: [FREE_CUT_REPAIR](FREE_CUT_REPAIR.md).
+
 # Free-cut task implementation review — 2026-11-12
 
 For Claude's review. Parent: e529161. User authorized implementation and verification;

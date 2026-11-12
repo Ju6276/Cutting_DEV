@@ -744,3 +744,24 @@ cut_progress and deterministic step_count; completion supervision uses physical
 separation, not pose success or failure labels. Force/workspace/deadline endings
 absorb imagined trajectories. The policy inputs remain unchanged. This is a new
 task/head interface, not evidence of successful training or a new method claim.
+
+
+### Free-cut review revision v2 (2026-11-12)
+
+See [TASK_FREE_CUT](TASK_FREE_CUT.md) for the exact versioned contract and
+[FREE_CUT_REPAIR](FREE_CUT_REPAIR.md) for bounded evidence. Changes are gamma=1 across
+actor/critic/planning, policy-observable remaining time (25 observations, goal dimension 8),
+an explicit EE XYZ workspace, a .001 initial fraction-of-remaining-progress output,
+and physical-label completion diagnostics. The progress initialization is not a separation
+threshold. Source/v1 network shapes and defaults remain supported.
+
+Kinematic observation/controller-state derivation is shared with the parent state class.
+The free-cut task has its own reward/termination; old pose-goal diagnostic labels are no
+longer used for its imagined event metrics. Completion BCE diagnostics use physical
+separation, matching WM fitting.
+
+Reset execution: cached material scratch batches compute only resetting worlds, with exact
+material draws and the original duration; a stationary 32-substep CUDA graph removes Python
+dispatch overhead. The vendored DFlex wrappers now launch on PyTorch's current CUDA stream,
+the extension cache checks both CPU and CUDA generated source, and a per-step scalar zero
+allocation is graph-compatible. These are execution changes, not new contact/damage equations.

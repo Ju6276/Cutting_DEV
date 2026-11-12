@@ -1,8 +1,10 @@
-# Free-object single cut: free_cut_v1 implementation
+# Free-object single cut: versioned task implementation
 
-Status 2026-11-12: **implementation authorized; training not authorized.** Task decisions are in
-[PLAN](PLAN.md); evidence in [RESULTS](RESULTS.md). Explicit provisional weights for interface checks live in configs/free_cut/interface_check.json.
-They are not approved training weights; the preference check can reject them.
+Status 2026-11-12: **implementation and bounded update checks authorized; long training not authorized.** Task decisions are in
+[PLAN](PLAN.md); evidence in [RESULTS](RESULTS.md). The historical v1 check is configs/free_cut/interface_check.json (gamma=.99, rejected
+speed preference). The review candidate is configs/free_cut/review_v2.json (gamma=1).
+Both contain explicit provisional weights, not approved long-training configurations.
+Review evidence and bounded validation: [FREE_CUT_REPAIR](FREE_CUT_REPAIR.md).
 
 ## 1. Quantities
 
@@ -20,11 +22,11 @@ Per control step t (0.05 s):
 |---|---|---|---|
 | Separated (rho = 1), no limit event in the episode | yes | +R_s | task success |
 | Force-limit event (u > 1), including the step in which rho reaches 1 | yes | -R_f | failure; separation recorded separately |
-| Workspace bound crossed (explicit geometric bounds of the knife pose) | yes | -R_f | failure |
+| Workspace bound crossed (v2: explicit robot-base XYZ bounds of the end-effector pose) | yes | -R_f | failure |
 | Time limit T | yes; **terminal, no bootstrap** | 0 | incomplete (not a success) |
 
 The task is one cut within a time limit, so nothing is earned after T: the time limit is a true
-terminal state for the critic and for imagination (the step count is included in the WM/critic state; implemented analytically). A step that both separates and violates the limit is a failure (the limit takes precedence, as in
+terminal state for the critic and for imagination (the step count is included in the WM/critic state; v2 also gives the policy normalized remaining time). A step that both separates and violates the limit is a failure (the limit takes precedence, as in
 the existing `success & ~collision`). Object displacement is logged and has no reward term.
 
 ## 3. Step reward
@@ -62,7 +64,7 @@ exclude gross errors; it cannot prove the absence of other reward exploits.
 
 The policy is trained on imagined rollouts, so every reward term must be computable from the
 predicted state:
-- v_t (from predicted joint velocity through the kinematics) and u_t (from the predicted
+- v_t (from consecutive predicted joint poses through the kinematics) and u_t (from the predicted
   within-step peak wrench) already are.
 - **rho is added to the world-model state as one predicted scalar.** The model predicts a
   non-negative increment that cannot exceed the remaining fraction: rho' = rho + (1 - rho) * s with
@@ -77,7 +79,7 @@ predicted state:
   uses the same probability, so a hypothetical completion is not paid in full repeatedly.
   There is no exact predicted-rho==1 check. Failure/deadline hard absorption overrides learned
   survival; the last transition keeps its reward once, then future reward/value is zero.
-- The policy input is unchanged: it does not receive rho, the object identity or material.
+- The v2 policy receives the source 24 observation values plus normalized remaining time. It does not receive rho, the object identity or material.
   rho is a training signal available in simulation only; deployment needs the policy alone.
 
 Checks before training with it: prediction error of rho (one step and over the actor horizon) on
@@ -100,7 +102,7 @@ in ordering.
 
 ## 7. Reset and entry points
 
-- GPUEnvironment(..., task=...) selects free_cut_v1. MultiConditionEnvironment.from_config
+- GPUEnvironment(..., task=...) selects the explicit version in the task config. MultiConditionEnvironment.from_config
   reads top-level task. Absent task keeps the historical SliceIt task unchanged.
 - A scene is accepted only if it has no fixed particles, two FEM components, nonempty cut
   springs joining those components, and zero residual spring damping. This validates the
@@ -112,8 +114,36 @@ in ordering.
 - No material or geometry is tuned. Material state after settling retains its velocities.
 - WM physical outputs add bounded monotone cut_progress. State history also includes step_count;
   it increments analytically and is scaled by horizon_steps for the critic. Policy observations
-  remain 24 dimensions and its goal remains pose + commanded speed (8 dimensions).
+  are 25 dimensions in v2 (24 in v1); the goal remains pose + commanded speed (8 dimensions).
 - Historical checkpoints have incompatible task metadata and network shapes. Do not bypass
-  compatibility checks or label them as trained on free_cut_v1.
+  compatibility checks or label them as trained on the new free-cut version.
 
 Review entry: [FREE_CUT_REVIEW](FREE_CUT_REVIEW.md). No new policy checkpoint exists yet.
+
+
+## 8. v2 review corrections
+
+- gamma=1 is explicit in the task. OnlineLearner uses it for the actor and all critic
+  targets; explicit mismatched trainer configs are rejected. ModelRollout rejects an MPPI
+  discount mismatch; the reference evaluation checks its discount against the task.
+  Source/v1 defaults remain .99. Removing temporal discount does **not** remove all incentive
+  to finish sooner: load/speed/jerk costs still accumulate until termination.
+- The progress fraction at initialization is .001, represented by a logit bias, retaining
+  a nonzero derivative. This is an initialization choice, not a physical rate or a success
+  threshold. All other physical residuals retain source zero initialization.
+- Completion remains a learned head, not hard-gated by an invented rho threshold.
+  WM-fitting metrics compare its probability to recorded physical separation, and report
+  probability exceeding predicted progress. completion_progress_report also checks
+  autoregressive predictions. An architectural consistency guarantee is **not** claimed.
+  Imagined event summaries are labelled as predictions, never physical calibration.
+- v2 workspace uses the robot-base EE XYZ box explicitly supplied in the config.
+  The review box is x=[.038,.238], y=[.405,.605], z=[.096,.269] metres. It covers the source
+  initial EE (.138,.505,.189), 3 cm lifted starts and upward withdrawal; z lower is 3 cm
+  below the historical endpoint (.126). This is an explicit **engineering review envelope**,
+  not a calibrated robot-safety boundary or a universal box for every future asset.
+  It does not impose an object sliding threshold or an orientation limit.
+- Reset uses material-specific scratch batches padded to powers of two and a CUDA graph
+  of 32 unchanged integrator substeps. Every substep contributes to the no-contact check.
+  The knife is stationary. Duration/material draws are unchanged, velocities are not cleared,
+  and only selected rows are copied back. GPU parallel sums can produce floating differences;
+  numerical comparisons and cost are reported in FREE_CUT_REPAIR.

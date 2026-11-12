@@ -79,5 +79,10 @@ scene: mesh connectivity across the cut plane, rest on the board, press/hold/ret
 
 
 - check_free_cut_task.py: bounded physical reference/reward checks for the opt-in
-  free_cut_v1 task; requires an explicit config and writes complete episode rows.
+  versioned free-cut task; requires an explicit config and writes complete episode rows.
   No policy training. See docs/FREE_CUT_REVIEW.md.
+
+
+- check_free_cut_reset.py: bounded eager vs packed/graph stationary reset timing and state comparison.
+- check_free_cut_learning.py: actual six-action controller collection followed by one WM and
+  actor/critic update; deliberately small verification batches, not a training experiment.

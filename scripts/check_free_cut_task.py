@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bounded physical reference checks for free_cut_v1; no learner or optimizer.
+"""Bounded physical reference checks for versioned free-cut tasks; no learner or optimizer.
 
 Writes the exact provisional reward config, per-step returns and terminal causes.
 This checks reward/termination plumbing, not algorithm performance or real forces.

@@ -33,22 +33,22 @@ Earlier plans are in `archive/` (latest: [before the task decision](archive/PLAN
   checked over every substep), verified on that scene.
 - Net contact wrench feedback and friction transition velocity: implemented, repaired and
   re-measured (RESULTS); friction and ground parameters are uncalibrated.
-- free_cut_v1 implementation and GPU/grouped-reset/gradient checks are complete.
-  The first explicit reward weights FAILED the speed-preference check (fast press
-  93.33 vs commanded press 72.77). This is not an approved training configuration.
+- free_cut_v1 is the reviewed implementation; its gamma=.99 reward candidate failed the
+  speed-preference check. The user authorized corrections in codex/free-cut-v1.
+- free_cut_v2 adds time input, gamma=1, explicit workspace and conservative progress
+  initialization. Reset batching/graph execution, physical references and one actual update have been checked.
+  See [FREE_CUT_REPAIR](FREE_CUT_REPAIR.md) for the bounded repair evidence.
 - No training is running. Old S0 configs and held scenes are reproduction inputs only.
 
 ## Next steps, in order
 
-1. Claude reviews [FREE_CUT_REVIEW](FREE_CUT_REVIEW.md), code and the four completed
-   physical checks. Implementation authorized by the user; no long training launched.
-2. Set explicit reward weights consistent with commanded-speed preference. The first
-   candidate is rejected, so the remaining retract/slow trials were stopped rather
-   than spending the full 1200 s budget. No physics or limits are tuned to help it pass.
-   Recheck the same reference cases with revised weights before a training plan.
-3. Once accepted, submit a bounded end-to-end engineering training plan. Newly fitted
-   WM multi-step progress/completion and return ordering remain unverified until data
-   and fitting exist. This is not a paper performance claim.
+1. Authorized connected repair complete: reset timing, reference rewards, actual update and
+   regression results are in FREE_CUT_REPAIR. No long training or physics/limit tuning.
+2. Claude reviews the code and FREE_CUT_REPAIR. Reward preference results are
+   evidence about the measured reference trajectories only; unresolved cases are explicit.
+3. Then submit a bounded end-to-end engineering training plan, including WM pretraining and
+   physical calibration of progress/completion before policy improvement. A one-update check
+   is not evidence that the completion head is accurate or the task has been learned.
 4. New exported objects get the same topology check during asset preparation.
 
 ## Known limits of the platform (not a repair queue)
@@ -67,7 +67,7 @@ Earlier plans are in `archive/` (latest: [before the task decision](archive/PLAN
 
 ## Storage and execution
 
-Use Remote SSH on GPU7, /dataHDD/dong/Projects/Cutting_DEV, main; the A6000 holds a second
+Use Remote SSH on GPU7, /dataHDD/dong/Projects/Cutting_DEV (current review branch codex/free-cut-v1); the A6000 holds a second
 checkout. Code, data, environments and outputs stay on servers, not the Mac. Check
 `nvidia-smi` before using a GPU. Not to be launched without a new approved plan:
 `train_gpu.py --conditions configs/multi_condition/s0_*.json` (with or without

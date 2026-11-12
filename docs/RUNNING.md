@@ -1,7 +1,7 @@
 # Running Cutting DEV
 
 Commands below are historical reproduction entries, not instructions to restart
-S3. The opt-in free_cut_v1 contract is in [TASK_FREE_CUT](TASK_FREE_CUT.md); follow [PLAN](PLAN.md).
+S3. The versioned opt-in free-cut contract is in [TASK_FREE_CUT](TASK_FREE_CUT.md); follow [PLAN](PLAN.md).
 Commands run from the repository root. The GPU backend is bundled at
 `backends/mujoco`; `--backend-root` can select a separate prepared checkout.
 
@@ -276,3 +276,14 @@ Machine notes are timestamped observations, not proof that a job is still active
 A6000 keeps its existing checkouts and dependencies; inspect current process
 ownership before changing them. GPU7 cleanup details and retained assets are in
 [DATA](DATA.md).
+
+
+Bounded review only, on GPU7 after sourcing runs/sac_env.sh:
+~~~bash
+PYTHONPATH=. .venv/bin/python scripts/check_free_cut_task.py --config configs/free_cut/review_v2.json --output runs/NEW_REFERENCE_CHECK --wall-seconds 2700
+PYTHONPATH=. .venv/bin/python scripts/check_free_cut_reset.py --output runs/NEW_RESET_CHECK --wall-seconds 1200
+PYTHONPATH=. .venv/bin/python scripts/check_free_cut_learning.py --output runs/NEW_UPDATE_CHECK --wall-seconds 600
+~~~
+Use fresh output directories. The final command is one gradient-update execution check with
+a short test deadline and small batches, not a recommended training setup. No policy efficacy
+can be inferred from it. Review details: [FREE_CUT_REPAIR](FREE_CUT_REPAIR.md).
