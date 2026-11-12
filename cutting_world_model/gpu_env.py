@@ -39,6 +39,7 @@ class GPUEnvironment:
             self.metadata['environment'] = {**self.metadata['environment'], **reward}
         self.metadata['task_interface_revision'] = TASK_INTERFACE_REVISION
         self.metadata['physical_backend'] = 'mujoco_warp_disect'
+        self.metadata['contact_discretization_revision'] = self.physics.material.contact_discretization_revision
         self.metadata['state_layout'] = 'coupled_recurrent_v1'
         self.metadata['material_feedback'] = 'tensor_filter_controller'
         if force_model != 'scalar' or friction_velocity is not None:

@@ -98,6 +98,7 @@ def test_net_sensor_frame_restore_metadata_and_diagnostic_sampling(monkeypatch):
     from cutting_world_model.gpu_env import GPUEnvironment
     env = GPUEnvironment(root, 2, force_model='net', friction_velocity=.01)
     assert env.metadata['material_feedback'] == 'net_contact_sensor_v1'
+    assert env.metadata['contact_discretization_revision'] == 'edge_coordinate_consistent_v2'
     assert env.metadata['material_contact']['friction_velocity_override_mps'] == .01
     assert env.metadata['material_contact']['effective_friction_velocity_mps'] == pytest.approx([.01])
     initial = {k: v.clone() for k, v in env.current.items()}

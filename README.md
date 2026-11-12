@@ -24,6 +24,13 @@ material-force bridge is a scalar proxy, not a measured Mini45 contact wrench.
 [PLAN](docs/PLAN.md) is the only current task list. The commands below do not
 schedule new training.
 
+
+**Physics version:** main now uses `edge_coordinate_consistent_v2` (contact-coordinate
+bug correction; see METHOD). Historical checkpoint commands/results below require
+an isolated checkout of `38b85a5` and its own kernel cache. Do not remove metadata
+checks to reuse old checkpoints as identical-physics results. No training restart
+is authorized by this correction.
+
 ## Run the existing fixed-prism task
 
 These commands reproduce the historical fixed-prism task, including its goal-pose

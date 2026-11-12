@@ -12,6 +12,9 @@ from .controller.fdcc import quat_mul
 
 
 class DiSECt:
+    # Changes physical contact interpolation, independently of scalar/net feedback.
+    contact_discretization_revision = 'edge_coordinate_consistent_v2'
+
     def __init__(self, scene_path, sim_dt=None):
         """``sim_dt`` (s) overrides the scene's material substep, e.g. a smaller step for a
         mesh whose explicit-integration stability margin is too small for its material range."""

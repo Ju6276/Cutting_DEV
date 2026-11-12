@@ -54,3 +54,9 @@
 - Development uses Remote SSH on GPU7. Keep project source, weights, datasets,
   caches and videos on the servers; do not download project copies to the Mac
   unless explicitly requested. GPU9 is retired from the working plan.
+
+
+- Authorized physical correction (2026-11-12): contact search, interpolation and
+  force scattering use `edge_coordinate_consistent_v2`. It is recorded in task
+  metadata for all feedback modes. Historical physics is at `38b85a5`; do not
+  bypass metadata mismatches to present old checkpoints as same-physics results.

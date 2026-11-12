@@ -107,7 +107,9 @@ def main():
                     'backends/mujoco/cutting_gpu_backend/environment.py',
                     'backends/mujoco/cutting_gpu_backend/coupling.py',
                     'backends/mujoco/cutting_gpu_backend/batched_disect.py',
-                    'backends/mujoco/cutting_gpu_backend/metrics.py']
+                    'backends/mujoco/cutting_gpu_backend/metrics.py',
+                    'backends/mujoco/cutting_gpu_backend/disect.py',
+                    'backends/mujoco/third_party/disect/disect/dflex/sim.py']
     source_hashes = {f: hashlib.sha256((ROOT / f).read_bytes()).hexdigest() for f in source_files}
     scene_hashes = {f: hashlib.sha256((args.backend_root / f).read_bytes()).hexdigest() for f in args.scenes}
     rows = []
@@ -168,6 +170,7 @@ def main():
                        **summarize_samples(samples, total, args.cut_fraction, args.contact_force_threshold),
                        'force_model': args.force_model, 'friction_velocity': args.friction_velocity,
                        'model_metadata': env.metadata.get('material_contact'),
+                       'contact_discretization_revision': env.metadata['contact_discretization_revision'],
                        'object_centroid_shift_mm': float(shift[w]), 'series': samples}
                 rows.append(row)
                 print(json.dumps({k: v for k, v in row.items() if k != 'series'}), flush=True)

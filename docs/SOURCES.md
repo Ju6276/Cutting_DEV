@@ -37,3 +37,12 @@ Original code: [SliceIt](https://github.com/omron-sinicx/sliceit),
 
 Historical RESULTS entries retain their original project paths and commits.
 The current commands use this repository root and `backends/mujoco`.
+
+
+2026-11-12 local source correction: bundled
+`backends/mujoco/third_party/disect/disect/dflex/sim.py` now uses a consistent
+second-endpoint contact coordinate and transpose interpolation weights for force
+distribution (METHOD, `edge_coordinate_consistent_v2`). This changes the bundled
+physical solver, not the separately pinned Gazebo/SliceIt checkout patches.
+The old bundled behavior is retained in Git at `38b85a5`. Attribution and licenses
+are unchanged; this is our correction, not a claim of an upstream release.

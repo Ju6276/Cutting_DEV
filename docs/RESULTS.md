@@ -393,3 +393,85 @@ contact-point moment. METHOD records the exact scope: this repair reports the
 wrench at the source's evaluated contact point; it does not validate angular
 momentum conservation of the material discretization. Fixing that source formula
 would change material dynamics and is distinct from sensor-interface correction.
+
+
+## 2026-11-12 — Contact-coordinate correction and kernel confirmation
+
+User authorized confirming and fixing the contact-transfer defect. This supersedes
+the *unresolved source caveat* in the preceding interface-repair entry; its numerical
+results remain valid records of the old implementation (`38b85a5`).
+
+**Root cause correction to the earlier explanation.** The earlier audit looked at
+the consumers and called it reversed nodal weights. Following the producer shows
+why swapping weights alone would be incomplete: the SDF search computes distance
+and normal at `(1-u)*x1+u*x2` but stores `1-u`. The force routine then gathers
+position/velocity with `(1-c,c)` and scatters force with `(c,1-c)`. The search point
+and nodal distribution match each other, but the force evaluation and reported
+moment use the opposite point. Return `c=u` and scatter with `(1-c,c)` so all four
+uses agree. The optional triangle branch also needs the latter distribution
+correction; its coordinate producer already has the proper convention.
+
+This was reproduced by launching the **production CUDA kernel in isolation**.
+In a test where the allowed search interval is [0,0], the old kernel returned
+coordinate 1 on both sides. Its nodal/contact moment discrepancy reached
+0.164082 N m and its virtual-power discrepancy 1.449986 W. The corrected kernel
+returns 0 and both residuals are zero. In four worlds with nontrivial search
+coordinates, maximum residuals changed from 0.128895 N m / 0.761252 W to
+2.29e-9 N m / 7.16e-9 W. An independent second SDF query at the reconstructed
+point matches the original distance; both sides and triangle force scattering
+are covered. These check local transfer consistency, not whole-system energy
+conservation or calibration.
+
+**Version and scope.** `contact_discretization_revision=edge_coordinate_consistent_v2`
+is recorded for both scalar/net and propagated through grouped environments.
+It deliberately distinguishes this material solver from old checkpoints. No
+material/friction coefficient, search-iteration count, damage rule, timestep,
+force threshold or reward was tuned. Historical Gazebo source patches are not
+modified; old bundled behavior remains reproducible from `38b85a5` in an isolated
+checkout/cache. No learning was started.
+
+**One existing test failed initially; the failure is retained.** At 4 ms the
+packed-vs-single comparison differed by about 0.495 in one spring's residual
+stiffness (spring 233; 15.68 vs 16.18). Three repeats also showed the same gap
+between identical single-world runs, with particle-position differences below
+2.5e-7 m. This establishes that the failed equality is not specific to batching.
+A separately synchronized substep trace did not reproduce the split, so the exact
+trigger was not isolated. Float32 atomic accumulation and hard contact/damage
+branches preclude assuming long-run per-spring identity.
+
+The material-packing test now checks same-input **one-substep** q/stiffness
+agreement at the original tolerances, then retains its 4 ms position comparison
+and adds nonnegative, irreversible damage checks. No tolerance or physics threshold
+was increased; the old 4 ms per-spring equality claim is explicitly withdrawn.
+Logs: `backend.log` (initial failure), `repeat_diagnostic.json` and
+`contact_branch_trace.json`. Final backend suite: **36 passed** (3.91 s). Root suite with GPU assets and
+optional MPPI enabled: **286 passed / 5 skipped** (197.95 s). Skips are the same
+legacy SAC/TensorFlow dependencies/opt-in checks, not the new CUDA checks.
+Logs are `backend_final.log` and `root.log` in this run directory.
+
+**Physical rerun**, same fixed-bottom prism and settings as the preceding entry:
+E scales [2,1], down 3 cm/s, press vs ±2 cm at 1 Hz, net feedback, friction
+transition 0.01 m/s. Force-limit termination disabled only in this diagnostic.
+20-minute cap; completed in 158 + 155 seconds. Same scene hash, finite 500 Hz
+traces, summaries independently recomputed with NumPy.
+
+| E scale | Motion | Mean net force before → after (N) | Peak net force before → after (N) | Final released springs |
+|---|---|---:|---:|---:|
+| 2 | press | 3.884 → 3.889 | 6.433 → 6.439 | 300/304 |
+| 1 | press | 3.135 → 3.152 | 5.665 → 5.670 | 298/304 |
+| 2 | saw | 3.271 → 3.279 | 5.232 → 5.238 | 304/304 |
+| 1 | saw | 2.737 → 2.748 | 4.909 → 4.892 | 301/304 |
+
+
+All four reached the **98% spring-release diagnostic** and the historical pose
+goal; this is not a newly validated separation-success definition. Mean net-force
+changes in this single rerun are below 0.6%, with no evidence here of a large
+force-performance change. A mathematically demonstrated consistency bug should be
+fixed even when the aggregate change in this particular scene is small; do not
+claim a general performance improvement.
+
+All data: `runs/codex_contact_coordinate_20261112/`. `before.json` / `after.json`
+contain kernel outputs; `press_saw/report.json` contains every sample and source
+(including the modified kernel) and scene hashes; `comparison.json` contains the
+independent summary and old/new comparison. Documentation and measurement checks
+do not reopen retired S3 training.

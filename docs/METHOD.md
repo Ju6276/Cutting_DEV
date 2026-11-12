@@ -645,7 +645,8 @@ fraction, not a validated task-success definition.
 ## Material force model option (`force_model`, `friction_velocity`) — 2026-11-12
 
 Default `force_model='scalar'` is the source bridge described above (sum of contact-force
-magnitudes on one axis, no material torque) and stays the reproduction path.
+magnitudes on one axis, no material torque). This preserves the signal convention;
+the material discretization revision below separately records physical corrections.
 `force_model='net'` (per scene: `CuttingBatch`, `GPUEnvironment`, object-group config
 keys `force_model`, `friction_velocity`) selects a different, explicitly versioned sensor-feedback convention:
 
@@ -667,9 +668,10 @@ keys `force_model`, `friction_velocity`) selects a different, explicitly version
   transition velocity: with the exported 50 (or 1000 in other public configs) friction is
   negligible at cutting speeds; DiSECt's paper default is 0.01.
 
-Not changed: the material dynamics other than friction, the damage law, the one-way
+The feedback option itself changes no material equation; the separate contact-coordinate
+correction below does change material contact. The damage law and the one-way
 coupling (DiSECt forces are not applied to the MuJoCo robot; the robot reacts through the
-compliance controller reading the sensor wrench). Not validated: friction coefficient and
+compliance controller reading the sensor wrench) remain unchanged. Not validated: friction coefficient and
 transition velocity against real cuts, the moment arm against a real mount, and whether
 friction redirection alone accounts for the real sawing benefit (the fracture-side effect
 of slicing is not in DiSECt's damage law). Measurements: RESULTS 2026-11-12.
@@ -678,8 +680,8 @@ of slicing is not in DiSECt's damage law). Measurements: RESULTS 2026-11-12.
 The net metadata identifier is `net_contact_sensor_v1`; nondefault force/friction
 settings also record `material_contact` with the revision, override and effective
 friction values. Object groups record these values per group and must share the
-same observation/limit convention. Default scalar metadata stays unchanged for
-historical checkpoint reproduction. Older unversioned net runs cannot be treated
+same observation/limit convention. Scalar retains its feedback tag; every mode now
+also records the separate contact discretization revision below. Older unversioned net runs cannot be treated
 as measurements from this corrected convention.
 
 The optional `sample_callback` on single-group steps is a read-only diagnostic
@@ -695,13 +697,39 @@ downward-only proxy is retained in scalar mode. These are 2 ms coupling quadratu
 statistics, not an exact material energy balance.
 
 
-Bundled DiSECt discretization caveat (source inspection, no dynamics change here):
-`eval_spring_sdf_contacts` evaluates its left contact at
-`x1*(1-c) + x2*c` but distributes that contact force to the two particles with
-weights `c` and `1-c`. The right side uses the analogous reversed endpoint
-ordering. Thus the contact-point moment reported here is not, in general, the
-negative moment of that kernel's distributed nodal forces. The new interface
-follows the point at which the source evaluates contact; it does not establish
-angular-momentum conservation of the upstream discretization. Correcting nodal
-weights would change material dynamics and needs an explicitly separate source
-correction, not a silent change to this sensor-interface repair.
+
+## Contact coordinate consistency correction — 2026-11-12
+
+User-authorized physical bug fix, revision `edge_coordinate_consistent_v2`, in the
+bundled `dflex/sim.py`. The earlier interface audit identified inconsistent weights
+but had not traced the coordinate producer; swapping only the nodal weights would
+have been incomplete.
+
+The SDF edge search evaluates `p=(1-u)*x1+u*x2` (and its normal/distance), but used
+to store `c=1-u`. Its caller then evaluated position and velocity as
+`(1-c)*x1+c*x2`, while distributing force with `(c,1-c)`. Thus the search geometry
+and nodal distribution agreed with one another, but the force's velocity/moment arm
+and the reported knife moment used the opposite point.
+
+The correction stores `c=u`. Position, velocity and force now use the same weights:
+`p=(1-c)*x1+c*x2`, `v=(1-c)*v1+c*v2`,
+`f1=(1-c)*F`, `f2=c*F`. Apply the same distribution correction to the optional
+triangle-contact branch, whose producer already uses the second-endpoint coordinate.
+The right side's endpoint reversal is retained consistently. Search iterations,
+contact/friction coefficients, material law, damage law, timesteps, thresholds and
+rewards are unchanged.
+
+For a fixed contact, summing the nodal forces, their moments and their powers now
+recovers `F`, `p cross F` and `F dot v`. This is a local force-transfer consistency
+property; it is not a proof of whole-simulation energy conservation or real-material
+accuracy. The production CUDA kernels are checked directly, including a forced
+endpoint case, an independent SDF query at the reconstructed point, both cut sides,
+four independent worlds, and the inactive triangle branch.
+
+`GPUEnvironment.metadata.contact_discretization_revision` identifies the correction
+for both scalar and net signals; it propagates to grouped environments/checkpoints.
+Old strict checkpoint/environment comparisons must detect the mismatch. Do not
+strip the key to resume old training as an identical-physics run. Reproduce the
+old material implementation from commit `38b85a5` or earlier in an isolated checkout.
+This correction changes future material motion and therefore can change cutting
+forces, despite leaving all numerical parameters unchanged.

@@ -1036,7 +1036,7 @@ def edge_knife_sdf_collision(t: float,
     k = 1.0
     # for iteration in range(0, 20):
     for iteration in range(0, 20):
-        # XXX swap xi and xj because u should be (1-t)
+        # edge_knife_sdf uses a*u+b*(1-u); swap arguments to differentiate p=(1-u)*xi+u*xj.
         grad = edge_knife_sdf_grad(
             u, xj_shape, xi_shape, spine_dim, spine_height, edge_dim, tip_height, depth, radius)
         # print(grad)
@@ -1055,7 +1055,9 @@ def edge_knife_sdf_collision(t: float,
     n = df.normalize(knife_sdf_grad(p_shape, spine_dim,
                      spine_height, edge_dim, tip_height, depth, radius))
     df.store(cut_edge_contact_dist, cut_edge_index, c_dist)
-    df.store(cut_edge_contact_coord, cut_edge_index, 1. - u)
+    # Coordinate of the second endpoint: p = (1-u)*xi + u*xj.
+    # Consumers use the same coordinate for position, velocity and force scattering.
+    df.store(cut_edge_contact_coord, cut_edge_index, u)
     df.store(cut_edge_contact_normal, cut_edge_index, n)
     return c_dist
 
@@ -1257,8 +1259,8 @@ def eval_spring_sdf_contacts(
     pv = lv1 * (1.0 - contact_coord) + lv2 * contact_coord
     lf = knife_contact_force(
         px, pv, knife_X, knife_v, contact_dist, contact_normal, ke, kd, kf, mu, sdf_radius)
-    df.atomic_add(particle_f, l1, lf * contact_coord)
-    df.atomic_add(particle_f, l2, lf * (1.0 - contact_coord))
+    df.atomic_add(particle_f, l1, lf * (1.0 - contact_coord))
+    df.atomic_add(particle_f, l2, lf * contact_coord)
     idx_l = spring_no * 2 + 0
     df.atomic_add(knife_f, idx_l, lf)
 
@@ -1294,8 +1296,8 @@ def eval_spring_sdf_contacts(
     pv = rv1 * (1.0 - contact_coord) + rv2 * contact_coord
     rf = knife_contact_force(
         px, pv, knife_X, knife_v, contact_dist, contact_normal, ke, kd, kf, mu, sdf_radius)
-    df.atomic_add(particle_f, r1, rf * contact_coord)
-    df.atomic_add(particle_f, r2, rf * (1.0 - contact_coord))
+    df.atomic_add(particle_f, r1, rf * (1.0 - contact_coord))
+    df.atomic_add(particle_f, r2, rf * contact_coord)
     idx_r = spring_no * 2 + 1
     df.atomic_add(knife_f, idx_r, rf)
 
@@ -1465,8 +1467,8 @@ def eval_spring_tri_contacts(
     lf = knife_contact_force(
         px, pv, knife_X, knife_v, contact_dist, contact_normal, ke, kd, kf, mu, radius)
     # lu = df.load(cut_spring_contact_coords, i)
-    df.atomic_add(particle_f, l1, lf * contact_coord)
-    df.atomic_add(particle_f, l2, lf * (1.0 - contact_coord))
+    df.atomic_add(particle_f, l1, lf * (1.0 - contact_coord))
+    df.atomic_add(particle_f, l2, lf * contact_coord)
 
     idx_l = spring_no * 2 + 0
     df.atomic_add(knife_f, idx_l, lf)
@@ -1488,8 +1490,8 @@ def eval_spring_tri_contacts(
     pv = rv1 * (1.0 - contact_coord) + rv2 * contact_coord
     rf = knife_contact_force(
         px, pv, knife_X, knife_v, contact_dist, contact_normal, ke, kd, kf, mu, radius)
-    df.atomic_add(particle_f, r1, rf * contact_coord)
-    df.atomic_add(particle_f, r2, rf * (1.0 - contact_coord))
+    df.atomic_add(particle_f, r1, rf * (1.0 - contact_coord))
+    df.atomic_add(particle_f, r2, rf * contact_coord)
 
     idx_r = spring_no * 2 + 1
     df.atomic_add(knife_f, idx_r, rf)

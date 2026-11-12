@@ -105,5 +105,8 @@ contracts and evidence. Do not restart S3 from a reproduction command.
 
 Net-wrench interface repairs and the bounded press/saw rerun are recorded in
 [RESULTS](RESULTS.md#2026-11-12--codex-net-wrench-repair-and-physical-rerun).
-The nodal-weight inconsistency in the bundled contact kernel is a separate source finding;
-these interface checks do not close material-model validation or authorize training.
+The contact-coordinate correction is implemented as `edge_coordinate_consistent_v2`.
+Kernel confirmation and the bounded press/saw comparison are recorded in
+[RESULTS](RESULTS.md#2026-11-12--contact-coordinate-correction-and-kernel-confirmation).
+It resolves the source inconsistency identified in that interface review; it does not
+replace material calibration or approve restarting training.

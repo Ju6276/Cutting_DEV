@@ -5,6 +5,13 @@ S3. The corrected task is undefined; follow [PLAN](PLAN.md).
 Commands run from the repository root. The GPU backend is bundled at
 `backends/mujoco`; `--backend-root` can select a separate prepared checkout.
 
+
+**Physics version:** main now uses `edge_coordinate_consistent_v2` (contact-coordinate
+bug correction; see METHOD). Historical checkpoint commands/results below require
+an isolated checkout of `38b85a5` and its own kernel cache. Do not remove metadata
+checks to reuse old checkpoints as identical-physics results. No training restart
+is authorized by this correction.
+
 ## GPU environment
 
 Use Linux, Python 3.12 and NVIDIA CUDA. On the existing workstations, place the
