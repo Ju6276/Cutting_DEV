@@ -280,6 +280,7 @@ class OnlineLearner:
         absorbed = torch.zeros(state.shape[0], dtype=torch.bool, device=state.device)
         states, rewards, probabilities, survivals, actions = [state], [], [survival * 0], [survival], []
         risks = []
+        model_probabilities = []
         for _ in range(self.actor_horizon):
             action = self.policy(history, goal)
             if getattr(self, 'risk_head', None) is not None:
@@ -287,6 +288,7 @@ class OnlineLearner:
                 risk = self.risk_upper(state, action, goal)
                 risks.append(torch.where(absorbed, torch.zeros_like(risk), risk))
             next_state, reward, logits = self.wm.predict(state, action, goal)
+            model_probabilities.append(torch.where(absorbed, torch.zeros_like(logits), logits.sigmoid()))
             collision = (spec.field(next_state, 'peak_wrench') > spec.limits(goal)).any(-1)
             if hasattr(spec, 'hard_termination'):
                 task_done = spec.hard_termination(next_state)
@@ -310,6 +312,7 @@ class OnlineLearner:
         return SimpleNamespace(states=torch.stack(states), rewards=torch.stack(rewards),
                                dhat=torch.stack(probabilities), survival=torch.stack(survivals),
                                actions=torch.stack(actions),
+                               model_probabilities=torch.stack(model_probabilities),
                                risk=torch.stack(risks) if risks else None)
 
     def critic_values(self, states, goal):
@@ -368,8 +371,7 @@ class OnlineLearner:
                         # These are imagined events, not calibration against physical truth.
                         event_metrics = {
                             'imag_hard_done_mean': spec.hard_termination(ro.states[1:]).float().mean(),
-                            'imag_completion_probability_mean': self.wm.terminal_logits(
-                                ro.states[1:], goal, ro.states[:-1]).sigmoid().mean(),
+                            'imag_completion_probability_mean': ro.model_probabilities.mean(),
                             'imag_progress_mean': spec.field(ro.states[1:], 'cut_progress').mean(),
                         }
                     else:

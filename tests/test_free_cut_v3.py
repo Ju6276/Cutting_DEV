@@ -151,3 +151,22 @@ def test_partial_progress_cannot_accumulate_completion_without_new_release():
         state=nxt
     with pytest.raises(ValueError,match='previous progress'):
         wm.terminal_logits(state,goal)
+
+
+def test_completion_gradient_stays_finite_near_float32_separation():
+    wm, original, goal = v3_fixture()
+    wm = wm.float(); goal = goal.float()
+    with torch.no_grad():
+        wm.dynamics.mlp.net[-1].weight.zero_()
+        wm.dynamics.mlp.net[-1].bias[wm.spec.delta_slices['cut_progress']] = torch.logit(torch.tensor(.9))
+        wm.term_head.net[-1].weight.zero_();wm.term_head.net[-1].bias.zero_()
+    for value in [.5, .9999, .99999994, 1.]:
+        state = original.float().clone()
+        state[:, wm.spec.layout['cut_progress']] = value
+        state.requires_grad_()
+        _, _, logits = wm.step(state, state.new_zeros(1,6), goal)
+        probability = logits.sigmoid()
+        gradient = torch.autograd.grad(probability.sum(), state)[0]
+        assert torch.isfinite(gradient).all()
+        assert gradient[:, wm.spec.layout['cut_progress']].abs().max() < 1e-5
+        assert probability.item() == pytest.approx(.45 if value < 1 else 0., abs=1e-6)

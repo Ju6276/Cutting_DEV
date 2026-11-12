@@ -47,15 +47,26 @@ class CuttingWorldModel(nn.Module):
             raise ValueError('terminal_gradient must be one of ' + ', '.join(TERMINAL_GRADIENTS))
         self._terminal_gradient = value
 
-    def transition(self, state, action, goal):
+    def _transition(self, state, action, goal):
         executed = self.spec.execute(action)
         # Physics prediction uses the target pose only; task conditions enter reward/termination.
         delta = self.dynamics(self.spec.dynamics_features(state), executed, goal[..., :7])
         fields = self.spec.integrate_physical(state, delta)
         next_state, reward, done = self.spec.derive(state, fields, executed, goal)
+        release_fraction = None
+        if self.spec.metadata.get('free_cut_task', {}).get('version') == 'free_cut_v3':
+            # Use the original fraction, not a subtraction of nearly equal progress
+            # values. The latter can create enormous spurious float32 gradients.
+            release_fraction = delta[..., self.spec.delta_slices['cut_progress']].sigmoid()[..., 0]
+            old = self.spec.field(state, 'cut_progress')[..., 0]
+            release_fraction = torch.where(old < 1, release_fraction, 0.)
+        return next_state, reward, release_fraction
+
+    def transition(self, state, action, goal):
+        next_state, reward, _ = self._transition(state, action, goal)
         return next_state, reward
 
-    def terminal_logits(self, next_state, goal=None, previous_state=None):
+    def terminal_logits(self, next_state, goal=None, previous_state=None, release_fraction=None):
         feats = self.spec.terminal_features(next_state, goal)
         raw = self.term_head(torch.cat((feats, feats.abs()), -1)).squeeze(-1)
         if self.spec.metadata.get('free_cut_task', {}).get('version') == 'free_cut_v3':
@@ -68,7 +79,13 @@ class CuttingWorldModel(nn.Module):
             rho = self.spec.field(next_state, 'cut_progress')[..., 0].clamp(0, 1)
             old = self.spec.field(previous_state, 'cut_progress')[..., 0].clamp(0, 1)
             tiny = torch.finfo(rho.dtype).tiny
-            fraction = ((rho - old).clamp_min(0) / (1 - old).clamp_min(tiny)).clamp(0, 1)
+            if release_fraction is None:
+                # State-only reconstruction is for diagnostics, not a BPTT path.
+                if torch.is_grad_enabled() and (rho.requires_grad or old.requires_grad):
+                    raise ValueError('Differentiable completion requires the original release fraction')
+                fraction = ((rho - old).clamp_min(0) / (1 - old).clamp_min(tiny)).clamp(0, 1)
+            else:
+                fraction = release_fraction.clamp(0, 1)
             log_fraction = fraction.clamp_min(tiny).log()
             log_not_fraction = (1 - fraction).clamp_min(tiny).log()
             return (log_fraction + F.logsigmoid(raw)
@@ -76,15 +93,16 @@ class CuttingWorldModel(nn.Module):
         return raw
 
     def step(self, state, action, goal):
-        next_state, reward = self.transition(state, action, goal)
-        logits = self.terminal_logits(next_state, goal, state)
+        next_state, reward, fraction = self._transition(state, action, goal)
+        logits = self.terminal_logits(next_state, goal, state, fraction)
         if hasattr(self.spec, 'free_task'):
             reward = reward + self.spec.completion_reward(next_state, logits)
         return next_state, reward, logits
 
     def _fit_step_head(self, state, action, goal):
-        next_state, reward = self.transition(state, action, goal)
-        logits = self.terminal_logits(next_state.detach(), goal, state.detach())
+        next_state, reward, fraction = self._transition(state, action, goal)
+        logits = self.terminal_logits(next_state.detach(), goal, state.detach(),
+                                      None if fraction is None else fraction.detach())
         if hasattr(self.spec, 'free_task'):
             reward = reward + self.spec.completion_reward(next_state, logits)
         return next_state, reward, logits
