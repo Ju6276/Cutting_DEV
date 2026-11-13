@@ -86,3 +86,29 @@ scene: mesh connectivity across the cut plane, rest on the board, press/hold/ret
 - check_free_cut_reset.py: bounded eager vs packed/graph stationary reset timing and state comparison.
 - check_free_cut_learning.py: actual six-action controller collection followed by one WM and
   actor/critic update; deliberately small verification batches, not a training experiment.
+
+### Same-condition free-cut reference comparison
+
+`compare_free_cut_references.py` compares the first episode of each world with the
+saved policy diagnostic. It checks **each** reference's material, target speed and
+initial lift by world before collection, and rejects a mismatch rather than
+reporting an unpaired comparison. This script decomposes the v3 reward only.
+
+Each reference now saves `<name>_transitions.npz` (state, pre-reset next state,
+goal, reward, ending flags, world/time indices and the reference target at the
+last coupling sample) and `<name>_conditions.json`. Reference targets bypass
+the action mapper; the zero action placeholder must not be treated as a policy
+action or fed to the WM as if it generated this trajectory. Reports hash their
+input files. Older policy diagnostics lack historical checkpoint hashes; matching
+iteration/update counters alone does not prove tensor identity.
+
+`--wall-seconds` defaults to 7200 for the total collection budget, checked between
+control steps (not a subprocess watchdog). Failure or budget expiry closes the
+environment and does not produce a complete comparison report. Earlier references
+already saved before an interruption can remain on disk. Reward/physics/training
+are unchanged. Critic differences on reference trajectories are
+`V_policy(state) - G_reference`, not on-policy value errors.
+
+The original 4b08d49 summary remains historical: its condition check covered only
+the final (sawing) reference, and it did not retain reference raw transitions.
+This repair does not retrospectively claim those missing checks or data.

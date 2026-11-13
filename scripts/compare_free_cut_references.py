@@ -15,6 +15,7 @@ load, jerk and terminal settlement (checked against the recorded reward); and th
 critic's value along each trajectory against the realised return-to-go.
 """
 import argparse
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -34,60 +35,116 @@ from cutting_world_model.task_heads import pose_error  # noqa: E402
 from cutting_world_model.world_model import CuttingWorldModel  # noqa: E402
 
 
-def run_reference(config, spec, amplitude, frequency, device):
+
+CONDITION_FIELDS = ('youngs_modulus', 'cut_spring_stiffness', 'density',
+                    'target_speed_mps', 'start_lift_m')
+
+
+def check_conditions(expected, actual, name):
+    """Reject unpaired data before a reference starts; keep case ordering explicit."""
+    if len(actual) != len(expected):
+        raise ValueError(f'{name}: expected {len(expected)} worlds, got {len(actual)}')
+    for i, (want, got) in enumerate(zip(expected, actual)):
+        if 'world' in want and want['world'] != i:
+            raise ValueError(f'{name}: policy case order does not match world {i}')
+        for key in CONDITION_FIELDS:
+            a, b = float(want[key]), float(got[key])
+            if not (math.isfinite(a) and math.isfinite(b)) or abs(a - b) > 1e-6:
+                raise ValueError(f'{name}: world {i}, {key}: policy={a}, reference={b}')
+        for key in ('group', 'scene'):
+            if key in want and want[key] != got.get(key):
+                raise ValueError(f'{name}: world {i}, mismatched {key}')
+
+
+def file_sha256(path):
+    digest = hashlib.sha256()
+    with open(path, 'rb') as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b''):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def save_reference(output, name, result, amplitude, frequency):
+    data, worlds, steps, conditions = result
+    np.savez_compressed(output / f'{name}_transitions.npz',
+                        **{key: value.detach().cpu().numpy() for key, value in data.items()},
+                        world=worlds.cpu().numpy(), t=steps.cpu().numpy())
+    (output / f'{name}_conditions.json').write_text(json.dumps({
+        'conditions': conditions,
+        'control': {'mode': 'reference', 'amplitude_m': amplitude, 'frequency_hz': frequency,
+                    'action_semantics': 'Reference target overrides the six-dimensional action mapper; '
+                                        'the zero placeholder is not a policy action.',
+                    'target_frame': 'robot_base',
+                    'trajectory': 'scene pressing direction at target speed, compensated start lift; '
+                                  'sinusoid along blade, held after reference travel'},
+    }, indent=2) + '\n')
+
+def run_reference(config, spec, amplitude, frequency, device, *, expected_conditions=None,
+                  deadline=None):
     env = MultiConditionEnvironment.from_config(ROOT / 'backends/mujoco', dict(config, parallel=False), reward=None)
-    if len(env.members) != 1:
-        raise ValueError('One object group expected')
-    physics = env.members[0].env.physics
-    n = env.worlds
-    conditions = env.conditions(range(n))
-    material = physics.material
-    velocity = material.reference_linear_velocity.reshape(-1, 3)[0].to(physics.dtype)
-    down = velocity / velocity.norm()
-    scene_travel = float(velocity.norm()) * float(material.reference_duration)
-    speed = torch.tensor([c['target_speed_mps'] for c in conditions], device=device, dtype=physics.dtype)
-    travel = scene_travel + physics.initial_lift.to(physics.dtype)
-    duration = travel / speed
-    lateral = torch.tensor([0., 0., 1.], device=device, dtype=physics.dtype)
-    rotation = physics.coupling.base_from_disect[3:].to(physics.dtype)
+    try:
+        if len(env.members) != 1:
+            raise ValueError('One object group expected')
+        physics = env.members[0].env.physics
+        n = env.worlds
+        conditions = env.conditions(range(n))
+        if expected_conditions is not None:
+            check_conditions(expected_conditions, conditions, 'reference')
+        material = physics.material
+        velocity = material.reference_linear_velocity.reshape(-1, 3)[0].to(physics.dtype)
+        down = velocity / velocity.norm()
+        scene_travel = float(velocity.norm()) * float(material.reference_duration)
+        speed = torch.tensor([c['target_speed_mps'] for c in conditions], device=device, dtype=physics.dtype)
+        travel = scene_travel + physics.initial_lift.to(physics.dtype)
+        duration = travel / speed
+        lateral = torch.tensor([0., 0., 1.], device=device, dtype=physics.dtype)
+        rotation = physics.coupling.base_from_disect[3:].to(physics.dtype)
 
-    def reference_target(sim_time):
-        t = torch.minimum(sim_time.to(physics.dtype), duration)
-        disp = down[None] * (speed * t)[:, None]
-        if amplitude > 0:
-            disp = disp + lateral[None] * (amplitude * torch.sin(2 * math.pi * frequency * t))[:, None]
-        target = physics.reference_start.clone()
-        target[:, :3] += quat_apply(rotation.expand(n, 4), disp)
-        return target
+        def reference_target(sim_time):
+            t = torch.minimum(sim_time.to(physics.dtype), duration)
+            disp = down[None] * (speed * t)[:, None]
+            if amplitude > 0:
+                disp = disp + lateral[None] * (amplitude * torch.sin(2 * math.pi * frequency * t))[:, None]
+            target = physics.reference_start.clone()
+            target[:, :3] += quat_apply(rotation.expand(n, 4), disp)
+            return target
 
-    physics.reference_target = reference_target
-    frame = env.current
-    state = spec.pack_batch(frame).float()
-    alive = torch.ones(n, dtype=torch.bool, device=device)
-    rows = {k: [] for k in ('state', 'next_state', 'goal', 'reward', 'separated', 'collision', 'outside',
-                            'timeout', 'alive')}
-    zero = torch.zeros(n, 6, device=device)
-    with torch.no_grad():
-        for _ in range(spec.free_task.horizon + 1):
-            if not bool(alive.any()):
-                break
-            goal = MultiConditionEnvironment.goal(frame)
-            rows['state'].append(state.clone())
-            rows['goal'].append(goal.clone())
-            rows['alive'].append(alive.clone())
-            frame, reward, terminated, truncated, info = env.step(zero, reference=True)
-            next_state = spec.pack_batch_transition(frame, state)
-            rows['next_state'].append(next_state.clone())
-            rows['reward'].append(reward.float())
-            for key in ('separated', 'collision', 'outside', 'timeout'):
-                rows[key].append(info[key].to(device).bool())
-            ended = terminated | truncated
-            alive &= ~ended
-            state = next_state
-            if bool(ended.any()):
-                frame = env.reset(ended)
-                state = spec.reset_batch_history(frame, state, ended)
-    env.close()
+        physics.reference_target = reference_target
+        frame = env.current
+        state = spec.pack_batch(frame).float()
+        alive = torch.ones(n, dtype=torch.bool, device=device)
+        rows = {k: [] for k in ('state', 'next_state', 'goal', 'reward', 'separated', 'collision', 'outside',
+                                'timeout', 'terminated', 'truncated', 'reference_target', 'alive')}
+        zero = torch.zeros(n, 6, device=device)
+        with torch.no_grad():
+            for _ in range(spec.free_task.horizon + 1):
+                if not bool(alive.any()):
+                    break
+                if deadline is not None and time.monotonic() >= deadline:
+                    raise TimeoutError('Reference comparison wall budget reached; no partial summary produced')
+                goal = MultiConditionEnvironment.goal(frame)
+                rows['state'].append(state.clone())
+                rows['goal'].append(goal.clone())
+                rows['alive'].append(alive.clone())
+                frame, reward, terminated, truncated, info = env.step(zero, reference=True)
+                rows['reference_target'].append(reference_target(physics.sim_time).clone())
+                rows['terminated'].append(terminated.clone())
+                rows['truncated'].append(truncated.clone())
+                next_state = spec.pack_batch_transition(frame, state)
+                rows['next_state'].append(next_state.clone())
+                rows['reward'].append(reward.float())
+                for key in ('separated', 'collision', 'outside', 'timeout'):
+                    rows[key].append(info[key].to(device).bool())
+                ended = terminated | truncated
+                alive &= ~ended
+                state = next_state
+                if bool(alive.any()) and bool(ended.any()):
+                    frame = env.reset(ended)
+                    state = spec.reset_batch_history(frame, state, ended)
+        if bool(alive.any()):
+            raise RuntimeError('Reference did not terminate every first episode within the task horizon')
+    finally:
+        env.close()
     stack = {k: torch.stack(v) for k, v in rows.items()}
     valid = stack['alive']
     flat = valid.flatten()
@@ -95,13 +152,16 @@ def run_reference(config, spec, amplitude, frequency, device):
     w_of = torch.arange(n, device=device)[None].expand(T, n).flatten()[flat]
     t_of = torch.arange(T, device=device)[:, None].expand(T, n).flatten()[flat]
     data = {k: stack[k].flatten(0, 1)[flat] for k in ('state', 'next_state', 'goal', 'reward', 'separated',
-                                                       'collision', 'outside', 'timeout')}
+                                                       'collision', 'outside', 'timeout', 'terminated', 'truncated',
+                                                       'reference_target')}
     return data, w_of, t_of, conditions
 
 
 def decompose(spec, data, w_of, t_of, n):
     """Per-case sums of the v3 reward terms from the recorded transitions."""
     task = spec.free_task
+    if task.config['version'] != 'free_cut_v3':
+        raise ValueError('This reward decomposition is specific to free_cut_v3')
     w = task.weights
     nxt, old, goal = data['next_state'], data['state'], data['goal']
     obs = spec.field(nxt, 'observation')
@@ -169,10 +229,18 @@ def main():
     p.add_argument('--conditions', type=Path, required=True)
     p.add_argument('--saw', default='0.02:1', help='amplitude(m):frequency(Hz) of the sawing reference')
     p.add_argument('--output', type=Path, required=True)
+    p.add_argument('--wall-seconds', type=float, default=7200,
+                   help='Total reference collection budget; checked between control steps')
     args = p.parse_args()
+    if not math.isfinite(args.wall_seconds) or args.wall_seconds <= 0:
+        p.error('--wall-seconds must be finite and positive')
     args.output.mkdir(parents=True, exist_ok=False)
     started = time.monotonic()
     device = 'cuda:0'
+    input_paths = {'checkpoint': args.checkpoint, 'config': args.conditions,
+                   'policy_report': args.policy_diagnostic / 'report.json',
+                   'policy_transitions': args.policy_diagnostic / 'transitions.npz'}
+    input_hashes = {name: file_sha256(path) for name, path in input_paths.items()}
     saved = torch.load(args.checkpoint, map_location=device, weights_only=False)
     metadata = saved['metadata']
     wm = CuttingWorldModel(metadata).to(device)
@@ -183,7 +251,18 @@ def main():
     config = json.loads(args.conditions.read_text())
     if config.get('task') != metadata['free_cut_task']:
         raise ValueError('Config task must match the checkpoint task')
+    if not torch.equal(torch.as_tensor(config.get('force_limits'), device=device),
+                       torch.as_tensor(spec.force_limits, device=device)):
+        raise ValueError('Config force limits must match the checkpoint')
+    if metadata['free_cut_task']['version'] != 'free_cut_v3':
+        raise ValueError('This comparison decomposes free_cut_v3 rewards only')
     report = json.loads((args.policy_diagnostic / 'report.json').read_text())
+    if (report.get('checkpoint_iteration') != saved.get('iteration') or
+            report.get('policy_updates') != saved['learner'].get('updates')):
+        raise ValueError('Diagnostic and comparison checkpoint counters differ')
+    # Historical diagnostics did not store a checkpoint hash. Counters are an early
+    # mismatch check, not proof of historical tensor identity; hash the inputs below.
+
     pol = np.load(args.policy_diagnostic / 'transitions.npz')
     n = report['worlds']
     sets = {}
@@ -194,16 +273,29 @@ def main():
     sets['policy'] = (p_data, torch.as_tensor(pol['world'], device=device).long(),
                       torch.as_tensor(pol['t'], device=device).long())
     amp, freq = (float(x) for x in args.saw.split(':'))
-    conditions = None
+    policy_conditions = report['per_world']
+    if len(policy_conditions) != n:
+        raise ValueError('Policy report has inconsistent world count')
+    if not (math.isfinite(amp) and math.isfinite(freq) and amp >= 0 and freq >= 0):
+        raise ValueError('Saw amplitude and frequency must be finite and nonnegative')
+    reference_conditions = {}
     for name, a, f in (('press', 0., 0.), ('press_saw', amp, freq)):
-        data, w_of, t_of, conditions = run_reference(config, spec, a, f, device)
+        result = run_reference(config, spec, a, f, device,
+                               expected_conditions=policy_conditions,
+                               deadline=started + args.wall_seconds)
+        data, w_of, t_of, conditions = result
+        reference_conditions[name] = conditions
+        save_reference(args.output, name, result, a, f)
         sets[name] = (data, w_of, t_of)
-    policy_conditions = [{k: x[k] for k in ('youngs_modulus', 'cut_spring_stiffness', 'density', 'target_speed_mps',
-                                            'start_lift_m')} for x in report['per_world']]
-    mismatch = sum(any(abs(policy_conditions[i][k] - conditions[i][k]) > 1e-6 for k in policy_conditions[i])
-                   for i in range(n))
     out = {'git': git_revision(ROOT), 'command': sys.argv, 'checkpoint': str(args.checkpoint),
-           'policy_updates': saved['learner'].get('updates'), 'condition_mismatches': mismatch, 'sets': {},
+           'checkpoint_iteration': saved.get('iteration'),
+           'policy_updates': saved['learner'].get('updates'), 'condition_mismatches': {name: 0 for name in reference_conditions},
+           'condition_fields_checked': list(CONDITION_FIELDS),
+           'reference_conditions': reference_conditions,
+           'legacy_diagnostic_checkpoint_hash': 'not recorded; counter check is not tensor identity proof',
+           'inputs_sha256': input_hashes,
+           'critic_difference_definition': 'V_policy(state) - realised undiscounted return; '
+                                           'reference returns are not V_policy calibration targets', 'sets': {},
            'cases': []}
     results = {}
     for name, (data, w_of, t_of) in sets.items():
@@ -219,7 +311,7 @@ def main():
             'reward_reconstruction_max_abs_error': d['reward_check'],
             'critic': critic_bias(spec, critic, data, w_of, t_of, n)}
     for i in range(n):
-        case = {'world': i, **{k: conditions[i][k] for k in ('youngs_modulus', 'cut_spring_stiffness', 'density',
+        case = {'world': i, **{k: policy_conditions[i][k] for k in ('youngs_modulus', 'cut_spring_stiffness', 'density',
                                                                'target_speed_mps', 'start_lift_m')}}
         for name, d in results.items():
             case[name] = {'ending': d['ending'][i], 'return': float(sum(v[i] for v in d['terms'].values())),
@@ -234,6 +326,9 @@ def main():
         'cases': [{k: c[k] for k in ('world', 'youngs_modulus', 'cut_spring_stiffness', 'target_speed_mps')}
                   | {s: (c[s]['ending'], round(c[s]['final_progress'], 3)) for s in ('policy', 'press', 'press_saw')}
                   for c in fail]}
+    for name, path in input_paths.items():
+        if file_sha256(path) != input_hashes[name]:
+            raise RuntimeError(f'{name} changed during collection; refusing a paired report')
     out['seconds'] = time.monotonic() - started
     (args.output / 'report.json').write_text(json.dumps(out, indent=1) + '\n')
     print(json.dumps({k: v for k, v in out.items() if k not in ('cases', 'command', 'git')}, indent=1))
