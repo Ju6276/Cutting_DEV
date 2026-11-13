@@ -1,6 +1,6 @@
 # Server data and checkpoint index
 
-Inventory reviewed 2026-11-10. Source lives on GPU7 at
+Historical inventory reviewed 2026-11-10; current-run locations added 2026-11-13. Source lives on GPU7 at
 `/dataHDD/dong/Projects/Cutting_DEV`. All paths below are server paths; no project
 data or source is stored on the Mac. This is a location/status index, not a run plan.
 
@@ -19,7 +19,24 @@ data or source is stored on the Mac. This is a location/status index, not a run 
 The base environment, SliceIt/ROS sources and prepared assets are live
 dependencies, even though their directory names predate this repository.
 
-## Existing checkpoint identities
+## Current free-cut locations (2026-11-13 snapshot)
+
+| Location | Role |
+|---|---|
+| `/dataHDD/dong/Projects/Cutting_DEV`, `codex/free-cut-v1` at `12b951f` | Claude diagnostic checkout; actual task is v3 |
+| `/dataHDD/dong/Projects/Cutting_DEV_infra` at `b1bcb92` | Authorized joint continuation code |
+| `/dataHDD/dong/Projects/Cutting_DEV_mppi_v3` at `3635dab` | Separate frozen-WM MPPI/traditional-reference work |
+| `runs/free_cut_short_20261112/{training,training_resume}` | Short-run checkpoints and replay |
+| `runs/free_cut_short_20261112/eval_{first_joint,last}` | Historical 128-episode physical evaluations |
+| `runs/free_cut_short_20261112/same_trajectory_{first_joint_update,last}` | Earlier diagnostics; absorption limitations in RESULTS |
+| `runs/free_cut_joint_20261113/{training,eval}` | Authorized continuation and corrected checkpoint diagnostics |
+| `runs/infra_fix_20261113` | Infrastructure equivalence/test evidence |
+
+These are server paths, not new copies. Process status must be checked live;
+[PLAN](PLAN.md) contains budgets. No runtime data or weights are removed by the
+2026-11-13 documentation cleanup.
+
+## Historical checkpoint identities
 
 Paths are relative to the repository. Identities below were read from checkpoint
 metadata, not inferred from filenames. SHA256/size records are in
@@ -39,8 +56,8 @@ Do not recreate the ambiguous filename. The empty historical
 WM562 path above for the old resume command. Same-WM comparisons still require
 the evaluator's exact tensor pairing check.
 
-These checkpoints are historical/dev resources. Any new multi-condition learning
-(none is scheduled in PLAN) starts fresh; do not silently initialize it from these weights.
+These are old fixed-prism resources, not the current cucumber resume source.
+Do not silently use them to initialize a different task.
 
 ## Retained data and their roles
 
@@ -50,7 +67,7 @@ These checkpoints are historical/dev resources. Any new multi-condition learning
 - Retired action-noise records: `eval_perturbed_main_20261109`,
   `eval_fixed_p62_20261109/perturbed_policy62` and their paired summaries.
   Retained for audit, excluded from the paper; see
-  [archived protocol](archive/ACTION_PERTURBATIONS.md).
+  [archived protocol](https://github.com/Ju6276/Cutting_DEV/blob/12b951f/docs/archive/ACTION_PERTURBATIONS.md).
 - `paper_evidence_20261110` is a historical folder name. Its perturbation figures
   are excluded from the paper. The reproduction recipe and builder now live
   under `configs/archive` and `scripts/legacy`.
@@ -105,8 +122,7 @@ comparisons of the retired action-noise protocol (working baseline vs policy62
 and SAC85k). `/dataHDD/dong/Archive/gpu9_20261110` holds GPU9-only code (git
 bundles with all branches, uncommitted patches and untracked files of
 Cutting_DEV_critic, Cutting_DEV_sac, DiSECt and DiSECt-Optimization; GPU9 tmp
-scripts including the 2026-11-04 video renderers), checksum-verified; all of
-that code is superseded by main.
+scripts including the 2026-11-04 video renderers), checksum-verified; these are recovery archives rather than current development checkouts.
 
 **GPU9** is back online (2026-11-10) but no longer a run target for this project
 (planned for other work). Its original historical data stay there and were not
@@ -127,7 +143,7 @@ helper, CLI and old figure builder are in `scripts/legacy` with their regression
 checks retained. Dated RESULTS commands keep historical paths; use the
 [script map](../scripts/README.md) for today's entry points.
 
-A6000's canonical checkout was observed at `71be9ec`, clean; it was not synced
+At the 2026-11-10 inventory, A6000's canonical checkout was observed at `71be9ec`, clean; it was not synced
 or modified in this cleanup. No matching cutting training/evaluation process
 was found in the snapshot. One A6000 was busy, so existing dependencies and
 other jobs were left untouched. Machine notes are snapshots, not live status.

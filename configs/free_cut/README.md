@@ -1,15 +1,18 @@
-# free_cut_v1 interface configuration
+# Free-cut configurations
 
-interface_check.json is an explicit, **rejected reward candidate**, retained to
-reproduce the physical preference check. It is not an approved training config.
-Fast pressing earned more return than following the commanded speed. See
-docs/FREE_CUT_REVIEW.md and docs/RESULTS.md.
+Current task: [free_cut_v3](../../docs/TASK_FREE_CUT.md).
+[PLAN](../../docs/PLAN.md) defines the authorized continuation, not this directory.
 
-scripts/check_free_cut_task.py consumes this file. It contains the task weights,
-horizon, six-dimensional simulation limits and reference settings. No real Mini45
-limit or calibrated friction is implied.
+| File | Role |
+|---|---|
+| `short_train_cucumber.json` | Current 256-world cucumber training/continuation; H=180 with derivation in file |
+| `eval_cucumber.json` | 64 first-episode development conditions; same task version and horizon |
+| `review_v3.json` | Bounded physical reference/reward check, H=100; not a replacement training config |
+| `review_v2.json` | Historical v2 reward check; superseded by v3 |
+| `interface_check.json` | Rejected v1 reward candidate, retained for reproduction |
 
-For a future MultiConditionEnvironment configuration, the same task object goes
-under top-level task; each group must explicitly select net feedback and positive
-settle_seconds. Material randomization is followed by per-world re-settling.
-Do not copy the rejected weights into a long training launch.
+All current groups select net feedback and per-material settling. Six-axis
+limits are explicit simulation settings, not Mini45 calibration. Old configs
+and checkpoints must keep their version; do not bypass compatibility checks.
+The branch name `codex/free-cut-v1` is historical and does not describe the
+current task version. Findings: [RESULTS](../../docs/RESULTS.md).

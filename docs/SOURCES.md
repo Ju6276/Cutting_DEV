@@ -46,3 +46,20 @@ distribution (METHOD, `edge_coordinate_consistent_v2`). This changes the bundled
 physical solver, not the separately pinned Gazebo/SliceIt checkout patches.
 The old bundled behavior is retained in Git at `38b85a5`. Attribution and licenses
 are unchanged; this is our correction, not a claim of an upstream release.
+
+## Official SuperMimic adaptation
+
+The separately adapted author implementation (HybridRobotics/supermimic at
+`5efbf11`) is documented in [the component mapping](OFFICIAL_SUPERMIMIC.md).
+It is distinct from the community reproduction used by the active learner.
+That document's path is retained because the official adapter writes it into
+run manifests; the unsuccessful historical cutting run is not an upstream
+algorithm verdict.
+
+## Local DFlex execution changes
+
+The free-cut reset acceleration also changed bundled DFlex launches to use the
+current PyTorch CUDA stream, and repaired extension-cache freshness detection
+(`1b287d5`). These are local execution/cache changes affecting every bundled path,
+including legacy tasks; they are not upstream releases. See [METHOD](METHOD.md)
+for regression scope and the unresolved long-horizon damage-equivalence check.

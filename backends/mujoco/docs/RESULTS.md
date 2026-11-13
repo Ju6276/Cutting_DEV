@@ -1,4 +1,7 @@
-# Results
+# Historical backend measurements — 2026-11-02
+
+These measurements use the recorded revisions below. They are not throughput or
+validation results for current free_cut_v3. [Current results](../../../docs/RESULTS.md).
 
 2026-11-02, commit `23d2501774cbe1857dc07b29d07b39685cb70592`: current UR5e imported with 6 joints, 46 bodies and 15 collision geometries. `scripts/validate_robot.py --episode runs/source/episode_000.npz --output runs/fk.json`: 42 recorded poses; maximum position error **5.66e-16 m**, rotation-matrix error **1.44e-15**. Source/imported total mass both **23.384 kg**. `PYTHONPATH=. .venv/bin/python -m pytest tests -q`: **3 passed**, including fixed-body kinetic-energy conservation.
 
@@ -98,4 +101,4 @@ in 88.06 s stepping (14.536 world-actions/s), 2.71 s setup, sampled process
 memory 453 MiB. Peak forces range 9.97376–9.97683 N. One-world stepping took
 66.91 s for 40 actions; aggregate 32-world throughput increased 24.3 times.
 Backend tests: 19 passed on both A6000 and 4090. Complete scaling table and
-learning runs are recorded in CuttingWorldModel/docs/RESULTS.md.
+learning runs are retained in the [root results archive](../../../docs/archive/RESULTS_20261102_20261110.md).

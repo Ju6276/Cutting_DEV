@@ -23,7 +23,7 @@ Individual scopes and code pins are indexed in [literature/README](literature/RE
 Code findings below name the inspected functions and link to pinned revisions.
 **C** records source inspection; execution results belong in [RESULTS](RESULTS.md).
 
-> 2026-11-12: the problem statement this review served is retired (PAPER §1). Prior art for the
+> 2026-11-12: the problem statement this review served is retired (PAPER `1). Prior art for the
 > candidate topic is in [literature/force_adaptive_search_20261112](literature/force_adaptive_search_20261112.md).
 > The per-paper evidence below stays valid.
 
@@ -85,7 +85,7 @@ cutting experiment. Details and versions are in the individual reading records.
   Bernoulli cost head sharing gradients with the RSSM; augmented Lagrangian with
   a cost critic; **pathwise backprop through the world model** — i.e. WM + BPTT +
   constraint already exists. SWAG pessimism for cost. CMDP budget, violation not
-  terminal [T, C]. §6 names integrating prior knowledge of the state→cost mapping
+  terminal [T, C]. `6 names integrating prior knowledge of the state→cost mapping
   into the world model "a notable open question" [T, spot-checked].
 - **SafeDreamer** (ICLR 2024, [2307.07176](https://arxiv.org/abs/2307.07176)): separate cost head
   sharing gradients; Lagrangian variants; code does not stop the gradient of the
@@ -104,7 +104,7 @@ cutting experiment. Details and versions are in the individual reading records.
 ## 5. Termination heads and gradient flow
 
 - **SuperMimic** ([2610.28480](https://arxiv.org/abs/2610.28480)): heads are "either learned or
-  computed analytically" (method §3.2) [T, spot-checked]; loss is an unweighted
+  computed analytically" (method `3.2) [T, spot-checked]; loss is an unweighted
   sum incl. termination BCE; soft survival through d̂ in BPTT; critic on imagined
   GAE; no BC. The paper does not discuss termination gradients into the
   dynamics. The reproduction feeds the termination head from the predicted state
@@ -125,11 +125,11 @@ cutting experiment. Details and versions are in the individual reading records.
 ## 6. Other learned models in cutting and material removal
 
 - **Luo & Yuan, robocutting** ([2607.04367](https://arxiv.org/html/2607.04367),
-  §§III–V): real UR5e + wrist F/T sensor; PPO changes desired downforce and
+  ``III–V): real UR5e + wrist F/T sensor; PPO changes desired downforce and
   sawing speed. The six observations are planar velocity, planar force and the
   two current targets. Reward trades downward progress against mechanical work
-  [T]. §V-B trains five runs separately for each of eight foods; deployment
-  starts from two knife-specific policies and adapts to the food [T]. §V-B.2
+  [T]. `V-B trains five runs separately for each of eight foods; deployment
+  starts from two knife-specific policies and adapts to the food [T]. `V-B.2
   reports frequent saturation of desired force at −30 N: progress reward can
   outweigh the extra work. This is a bound on the force command [T]. Greater
   executed force can therefore result from the objective even without a WM;
@@ -137,7 +137,7 @@ cutting experiment. Details and versions are in the individual reading records.
   The [project page](https://robotproject8.github.io/robocutting/) links the
   paper/video; its GitHub link is the website template, with no algorithm-code
   or dataset download linked there at this review.
-- **TopoCut** ([2509.19712, §7.9](https://arxiv.org/html/2509.19712)) predicts next
+- **TopoCut** ([2509.19712, `7.9](https://arxiv.org/html/2509.19712)) predicts next
   particle positions and cluster membership from current topology and a cut
   mask. A GCN/Graph-Transformer encoder is trained with geometric losses
   (Chamfer/EMD/Hausdorff) and a Hungarian-matched topology loss, then reused by a
@@ -146,7 +146,7 @@ cutting experiment. Details and versions are in the individual reading records.
   its targets do not include the sensor-force waveform or a force-limit event
   [T]. The [official site](https://topocut.github.io/) says **Code (Coming Soon)**
   on 2026-11-08; code inspection remains pending publication.
-- **RoboNinja** ([2302.11553, §III](https://arxiv.org/html/2302.11553), official
+- **RoboNinja** ([2302.11553, `III](https://arxiv.org/html/2302.11553), official
   code `real-stanford/roboninja` at `0d90994`): differentiable MPM generates
   expert trajectories; `OptimizationWorkspace.backward()` propagates through
   the physical rollout. `CloseLoopPolicyWorkspace.run()` instead trains the
@@ -170,7 +170,7 @@ cutting experiment. Details and versions are in the individual reading records.
 
 ## 7. Learning contact and impact dynamics
 
-- **ContactNets** (CoRL 2020, [2009.11193, §4](https://arxiv.org/html/2009.11193)),
+- **ContactNets** (CoRL 2020, [2009.11193, `4](https://arxiv.org/html/2009.11193)),
   official `DAIRLab/contact-nets`, revision `c3dc21c`: learns signed distances
   and contact Jacobians; rigid-body contact mechanics produces impulses [T].
   `StructuredLearnable.compute_phi/compute_Jn` ties the normal Jacobian to the
@@ -185,7 +185,7 @@ cutting experiment. Details and versions are in the individual reading records.
   inside actor BPTT would require a gradient implementation for contact
   resolution; a rigid impulse also differs from our filtered sensor peak [I].
 - **Learning Contact Dynamics using Physically Structured Neural Networks**
-  (AISTATS 2021, [2102.11206, §3](https://arxiv.org/html/2102.11206)), official
+  (AISTATS 2021, [2102.11206, `3](https://arxiv.org/html/2102.11206)), official
   `libeanim/contact-symplectic-integrator-network`, revision `1a7f27d`: learns
   potential energy and contact activation, with smooth and impact velocity
   updates [T, C]. `TRAIN()` passes contact labels into the model;
@@ -199,7 +199,7 @@ cutting experiment. Details and versions are in the individual reading records.
   the gradient through activation, so it is not a ready BPTT replacement [I].
 - **Khader et al., Data-efficient Model Learning and Prediction for
   Contact-rich Manipulation Tasks** (RA-L 2020,
-  [1909.04915, §§III–IV](https://arxiv.org/html/1909.04915)): clusters contact
+  [1909.04915, ``III–IV](https://arxiv.org/html/1909.04915)): clusters contact
   modes, fits a GP within each mode and a reset map across modes, and learns
   switching with an SVM. Uncertainty in impact time produces multiple possible
   future trajectories [T]. Its robot formulation assumes rigid, static
@@ -211,15 +211,15 @@ cutting experiment. Details and versions are in the individual reading records.
 ## 8. Our own implementation, for comparison with the above
 
 - Events from predicted state already exist: `imagine()`
-  (`cutting_world_model/trainer.py:164`) ends imagination when the predicted
+  (`cutting_world_model/trainer.py`) ends imagination when the predicted
   `peak_wrench` exceeds the limit or the task predicates fire on the predicted
   state (absorbing; reward counted once), and also keeps the learned terminal
   probability. Hard predicates give no gradient across the boundary, and an
   under-predicted force still yields a wrong event; removing the classifier alone
   does not address that.
-- Task definitions (force-limit check on the filtered sensor wrench, material
-  force reported separately, success = goal-pose counter) are in
-  [BENCHMARK](BENCHMARK.md) "Task definitions"; this document does not redefine them.
+- Current separation-based task definitions are in [TASK_FREE_CUT](TASK_FREE_CUT.md).
+  [BENCHMARK](BENCHMARK.md) retains the historical pose-goal task; this literature
+  review does not redefine either or pool their evidence.
 
 ### Historical interpretation of prediction failures (not the current premise)
 
@@ -295,54 +295,18 @@ is not supported by the contact-safety literature. Our old suite remains
 retired because it does not serve the chosen task/claim; this correction does
 not reactivate it.
 
-## Historical assessment (2026-11-10; no longer the recommended plan)
-
-**How precedents are judged (user, 2026-11-10).** A related paper does not mean
-the problem is solved. Each precedent is judged by its setting, assumptions and
-measured results (e.g. the visuotactile WM's BPTT agent underperformed IQL;
-Dalal's sensitivity layer was shown on toy position constraints). Where the
-precedents stop is summarized in [PAPER](PAPER.md) section 3; precedent
-approaches become baselines when the paper claims to do better. The text below
-is the earlier synthesis and keeps its evidence; read its "not new" wording
-through this rule.
-
-
-Novelty remains unresolved. Passing B's small historical screen neither establishes
-a practical gap nor selects a method. Task diagnosis supersedes the B/S0–S4
-progression. Follow PLAN, not the historical recommendations below.
-
-The recommended candidate question is whether a history-conditioned cutting
-model can support useful action changes near changing contact, rather than
-merely predicting recorded force values. A possible mechanism concerns the
-region of candidate compliance/reference actions for which force-risk
-predictions remain trustworthy under changing cutting history. This is an
-inference and formulation direction, not a verified literature gap or a new
-implemented module. Local action sensitivity, trust regions, contact-dependent
-calibration and hybrid controller models all have precedents above.
-
-The required distinction would be a concrete treatment of changing interaction
-during compliant cutting, with action-dependent force risk and demonstrated
-physical control benefit. Compare against a calibrated ensemble and the
-unmodified working procedure; do not require that every standard method fail.
-The current within-interval peak output already exists. Adding it again, adding
-a constant safety margin, or giving the whole method a new name is not a method.
-
-Keep cutting as the task domain. Non-cutting papers provide formulation
-evidence, not a requirement to add insertion/pushing/grinding benchmarks.
-Old S0–S3 was implemented and its first runs stopped after task defects; it is not the next training plan.
-Historical B fits and old-checkpoint MPPI are bounded screens, not the main
-multi-condition learning evidence.
+Historical route-B recommendations and candidate run lists have been removed
+from this evidence synthesis. The [archive index](archive/README.md) links the
+original plans; [PAPER](PAPER.md) and [PLAN](PLAN.md) own current framing and work.
 
 ## 10. Method precedents and scope correction — 2026-11-10
 
-These precedents still constrain novelty after broadening the proposed training
-task. The earlier nominal-only recommendation has been replaced by shared
-multi-condition training in PAPER/PLAN. The ten-episode zero-shot material pilot
+These precedents constrain novelty independently of the current experiment scope. The ten-episode zero-shot material pilot
 remains withdrawn; it is not the new training-distribution proposal. A's control
 comparison is complete and did not establish its pre-stated final-success
 benefit. This review does not authorize a new run.
 
-- **MAAC**, [2005.08068](https://arxiv.org/pdf/2005.08068): §§2, 4.1 and 5.4
+- **MAAC**, [2005.08068](https://arxiv.org/pdf/2005.08068): ``2, 4.1 and 5.4
   describe differentiating through a short learned-model rollout with an
   endpoint value and comparing policy execution with model-predictive control
   [T; targeted paper reading this review, not a code audit]. This is a direct
@@ -358,23 +322,11 @@ benefit. This review does not authorize a new run.
 The remaining claim must concern a justified cutting-control formulation and
 its physical effects. Existing method ingredients can form a task-specific
 algorithm, but neither renaming them nor reporting their integration makes a
-new generic algorithm. See PAPER's evidence table and review questions.
+new generic algorithm. See [PAPER](PAPER.md) for the current claim boundaries.
 
-## Candidate comparisons (depend on the final claim; not current tasks)
-
-Current tasks are only those in [PLAN](PLAN.md). Candidates, each needing its own
-plan and an estimate of integration and validation cost:
-
-- SAC with the SliceIt code reward (state any multi-material randomization that
-  goes beyond their release).
-- The same WM + MPC (CEM/MPPI) with the predicted force event as constraint or
-  penalty; optionally a Mitsioni-style position-only LSTM + shooting MPC.
-- A LAMBDA-style augmented-Lagrangian force constraint on our WM.
-- Ablations: learned event head vs events derived from predicted state/force;
-  with vs without event-loss gradient into the dynamics; fixed −100 vs adaptive λ.
-- DiSECt trajectory optimization as a per-object open-loop reference.
-- Metrics follow BENCHMARK; possible additions: WM force-peak error with
-  persistence as a reference point, event calibration (Brier/AUROC).
+Comparison selection belongs in PAPER/PLAN once a claim is fixed. These reading
+notes do not authorize the retired S0–S3, action-perturbation suite or a new
+diagnostic queue.
 
 ## Still open
 

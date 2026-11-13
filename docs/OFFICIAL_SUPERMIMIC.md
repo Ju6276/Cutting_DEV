@@ -1,4 +1,4 @@
-# Official SuperMimic on the cutting prism
+# Official SuperMimic adapter — retained comparison
 
 > Status 2026-11-12: retained adaptation, not a successful reproduction result.
 > The cutting run exposed a reward/soft-termination mismatch (RESULTS).

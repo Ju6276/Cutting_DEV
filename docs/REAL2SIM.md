@@ -1,10 +1,12 @@
-# Real-robot calibration (real2sim) plan — draft, awaiting approval
+# Real-robot calibration — deferred draft
 
 Goal: make the simulated benchmark (UR5e + FDCC compliance controller + DiSECt
 material) match the real setup closely enough that (1) material parameters can be
 fitted from real cutting data, (2) policies trained in simulation can be evaluated
 on the real robot with the same metrics, and (3) the remaining sim–real gap is
-measured, not assumed. Nothing here runs before the open items are settled.
+measured, not assumed. This is not the active experiment queue; follow PLAN.
+Numerical hardware facts and release links below are prior notes, not a new
+hardware inspection.
 
 ## Hardware and open items
 
@@ -14,7 +16,7 @@ measured, not assumed. Nothing here runs before the open items are settled.
 | Diana7 | Available; not used in the first pass (see "Later"). |
 | ATI Mini45 | Available. **Open:** calibration (SI-145-5: ±145 N Fx/Fy, ±290 N Fz, 1/16 N resolution; SI-290-10: ±290/580 N, 1/8 N), installed calibration and software interface. A photo sent by the user (2026-11-11, not in the repository) shows an ATI Net F/T 9105-NETBA box, not the transducer's calibration label. Old S0 used simulation thresholds 50 N / 5 N·m; real-task limits remain open and distinct from sensor range (PLAN). |
 | Knife and mount | **Open:** CAD or measured geometry and mass, to replace the simulated knife frame and tool payload. |
-| Object placement | The old bottom-6-mm hold altered force/outcomes (RESULTS 2026-11-12); it is not an accepted fixture. **Open:** choose a realizable holding method, then model it. Historical free/fixed prism contracts remain distinct. |
+| Object placement | The old bottom-6-mm hold altered force/outcomes (RESULTS 2026-11-12); it is not an accepted fixture. Current simulation uses free placement with passive sliding. **Open:** board/support and friction measurements for the real setup. Historical fixtures remain separate. |
 | Foods / specimens | **Open:** proposal below. |
 
 ## Prerequisite: force quantity and completion
@@ -24,7 +26,10 @@ feedback now computes force/moment at the sensor with corrected contact coordina
 and frame/timing handling (METHOD). Native robot wrench is also present. Numerical
 interface checks do not calibrate a real sensor/mount. Select the feedback convention
 and completion definition before transferring policies or interpreting calibration.
-Neither a prescribed spring-release fraction nor board height proves separation.
+The free-cut simulator verifies complete spring disconnection on topology-checked
+assets. This internal label is not available from a real sensor; real separation
+detection remains to be specified. Board height or a chosen percentage alone is
+not its replacement. Current simulation contract: [TASK_FREE_CUT](TASK_FREE_CUT.md).
 
 ## Steps (one change each)
 
@@ -78,9 +83,9 @@ first repeated real measurements (real repeat spread is the reference).
   close to the jello config) plus two foods with different stiffness (proposal:
   potato and apple, which have published compression data and DiSECt
   calibrations). Cut specimens with a mould to the simulated prism dimensions.
-  Objects remain bottom-held in the current simulation decision; choose a realizable
-  fixture and reproduce its constraints in both simulation and the real experiment.
-  The historical free-bottom benchmark is not the current fixture prescription.
+  The current simulation decision is free placement. Match the physical support,
+  contact and friction when collecting calibration data; do not restore the old
+  bottom-held condition merely to match a historical force curve.
 - **Measurements per material.**
   1. Slow indentation/compression with the robot and the Mini45, giving an
      elastic-modulus prior. Food is viscoelastic and moduli depend on geometry
@@ -105,16 +110,15 @@ it comes from.
 
 ### R4 — Closed-loop evaluation on the real robot
 
-- Run the reference trajectory, then frozen policies (the current working
-  baseline and SAC from the unified environment, step 85000; names as in
-  BENCHMARK) on calibrated materials, with a workspace bound and an emergency
-  stop. **Open:** how the force limit is detected and enforced on the real robot
+- After selecting compatible task interfaces, run references and frozen policies;
+  the old fixed-prism SAC85k is not automatically a free-cut baseline. Evaluate
+  them on calibrated materials, with a workspace bound and an emergency stop. **Open:** how the force limit is detected and enforced on the real robot
   (sensor, filter, rate, stop mechanism, reaction time); no hardware guarantee is
   assumed until this is measured.
-- Metrics follow BENCHMARK "Task definitions" (success = goal-pose counter,
-  terminal reasons separately); material separation is recorded as its own
-  measurement, not as success. Also steps/time, sensor peak and mean force,
-  limit exceedances. Compare with the simulation of the same calibrated material.
+- Use TASK_FREE_CUT as the simulation-side comparison, with independent real
+  separation detection and terminal reasons explicitly defined. Do not reuse
+  historical BENCHMARK pose success as separation. Also record steps/time,
+  sensor peak and mean force, and limit exceedances. Compare with the simulation of the same calibrated material.
 
 ## Later
 

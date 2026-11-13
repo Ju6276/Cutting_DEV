@@ -1,79 +1,73 @@
-# Plan
+# Current plan
 
-Updated 2026-11-12 (free-object task). The only current task list. Research scope:
-[PAPER](PAPER.md); measurements and history: [RESULTS](RESULTS.md); implementation:
-[METHOD](METHOD.md); task proposal: [TASK_FREE_CUT](TASK_FREE_CUT.md); assets: [DATA](DATA.md).
-Earlier plans are in `archive/` (latest: [before the task decision](archive/PLAN_20261112_pre_review.md)).
+Updated 2026-11-13. This is the only current work list. Task equations belong in
+[TASK_FREE_CUT](TASK_FREE_CUT.md), implementation in [METHOD](METHOD.md), measured
+results in [RESULTS](RESULTS.md), and research claims in [PAPER](PAPER.md).
 
-## Current task (user decisions)
+## Decisions in force
 
-- Method paper for ICRA/IROS/RA-L; platform, objects and baselines are experiments. The
-  paper's core must follow from the task, not from a failure seen in our own runs.
-- **Task:** single cut of an object placed freely on the board. No fixture. Passive sliding
-  is recorded, has no threshold and no penalty; active rolling and repositioning are out of
-  scope. Sawing is allowed; neither learned sawing nor an advantage over pure pressing is presumed.
-- **Success:** the slice is fully separated from the body (no remaining material connection)
-  **and** no force-limit event occurred. Separation, force-limit events and task success are
-  recorded separately. A remaining connection is incomplete; 98 % release is a diagnostic.
-- **Failure endings:** force limit, explicit workspace bounds; a cut not completed within
-  the time limit is incomplete (its handling in training is specified in TASK_FREE_CUT). "The object left the
-  blade's reach" is not a termination rule.
-- One shared WM/policy/critic across objects and materials; one force limit; no object
-  identity, material label or per-object reward/success setting reaches the learner.
-  The per-component six-axis sensor limit is kept as the interface in use; force norm and
-  torque are recorded. It is a simulation convention, not a Mini45-derived safety limit.
-- Simulation first, sim-to-real intended; real robot later (materials calibrated then).
-- One change at a time; a written plan with a budget is approved before training.
+- One cut of a freely placed object. Passive sliding is logged, with no new
+  sliding threshold or penalty; active rolling and multiple cuts are out of scope.
+- Use the versioned v3 separation/reward contract. Simulation wrench limits are
+  not Mini45-derived real-robot limits. Do not tune physics to manufacture difficulty.
+- The current run keeps the learning method, network, reward and action mapping
+  unchanged. Six-axis policy observation expansion is not implemented in this run.
+- Research targets a shared policy across conditions eventually; today's evidence
+  is one cucumber scene. No multi-object/SAC retraining, S3 restart, risk-penalty
+  experiment or real-robot run is authorized by this document.
 
-## State
+## Authorized continuation
 
-- Platform check of the free-object task on one scene: done (RESULTS). Severed-state check
-  defined for it (mesh has two components joined only by cut springs).
-- Reset from a settled object: implemented (`settle()` with each world's material; contact
-  checked over every substep), verified on that scene.
-- Net contact wrench feedback and friction transition velocity: implemented, repaired and
-  re-measured (RESULTS); friction and ground parameters are uncalibrated.
-- free_cut_v1 is the reviewed implementation; its gamma=.99 reward candidate failed the
-  speed-preference check. The user authorized corrections in codex/free-cut-v1.
-- free_cut_v2 adds time input, gamma=1, explicit workspace and conservative progress
-  initialization. Reset batching/graph execution, physical references and one actual update have been checked.
-  See [FREE_CUT_REPAIR](FREE_CUT_REPAIR.md) for the bounded repair evidence.
-- free_cut_v3 is the current review candidate: progress-weighted speed cost, finite penalty
-  bound, release-consistent completion hazard and bounded reset cache. Actual reference
-  reruns and final-code 256-world timing are in FREE_CUT_REPAIR and RESULTS.
-- No long training is running. Old S0 configs and held scenes are reproduction inputs only.
+| Item | Recorded setting |
+|---|---|
+| Question | With further joint training and new interactions, do physical performance and WM/critic prediction improve? |
+| Training checkout | GPU7 `/dataHDD/dong/Projects/Cutting_DEV_infra`, clean commit `b1bcb92` |
+| Diagnostic checkout | GPU7 `/dataHDD/dong/Projects/Cutting_DEV`, diagnostic fix `12b951f` |
+| Resume | `runs/free_cut_short_20261112/training_resume/last.pt`, iteration 1441, policy update 43 |
+| Output | `runs/free_cut_joint_20261113/training`; live status in `progress.json` |
+| Task/config | `configs/free_cut/short_train_cucumber.json`, free_cut_v3, 256 worlds |
+| Budget | 1250 additional vector steps (endpoint 2691), at most 9 hours; no automatic extension |
+| Saving | Every global iteration divisible by 250: first 1500, then 1750, etc.; final save at termination |
+| Evaluation | Same 64 first-episode development conditions from `configs/free_cut/eval_cucumber.json`; no action perturbations |
+| Diagnostic output | `runs/free_cut_joint_20261113/eval/` |
 
-## Next steps, in order
+This is approximately 500 **additional** policy updates if the iteration budget
+finishes. If the wall limit ends it first, report the actual completed count.
+Training and diagnostics share GPU7; elapsed-time estimates are not exclusive-GPU
+throughput. The first periodic save is 59 steps after resume, not 250.
 
-1. The authorized v3 repair and bounded measurements are complete; see FREE_CUT_REPAIR.
-   Nominal physics/limits were not tuned. The isolated lower-limit physical abort probe is
-   labelled only as an integration test, never nominal task evidence.
-2. Claude reviews the v3 reward formula, completion-gradient path, reset cache and recorded
-   evidence. The reward preference is established for the measured references, not all policies.
-3. Then submit a bounded engineering training plan: actual production horizon/materials,
-   update sizes/cadence, compilation mode, WM warmup and physical calibration before trusting
-   imagined policy returns. Include reset time and full-size WM/actor updates in its budget.
-   The small-update loop timing is not a long-run estimate. No automatic S3 restart.
-4. New exported objects get the same topology check during asset preparation.
+The old checkpoint lacked a saved fractional update phase. The infrastructure
+repair restores its weights/optimizers/replay, avoids repeating collection
+warmup, warns and records `legacy_defaults_origin0_phase0`. This is a declared
+migration, not exact recovery of the lost phase; new saves preserve that state.
 
-## Known limits of the platform (not a repair queue)
+## Checkpoint measurements and decisions
 
-- The cut plane is fixed in the object and the knife is constrained to one plane; this bounds
-  what sliding across the cut can mean in this simulator. Its quantitative effect is not
-  measured (an earlier "1 mm offset" explanation was withdrawn, RESULTS).
-- Results depend on initialization: every world is settled with its own material before
-  episodes (`settle()`); a nominal-material settle followed by a material change is not used.
-- Free-cucumber forces with 2 ms sampling: peaks 2.7-23 N, utilisation 0.06-0.64 of the old
-  S0 limits over six reference cases (RESULTS). No scene, free or held, is validated against
-  this project's real cuts; parameters are not tuned to make the task harder. Whether the
-  paper can centre on the force limit is decided with real measurements, not in simulation.
-- Sawing changes force direction through friction only; the fracture-side effect is not in
-  DiSECt's damage law. Long-horizon per-spring damage repeatability is an open item.
+Claude runs training and the diagnostic queue; Codex reviews code, plans and
+results. Compare conditions by world/case ID, one initial episode each.
 
-## Storage and execution
+- Physics: success, workspace/force/time endings, speed error and episode return.
+- Completion: separating-step recognition **and** incomplete-step false predictions.
+- Workspace: detection **and** false alarms within the same future window.
+- Critic: estimated value, targets recomputed with the training formula, and
+  realized remaining return. Recomputed targets are not historical optimizer targets.
+- Raw records include pre/post state, executed actions, reward, events and history.
+  Diagnostic hard-event priority/absorption follows the training task.
 
-Use Remote SSH on GPU7, /dataHDD/dong/Projects/Cutting_DEV (current review branch codex/free-cut-v1); the A6000 holds a second
-checkout. Code, data, environments and outputs stay on servers, not the Mac. Check
-`nvidia-smi` before using a GPU. Not to be launched without a new approved plan:
-`train_gpu.py --conditions configs/multi_condition/s0_*.json` (with or without
-`--risk-constraint`), `train_official_supermimic.py`, `train_sac_gpu.py` on S0.
+The critic-target comparison is still to be added to the checkpoint summary.
+Judge trends through the fixed budget; no 0.1/50%/50 gates, no freeze-actor
+prerequisite, no automatic extra budget. A single weak checkpoint does not select
+a new algorithm. Propose a targeted change only with sustained evidence; an actual
+implementation error is handled as a bug, separately from prediction quality.
+
+## Deferred and known limits
+
+Six-axis policy observations, multiple geometries, same-task SAC/MPPI comparisons,
+uncertainty penalties and real-robot work need their own scope after this run.
+Material/friction and the force sensor/mount are uncalibrated; the predefined cut
+interface limits represented geometry changes. Long-horizon per-spring numerical
+repeatability remains unresolved. These are limitations, not an expanding
+pre-training checklist.
+
+No experiment is launched by this documentation cleanup. Active checkouts, assets,
+replay, checkpoints and diagnostic outputs are unchanged.

@@ -1,17 +1,14 @@
 # Running Cutting DEV
 
-Commands below are historical reproduction entries, not instructions to restart
-S3. The versioned opt-in free-cut contract is in [TASK_FREE_CUT](TASK_FREE_CUT.md); follow [PLAN](PLAN.md).
-Commands run from the repository root. The GPU backend is bundled at
-`backends/mujoco`; `--backend-root` can select a separate prepared checkout.
+Use Remote SSH on GPU7; keep source, assets and runs under `/dataHDD/dong`.
+Commands run from the repository root. The bundled backend is `backends/mujoco`.
+[PLAN](PLAN.md) owns the authorized run and checkout identities; this guide does
+not launch another job.
 
-
-**Physics version:** main now uses `edge_coordinate_consistent_v2` (contact-coordinate
-bug correction; see METHOD). Historical checkpoint reproduction requires the code/configuration recorded
-in that run's manifest and an isolated kernel cache. `38b85a5` is the immediate
-pre-coordinate-fix reference, not the exact revision of every historical run. Do not remove metadata
-checks to reuse old checkpoints as identical-physics results. No training restart
-is authorized by this correction.
+The active task is [free_cut_v3](TASK_FREE_CUT.md). Its physical revision is
+`edge_coordinate_consistent_v2`. Historical checkpoints require their recorded
+code/config and isolated kernel cache; `38b85a5` is the immediate pre-coordinate-fix
+reference, not the revision of every old run. Do not bypass metadata checks.
 
 ## GPU environment
 
@@ -86,37 +83,52 @@ Assets are stored under `backends/mujoco/runs/`:
 `source/`, `model_coupled/`, `controller_source/` and `disect_source_v4/`.
 They remain outside Git.
 
-## Unified GPU training and evaluation
+## Current training, continuation and diagnostics
 
-The commands for the current working baseline (resumed from policy62/WM562 with
-critic reset and 100 pre-fit rounds) and for the `source` configuration (script
-defaults, from scratch) are in
-[README](../README.md#run-the-existing-fixed-prism-task); the two must not be confused. Without variant flags, `train_gpu.py` runs `source`: imagined critic
-targets, 32-step policy rollout, no BC (`--critic-target imagined`, `--actor-horizon`
-unset = 32, `--actor-bc-alpha` unset = off). Variant flags are documented in
-[METHOD](METHOD.md).
+These entries describe the already authorized run; do not start a duplicate.
+The training checkout is `/dataHDD/dong/Projects/Cutting_DEV_infra` at
+`b1bcb92`. Source `runs/sac_env.sh` there, then use its existing `.venv`.
+Configuration is `configs/free_cut/short_train_cucumber.json`:
+256 cucumber worlds, horizon 180, real critic, actor horizon 8, BC 0.25,
+gamma 1, 500 WM-only updates on a fresh run. The current run resumes after that
+pretraining and does not repeat it. The budget and outputs are in [PLAN](PLAN.md).
 
-The maximum eight-step WM fit, effective batches 2048/4096 and original task
-rewards are defined in the source configuration.
-Training collects new physical transitions, updates WM, then policy/critic.
-The first 500 WM rounds leave policy/critic unchanged.
+Diagnostics run from `/dataHDD/dong/Projects/Cutting_DEV`,
+`codex/free-cut-v1` at `12b951f`, using
+`scripts/diagnose_free_cut_predictions.py` and `configs/free_cut/eval_cucumber.json`.
+The branch name predates v3. These separate checkouts preserve the code loaded by
+the training process; an updated document is not a code merge between them.
 
-`--resume RUN/last.pt` restores networks, optimizers and training counters.
-Physics restarts. By default replay loads from colocated `replay.pt` only when
-checkpoint name/iteration match; open replay episodes are closed at restart.
-Source warmup still applies. Use `--resume-without-replay` for old checkpoints
-without matching snapshots (the historical README command). One `replay.pt`
-is overwritten at every save: older checkpoints can be evaluated but cannot all
-resume with the latest replay. Empty-replay resume is not exact continuation.
-SIGUSR1 saves after the current iteration. Completion/SIGTERM writes
-`last.pt` and `progress.json`. Frozen evaluation performs zero optimizer updates.
+### Resume and save semantics
 
-The shared fixed-environment evaluation commands are in [BENCHMARK](BENCHMARK.md).
-The current task list is in [PLAN](PLAN.md).
-The absorbing-terminal repair permits older checkpoints in frozen evaluation only
-when the environment/physics metadata also match. Training additionally requires
-compatible terminal-rule metadata. This does not override the contact-revision
-requirement above.
+For `b1bcb92` and descendants, `--resume RUN/last.pt` restores networks,
+optimizers and counters. Replay loads from colocated `replay.pt` only when
+checkpoint name/iteration match; open replay episodes close at restart and
+physics restarts. With matching replay, completed warmup is not repeated.
+New checkpoints also save collection schedule origin, fractional update phase
+and schedule config. Old checkpoints lacking those fields emit a warning and
+record explicit legacy defaults; they cannot recover missing historical phase.
+
+`--resume-without-replay` intentionally starts with empty replay and refills it;
+it is not exact continuation. One `replay.pt` is overwritten per save, so an
+older checkpoint generally cannot resume with the latest replay snapshot.
+`--checkpoint-every 250` is based on the global iteration number, not steps
+since resume; the current run's first scheduled checkpoint is iteration 1500.
+
+SIGUSR1 requests a save after the current iteration. Normal completion and
+catchable SIGTERM write the final checkpoint/progress. SIGKILL, power loss or
+an unrecoverable crash cannot guarantee a save. Frozen evaluation performs no
+optimizer updates. Evaluation cleanup covers normal return, exceptions, timeouts
+and catchable termination in the reviewed infrastructure branch.
+
+### Historical reproduction
+
+The [fixed-prism commands](BENCHMARK.md#historical-fixed-prism-training-commands)
+separate the old policy62 continuation from the `source` from-scratch setup.
+Without task/variant flags, `train_gpu.py` uses the old fixed-prism source
+defaults (imagined critic, horizon 32, BC off). Those defaults are not the
+current free-cut run. The separately adapted official learner is mapped in
+[SOURCES](SOURCES.md#official-supermimic-adaptation).
 
 ## Independent Gazebo reproduction
 
@@ -203,8 +215,7 @@ uses complete physical discounted returns; recorded results are in RESULTS.
 `record_episode.py` uses the benchmark controller factory, contract and evaluation
 loop. It saves raw states/actions in `episode_000.npz`, measured world-frame
 geometry in `episode.npz`, and the benchmark report. WM–MPPI also saves every
-planning call in `planning.json`. The example records the existing working
-checkpoint with the selected H16 planner.
+planning call in `planning.json`. The example records a historical fixed-prism checkpoint with the H16 planner.
 The policy and planner comparison must load that same checkpoint; it is not a
 new multi-condition result:
 
@@ -247,7 +258,9 @@ cut triangles. The board support is display geometry.
 ## Remote-only development and storage
 
 Open GPU7 in VS Code Remote SSH and use /dataHDD/dong/Projects/Cutting_DEV
-(branch main). The Mac holds no project checkout or experiment files.
+(diagnostic branch codex/free-cut-v1 at this documentation snapshot).
+Training uses Cutting_DEV_infra; branch/commit ownership is in PLAN.
+Do not download project checkouts or experiment files to the Mac.
 GPU9 is no longer a run target.
 
 GPU7 storage:
@@ -267,7 +280,7 @@ GPU7 storage:
 - GPU9-only code (bundles with all branches, uncommitted patches, untracked files of
   Cutting_DEV_critic, Cutting_DEV_sac, DiSECt, DiSECt-Optimization; the GPU9 tmp scripts,
   including the 2026-11-04 video renderers): /dataHDD/dong/Archive/gpu9_20261110.
-  All of that code is superseded by main; no merge needed. GPU9 run data stays on GPU9.
+  These are recovery archives, not current development checkouts. GPU9 run data stays on GPU9.
 
 Source the existing runs/sac_env.sh before GPU commands. For MPC commands
 above, use the planner Python explicitly. Machine addresses, protected active
@@ -278,27 +291,16 @@ ownership before changing them. GPU7 cleanup details and retained assets are in
 [DATA](DATA.md).
 
 
-Bounded review only, on GPU7 after sourcing runs/sac_env.sh:
-~~~bash
-PYTHONPATH=. .venv/bin/python scripts/check_free_cut_task.py --config configs/free_cut/review_v2.json --output runs/NEW_REFERENCE_CHECK --wall-seconds 2700
-PYTHONPATH=. .venv/bin/python scripts/check_free_cut_reset.py --output runs/NEW_RESET_CHECK --wall-seconds 1200
-PYTHONPATH=. .venv/bin/python scripts/check_free_cut_learning.py --output runs/NEW_UPDATE_CHECK --wall-seconds 600
-~~~
-Use fresh output directories. The final command is one gradient-update execution check with
-a short test deadline and small batches, not a recommended training setup. No policy efficacy
-can be inferred from it. Review details: [FREE_CUT_REPAIR](FREE_CUT_REPAIR.md).
+## Reference and runtime checks
 
+Use fresh output paths. The config selects the task version; `review_v3.json`
+has a 100-step check horizon, whereas the current train/eval configs have 180.
+Do not substitute one for another when loading a checkpoint.
 
-Second-review checks (fresh output directories; GPU7, source runs/sac_env.sh):
-~~~bash
-PYTHONPATH=. .venv/bin/python scripts/check_free_cut_task.py --config configs/free_cut/review_v3.json --output runs/NEW_V3_REFERENCES --wall-seconds 2100
-PYTHONPATH=. .venv/bin/python scripts/check_free_cut_throughput.py --worlds 256 --iterations 32 --staggered-start --full-update-profile --output runs/NEW_V3_TIMING --wall-seconds 1200
-~~~
-The throughput script executes real controller transitions and gradient updates, with an
-explicit artificial 16-step deadline and optionally staggered initial remaining deadlines
-for reset stress. Initial updates use small batches; the optional final profile uses source
-batch counts (WM 10x2048, actor 4096, real critic 5 epochs x4 minibatches), horizon 8,
-microbatch 64, full networks and eager execution. It is not a convergence experiment, does
-not produce a trained policy, and does not authorize long training. CUDA compilation memory
-and different-object worker processes are not bounded by this one-object eager profile.
-The source training logger now separates time/reset from time/physics.
+- `check_free_cut_task.py`: physical reference reward/ending checks.
+- `check_free_cut_reset.py`: selected-world reset correctness and cost.
+- `check_free_cut_throughput.py`: bounded collection/update/reset stress profile.
+- `check_free_cut_learning.py`: deliberately small one-update interface execution.
+
+These are engineering checks, not training effectiveness results or a queue to
+rerun. Exact past commands/results remain in the [archive index](archive/README.md).

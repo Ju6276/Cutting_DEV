@@ -1,19 +1,19 @@
 # Fixed cutting benchmark
 
-> 2026-11-12: this file defines the **fixed prism** benchmark. Its success rule (knife at the goal
-> pose) and reward are not valid for the multi-object task (RESULTS 2026-11-12); that task's
-> definition is being revised in [PLAN](PLAN.md). `RESULTS <date>` references up to 2026-11-10 are in
-> [archive/RESULTS_20261102_20261110](archive/RESULTS_20261102_20261110.md).
+> Historical fixed-prism contract only. Current freely placed cucumber training
+> uses [TASK_FREE_CUT](TASK_FREE_CUT.md), not this pose-goal reward/success rule.
+> November 2–10 results are [archived](archive/RESULTS_20261102_20261110.md);
+> later task corrections are in [November 11–12](archive/RESULTS_20261111_20261112.md).
 
 The contract and numerical tables below describe historical scalar-feedback runs.
 Current main also has optional net feedback and contact revision
 `edge_coordinate_consistent_v2`; these do not retroactively change the old
 benchmark results. Reproduction uses the recorded run revision/configuration and
 an isolated kernel cache, not an arbitrary current checkout. See
-[METHOD](METHOD.md#contact-coordinate-consistency-correction--2026-11-12).
+[METHOD](METHOD.md#sensor-convention-and-physical-revision).
 
 Every method executes in **UR5e + MuJoCo Warp + the SliceIt compliance controller
-+ DiSECt**, using `GPUEnvironment`. The current case is
++ DiSECt**, using `GPUEnvironment`. The historical case is
 `public-prism-ur5e-v1`: one prism, one material configuration, one initial state
 and one cutting target. The Gazebo SAC run (run 1) is separate and not part of
 this benchmark.
@@ -51,8 +51,7 @@ force limits and success counter remain in the shared task heads.
 ## Task definitions
 
 This defines the historical fixed-prism contract only. Its quantities do not
-establish separation or physical wrist-contact wrench. A corrected multi-object
-contract is not yet defined.
+establish separation or physical wrist-contact wrench. The separate free-cut contract is defined in [TASK_FREE_CUT](TASK_FREE_CUT.md).
 
 - **Force-limit termination.** At every 2 ms coupling substep, the filtered
   sensor wrench in the hand frame (the observation wrench) is compared component
@@ -107,26 +106,23 @@ Results of different entries are never pooled.
 | SliceIt SAC adapted to the unified environment, 85k | Source tf2rl SAC/settings (one training environment, lr 0.01) in this public-prism benchmark; checkpoint selected before later collapse, not a full reproduction of the paper's setup |
 | SAC on the proposed shared task distribution (not launched) | New training paired to WM + BPTT under PLAN; existing SAC85k is retained only for the old fixed task |
 | `source` | SuperMimic-Reproduced configuration: imagined critic targets, actor horizon 32, no BC |
-| Current working baseline | `real` critic targets, actor horizon 8, BC 0.25, resumed from policy62/WM562 with critic reset and 100 pre-fit rounds |
+| Historical working baseline | `real` critic targets, actor horizon 8, BC 0.25, resumed from policy62/WM562 with critic reset and 100 pre-fit rounds |
 | V5 | `real_wm` critic targets, actor horizon 8, BC 0.25 |
 | Reference / constant zero | Prescribed knife trajectory; zero action |
 
-## Proposed multi-condition task distribution
+## Current task is separate
 
-The user's setting is one shared WM/policy trained on material variation and grouped
-prepared geometries (PLAN, decisions); its corrected task definition is not written yet. The existing `public-prism-ur5e-v1` contract remains frozen.
-A new versioned distribution must declare scene hashes, physical material
-parameters, valid placement transforms, goals, sampling weights and
-train/development/test splits. It must reuse the existing task/force definitions
-or explicitly version any changed definition; no new material range is defined
-by this paragraph. Same-range test draws and held-out materials/shapes support
-different claims. Grouping/randomization exist in old S0, whose task failed diagnosis. A corrected distribution remains to be defined.
+Grouped objects and randomized materials are implemented, but the old S0/S3
+pose-goal task failed diagnosis. The currently authorized continuation uses one
+free cucumber with material randomization and a new separation-based reward.
+[TASK_FREE_CUT](TASK_FREE_CUT.md) defines it; [PLAN](PLAN.md) does not launch
+multi-object or SAC retraining. Do not pool the old and new task results.
 
 ## Retired diagnostic protocol
 
 Action-perturbation evaluations are retired and excluded from the paper.
 Their definitions and reproduction entry live in
-[archive/ACTION_PERTURBATIONS.md](archive/ACTION_PERTURBATIONS.md).
+[archive/ACTION_PERTURBATIONS.md](https://github.com/Ju6276/Cutting_DEV/blob/12b951f/docs/archive/ACTION_PERTURBATIONS.md).
 Current task evaluation and recording use the unperturbed task.
 
 
@@ -393,3 +389,61 @@ Inference: even a converged DiSECt solution targets blade bottom at the board
 success needs that difference stated.
 
 Current work is listed in [PLAN](PLAN.md).
+
+
+## Historical fixed-prism training commands
+
+These commands reproduce the historical fixed-prism task, including its goal-pose
+success rule. Current free-cut task definitions are separate (TASK_FREE_CUT).
+Historical S0 inputs are documented in
+[configs/multi_condition](../configs/multi_condition/README.md).
+
+GPU training uses Linux, Python 3.12, NVIDIA CUDA and prepared robot/material
+assets; Gazebo collection and the original SAC use the separate ROS Noetic
+environment. Installation and asset preparation: [RUNNING](RUNNING.md).
+
+```bash
+python3.12 -m venv .venv
+.venv/bin/python -m pip install -r requirements-gpu.txt
+```
+
+**Historical working baseline** (`real` critic target, actor horizon 8, BC 0.25).
+It is not trained from scratch: it resumes policy62/WM562 (iteration 1561 of the
+source-configuration run `critic_mask_validation_20261104`), discards the critic,
+pre-fits a fresh critic for 100 rounds on the refilled replay, then trains:
+
+```bash
+.venv/bin/python scripts/train_gpu.py --worlds 1024 \
+  --resume runs/mpc_assets/policy62_wm562_original.pt --resume-without-replay \
+  --critic-target real --actor-horizon 8 --actor-bc-alpha 0.25 \
+  --critic-reset --critic-prefit-rounds 100 \
+  --microbatch 64 --critic-microbatch 8192 --max-iterations 860 --max-hours 12 \
+  --output runs/current_baseline/training
+```
+
+**`source` configuration** (SuperMimic-Reproduced settings: imagined critic
+targets, actor horizon 32, no BC; the script defaults), from scratch:
+
+```bash
+.venv/bin/python scripts/train_gpu.py --worlds 1024 --wm-only-updates 500 \
+  --max-hours 24 --output runs/source/training
+```
+
+Frozen evaluation of either checkpoint (definitions in [BENCHMARK](BENCHMARK.md)):
+
+```bash
+.venv/bin/python scripts/evaluate_benchmark.py --method supermimic \
+  --checkpoint RUN/training/last.pt --output RUN/evaluation
+```
+
+Frozen WM + MPPI uses the same evaluation entry with `--method wm-mppi` after
+installing `requirements-mpc.txt`. Settings and the complete command are in
+[BENCHMARK](BENCHMARK.md#world-model-mppi).
+
+`scripts/record_episode.py` records the same physical benchmark;
+`scripts/render_episode.py` produces a two-view video with measured force traces.
+[Recording commands](RUNNING.md#record-and-render-a-physical-episode).
+
+W&B is enabled by default; `--wandb-mode offline` records locally. SIGUSR1
+requests an atomic checkpoint after the current iteration; normal completion and
+SIGTERM also save.

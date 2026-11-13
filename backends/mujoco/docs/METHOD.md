@@ -1,6 +1,6 @@
 # Backend and source mapping
 
-The initial robot-only probe and historical scalar coupling are documented below.
+The 2026-11-02 robot-only probe and historical scalar coupling are documented below.
 Current changes, including optional net feedback, are specified in the root
 [METHOD](../../../docs/METHOD.md). Bundled material contact now uses
 `edge_coordinate_consistent_v2`; it is not equation-identical to the pinned source.
@@ -38,7 +38,7 @@ and original action mapping. Hardware updates are 1 ms, material exchange
 | Self collision | ODE excludes joint-connected rigid bodies; task enables other arm self collisions | Explicit exclusions across adjacent fixed-body groups, preserving all non-adjacent collisions |
 | Material | DiSECt `db7de0f`, 10 µs steps in ROSVisualizer | DFlex FEM/spring/integration with the documented contact-coordinate correction; exported Model/State loaded without ROS or Qt |
 | Force signal | Sum of per-contact force magnitudes along DiSECt +y; source wrench transform and 200-sample Butterworth window | Same aggregation/filter, converted into the wrist sensor frame, added to the MuJoCo native rigid-body sensor with Gazebo's child-to-parent sign |
-| Live ROS wiring | Both existing masters publish `/disect/wrench` with no subscriber; controller FT input has no publisher | Direct tensor feedback connects material force to the controller and observation; existing runs retain their original wiring |
+| ROS wiring observed on 2026-11-02 | Both then-running masters published `/disect/wrench` with no subscriber; controller FT input has no publisher | Direct tensor feedback connects material force to the controller and observation; those historical runs retained their startup wiring |
 
 The native wrist reading uses MuJoCo `rne_postconstraint` and the force/torque
 sensor equations at the wrist body origin. Filter startup holds the initial
@@ -82,7 +82,8 @@ Each world stores its own controller integration state, filter window/zi/tare,
 25-sample sensor queue, knife-motion history and reset snapshot. A force-limit
 stop captures that world's terminal state at the original exchange boundary;
 other worlds finish their control interval. Completed worlds reset before the
-next action. The source single-world runner remains the independent reference.
+next action. The source single-world runner remains the independent reference at matching revisions;
+long-horizon per-spring equivalence is not established by current tests (root METHOD).
 
 Stopped worlds retain robot qpos/qvel/warm start/time, all material State tensors,
 controller recurrence and filter/queue history. Candidate packed integration is

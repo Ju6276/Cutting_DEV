@@ -1,29 +1,39 @@
 # Script entry points
 
 Run commands from the repository root; installation is in [RUNNING](../docs/RUNNING.md).
-The current task is in [PLAN](../docs/PLAN.md). Training entries remain for
-historical reproduction; their availability does not schedule a new run. `train_gpu.py` runs the fixed
-prism by default and the multi-object task with `--conditions <json>`; the
-force-risk constraint is `--risk-constraint`.
+The current task is [free_cut_v3](../docs/TASK_FREE_CUT.md);
+[PLAN](../docs/PLAN.md) records the authorized continuation and branch ownership.
 
-## Retained execution entries (historical task definitions)
+## Current entries
 
 | Purpose | Entry |
 |---|---|
-| WM and policy training (fixed prism or `--conditions`, optional `--risk-constraint`) | `train_gpu.py` |
-| Multi-object environment check with reference control | `check_multi_condition.py` |
-| Parallel vs sequential object groups | `check_parallel_groups.py` |
-| Frozen multi-object evaluation (WM-method checkpoints) | `evaluate_multi.py` |
-| Unified-environment SAC | `train_sac_gpu.py`; `sac_gpu_worker.py` is its process bridge |
-| Frozen policy, SAC, MPPI and reference evaluation | `evaluate_benchmark.py` |
-| Reference cuts / world scaling | `benchmark_gpu_env.py` |
-| Record a nominal physical episode | `record_episode.py` |
-| Render saved geometry | `render_episode.py` |
+| Physical collection, WM/actor/critic updates | `train_gpu.py --conditions <json>` |
+| Frozen per-world physical evaluation | `evaluate_multi.py` |
+| Same-trajectory prediction/value diagnostics | `diagnose_free_cut_predictions.py` |
+| Reference reward and termination checks | `check_free_cut_task.py` |
+| Reset and end-to-end cost checks | `check_free_cut_reset.py`, `check_free_cut_throughput.py` |
+| One-update execution check | `check_free_cut_learning.py` |
 
-The separately adapted official implementation is `train_official_supermimic.py`;
-see [its mapping and limitations](../docs/OFFICIAL_SUPERMIMIC.md). Its first cutting
-run is not a successful reproduction result. Do not confuse it with the
-SuperMimic-Reproduced `source` configuration in `train_gpu.py`.
+Current configs are listed in [configs/free_cut](../configs/free_cut/README.md).
+The training and diagnostic scripts run from separately pinned checkouts; read
+PLAN before using a similarly named worktree.
+
+## Historical and comparison entries
+
+| Purpose | Entry |
+|---|---|
+| Fixed-prism / old grouped WM variants | `train_gpu.py` (defaults are the old task) |
+| Group/material checks | `check_multi_condition.py`, `check_parallel_groups.py` |
+| Unified fixed-prism SAC | `train_sac_gpu.py`, `sac_gpu_worker.py` |
+| Frozen policy/SAC/MPPI/reference benchmark | `evaluate_benchmark.py` |
+| Reference cuts / world scaling | `benchmark_gpu_env.py` |
+| Record/render physical geometry | `record_episode.py`, `render_episode.py` |
+
+The separately adapted official learner is `train_official_supermimic.py`;
+[SOURCES](../docs/SOURCES.md#official-supermimic-adaptation) records its scope and
+limitations. It is distinct from the community-source learner above.
+Runnable entries do not authorize additional experiments.
 
 ## Assets and independent source reproduction
 
@@ -76,13 +86,3 @@ do not resolve every material-substep peak.
 
 `check_free_object_scene.py` is the platform check of the free-object single-cut task on one
 scene: mesh connectivity across the cut plane, rest on the board, press/hold/retract, severed state.
-
-
-- check_free_cut_task.py: bounded physical reference/reward checks for the opt-in
-  versioned free-cut task; requires an explicit config and writes complete episode rows.
-  No policy training. See docs/FREE_CUT_REVIEW.md.
-
-
-- check_free_cut_reset.py: bounded eager vs packed/graph stationary reset timing and state comparison.
-- check_free_cut_learning.py: actual six-action controller collection followed by one WM and
-  actor/critic update; deliberately small verification batches, not a training experiment.

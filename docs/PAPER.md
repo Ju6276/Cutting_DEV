@@ -1,89 +1,57 @@
-# Paper
+# Paper scope
 
-Updated 2026-11-12. **The topic is being re-decided; nothing in this file is a
-settled claim yet.** [PLAN](PLAN.md) is the task list, [RESULTS](RESULTS.md) the
-measurements, [literature search 2026-11-12](literature/force_adaptive_search_20261112.md)
-and [NOVELTY](NOVELTY.md) the prior-art evidence. The previous version of this file
-(problem: "the world model under-predicts the force spike at contact onset") is
-archived as [PAPER_20261111](archive/PAPER_20261111.md) and is **retired**.
+Updated 2026-11-13. This describes the research scope, **not an established novelty
+claim**. [PLAN](PLAN.md) owns experiments; [TASK_FREE_CUT](TASK_FREE_CUT.md) owns the
+simulation task; [RESULTS](RESULTS.md) owns measurements.
 
-## 1. Why the previous problem statement was retired
+## Task and intended application
 
-It was derived from failures observed in our own experiments, not from the task.
-The 2026-11-12 diagnosis (RESULTS) shows those failures are at least partly produced
-by the task definition: with the inherited reward the trained policy drives the
-knife down at 20-27 cm/s against a 1-5 cm/s speed command, and force-limit hits
-happen at that speed. Whether a force-spike problem remains once the task is
-corrected is unknown. A paper cannot rest on it.
+One knife cut through a freely placed deformable object, with complete separation,
+a commanded feed speed and measured wrist-force feedback. Small passive movement
+is allowed. Active rolling and multi-cut planning are outside the current scope.
+The eventual aim is one controller across materials and geometries, with
+sim-to-real validation; the current run uses one cucumber scene.
 
-## 2. Task-first research scope (open)
+The simulation stop rule and wrench limits are engineering task conventions.
+They do not establish a real-robot stop detector, calibrated material properties
+or Mini45 safety guarantees. The real setup must be measured separately.
 
-A candidate application is cutting unknown deformable objects with force feedback.
-First specify the real operation, holding arrangement, desired outcome and
-measurable limits; then identify what practical limitation existing methods leave
-unresolved. No particular modality or learned architecture is required by this.
+## Implemented candidate
 
-Force-adaptive speed/compliance control is a candidate, not a settled topic.
-The historical/default material-feedback scalar is not a Mini45 contact wrench.
-Optional net feedback is now implemented and locally checked (METHOD), but has
-not been calibrated against a real sensor and mount. Force-limit
-termination detects a modeled violation; it does not guarantee a real robot
-stays below a bound.
+A learned robot/force/progress world model supplies short imagined trajectories.
+BPTT optimizes a policy using predicted task reward and a terminal critic estimate.
+The current configuration uses real-replay critic targets, an eight-step actor
+horizon and BC regularization at 0.25. The deployed policy does not read simulator
+cut progress; the training WM currently does. Architecture and interfaces:
+[METHOD](METHOD.md).
 
-WM+BPTT, a risk head and conservative planning are available ingredients. Their
-implementation or failure on the old task does not establish a real need for
-them. Predicted force peaks are not an adopted core contribution.
+These ingredients have precedents. Their combination is an implemented candidate,
+not automatically a new generic RL method. The optional risk head, official-source
+adaptation, MPPI and SAC remain separate implementations, not adopted additions to
+the active run.
 
-## 3. Preliminary prior art (requires primary-source verification)
+## What this experiment answers
 
-This table summarizes the linked preliminary search, including second-hand
-summaries, abstracts and snippets. Negative claims in "What it does not do"
-are provisional, not established exclusions. The candidate-oriented search
-cannot substitute for reading the practical problems the papers solve.
+The short v3 run improved physical completion while developing optimistic model
+and value estimates on failed lateral-motion trajectories. More joint training is
+being measured under a fixed budget to see whether incoming data corrects that
+mismatch. This is development evidence; it does not establish algorithm superiority,
+sample efficiency, multi-object transfer or a new failure mechanism.
 
-The task framing alone is **not** new:
+Do not derive the paper's motivation from an unvalidated simulator or one weak
+checkpoint. The earlier force-spike premise and first S3 comparisons were retired;
+their evidence and corrections remain in [history](archive/README.md).
 
-| Precedent | What is already done | What it does not do |
-|---|---|---|
-| Hathaway et al. (T-ASE 2023, IROS 2024, arXiv 2026) | One model-free policy adapts feed rate and stiffness from wrench on materials hidden from the agent; sim-to-real (milling saw) | No hard force limit (quadratic penalty only), no history, no learned model for policy gradients, not knife cutting of deformables |
-| FORGE (2024) | Recurrent policy conditioned on a maximum force, hidden dynamics inferred from force; sim-to-real assembly | Soft penalty: real peak 12.8 N against a 7.5 N threshold; no material removal, no speed command |
-| SRL-VIC (RA-L 2024) | Force threshold ends the episode; safety critic + variable stiffness; sim-to-real | Environment stiffness not varied; model-free |
-| Luo & Yuan robocutting; SliceIt; Liu et al. (RA-L 2025) | Real knife cutting of varied foods with force feedback (RL per food / SAC per material / demonstration primitives) | No single frozen learned policy with a formal force limit across unseen objects |
-| Peng et al. (TNNLS 2022); CaT; LAMBDA; SafeDreamer | Chance-constrained / terminating / Lagrangian safe (model-based) RL | No contact force, no manipulation |
-| Classical adaptive feed control | "Slow the feed when force nears a limit" as a hand-designed governor | Needs tuning per process; no learned adaptation |
+## Evidence still needed for a paper claim
 
-Not found in the search (38 queries; "not found", not "does not exist"): knife
-cutting of deformable objects with a hard, episode-ending force limit handled as
-a formal constraint across unknown materials; a wrench-predicting world model used
-for backpropagated policy learning under a peak-force constraint; prediction of the
-within-interval force peak (policy at 20 Hz, sensor faster).
+- A literature-grounded cutting problem and a concrete mechanism addressing it.
+- Credible task/physics assumptions and independently evaluated control results.
+- Comparisons appropriate to the eventual claim, with information access, training
+  budget and online computation disclosed.
+- Cross-condition/object evidence for generalization claims; real-robot evidence
+  for claims about physical cutting or sensor-force safety.
 
-A force-feedback controller, model-free methods and learned-model planning
-are comparison candidates. The final set follows the task and claim; this is
-not a requirement to implement all of them now. Candidate comparison from the
-search (not decided): a recurrent force-penalty policy (FORGE style), terminating
-safe RL (SRL-VIC/CaT style) and a force-feedback speed governor, compared on
-force-limit violations at matched cutting speed.
-
-## 4. Evidence needed before a method claim
-
-1. A real cutting requirement and credible completion/force definitions.
-2. A platform demonstration representing the required interactions, including
-   the fixture and sensor meaning, without success shortcuts.
-3. A literature-grounded limitation that matters in that task.
-4. A method addressing it, and comparisons capable of testing the claim.
-5. Real-robot evidence if the claim concerns physical cutting or force safety.
-
-Additional modalities and objects do not automatically provide novelty.
-A simulator-only claim must be scoped to the represented physics and outcomes.
-
-## 5. What exists
-
-- Base method, multi-object environment, per-object logging, deterministic
-  evaluation, resume with replay: implemented and tested (METHOD, tests).
-- Risk head + adaptive penalty (`--risk-constraint`) and the official SuperMimic
-  adaptation: implemented; both failed in their first run for identified reasons
-  (RESULTS 2026-11-12). Kept as code; not results.
-- Fixed-prism numbers (archived PAPER §5) retain their historical goal-pose
-  definitions; they do not alone validate separation, physical wrist-force
-  prediction or general cutting performance.
+These are research requirements, not instructions to launch additional jobs.
+Candidate precedents and their reading limitations are in [NOVELTY](NOVELTY.md)
+and [the paper/code ledger](literature/README.md). The current implementation and
+diagnostic findings alone do not fix the paper title or method contribution.

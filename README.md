@@ -1,142 +1,60 @@
 # Cutting DEV
 
-UR5e robotic cutting with SliceIt/DiSECt, SAC and a SuperMimic-style learned
-world model. The robot and material execute physical transitions; policy
-gradients pass through the learned world model.
+UR5e single-cut control using MuJoCo Warp, a SliceIt-derived compliant controller
+and DiSECt. The learning method predicts transitions with a world model (WM)
+and trains a policy by backpropagating through that model.
 
-| Component | Location | Responsibility |
-|---|---|---|
-| Learning | `cutting_world_model/` | WM, policy, critic, replay and task adapters |
-| Physics | `backends/mujoco/` | MuJoCo Warp, DiSECt, compliance and parallel worlds |
-| SliceIt baseline | `integrations/sliceit/` | Pinned upstream sources and integration patches |
-| Commands | `scripts/` | Collection, training and frozen evaluation |
-| Experiments | `runs/` | Local data, checkpoints and videos; excluded from Git |
+## Current work — 2026-11-13
 
-[Documentation map](docs/README.md) · [Script entry points](scripts/README.md) ·
-[Data and checkpoint locations](docs/DATA.md)
+The current task is **free_cut_v3**: one cut of a freely placed object, complete
+material separation, commanded feed speed and explicit sensor-wrench/workspace
+limits. Small object sliding is allowed and logged. The current experiment uses
+one scanned cucumber scene with randomized simulation materials; it is not yet
+the multi-object paper comparison or a real-robot validation.
 
-## Status — 2026-11-12
+An authorized GPU7 run continues joint WM/policy/critic training from 43 policy
+updates. Budget: 1250 additional vector steps, at most 9 hours; checkpoints are
+measured on the same 64 development conditions. No pass/fail calibration gates,
+new reward, uncertainty penalty or action limiter are introduced in this run.
+See [PLAN](docs/PLAN.md) for the run manifest and ownership.
 
-The research question and multi-object task are being redefined. The force-spike
-problem statement and first S3 comparison are retired: the success rule,
-holding setup, reward and reference trajectory confounded the results. The
-default material-force bridge remains a scalar proxy. Optional net force/moment
-feedback and its contact-coordinate correction are implemented and locally checked;
-neither mode has been calibrated as a real Mini45 measurement.
-The opt-in free-cut task (v1/v2 history and v3 review candidate) is implemented for engineering review (complete
-separation, force/workspace failures, finite deadline, explicit rewards and WM
-progress). See [task contract](docs/TASK_FREE_CUT.md) and
-[current review handoff](docs/FREE_CUT_REPAIR.md). Only bounded execution checks have run; there is no new trained task policy.
-[PLAN](docs/PLAN.md) is the only current task list. The commands below do not
-schedule new training.
+## Start here
 
+- [Current plan and run](docs/PLAN.md)
+- [Task and reward contract](docs/TASK_FREE_CUT.md)
+- [Implemented learning method](docs/METHOD.md)
+- [Execution and resume instructions](docs/RUNNING.md)
+- [Current results](docs/RESULTS.md)
+- [Document map](docs/README.md), [script map](scripts/README.md), [server data](docs/DATA.md)
 
-**Physics version:** main now uses `edge_coordinate_consistent_v2` (contact-coordinate
-bug correction; see METHOD). Historical checkpoint reproduction requires the code/configuration recorded
-in that run's manifest and an isolated kernel cache. `38b85a5` is the immediate
-pre-coordinate-fix reference, not the exact revision of every historical run. Do not remove metadata
-checks to reuse old checkpoints as identical-physics results. No training restart
-is authorized by this correction.
+| Component | Location |
+|---|---|
+| WM, policy, critic, replay and task adapters | `cutting_world_model/` |
+| MuJoCo Warp, DiSECt and compliant control | `backends/mujoco/` |
+| Independent SliceIt/Gazebo sources and patches | `integrations/sliceit/` |
+| Training, recording and evaluation | `scripts/` |
+| Prepared assets, weights, recordings and logs | Server-only paths in [DATA](docs/DATA.md); excluded from Git |
 
-## Run the existing fixed-prism task
+Source, environments and outputs stay on the servers; use Remote SSH through
+`tams61`. Active processes keep their pinned checkout. The historical branch name
+`codex/free-cut-v1` contains v3 work; it is not the task-version identifier.
+Training currently uses the separately reviewed infrastructure commit `b1bcb92`.
+Do not assume `main` or a branch name identifies a running experiment.
 
-These commands reproduce the historical fixed-prism task, including its goal-pose
-success rule. Multi-object grouping and material sampling are implemented, but
-their task definition is under revision. Historical S0 inputs are documented in
-[configs/multi_condition](configs/multi_condition/README.md).
+## Research and reproduction
 
-GPU training uses Linux, Python 3.12, NVIDIA CUDA and prepared robot/material
-assets; Gazebo collection and the original SAC use the separate ROS Noetic
-environment. Installation and asset preparation: [RUNNING](docs/RUNNING.md).
+[Paper scope](docs/PAPER.md) distinguishes the task from unproven method claims.
+[Literature evidence](docs/NOVELTY.md) and [paper/code notes](docs/literature/README.md)
+retain their reading scope and pinned sources. [REAL2SIM](docs/REAL2SIM.md) is a
+conditional draft.
 
-```bash
-python3.12 -m venv .venv
-.venv/bin/python -m pip install -r requirements-gpu.txt
-```
+[Historical fixed-prism benchmark](docs/BENCHMARK.md) uses a pose-goal success rule,
+not current separation success. Its SAC/WM/MPPI results cannot be pooled with v3.
+[Historical records](docs/archive/README.md) retain adverse results and immutable
+links to retired plans/reviews.
 
-**Historical working baseline** (`real` critic target, actor horizon 8, BC 0.25).
-It is not trained from scratch: it resumes policy62/WM562 (iteration 1561 of the
-source-configuration run `critic_mask_validation_20261104`), discards the critic,
-pre-fits a fresh critic for 100 rounds on the refilled replay, then trains:
+Physics revision `edge_coordinate_consistent_v2` is checked in task metadata.
+Neither scalar nor net feedback is a calibrated Mini45 measurement. Preserve
+compatibility checks and reproduce old runs from their own manifests.
 
-```bash
-.venv/bin/python scripts/train_gpu.py --worlds 1024 \
-  --resume runs/mpc_assets/policy62_wm562_original.pt --resume-without-replay \
-  --critic-target real --actor-horizon 8 --actor-bc-alpha 0.25 \
-  --critic-reset --critic-prefit-rounds 100 \
-  --microbatch 64 --critic-microbatch 8192 --max-iterations 860 --max-hours 12 \
-  --output runs/current_baseline/training
-```
-
-**`source` configuration** (SuperMimic-Reproduced settings: imagined critic
-targets, actor horizon 32, no BC; the script defaults), from scratch:
-
-```bash
-.venv/bin/python scripts/train_gpu.py --worlds 1024 --wm-only-updates 500 \
-  --max-hours 24 --output runs/source/training
-```
-
-Frozen evaluation of either checkpoint (definitions in [BENCHMARK](docs/BENCHMARK.md)):
-
-```bash
-.venv/bin/python scripts/evaluate_benchmark.py --method supermimic \
-  --checkpoint RUN/training/last.pt --output RUN/evaluation
-```
-
-Frozen WM + MPPI uses the same evaluation entry with `--method wm-mppi` after
-installing `requirements-mpc.txt`. Settings and the complete command are in
-[BENCHMARK](docs/BENCHMARK.md#world-model-mppi).
-
-`scripts/record_episode.py` records the same physical benchmark;
-`scripts/render_episode.py` produces a two-view video with measured force traces.
-[Recording commands](docs/RUNNING.md#record-and-render-a-physical-episode).
-
-W&B is enabled by default; `--wandb-mode offline` records locally. SIGUSR1
-requests an atomic checkpoint after the current iteration; normal completion and
-SIGTERM also save.
-
-## Historical fixed-task results
-
-Single prism (`public-prism-ur5e-v1`), frozen 8 episodes, one seed
-([RESULTS](docs/RESULTS.md) 2026-11-05/06 and 2026-11-08):
-
-| Policy | Goal-pose completions | Steps | Return | Peak material-force proxy |
-|---|---:|---:|---:|---:|
-| policy62 (source configuration, start point) | 8/8 | 20 | 90.81 | 30.66 N |
-| Current working baseline, updates 150–300 | 8/8 | 17–18 | 92.2–92.7 | 35.0–46.4 N |
-| Current working baseline, last | 8/8 | 19 | 91.37 | 26.10 N |
-| SAC in the unified environment (source settings, one environment), step 85000 | 8/8 | 18 | 92.03 | 49.6 N |
-
-These are historical fixed-task checkpoints, not a matched-budget algorithm
-comparison. Variant A improved fixed-data prediction but did not establish its
-pre-stated final control benefit. The working-baseline repeat's temporary
-collapse and SAC's later collapse remain in RESULTS. The existing SAC85k is
-a source-derived controller comparison, not a full reproduction of SliceIt's
-paper.
-
-The source learning chain began with fresh networks, 500 WM-only rounds and
-later joint updates, reaching policy62/WM562. The historical working baseline above
-continues that policy; it does not imply the entire approach only fine-tunes
-an external expert. Resumes and terminal/masking fixes are part of its lineage.
-
-## Research direction under review
-
-First specify the real cutting operation, fixture, completion criterion and
-measurable force quantity. Literature should identify practical limitations and
-compare assumptions and evidence, not only check whether a proposed mechanism
-has appeared before.
-
-WM+BPTT, risk penalties, official SuperMimic adaptation, SAC and WM+MPPI remain
-available implementations. None is selected as a new contribution by this
-cleanup. Sawing is part of the user's chosen task direction; reference-trajectory
-measurements now exist, but no learned sawing result is established. Geometry input
-is favoured; additional sensing and heterogeneous materials remain conditional. Historical numerical results retain their original task definitions;
-they cannot establish physical separation or real-robot force safety.
-
-[Current plan](docs/PLAN.md) · [Benchmark and definitions](docs/BENCHMARK.md) ·
-[Results](docs/RESULTS.md) · [Methods and variants](docs/METHOD.md) ·
-[Literature](docs/NOVELTY.md) · [Reading list](docs/READING_LIST.md) ·
-[Real robot (draft)](docs/REAL2SIM.md) · [Source versions](docs/SOURCES.md)
-
-The two original Git histories are retained. Third-party licenses are listed
-in [NOTICE](NOTICE.md). Data, credentials and environments stay outside Git.
+Dependencies and licenses: [SOURCES](docs/SOURCES.md), [NOTICE](NOTICE.md).

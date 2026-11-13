@@ -60,4 +60,4 @@ gradient.
 the route; checkpoints without the field used `dynamics`. `train_gpu.py` resumes
 only with the same route; `OnlineLearner.restore(...,
 change_wm_terminal_gradient=True)` starts the other route from a saved WM, used by
-the fixed-data comparison in PLAN.
+the historical fixed-data comparison recorded in the results archive.
