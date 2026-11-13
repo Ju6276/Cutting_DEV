@@ -3,11 +3,11 @@
 # Plan
 
 Updated 2026-11-12 after task/platform review. The only current task list.
-Research scope: [PAPER](PAPER.md); measurements: [RESULTS](RESULTS.md);
-implementation: [METHOD](METHOD.md); assets: [DATA](DATA.md).
-Earlier plans: [2026-11-12 before the review](archive/PLAN_20261112_pre_review.md)
-(defect table, ordered steps, topic options), [2026-11-11](archive/PLAN_20261111.md),
-[2026-11-10](archive/PLAN_20261110.md).
+Research scope: [PAPER](../PAPER.md); measurements: [RESULTS](../RESULTS.md);
+implementation: [METHOD](../METHOD.md); assets: [DATA](../DATA.md).
+Earlier plans: [2026-11-12 before the review](../archive/PLAN_20261112_pre_review.md)
+(defect table, ordered steps, topic options), [2026-11-11](../archive/PLAN_20261111.md),
+[2026-11-10](../archive/PLAN_20261110.md).
 
 ## Current state
 
@@ -122,11 +122,11 @@ contracts and evidence. Do not restart S3 from a reproduction command.
 
 
 Net-wrench interface repairs and the bounded press/saw rerun are recorded in
-[RESULTS](RESULTS.md#2026-11-12--codex-net-wrench-repair-and-physical-rerun).
+[RESULTS](../RESULTS.md#2026-11-12--codex-net-wrench-repair-and-physical-rerun).
 The contact-coordinate correction is implemented as `edge_coordinate_consistent_v2`.
 Kernel confirmation and the bounded press/saw comparison are recorded in
-[RESULTS](RESULTS.md#2026-11-12--contact-coordinate-correction-and-kernel-confirmation).
+[RESULTS](../RESULTS.md#2026-11-12--contact-coordinate-correction-and-kernel-confirmation).
 It resolves the source inconsistency identified in that interface review; it does not
 replace material calibration or approve restarting training.
 
-Review handoff for Claude: [CONTACT_FIX_REVIEW](CONTACT_FIX_REVIEW.md).
+Review handoff for Claude: [CONTACT_FIX_REVIEW](../CONTACT_FIX_REVIEW.md).

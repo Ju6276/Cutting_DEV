@@ -27,6 +27,7 @@ class KnifeBoard:
         self.contacted = torch.zeros(material.worlds, device=material.position.device, dtype=torch.bool)
         self.min_gap = torch.full_like(material.position[:, 0], float('inf'))
         self.last_mid = self.midpoints().clone()
+        self.last_footprint = self.footprint().clone()
 
     def transformed(self, position, rotation, vertices=None):
         v = self.vertices if vertices is None else vertices
@@ -47,11 +48,16 @@ class KnifeBoard:
         pairs = m.model.cut_spring_indices.reshape(-1, 2).long()
         return points[pairs].mean(1).reshape(m.worlds, -1, 3)
 
+    def footprint(self):
+        particles = self.material.state_field('particle_q')
+        return torch.stack((particles[:, :, 0].amin(-1), particles[:, :, 0].amax(-1)), -1)
+
     def reset(self, mask):
         self.covered[mask] = False
         self.contacted[mask] = False
         self.min_gap[mask] = self.gap()[mask]
         self.last_mid[mask] = self.midpoints()[mask]
+        self.last_footprint[mask] = self.footprint()[mask]
         if bool((self.min_gap[mask] < self.stop_gap).any()):
             raise ValueError('Knife starts below board stop plane')
 
@@ -85,7 +91,7 @@ class KnifeBoard:
                 hi = torch.where(safe, hi, mid)
         return torch.where(hit, lo, full), hit
 
-    def signed_height(self, position, rotation, points):
+    def signed_height(self, position, rotation, points, footprint):
         edge = self.transformed(position, rotation, self.edge)
         a, b = edge[:, 0], edge[:, 1]
         dz = b[:, 2] - a[:, 2]
@@ -96,8 +102,7 @@ class KnifeBoard:
         # deforming free object keep its original cut plane at x=0. Reject a
         # knife outside the object's actual transverse footprint without a
         # fixed 'allowed sliding' threshold.
-        particles = self.material.state_field('particle_q')
-        xmin, xmax = particles[:, :, 0].amin(-1), particles[:, :, 0].amax(-1)
+        xmin, xmax = footprint.unbind(-1)
         inside = ((u >= 0) & (u <= 1) & valid_edge[:, None]
                   & (line[:, :, 0] >= xmin[:, None]) & (line[:, :, 0] <= xmax[:, None]))
         # No deleted witnesses at the board: the same tolerance covers penalty-contact
@@ -106,12 +111,14 @@ class KnifeBoard:
 
     def observe(self, old_position, old_rotation, active):
         mid = self.midpoints()
-        before, inside0 = self.signed_height(old_position, old_rotation, self.last_mid)
-        after, inside1 = self.signed_height(self.material.position, self.material.rotation, mid)
+        footprint = self.footprint()
+        before, inside0 = self.signed_height(old_position, old_rotation, self.last_mid, self.last_footprint)
+        after, inside1 = self.signed_height(self.material.position, self.material.rotation, mid, footprint)
         crossed = ((before >= -self.tolerance) & (after <= self.tolerance)
-                   & (after <= before) & inside0 & inside1)
+                   & (after < before) & inside0 & inside1)
         self.covered |= crossed & active[:, None]
         self.last_mid[active] = mid[active]
+        self.last_footprint[active] = footprint[active]
         gap = self.gap()
         self.min_gap = torch.where(active, torch.minimum(self.min_gap, gap), self.min_gap)
         if self.enforce and bool((gap[active] < -2e-6).any()):

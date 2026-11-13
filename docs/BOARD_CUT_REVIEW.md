@@ -1,3 +1,5 @@
+> Historical coverage-task experiment (2026-11-13). On 2026-11-14 the user chose target-pose completion with a board boundary instead; see [current task](TASK_FREE_CUT.md). This audit remains evidence, not the next training recipe.
+
 # Board-stop cutting task and frozen-policy audit (2026-11-13)
 
 User-authorized scope: implement effective knife-path coverage plus board arrival,

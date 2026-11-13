@@ -75,6 +75,17 @@ def test_v4_success_board_coverage_force_and_separation_are_distinct():
     assert ev['success'].tolist()==[True,False,False,False,False]
     assert ev['separated'].tolist()==[False,True,True,True,True]
     assert ev['terminated'].tolist()==[True,True,False,True,True]
+    assert ev['board_incomplete'].tolist()==[False,True,False,False,False]
+    progress=torch.zeros(5); speed=torch.full((5,),.03)
+    raw=task.step_reward(progress,progress,obs,peak,speed)
+    with pytest.raises(FloatingPointError,match='not an RL failure'):
+        task.reward(progress,progress,obs,peak,speed,ev)
+    valid={k:v[:4] for k,v in ev.items()}
+    settled=task.reward(progress[:4],progress[:4],obs[:4],peak[:4],speed[:4],valid)
+    torch.testing.assert_close(settled-raw[:4],torch.tensor([100.,0.,0.,-100.]))
+    board['knife_min_board_gap'][4,0]=-1e-6
+    ev=task.events(obs,peak,torch.ones(5),torch.ones(5),pose=torch.zeros(5,7),board=board)
+    assert ev['success'][4]  # numerical clearance tolerance, not a penalty
 
 def test_old_world_model_cannot_be_silently_used_with_new_task():
     from cutting_world_model.world_model import CuttingWorldModel
@@ -116,3 +127,20 @@ def test_reset_clears_coverage_contact_and_minimum():
     assert not b.covered.any() and not b.contacted.any()
     assert b.min_gap.item()==pytest.approx(.04)
     assert torch.equal(b.last_mid,b.midpoints())
+
+def test_previous_footprint_must_not_be_replaced_by_current_footprint():
+    m=material()
+    m.state.particle_q[:,0] += .02
+    b=KnifeBoard(m,BOARD); b.reset(torch.tensor([True]))
+    old=m.position.clone()
+    m.state.particle_q[:,0] -= .02
+    m.position[:,1]=1e-6
+    b.observe(old,m.rotation,torch.tensor([True]))
+    assert not b.covered.any()
+
+
+def test_stationary_overlap_does_not_generate_swept_progress():
+    m=material(); m.position[:,1]=1e-6
+    b=KnifeBoard(m,BOARD); b.reset(torch.tensor([True]))
+    b.observe(m.position.clone(),m.rotation.clone(),torch.tensor([True]))
+    assert not b.covered.any()

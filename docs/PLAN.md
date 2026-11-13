@@ -1,22 +1,24 @@
-# Current plan — 2026-11-13
+# Current plan — 2026-11-14
 
-## Task decisions
+## Selected task
 
-- Single cut of a freely placed object; passive sliding is recorded without a displacement penalty. Active rolling and multi-cut planning are outside this task.
-- The user authorized effective knife-path coverage plus arrival at the cutting board, within force/workspace limits. The knife may not pass through the board. Opt-in `free_cut_v4` implements this physical task; v1–v3 preserve their historical separation-based semantics.
-- Report geometric path completion, material separation and force events separately. Path completion is not proof that the two pieces have physically separated.
-- Keep the six-component simulated force/torque limits. These are not calibrated Mini45 hardware limits. No material/friction tuning to make the task harder.
+One cut of a freely placed object. The user requested simplification: use the existing target-pose completion interface; retain the no-through-board execution boundary and force/workspace limits. Material separation and geometric coverage are separate evaluation diagnostics, not additional training requirements. Passive sliding is permitted; no new displacement penalty, no active rolling task. Contract: [TASK_FREE_CUT](TASK_FREE_CUT.md).
 
-## Current authorized delivery
+## Completed in this cleanup
 
-Implement the board execution stop and evaluate the frozen 543-update cucumber policy against the same 64 development conditions. No new training, reward tuning, material damage changes, or replacement of historical results. Protocol, implementation and results: [BOARD_CUT_REVIEW](BOARD_CUT_REVIEW.md); experiment history: [RESULTS](RESULTS.md).
+- Rechecked the v4 implementation and fixed previous/current footprint alignment; stationary proximity no longer accumulates swept coverage.
+- Invalid knife penetration aborts as a simulator error. No penetration penalty is added to RL. Numerical tolerance and board stop are distinct from force-limit failures.
+- Preserved versioned source/v1-v3 code and tests for historical checkpoints, archived obsolete review instructions, and replaced conflicting current-task descriptions.
+- Ran one bounded four-world frozen-policy boundary check on each existing free cucumber, prism and potato asset. These use the old v4 diagnostic contract, not the newly selected pose-task performance claim. Results and reset motion: [RESULTS](RESULTS.md), 2026-11-14.
 
-The board stop is a software motion interlock, not a compliant board-force model. Geometric coverage samples the moving intended section; it is not a continuum separation proof. v3 WM and critic labels are incompatible with v4 and must not be silently reused. The v4 training path is explicitly rejected pending a matching learned-task implementation and a separately approved training budget.
+## What remains before long training
 
-## Following work
+1. The old target's translation-only blade endpoint is about 4.4 mm below the board (RESULTS). Connect the existing pose reward/termination to a board-aligned physical goal and the tested board interlock, with a new task identity. Do not add coverage/fragment progress to the WM. Validate physical/imagined task semantics in an actual update and resume; do not silently reuse the old separation labels.
+2. Cucumber and prism can supply development interaction data; neither requires a fixed reference to break every spring before collection. Potato's current reset still has substantial centre-of-mass motion. Prepare a naturally stable resting pose before calling it stationary-object training data. Do not freeze it artificially or erase velocities to hide motion.
+3. Write the bounded training configuration for the chosen available objects. Do not wait for every fracture mechanism to be explained, and do not start a three-object run with the current unsettled potato or the retired v4 training entry.
 
-After this audit, use its outcome to decide the next training/task change. Do not restart S3, change materials, relax coverage, or launch multi-object training automatically. Potato placement and prism residual links remain measured platform limitations, not prerequisites for completing this audit. Historical task and training plans are retained in Git and RESULTS; the previous separation-only definition does not define v4.
+Material-ground overlap and residual connections remain physical-fidelity limitations to report. No claim of calibrated real cutting forces or complete physical separation follows from a pose-success rate. No new material/ground tuning or training was performed in this cleanup.
 
-## Execution and storage
+## Execution
 
-Remote SSH on GPU7 through tams61. Current isolated worktree: `/dataHDD/dong/Projects/Cutting_DEV_board`, branch `codex/board-cut-v4`. Preserve the original `codex/free-cut-v1` checkout and all checkpoints. Source, environments, assets and runs remain on servers. Check GPU usage before execution.
+GPU7 through tams61, isolated worktree `/dataHDD/dong/Projects/Cutting_DEV_board`, branch `codex/board-cut-v4` (branch name retains the audit origin). Source, assets, weights and run data remain on servers. Preserve old checkouts and checkpoints; their task definitions are unchanged. Current audit data: `runs/board_review_20261114/`. No long training is currently running from this work.

@@ -78,9 +78,9 @@ first repeated real measurements (real repeat spread is the reference).
   close to the jello config) plus two foods with different stiffness (proposal:
   potato and apple, which have published compression data and DiSECt
   calibrations). Cut specimens with a mould to the simulated prism dimensions.
-  Objects remain bottom-held in the current simulation decision; choose a realizable
-  fixture and reproduce its constraints in both simulation and the real experiment.
-  The historical free-bottom benchmark is not the current fixture prescription.
+  Current simulation direction is free placement with passive sliding. The old
+  bottom-held fixture proposal is retired. Establish the real support/friction
+  and safe tool/board boundary before claiming matching sim-to-real conditions.
 - **Measurements per material.**
   1. Slow indentation/compression with the robot and the Mini45, giving an
      elastic-modulus prior. Food is viscoelastic and moduli depend on geometry

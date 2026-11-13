@@ -48,7 +48,8 @@ The task framing alone is **not** new:
 | Hathaway et al. (T-ASE 2023, IROS 2024, arXiv 2026) | One model-free policy adapts feed rate and stiffness from wrench on materials hidden from the agent; sim-to-real (milling saw) | No hard force limit (quadratic penalty only), no history, no learned model for policy gradients, not knife cutting of deformables |
 | FORGE (2024) | Recurrent policy conditioned on a maximum force, hidden dynamics inferred from force; sim-to-real assembly | Soft penalty: real peak 12.8 N against a 7.5 N threshold; no material removal, no speed command |
 | SRL-VIC (RA-L 2024) | Force threshold ends the episode; safety critic + variable stiffness; sim-to-real | Environment stiffness not varied; model-free |
-| Luo & Yuan robocutting; SliceIt; Liu et al. (RA-L 2025) | Real knife cutting of varied foods with force feedback (RL per food / SAC per material / demonstration primitives) | No single frozen learned policy with a formal force limit across unseen objects |
+| SliceIt (primary text checked 2026-11-14) | SAC trained with randomized loading of calibrated tomato, cucumber and potato; carrot evaluated as an unseen food | Do not claim that one policy across materials or adaptation to unseen food is absent from this precedent; distinguish the model/planning method and actual evidence |
+| Luo & Yuan robocutting; Liu et al. (RA-L 2025) | Other real food-cutting RL / demonstration precedents | Their exact training and transfer protocols require separate primary-source comparison; no blanket exclusion is established here |
 | Peng et al. (TNNLS 2022); CaT; LAMBDA; SafeDreamer | Chance-constrained / terminating / Lagrangian safe (model-based) RL | No contact force, no manipulation |
 | Classical adaptive feed control | "Slow the feed when force nears a limit" as a hand-designed governor | Needs tuning per process; no learned adaptation |
 
@@ -87,3 +88,5 @@ A simulator-only claim must be scoped to the represented physics and outcomes.
 - Fixed-prism numbers (archived PAPER §5) retain their historical goal-pose
   definitions; they do not alone validate separation, physical wrist-force
   prediction or general cutting performance.
+
+2026-11-14 correction: the earlier grouped row incorrectly described SliceIt as SAC per material. Section IV-A.3 explicitly describes loading different calibrated foods during training: [primary text](https://arxiv.org/html/2404.02569v1#S4.SS1.SSS3). The selected engineering direction is target-pose completion with a board boundary; physical separation is separately reported. This does not establish a new paper contribution.

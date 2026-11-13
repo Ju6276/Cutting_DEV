@@ -3,7 +3,7 @@
 | Document | Role |
 |---|---|
 | [PLAN](PLAN.md) | Sole current task list: current state, decisions by the user, what has to be resolved, conditional options |
-| [TASK_FREE_CUT](TASK_FREE_CUT.md) | Proposal (not approved): reward, episode settlement and world-model implementation of the free-object single cut |
+| [TASK_FREE_CUT](TASK_FREE_CUT.md) | Current simplified pose-task direction, board boundary, diagnostics, and explicit implementation status |
 | [PAPER](PAPER.md) | Research scope (open): why the old problem statement was retired, task-first scope, preliminary prior art, evidence needed |
 | [Literature search 2026-11-12](literature/force_adaptive_search_20261112.md) | Prior art for the candidate topic, searched outside the library (second-hand evidence levels) |
 | [OFFICIAL_SUPERMIMIC](OFFICIAL_SUPERMIMIC.md) | Official SuperMimic (5efbf11) adapted to the cutting prism: component mapping and every deviation |
@@ -35,4 +35,6 @@ RESULTS retains measured failures and superseded decisions for traceability;
 use PLAN for what happens next. No historical evidence is deleted for looking
 unfavorable.
 
-Current board-stop task and frozen-policy audit: [BOARD_CUT_REVIEW](BOARD_CUT_REVIEW.md).
+Historical v4 coverage-task and frozen-policy audit: [BOARD_CUT_REVIEW](BOARD_CUT_REVIEW.md).
+
+Historical task equations and code reviews: [v1-v3 contract](archive/TASK_FREE_CUT_V1_V3.md), [first review](archive/FREE_CUT_REVIEW_20261112.md), [v2/v3 repair](archive/FREE_CUT_REPAIR_20261113.md). They are retained for reproducibility, not additional current steps.

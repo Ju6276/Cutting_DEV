@@ -1,3 +1,5 @@
+> Historical review record. Current task direction: [TASK_FREE_CUT](../TASK_FREE_CUT.md); work status: [PLAN](../PLAN.md). Dated statements below are not current training instructions.
+
 # Free-cut review repair, 2026-11-12
 
 **Latest: the second-review v3 repair below supersedes v2 as the current candidate.**

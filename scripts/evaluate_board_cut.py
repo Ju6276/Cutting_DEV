@@ -57,6 +57,14 @@ def main():
   board=physics.board if args.mode=='board' else KnifeBoard(physics.material,BOARD,enforce=False)
   if args.mode=='legacy': board.reset(torch.ones(n,device='cuda',dtype=torch.bool))
   frame=env.current; conditions=env.conditions(range(n))
+  q0=physics.material.state_field('particle_q'); v0=physics.material.state_field('particle_qd')
+  inv_mass=physics.material.model.particle_inv_mass.reshape(n,-1)
+  mass=inv_mass.reciprocal(); com_velocity=(mass[...,None]*v0).sum(1)/mass.sum(1)[:,None]
+  initial_rest=dict(particle_speed_max_mps=v0.norm(dim=-1).amax(-1).cpu().tolist(),
+                    particle_speed_rms_mps=v0.square().sum(-1).mean(-1).sqrt().cpu().tolist(),
+                    com_speed_mps=com_velocity.norm(dim=-1).cpu().tolist(),
+                    minimum_particle_height_m=q0[:,:,1].amin(-1).cpu().tolist())
+  (args.output/'initial_rest.json').write_text(json.dumps(initial_rest,indent=2))
   (args.output/'conditions.json').write_text(json.dumps(conditions,indent=2))
   history=frame['observation'].float()[None].repeat(policy.history,1,1)
   alive=torch.ones(n,device='cuda',dtype=torch.bool)
@@ -64,7 +72,7 @@ def main():
   old_pose=[physics.material.position.clone(),physics.material.rotation.clone()]
   first_board=torch.full((n,),-1,device='cuda',dtype=torch.long)
   first_covered=torch.full_like(first_board,-1)
-  records={k:[] for k in ['alive','action','knife_pose','min_gap','path_progress','release_progress','reward','board_contact','joint_q','peak_wrench','cut_midpoint']}
+  records={k:[] for k in ['alive','action','knife_pose','min_gap','path_progress','release_progress','reward','board_contact','joint_q','peak_wrench','cut_midpoint','coverage_mask','particle_min_y']}
   rows=[]; t=0
   def callback(ph,active):
    if args.mode=='legacy':
@@ -89,7 +97,8 @@ def main():
     for k,v in dict(alive=alive,action=action,knife_pose=f['knife_pose'],
                     min_gap=board.min_gap,path_progress=board.covered.double().mean(-1),
                     release_progress=rho,reward=reward,board_contact=board.contacted,
-                    joint_q=f['joint_q'],peak_wrench=f['peak_wrench'],cut_midpoint=board.midpoints()).items():
+                    joint_q=f['joint_q'],peak_wrench=f['peak_wrench'],cut_midpoint=board.midpoints(),
+                    coverage_mask=board.covered,particle_min_y=physics.material.state_field('particle_q')[:,:,1].amin(-1)).items():
      records[k].append(v.detach().cpu().clone().numpy())
     acc['return']+=torch.where(alive,reward,0)
     acc['peak_ratio']=torch.maximum(acc['peak_ratio'],torch.where(alive,info['safety_margin'],0))

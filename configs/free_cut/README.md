@@ -1,15 +1,13 @@
-# free_cut_v1 interface configuration
+# Free-cut configuration index
 
-interface_check.json is an explicit, **rejected reward candidate**, retained to
-reproduce the physical preference check. It is not an approved training config.
-Fast pressing earned more return than following the commanded speed. See
-docs/FREE_CUT_REVIEW.md and docs/RESULTS.md.
+| File | Purpose and status |
+|---|---|
+| `interface_check.json` | Historical v1 rejected reward candidate; regression/reproduction only |
+| `review_v2.json`, `review_v3.json` | Historical bounded reward/interface checks |
+| `short_train_cucumber.json` | v3 short-run configuration used for separation-task engineering training |
+| `eval_cucumber.json` | v3 frozen checkpoint's 64 development conditions; used by dated comparisons |
+| `eval_board_cucumber_v4.json` | Retired coverage-task physical-evaluation template; not a training configuration |
 
-scripts/check_free_cut_task.py consumes this file. It contains the task weights,
-horizon, six-dimensional simulation limits and reference settings. No real Mini45
-limit or calibrated friction is implied.
+Current direction is target-pose completion with a board execution boundary; see [task contract](../../docs/TASK_FREE_CUT.md) and [PLAN](../../docs/PLAN.md). No file here is yet a launch configuration for that simplified integrated training task. The v1-v3 equations are retained in the [historical contract](../../docs/archive/TASK_FREE_CUT_V1_V3.md).
 
-For a future MultiConditionEnvironment configuration, the same task object goes
-under top-level task; each group must explicitly select net feedback and positive
-settle_seconds. Material randomization is followed by per-world re-settling.
-Do not copy the rejected weights into a long training launch.
+Keep task identities, explicit six-axis simulation limits, per-material settling and metadata checks. Do not overwrite an old config to make an old checkpoint appear to use new success labels. The simulated force limits/friction are not calibrated Mini45 settings.

@@ -286,7 +286,7 @@ PYTHONPATH=. .venv/bin/python scripts/check_free_cut_learning.py --output runs/N
 ~~~
 Use fresh output directories. The final command is one gradient-update execution check with
 a short test deadline and small batches, not a recommended training setup. No policy efficacy
-can be inferred from it. Review details: [FREE_CUT_REPAIR](FREE_CUT_REPAIR.md).
+can be inferred from it. Review details: [FREE_CUT_REPAIR](archive/FREE_CUT_REPAIR_20261113.md).
 
 
 Second-review checks (fresh output directories; GPU7, source runs/sac_env.sh):

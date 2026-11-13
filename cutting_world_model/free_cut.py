@@ -1,4 +1,4 @@
-"""Versioned free-object single-cut task, shared by physics and imagination.
+"""Versioned free-object single-cut tasks (v4 currently physical evaluation only).
 
 Weights are explicit experiment inputs. No legacy pose-success reward is reused.
 """
@@ -139,8 +139,8 @@ class FreeCutTask:
             covered = board['knife_path_complete'][:, 0].bool()
             penetrating = board['knife_min_board_gap'][:, 0] < -2e-6
             success = contact & covered & ~force & ~outside & ~penetrating
-            incomplete = contact & ~covered
-            timeout = (step_count >= self.horizon) & ~force & ~outside & ~contact
+            incomplete = contact & ~covered & ~force & ~outside & ~penetrating
+            timeout = (step_count >= self.horizon) & ~force & ~outside & ~contact & ~penetrating
             return dict(separated=separated, collision=force, outside=outside,
                         success=success, timeout=timeout, board_contact=contact,
                         board_incomplete=incomplete, board_penetration=penetrating,
@@ -175,6 +175,8 @@ class FreeCutTask:
                 - self.dt * (w['load'] * utilization.clamp(max=1) + w['jerk'] * jerk))
 
     def reward(self, previous_progress, progress, observation, peak, target_speed, events):
+        if self.config['version'] == 'free_cut_v4' and bool(events['board_penetration'].any()):
+            raise FloatingPointError('Invalid knife-board penetration: exclude transition, not an RL failure penalty')
         result = self.step_reward(previous_progress, progress, observation, peak, target_speed)
         failure = events['collision'] | events['outside']
         return (result + self.weights['success'] * events['success'].to(result.dtype)

@@ -1,4 +1,6 @@
-> Historical handoff for 48fcbef / free_cut_v1. Current repairs and evidence: [FREE_CUT_REPAIR](FREE_CUT_REPAIR.md).
+> Historical review record. Current task direction: [TASK_FREE_CUT](../TASK_FREE_CUT.md); work status: [PLAN](../PLAN.md). Dated statements below are not current training instructions.
+
+> Historical handoff for 48fcbef / free_cut_v1. Current repairs and evidence: [FREE_CUT_REPAIR](FREE_CUT_REPAIR_20261113.md).
 
 # Free-cut task implementation review — 2026-11-12
 

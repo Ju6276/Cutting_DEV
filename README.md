@@ -15,13 +15,13 @@ gradients pass through the learned world model.
 [Documentation map](docs/README.md) · [Script entry points](scripts/README.md) ·
 [Data and checkpoint locations](docs/DATA.md)
 
-## Status — 2026-11-13
+## Status — 2026-11-14
 
-The free-cucumber v3 policy has completed the bounded joint-training run (543 policy updates). Its historical success criterion was complete spring separation; it did not prevent the externally driven material knife from passing below the board.
+The selected task direction is **target-pose completion with a board execution boundary**. Material separation and knife coverage are evaluation diagnostics, not extra training gates. The v3 free-cucumber policy has 543 updates; v4 was a frozen-policy coverage/board audit and is now a historical diagnostic, not a long-training recipe.
 
-The user-authorized opt-in v4 task adds geometric knife-path coverage, arrival at the board and a nonpenetrating execution stop. Material separation remains separately reported. The current work is frozen-policy evaluation, not new training. The stop does not simulate board reaction forces, and the old WM/critic labels are not reused for v4 training. See [board-stop review](docs/BOARD_CUT_REVIEW.md), [task contract](docs/TASK_FREE_CUT.md) and [PLAN](docs/PLAN.md).
+The board stop is implemented and physically checked; it is not a compliant board-force simulator. Integrating the simplified board-aligned pose task into the training entry remains explicit work in [PLAN](docs/PLAN.md). No new training was launched in the cleanup. Current definition: [TASK_FREE_CUT](docs/TASK_FREE_CUT.md); dated evidence: [RESULTS](docs/RESULTS.md).
 
-Material/contact parameters remain uncalibrated for this project's real robot; the historical force-spike paper premise and first S3 comparison remain retired. Commands below are reproduction entries, not authorization to restart training.
+Historical source and v1-v3 code/checkpoints remain for reproduction. The default source command below lacks the new board boundary; do not mistake it for the next training launch. Material/friction values remain uncalibrated for the real robot.
 
 **Physics version:** main now uses `edge_coordinate_consistent_v2` (contact-coordinate
 bug correction; see METHOD). Historical checkpoint reproduction requires the code/configuration recorded

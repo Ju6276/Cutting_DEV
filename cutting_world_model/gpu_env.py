@@ -71,7 +71,7 @@ class GPUEnvironment:
             self.free_task = FreeCutTask(task, self.heads)
             if task['version'] == 'free_cut_v4':
                 self.physics.enable_board(task['board'])
-                self.metadata['knife_board_revision'] = 'swept_stop_path_v1'
+                self.metadata['knife_board_revision'] = 'swept_stop_path_v2'
         m = self.metadata
         self.fk = SerialKinematics(m['robot_xml'], m['robot_base'], m['robot_tip'], m['joint_names']).to(self.device)
         self.previous_pose = self.fk(self.physics.robot.q.double())

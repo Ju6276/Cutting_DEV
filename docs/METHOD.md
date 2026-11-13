@@ -1,3 +1,5 @@
+> Current status (2026-11-14): the pose-task direction and boundary are defined in [TASK_FREE_CUT](TASK_FREE_CUT.md). Implementation chapters below retain source and historical variants; v4 is a retired coverage diagnostic, not the active training method.
+
 # Source mapping
 
 > 2026-11-12: `RESULTS <date>` references up to 2026-11-10 point to
@@ -739,7 +741,7 @@ forces, despite leaving all numerical parameters unchanged.
 
 The historical pose task above is unchanged. The user-authorized implementation
 free_cut_v1 is described in [TASK_FREE_CUT](TASK_FREE_CUT.md); source and verification
-entry points are in [FREE_CUT_REVIEW](FREE_CUT_REVIEW.md). Its compact WM adds
+entry points are in [FREE_CUT_REVIEW](archive/FREE_CUT_REVIEW_20261112.md). Its compact WM adds
 cut_progress and deterministic step_count; completion supervision uses physical
 separation, not pose success or failure labels. Force/workspace/deadline endings
 absorb imagined trajectories. The policy inputs remain unchanged. This is a new
@@ -749,7 +751,7 @@ task/head interface, not evidence of successful training or a new method claim.
 ### Free-cut review revision v2 (2026-11-12)
 
 See [TASK_FREE_CUT](TASK_FREE_CUT.md) for the exact versioned contract and
-[FREE_CUT_REPAIR](FREE_CUT_REPAIR.md) for bounded evidence. Changes are gamma=1 across
+[FREE_CUT_REPAIR](archive/FREE_CUT_REPAIR_20261113.md) for bounded evidence. Changes are gamma=1 across
 actor/critic/planning, policy-observable remaining time (25 observations, goal dimension 8),
 an explicit EE XYZ workspace, a .001 initial fraction-of-remaining-progress output,
 and physical-label completion diagnostics. The progress initialization is not a separation

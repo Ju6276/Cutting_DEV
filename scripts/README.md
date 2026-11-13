@@ -80,7 +80,7 @@ scene: mesh connectivity across the cut plane, rest on the board, press/hold/ret
 
 - check_free_cut_task.py: bounded physical reference/reward checks for the opt-in
   versioned free-cut task; requires an explicit config and writes complete episode rows.
-  No policy training. See docs/FREE_CUT_REVIEW.md.
+  No policy training. See docs/archive/FREE_CUT_REVIEW_20261112.md.
 
 
 - check_free_cut_reset.py: bounded eager vs packed/graph stationary reset timing and state comparison.
@@ -146,3 +146,17 @@ recorded material dt give time since the post-settle diagnostic began. A contact
 count uses the kernel's nonzero knife-force criterion; it is not geometric
 intersection. The option adds overhead; use the same outer process timeout as the
 platform check. `geometry.npz` and first-separation events remain available.
+
+## Board-boundary diagnostics (not a training task)
+
+evaluate_board_cut.py transfers a frozen v3 policy to the historical v4
+coverage/board audit. It now saves initial particle/COM velocities, coverage
+masks and minimum particle heights as well as per-step knife gap and outcomes.
+Its success is v4 diagnostic path success, not the selected target-pose task
+or proof of separation. summarize_board_cut_audit.py pairs the original 64-case
+audit. These scripts do not train a WM.
+
+The old check_free_object_scene.py press/hold/retract entry has force-limit
+termination disabled and no board stop. Its output is a historical geometry /
+damage measurement, not executable safe-task data or a new-policy rollout.
+Use TASK_FREE_CUT and PLAN for the selected task, not this script's existence.

@@ -1,6 +1,6 @@
 {
   "description": "Frozen v3 policy transfer evaluation only: projected cut-path coverage + nonpenetrating board stop; not a trainable v4 WM configuration.",
-  "status": "User authorized 2026-11-13; no new training.",
+  "status": "Historical v4 coverage-task diagnostic, retired as a training direction on 2026-11-14; preserve for audit reproduction.",
   "seed": 100,
   "force_limits": [
     50.0,

@@ -1,8 +1,24 @@
 # Server data and checkpoint index
 
-Inventory reviewed 2026-11-10. Source lives on GPU7 at
+Historical inventory reviewed 2026-11-10; current additions below are dated 2026-11-14. Source lives on GPU7 at
 `/dataHDD/dong/Projects/Cutting_DEV`. All paths below are server paths; no project
 data or source is stored on the Mac. This is a location/status index, not a run plan.
+
+
+## Current additions — 2026-11-14
+
+- Worktree: /dataHDD/dong/Projects/Cutting_DEV_board, branch codex/board-cut-v4.
+- Latest retained free-cucumber policy: runs/free_cut_joint_20261113/training/last.pt,
+  iteration 2691, 543 policy updates. This is a v3 separation-task checkpoint.
+- runs/board_cut_audit_20261113/: 64-case legacy/v4 comparison and raw evidence.
+- runs/board_review_20261114/: four-world-per-object boundary checks, initial rest
+  velocities, source manifests, unit/regression logs. Not a long-training dataset.
+- Prepared free scenes under backend runs/sweep/: free_cucumber_003, free_prism,
+  free_potato_003. The potato retains its old principal-axis pose and is still
+  moving after reset. Presence of a scene file does not certify stationary rest.
+
+No checkpoints, assets or measured raw data were deleted in the 2026-11-14 cleanup.
+Old task instructions were archived; active document links were updated.
 
 ## Storage
 

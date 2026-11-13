@@ -4,23 +4,14 @@ Dated measurements from 2026-11-11 on (multi-object task). Earlier entries (2026
 prism development) are in [archive/RESULTS_20261102_20261110](archive/RESULTS_20261102_20261110.md).
 [PLAN](PLAN.md) says what happens next; old next-step prose in entries is not a plan.
 
-## What currently holds
+## Current evidence index — 2026-11-14
 
-| Finding | Entry |
-|---|---|
-| The multi-object task definition has four defects (success rule, bottom hold, reward, reference) | 2026-11-12 |
-| The bottom hold changes the measured cutting force up to about 7x (cucumber_003: 37 N held, 5.6 N unheld); the unheld potato is pushed away | 2026-11-12 hold tests |
-| With the inherited reward the trained base cuts at 20-27 cm/s against a 1-5 cm/s command | 2026-11-12 |
-| potato_003 needs DiSECt substep 8e-6 s to be stable over the S0 material range | 2026-11-11 instability entry |
-| Parallel object groups: 2.5x faster, consistent with sequential within run-to-run variation | 2026-11-11 |
-| Risk penalty and official SuperMimic adaptation: failed first runs, causes identified | 2026-11-12 |
-| Default scalar feedback is a contact-magnitude proxy; optional net feedback now includes the contact moment, corrected frame/timing and final-sample checks | 2026-11-12 net-wrench repair |
-| Early scalar/high-transition-velocity sawing measurements had negligible effect; later net/0.01 m/s measurements reduce vertical force, with a smaller net-force reduction on the prism | 2026-11-12 press/saw reruns |
-| Contact search, interpolation and force scattering now agree; four rerun mean net forces changed by <0.6%, not a demonstrated large performance gain | 2026-11-12 contact-coordinate correction |
-
-**Superseded:** the 2026-11-11 "force needed to cut the held scanned objects" table (hold artefact
-for cucumber_003) and every success/force-limit rate of the S3 runs (defective task definition).
-Fixed-prism numbers (8/8 goal-pose completions, archive) retain that definition; they do not independently establish separation or wrist-force fidelity.
+- Selected task direction: target-pose completion plus board boundary; see TASK_FREE_CUT and PLAN. v1-v3 separation and v4 coverage results retain their own definitions.
+- Latest v3 checkpoint: 543 policy updates. The 64-case board audit found old successes involving knife penetration; do not treat its old success rate as physically valid full cutting.
+- Board execution boundary: physically tested; not a board-force model. Separation and path completion differ.
+- Free prism supplies finite interaction data. The current potato reset is still moving; four v4 path completions do not certify a stable potato scene.
+- Force/contact parameters are not calibrated for this project's real robot. Ground contact permits material overlap; no task difficulty was created by tuning it.
+- Earlier scalar feedback, fixture tests, force-risk runs and prior next-step statements below are historical. The 2026-11-11 S3 rates and retired perturbation protocol are not current paper evidence.
 
 ## 2026-11-11 — Multi-object task and force-risk constraint: implementation check
 
@@ -672,7 +663,7 @@ Reports: `runs/free_object_check_20261112/cucumber_{press,saw}_2ms/report.json`.
 ## 2026-11-12 — free_cut_v1 implementation and rejected reward candidate
 
 User authorized the opt-in task implementation and verification, not long training.
-Parent e529161; see [FREE_CUT_REVIEW](FREE_CUT_REVIEW.md) and the versioned contract
+Parent e529161; see [FREE_CUT_REVIEW](archive/FREE_CUT_REVIEW_20261112.md) and the versioned contract
 [TASK_FREE_CUT](TASK_FREE_CUT.md). No historical pose task or material parameters
 were replaced.
 
@@ -726,7 +717,7 @@ enable offline reward rescoring in future runs. No new policy checkpoint exists.
 
 ## 2026-11-12 — Free-cut review repair and bounded physical checks
 
-Full implementation/evidence handoff: [FREE_CUT_REPAIR](FREE_CUT_REPAIR.md).
+Full implementation/evidence handoff: [FREE_CUT_REPAIR](archive/FREE_CUT_REPAIR_20261113.md).
 Branch codex/free-cut-v1, code 1b287d5 / 5362975. No long training.
 
 - Reset: 256 worlds / one reset, 25.66 -> 4.43 seconds; all 256 reset, 25.47 -> 16.03.
@@ -1263,3 +1254,41 @@ The stop is an execution interlock: no invented board wrench, no claim to simula
 Artifacts: `/dataHDD/dong/Experiments/Cutting_DEV/runs/board_cut_audit_20261113/`: `legacy64/`, `board64/` contain manifests, conditions, per-episode records and raw transitions; `comparison.json`, `integration_assertions.json`, `below_board_material_witnesses.json` retain the paired and geometry checks. Each manifest records exact source/checkpoint hashes. The conservative stop-contact refinement was made during the legacy replay; the legacy observer's behavior was unchanged, and the board evaluation used the final stop implementation. Regression results are recorded in BOARD_CUT_REVIEW.
 
 Regression validation on GPU7 for this change: root **337 passed / 5 skipped**, backend **38 passed**. Runtime v4 source hashes match the final code.
+
+## 2026-11-14 — Task simplification, code/doc cleanup and object readiness
+
+The user rejected making the RL task depend on both a geometric coverage gate and complete separation. The selected direction is the existing SliceIt target-pose completion interface plus a nonpenetrating board execution boundary. Coverage and actual separation remain diagnostics. The v4 audit is retained as historical evidence, not promoted into a more complex learned task. No new reward weight, WM head, action dimension, training run or material parameter was added.
+
+Code review found that the old-position coverage test used the current object's transverse footprint. The diagnostic now stores and uses the previous footprint separately. Stationary proximity no longer earns a downward-sweep credit. The diagnostic revision is swept_stop_path_v2. Invalid penetration beyond 2 micrometres aborts with FloatingPointError before a learning reward can be emitted; it is not a new RL failure penalty. The normal board stop and force/workspace penalties remain distinct. A briefly proposed penetration-penalty edit was withdrawn before commit after the user's numerical-error question.
+
+Physical checks: GPU7, one frozen 543-update policy transfer per free scene, four worlds each, seed 100, existing material/start/speed sampling, 180-step deadline, five-minute wall budget per scene. Existing poses and material properties unchanged; potato substep 8e-6 s. The output names success/board_incomplete below retain **v4 diagnostic semantics**, not the newly selected target-pose task. They are not generalization estimates.
+
+| Existing free scene | Initial centre-of-mass speed (mm/s) | v4 path completion / force ending / incomplete board arrival | Full separation | Minimum knife height (mm) |
+|---|---:|---:|---:|---:|
+| Cucumber | 0.071–1.222 | 2 / 0 / 2 | 2/4 | +0.000894 |
+| Prism | 0.092–0.135 | 2 / 2 / 0 | 0/4 | +0.001108 |
+| Potato, unchanged principal-axis pose | 16.857–88.409 | 4 / 0 / 0 | 0/4 | +0.000795 |
+
+All 12 rollouts completed with finite data and no knife penetration. The reference 0.75 s per-material settling does not make the current potato stationary: COM speed confirms whole-object motion, not merely one fast deforming particle. Prism can supply development interaction data; the old reference's incomplete spring damage is not itself a reason to forbid collection. Potato needs a naturally stable resting preparation before using it as a stationary-start training condition. No pose was silently changed in this cleanup.
+
+Minimum particle height during pressing was -1.800 mm (cucumber), -2.094 mm (prism), -1.273 mm (potato). The upstream particle-ground eval_contacts law is a soft penalty contact (penetration-dependent elastic term plus damping/friction), not a geometric hard clamp. These values are physical-model overlap, not the 2-micrometre knife floating-point allowance. Their realism is unvalidated; no ground stiffness was tuned to improve outcomes.
+
+Saved under runs/board_review_20261114/: per-scene source/checkpoint manifests, initial_rest.json, episode rows, and raw transitions including coverage masks and minimum particle heights. Endings above do not certify model calibration or readiness of the simplified training interface.
+
+Documentation cleanup: TASK_FREE_CUT now contains only the current direction and implementation status; v1-v3 equations, FREE_CUT_REVIEW and FREE_CUT_REPAIR are archived with links corrected. README, PLAN, METHOD, DATA, REAL2SIM, config/script indices and the current-results index distinguish historical from current status. The false current bottom-held prescription and no-trained-policy statement were removed. PAPER's description of SliceIt as SAC per material was corrected against the primary text: it randomizes the calibrated foods during training.
+
+Tests are regression evidence, not success-rate certification. The five optional root-suite skips are: two Gym-dependent SAC bridge cases (Gym absent in this environment), source TensorFlow checkpoint, explicit SAC physical bridge check, and source tf2rl/Python 3.8 learner. Existing source/v1-v3 tests remain useful while those code paths and checkpoints are retained. No test was deleted to make the suite pass.
+
+Long training is not launched: the simplified pose task still needs a board-aligned goal wired into the actual training entry with consistent task identity. No coverage/progress head expansion is required for that direction. This is a finite implementation task, not a requirement to explain all residual springs first.
+
+Validation for the 2026-11-14 cleanup: root **339 passed / 5 skipped**, backend **38 passed**. The separate optional-SAC check printed all five skip reasons (optional_test_reasons.log). Physical checks above are separate evidence; a passing suite is not a long-training readiness claim.
+
+Nominal goal audit: with the existing robot/material mapping and unchanged initial
+orientation, the translation-only target blade gap is -4.390 mm for all three
+assets; the actual initial/target EE orientation difference is 0.122 degrees.
+This is a kinematic proxy, not another physical cut result. It shows why the
+existing lower target must be explicitly aligned to the board before reusing
+pose completion. The target was not silently shifted in the paired runs.
+Data: nominal_targets.json. A first inspection script exited on an unsupported
+GPUEnvironment.close() call; it was corrected, and the report above was produced
+by the completed second inspection. Neither inspection ran a cutting trajectory.
