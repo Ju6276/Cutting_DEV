@@ -37,6 +37,8 @@ class CuttingBatch:
         self.settle_seconds = float(settle_seconds)
         if force_model not in ('scalar', 'net'):
             raise ValueError("force_model must be 'scalar' or 'net'")
+        self.evaluation_paused = None
+        self.board = None  # opt-in execution stop; legacy transitions unchanged
         self.force_model = force_model
         root = Path(root)
         self.worlds = worlds
@@ -99,6 +101,11 @@ class CuttingBatch:
         self._initial_queue = self.wrench_queue.clone()
         self._initial_previous_knife = knife.clone()
         self.spring_reference = self.material.state_field('cut_spring_ke').clone()
+
+    def enable_board(self, config):
+        from .knife_board import KnifeBoard
+        self.board = KnifeBoard(self.material, config)
+        self.board.reset(torch.ones(self.worlds, device=self.device, dtype=torch.bool))
 
     @torch.no_grad()
     def _settle_material(self, seconds, mask=None):
@@ -191,6 +198,8 @@ class CuttingBatch:
         self.coupling.previous_pose_base[mask] = self._initial_previous_knife[mask]
         self.sim_time[mask] = 0
         self.peak[mask] = 0
+        if self.board is not None:
+            self.board.reset(mask)
         self.frames = self.chain(self.robot.q.to(self.dtype), mass_matrix=False)[0]
         return self.frame()
 
@@ -219,6 +228,8 @@ class CuttingBatch:
         frame['coupling_initialized'] = self.motion_initialized[:, None].float().clone()
         frame['robot_time'] = wp.to_torch(self.robot.data.time)[:, None].clone()
         frame['sim_time'] = self.sim_time[:, None].clone()
+        if self.board is not None:
+            frame.update(self.board.frame())
         return frame
 
 
@@ -226,6 +237,8 @@ class CuttingBatch:
 
     @torch.no_grad()
     def restore_frame(self, frame):
+        if self.board is not None:
+            raise ValueError('Board-path episodes need geometric coverage history; generic restore_frame is unsupported')
         for name in ('particle_q', 'particle_qd', 'cut_spring_ke'):
             self.material.state_field(name).copy_(frame[name])
         self.material.position.copy_(frame['knife_pose'][:, :3])
@@ -321,10 +334,16 @@ class CuttingBatch:
                     for k in current:
                         terminal[k][newly_done] = current[k][newly_done]
                 collision |= newly_done
-            if collision.all():
+            stopped = collision if self.board is None else collision | self.board.contacted
+            if self.evaluation_paused is not None:
+                stopped = stopped | self.evaluation_paused
+            if stopped.all():
                 break
-            active = ~collision
-            paused = self.capture_recurrence(collision) if collision.any() else None
+            active = ~stopped
+            paused = self.capture_recurrence(stopped) if stopped.any() else None
+            if self.board is not None:
+                old_q = self.robot.q.clone()
+                old_pos, old_rot = self.material.position.clone(), self.material.rotation.clone()
             for _ in range(2):
                 command = self.controller_command(args, active)
                 self.robot.step(command, active=active)
@@ -333,9 +352,27 @@ class CuttingBatch:
             motion = self.coupling.motion(knife)
             twist = torch.cat((motion['linear_velocity'], motion['angular_velocity']), -1)
             twist[~self.motion_initialized] = 0
-            self.motion_initialized[:] = True
+            self.motion_initialized[active] = True
+            if self.board is not None:
+                fraction, board_hit = self.board.fraction(twist, .002, active)
+                twist = twist * fraction[:, None]
+                if bool(board_hit.any()):
+                    # The motion interlock terminates this cut; it is not a contact-force model.
+                    q = self.robot.q.clone()
+                    q[board_hit] = old_q[board_hit] + fraction[board_hit, None].to(q)*(q[board_hit]-old_q[board_hit])
+                    with wp.ScopedStream(self.robot.stream):
+                        self.robot.q.copy_(q)
+                        self.robot.qd[board_hit] = 0
+                        import mujoco_warp as mjw
+                        mjw.forward(self.robot.gpu_model, self.robot.data)
+                    self.frames = self.chain(self.robot.q.to(self.dtype), mass_matrix=False)[0]
+                    knife = self.knife_chain(self.robot.q.to(self.dtype), mass_matrix=False)[0]['b_bot_knife_sim']
+                    self.coupling.previous_pose_base[board_hit] = knife[board_hit]
             self.material.set_motion(twist.float(), active=active)
             self.material.advance(.002, active=active)
+            if self.board is not None:
+                self.board.observe(old_pos, old_rot, active)
+                self.board.register_stop(board_hit)
             raw = -self.robot.sensor_wrench(self.config.sensor_ref_link).to(self.dtype)
             self.feedback = self._feedback(raw)
             work = {} if self.force_model == 'scalar' else {
@@ -346,8 +383,12 @@ class CuttingBatch:
             self.wrench_queue = torch.cat((self.wrench_queue[:, 1:], self.feedback['sensor_wrench'][:, None]), 1)
             peak_force = torch.where(collision, peak_force, torch.maximum(peak_force, self.feedback['force_magnitude'].float()))
             self.sim_time += active * .002
+            if self.board is not None:
+                newly_stopped = active & self.board.contacted
+                if bool(newly_stopped.any()):
+                    self.material.set_motion(torch.zeros_like(twist).float(), active=newly_stopped)
             if paused is not None:
-                self.restore_recurrence(collision, paused)
+                self.restore_recurrence(stopped, paused)
             if sample_callback is not None:
                 # Read-only diagnostic at the 500 Hz coupling boundary, after feedback.
                 sample_callback(self, active)

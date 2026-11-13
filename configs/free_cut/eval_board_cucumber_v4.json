@@ -1,0 +1,79 @@
+{
+  "description": "Frozen v3 policy transfer evaluation only: projected cut-path coverage + nonpenetrating board stop; not a trainable v4 WM configuration.",
+  "status": "User authorized 2026-11-13; no new training.",
+  "seed": 100,
+  "force_limits": [
+    50.0,
+    50.0,
+    50.0,
+    5.0,
+    5.0,
+    5.0
+  ],
+  "parallel": true,
+  "task": {
+    "version": "free_cut_v4",
+    "horizon_steps": 180,
+    "weights": {
+      "progress": 10,
+      "speed": 20,
+      "load": 1,
+      "jerk": 0.1,
+      "success": 100,
+      "failure": 100
+    },
+    "gamma": 1.0,
+    "initial_progress_fraction": 0.001,
+    "workspace": {
+      "frame": "robot_base",
+      "point": "ee",
+      "lower": [
+        0.038,
+        0.405,
+        0.096
+      ],
+      "upper": [
+        0.238,
+        0.605,
+        0.269
+      ]
+    },
+    "board": {
+      "height_m": 0.0,
+      "stop_gap_m": 1e-06,
+      "coverage_tolerance_m": 0.0005
+    }
+  },
+  "groups": [
+    {
+      "name": "free_cucumber_003",
+      "scene": "runs/sweep/free_cucumber_003/scene.pt",
+      "worlds": 64,
+      "clearance": [
+        0.005,
+        0.03
+      ],
+      "material": {
+        "youngs_modulus": [
+          0.5,
+          2.0
+        ],
+        "density": [
+          0.8,
+          1.25
+        ],
+        "cut_spring_stiffness": [
+          0.5,
+          2.0
+        ]
+      },
+      "target_speed": [
+        0.01,
+        0.05
+      ],
+      "force_model": "net",
+      "friction_velocity": 0.01,
+      "settle_seconds": 0.75
+    }
+  ]
+}

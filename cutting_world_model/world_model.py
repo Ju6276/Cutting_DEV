@@ -18,6 +18,8 @@ TERMINAL_GRADIENTS = ('dynamics', 'head')
 class CuttingWorldModel(nn.Module):
     def __init__(self, metadata, hidden=(2048, 2048, 2048)):
         super().__init__()
+        if metadata.get('free_cut_task', {}).get('version') == 'free_cut_v4':
+            raise ValueError('v4 is currently physical-task/frozen-policy evaluation only; do not reuse v3 WM completion or critic labels')
         layout = metadata.get('prediction_layout')
         if layout not in (None, 'control_history_v2'):
             raise ValueError('Unsupported prediction layout: ' + str(layout))

@@ -15,21 +15,13 @@ gradients pass through the learned world model.
 [Documentation map](docs/README.md) · [Script entry points](scripts/README.md) ·
 [Data and checkpoint locations](docs/DATA.md)
 
-## Status — 2026-11-12
+## Status — 2026-11-13
 
-The research question and multi-object task are being redefined. The force-spike
-problem statement and first S3 comparison are retired: the success rule,
-holding setup, reward and reference trajectory confounded the results. The
-default material-force bridge remains a scalar proxy. Optional net force/moment
-feedback and its contact-coordinate correction are implemented and locally checked;
-neither mode has been calibrated as a real Mini45 measurement.
-The opt-in free-cut task (v1/v2 history and v3 review candidate) is implemented for engineering review (complete
-separation, force/workspace failures, finite deadline, explicit rewards and WM
-progress). See [task contract](docs/TASK_FREE_CUT.md) and
-[current review handoff](docs/FREE_CUT_REPAIR.md). Only bounded execution checks have run; there is no new trained task policy.
-[PLAN](docs/PLAN.md) is the only current task list. The commands below do not
-schedule new training.
+The free-cucumber v3 policy has completed the bounded joint-training run (543 policy updates). Its historical success criterion was complete spring separation; it did not prevent the externally driven material knife from passing below the board.
 
+The user-authorized opt-in v4 task adds geometric knife-path coverage, arrival at the board and a nonpenetrating execution stop. Material separation remains separately reported. The current work is frozen-policy evaluation, not new training. The stop does not simulate board reaction forces, and the old WM/critic labels are not reused for v4 training. See [board-stop review](docs/BOARD_CUT_REVIEW.md), [task contract](docs/TASK_FREE_CUT.md) and [PLAN](docs/PLAN.md).
+
+Material/contact parameters remain uncalibrated for this project's real robot; the historical force-spike paper premise and first S3 comparison remain retired. Commands below are reproduction entries, not authorization to restart training.
 
 **Physics version:** main now uses `edge_coordinate_consistent_v2` (contact-coordinate
 bug correction; see METHOD). Historical checkpoint reproduction requires the code/configuration recorded

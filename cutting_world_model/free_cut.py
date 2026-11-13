@@ -7,7 +7,7 @@ import numpy as np
 import torch
 
 REVISION = 'free_cut_v3'
-SUPPORTED_REVISIONS = ('free_cut_v1', 'free_cut_v2', REVISION)
+SUPPORTED_REVISIONS = ('free_cut_v1', 'free_cut_v2', REVISION, 'free_cut_v4')
 WEIGHTS = ('progress', 'speed', 'load', 'jerk', 'success', 'failure')
 
 
@@ -28,6 +28,15 @@ def validate_task(config):
         lo, hi = np.asarray(box['lower']), np.asarray(box['upper'])
         if lo.shape != (3,) or hi.shape != (3,) or not np.isfinite([lo, hi]).all() or not (lo < hi).all():
             raise ValueError('Workspace needs finite ordered XYZ bounds')
+    if config['version'] == 'free_cut_v4':
+        required.add('board')
+        board = config.get('board', {})
+        if set(board) != {'height_m', 'stop_gap_m', 'coverage_tolerance_m'}:
+            raise ValueError('Board requires height, execution stop gap and geometric coverage tolerance')
+        if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in board.values()):
+            raise ValueError('Board settings must be finite')
+        if board['height_m'] != 0 or not 0 < board['stop_gap_m'] < board['coverage_tolerance_m'] <= .001:
+            raise ValueError('Current material ground is y=0; require 0 < stop gap < coverage tolerance <= 1 mm')
     if set(config) != required:
         raise ValueError('Free-cut task fields do not match its version')
     if type(config['horizon_steps']) is not int or config['horizon_steps'] < 1:
@@ -81,7 +90,7 @@ class FreeCutTask:
         self.horizon = self.config['horizon_steps']
         self.weights = self.config['weights']
         self.dt = heads.env['agent_control_dt']
-        if self.config['version'] == 'free_cut_v3':
+        if self.config['version'] in ('free_cut_v3', 'free_cut_v4'):
             # Over one finite episode: sum positive delta-rho <= 1 and sum dt/T <= 1.
             # Enforce settlement dominance for every accepted configuration, not one probe.
             penalty_bound = (2 * self.weights['speed'] + self.horizon * self.dt *
@@ -116,13 +125,26 @@ class FreeCutTask:
                  observation.new_tensor(self.heads.max_distance)).abs()
         return (error > error.new_tensor(self.heads.env['workspace_limit'])).any(-1)
 
-    def events(self, observation, peak, progress, step_count, collision=None, pose=None):
+    def events(self, observation, peak, progress, step_count, collision=None, pose=None, board=None):
         limits = peak.new_tensor(self.heads.force_limits)
         force = (peak.abs() > limits).any(-1)
         if collision is not None:
             force = force | collision
         outside = self.workspace(observation, pose)
         separated = progress >= 1
+        if self.config['version'] == 'free_cut_v4':
+            if board is None:
+                raise ValueError('v4 requires physical knife-board and coverage measurements')
+            contact = board['knife_board_contact'][:, 0].bool()
+            covered = board['knife_path_complete'][:, 0].bool()
+            penetrating = board['knife_min_board_gap'][:, 0] < -2e-6
+            success = contact & covered & ~force & ~outside & ~penetrating
+            incomplete = contact & ~covered
+            timeout = (step_count >= self.horizon) & ~force & ~outside & ~contact
+            return dict(separated=separated, collision=force, outside=outside,
+                        success=success, timeout=timeout, board_contact=contact,
+                        board_incomplete=incomplete, board_penetration=penetrating,
+                        terminated=force | outside | contact | penetrating | timeout)
         success = separated & ~force & ~outside
         # Precedence: force/workspace failure > completion > timeout.
         timeout = (step_count >= self.horizon) & ~force & ~outside & ~success
@@ -140,7 +162,7 @@ class FreeCutTask:
         utilization = (peak.abs() / peak.new_tensor(self.heads.force_limits)).amax(-1)
         jerk = self.heads.jerkiness(observation).clamp(max=1)
         increment = progress - previous_progress
-        if self.config['version'] == 'free_cut_v3':
+        if self.config['version'] in ('free_cut_v3', 'free_cut_v4'):
             # Symmetric relative mismatch: reciprocal speeds v/v* and v*/v have
             # equal cost per released fraction. Reverse motion has maximum cost.
             mismatch = ((speed - target_speed) / (speed.abs() + target_speed)).square()

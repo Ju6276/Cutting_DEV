@@ -1234,3 +1234,32 @@ non-mutating inputs, observer restoration on exception, and an actual DiSECt
 kernel with observation enabled/disabled producing identical stiffness and force
 outputs for the same synthetic inputs. Tests and run logs are in
 `runs/residual_damage_debug_20261113/`.
+
+## 2026-11-13 — Board-stop v4 and paired frozen-policy audit
+
+User-authorized task change: effective finite knife-path coverage plus board arrival, no force/workspace failure or knife penetration. Complete material separation is retained as a separate outcome. No training or material/fracture modifications. Full implementation, approximation and reproduction command: [BOARD_CUT_REVIEW](BOARD_CUT_REVIEW.md).
+
+GPU7, latest `free_cut_joint_20261113/training/last.pt` (543 policy updates), same 64 seed-100 development conditions from `eval_cucumber.json`; all material/start/target-speed fields match the historical evaluation and the paired run. Frozen policy weights, force limits and 180-step horizon are unchanged. This is not a learning improvement experiment, and rewards are not compared across the different task definitions.
+
+| Measurement | Legacy v3 replay | Board-stop v4 transfer |
+|---|---:|---:|
+| Task successes, different definitions | 53/64 spring separation | 38/64 geometric path + board arrival |
+| Episodes with knife below the board | 52/64 | 0/64 |
+| Legacy successes involving board penetration | 41/53 | Not applicable |
+| Complete material separation at episode end | 53/64 | 19/64 |
+| Incomplete endings | 11 timeouts | 26 board arrival without complete coverage |
+| Minimum actual knife clearance | -9.119 mm | +0.000825 mm |
+
+All 11 timeouts in this legacy replay remained incomplete under v4; no replay timeout became a path success. Fifteen legacy successes became incomplete board arrivals. Among the 38 v4 path successes, 19 still retained material connections (release fraction 0.9385–0.9846). Thus path coverage/board arrival and physical separation are empirically different, not interchangeable labels. The old missing board constraint admitted invalid successful trajectories; these results do not support blaming the lower old success rate primarily on an overly strict separation label.
+
+Historical evaluation was 52/64; the new legacy replay is 53/64, with three case outcomes different. Conditions are identical, but the physical trajectories are not bitwise repeatable. Against historical labels one old timeout becomes v4 path success; this does not override the paired replay's zero conversions or establish a criterion-only causal effect. The stop changes dynamics, and v4 keeps going after a v3 separation ending until board arrival.
+
+All 26 incomplete v4 cases have coverage 62/65. Each also has three geometric interface midpoints (indices 32,33,35) more than 0.5 mm below the board at termination; the lowest midpoint is -1.036 to -1.327 mm. At the first recorded control frame the minimum was only -0.073 to +0.026 mm. This is direct evidence of material/ground overlap during pressing, consistent with incomplete geometric coverage at a nonpenetrating knife stop. It does not establish the spring damage mechanism. No coverage tolerance was relaxed, no bottom witness discarded, and no knife penetration allowed to turn these cases into successes.
+
+The 64 v4 episodes ended in 9–11 control steps, maximum six-axis force-limit utilisation 0.543. This is still the old fast policy, not evidence of target-speed tracking. Finished-world knife pose, robot joints, material midpoint positions and release fraction remain exactly unchanged while the remaining worlds advance (checked from raw transitions). All recorded v4 knife minimum gaps are positive; geometry tests additionally exercise high-speed translation and rotation between sample endpoints.
+
+The stop is an execution interlock: no invented board wrench, no claim to simulate compliant board contact. v4 WM construction explicitly rejects reuse of v3 completion/critic labels. This delivery is a corrected physical task plus frozen-policy evaluation, not a new trained v4 system.
+
+Artifacts: `/dataHDD/dong/Experiments/Cutting_DEV/runs/board_cut_audit_20261113/`: `legacy64/`, `board64/` contain manifests, conditions, per-episode records and raw transitions; `comparison.json`, `integration_assertions.json`, `below_board_material_witnesses.json` retain the paired and geometry checks. Each manifest records exact source/checkpoint hashes. The conservative stop-contact refinement was made during the legacy replay; the legacy observer's behavior was unchanged, and the board evaluation used the final stop implementation. Regression results are recorded in BOARD_CUT_REVIEW.
+
+Regression validation on GPU7 for this change: root **337 passed / 5 skipped**, backend **38 passed**. Runtime v4 source hashes match the final code.

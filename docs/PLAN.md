@@ -1,79 +1,22 @@
-# Plan
+# Current plan — 2026-11-13
 
-Updated 2026-11-12 (free-object task). The only current task list. Research scope:
-[PAPER](PAPER.md); measurements and history: [RESULTS](RESULTS.md); implementation:
-[METHOD](METHOD.md); task proposal: [TASK_FREE_CUT](TASK_FREE_CUT.md); assets: [DATA](DATA.md).
-Earlier plans are in `archive/` (latest: [before the task decision](archive/PLAN_20261112_pre_review.md)).
+## Task decisions
 
-## Current task (user decisions)
+- Single cut of a freely placed object; passive sliding is recorded without a displacement penalty. Active rolling and multi-cut planning are outside this task.
+- The user authorized effective knife-path coverage plus arrival at the cutting board, within force/workspace limits. The knife may not pass through the board. Opt-in `free_cut_v4` implements this physical task; v1–v3 preserve their historical separation-based semantics.
+- Report geometric path completion, material separation and force events separately. Path completion is not proof that the two pieces have physically separated.
+- Keep the six-component simulated force/torque limits. These are not calibrated Mini45 hardware limits. No material/friction tuning to make the task harder.
 
-- Method paper for ICRA/IROS/RA-L; platform, objects and baselines are experiments. The
-  paper's core must follow from the task, not from a failure seen in our own runs.
-- **Task:** single cut of an object placed freely on the board. No fixture. Passive sliding
-  is recorded, has no threshold and no penalty; active rolling and repositioning are out of
-  scope. Sawing is allowed; neither learned sawing nor an advantage over pure pressing is presumed.
-- **Success:** the slice is fully separated from the body (no remaining material connection)
-  **and** no force-limit event occurred. Separation, force-limit events and task success are
-  recorded separately. A remaining connection is incomplete; 98 % release is a diagnostic.
-- **Failure endings:** force limit, explicit workspace bounds; a cut not completed within
-  the time limit is incomplete (its handling in training is specified in TASK_FREE_CUT). "The object left the
-  blade's reach" is not a termination rule.
-- One shared WM/policy/critic across objects and materials; one force limit; no object
-  identity, material label or per-object reward/success setting reaches the learner.
-  The per-component six-axis sensor limit is kept as the interface in use; force norm and
-  torque are recorded. It is a simulation convention, not a Mini45-derived safety limit.
-- Simulation first, sim-to-real intended; real robot later (materials calibrated then).
-- One change at a time; a written plan with a budget is approved before training.
+## Current authorized delivery
 
-## State
+Implement the board execution stop and evaluate the frozen 543-update cucumber policy against the same 64 development conditions. No new training, reward tuning, material damage changes, or replacement of historical results. Protocol, implementation and results: [BOARD_CUT_REVIEW](BOARD_CUT_REVIEW.md); experiment history: [RESULTS](RESULTS.md).
 
-- Platform check of the free-object task on one scene: done (RESULTS). Severed-state check
-  defined for it (mesh has two components joined only by cut springs).
-- Reset from a settled object: implemented (`settle()` with each world's material; contact
-  checked over every substep), verified on that scene.
-- Net contact wrench feedback and friction transition velocity: implemented, repaired and
-  re-measured (RESULTS); friction and ground parameters are uncalibrated.
-- free_cut_v1 is the reviewed implementation; its gamma=.99 reward candidate failed the
-  speed-preference check. The user authorized corrections in codex/free-cut-v1.
-- free_cut_v2 adds time input, gamma=1, explicit workspace and conservative progress
-  initialization. Reset batching/graph execution, physical references and one actual update have been checked.
-  See [FREE_CUT_REPAIR](FREE_CUT_REPAIR.md) for the bounded repair evidence.
-- free_cut_v3 is the current review candidate: progress-weighted speed cost, finite penalty
-  bound, release-consistent completion hazard and bounded reset cache. Actual reference
-  reruns and final-code 256-world timing are in FREE_CUT_REPAIR and RESULTS.
-- No long training is running. Old S0 configs and held scenes are reproduction inputs only.
+The board stop is a software motion interlock, not a compliant board-force model. Geometric coverage samples the moving intended section; it is not a continuum separation proof. v3 WM and critic labels are incompatible with v4 and must not be silently reused. The v4 training path is explicitly rejected pending a matching learned-task implementation and a separately approved training budget.
 
-## Next steps, in order
+## Following work
 
-1. The authorized v3 repair and bounded measurements are complete; see FREE_CUT_REPAIR.
-   Nominal physics/limits were not tuned. The isolated lower-limit physical abort probe is
-   labelled only as an integration test, never nominal task evidence.
-2. Claude reviews the v3 reward formula, completion-gradient path, reset cache and recorded
-   evidence. The reward preference is established for the measured references, not all policies.
-3. Then submit a bounded engineering training plan: actual production horizon/materials,
-   update sizes/cadence, compilation mode, WM warmup and physical calibration before trusting
-   imagined policy returns. Include reset time and full-size WM/actor updates in its budget.
-   The small-update loop timing is not a long-run estimate. No automatic S3 restart.
-4. New exported objects get the same topology check during asset preparation.
+After this audit, use its outcome to decide the next training/task change. Do not restart S3, change materials, relax coverage, or launch multi-object training automatically. Potato placement and prism residual links remain measured platform limitations, not prerequisites for completing this audit. Historical task and training plans are retained in Git and RESULTS; the previous separation-only definition does not define v4.
 
-## Known limits of the platform (not a repair queue)
+## Execution and storage
 
-- The cut plane is fixed in the object and the knife is constrained to one plane; this bounds
-  what sliding across the cut can mean in this simulator. Its quantitative effect is not
-  measured (an earlier "1 mm offset" explanation was withdrawn, RESULTS).
-- Results depend on initialization: every world is settled with its own material before
-  episodes (`settle()`); a nominal-material settle followed by a material change is not used.
-- Free-cucumber forces with 2 ms sampling: peaks 2.7-23 N, utilisation 0.06-0.64 of the old
-  S0 limits over six reference cases (RESULTS). No scene, free or held, is validated against
-  this project's real cuts; parameters are not tuned to make the task harder. Whether the
-  paper can centre on the force limit is decided with real measurements, not in simulation.
-- Sawing changes force direction through friction only; the fracture-side effect is not in
-  DiSECt's damage law. Long-horizon per-spring damage repeatability is an open item.
-
-## Storage and execution
-
-Use Remote SSH on GPU7, /dataHDD/dong/Projects/Cutting_DEV (current review branch codex/free-cut-v1); the A6000 holds a second
-checkout. Code, data, environments and outputs stay on servers, not the Mac. Check
-`nvidia-smi` before using a GPU. Not to be launched without a new approved plan:
-`train_gpu.py --conditions configs/multi_condition/s0_*.json` (with or without
-`--risk-constraint`), `train_official_supermimic.py`, `train_sac_gpu.py` on S0.
+Remote SSH on GPU7 through tams61. Current isolated worktree: `/dataHDD/dong/Projects/Cutting_DEV_board`, branch `codex/board-cut-v4`. Preserve the original `codex/free-cut-v1` checkout and all checkpoints. Source, environments, assets and runs remain on servers. Check GPU usage before execution.

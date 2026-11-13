@@ -69,6 +69,9 @@ class GPUEnvironment:
             self.metadata['task_interface_revision'] = task['version']
             self.metadata['goal_dim'] = 8
             self.free_task = FreeCutTask(task, self.heads)
+            if task['version'] == 'free_cut_v4':
+                self.physics.enable_board(task['board'])
+                self.metadata['knife_board_revision'] = 'swept_stop_path_v1'
         m = self.metadata
         self.fk = SerialKinematics(m['robot_xml'], m['robot_base'], m['robot_tip'], m['joint_names']).to(self.device)
         self.previous_pose = self.fk(self.physics.robot.q.double())
@@ -96,6 +99,9 @@ class GPUEnvironment:
                      step_count=self.step_count[:, None].clone())
         if self.free_task is not None:
             frame['cut_progress'] = (frame['cut_spring_ke'] == 0).to(pose.dtype).mean(-1, keepdim=True)
+            if self.free_task.config['version'] == 'free_cut_v4':
+                frame['separation_progress'] = frame['cut_progress'].clone()
+                frame['cut_progress'] = frame['knife_path_progress'].to(pose.dtype)
         return frame
 
     @torch.no_grad()
@@ -160,7 +166,9 @@ class GPUEnvironment:
         task_info = {}
         if self.free_task is not None:
             events = self.free_task.events(frame['observation'], frame['peak_wrench'],
-                                           frame['cut_progress'][:, 0], self.step_count, collision, pose=frame['ee_pose'])
+                                           (frame['separation_progress'] if self.free_task.config['version'] == 'free_cut_v4'
+                                            else frame['cut_progress'])[:, 0], self.step_count, collision, pose=frame['ee_pose'],
+                                           board=frame if self.free_task.config['version'] == 'free_cut_v4' else None)
             reward = self.free_task.reward(self.current['cut_progress'][:, 0],
                                           frame['cut_progress'][:, 0], frame['observation'],
                                           frame['peak_wrench'], self.target_speed, events)
@@ -170,6 +178,8 @@ class GPUEnvironment:
             truncated = torch.zeros_like(terminated)
             task_info = {k: events[k] for k in ('separated', 'timeout')}
             task_info['cut_progress'] = frame['cut_progress'][:, 0]
+            if self.free_task.config['version'] == 'free_cut_v4':
+                task_info.update({k: events[k] for k in ('board_contact', 'board_incomplete', 'board_penetration')})
         else:
             terminated, success, outside, counter = self.heads.termination(
                 frame['observation'], self.success_counter, collision)

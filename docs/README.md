@@ -34,3 +34,5 @@ protocol and old tables. Their perturbation results are excluded from the paper.
 RESULTS retains measured failures and superseded decisions for traceability;
 use PLAN for what happens next. No historical evidence is deleted for looking
 unfavorable.
+
+Current board-stop task and frozen-policy audit: [BOARD_CUT_REVIEW](BOARD_CUT_REVIEW.md).

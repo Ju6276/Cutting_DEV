@@ -787,3 +787,8 @@ bitwise reproducibility is not promised. Original third-party licenses remain. N
 adds no further third-party kernel changes. GPU regression includes packed materials,
 controller/coupling, graph/eager comparisons and scratch eviction; passing these does not
 establish real-world physical calibration. Full provenance lives in FREE_CUT_REPAIR.
+
+
+## 2026-11-13 — Opt-in board-path physical task
+
+The free_cut_v4 physical environment adds a finite-knife swept stop at the DiSECt ground plane and projected interface coverage. Physical separation is separately logged; path completion does not assert all material connections vanish. This is an execution interlock, not a board contact-force model. Source v1-v3 dynamics and task conditions remain the defaults. Full definition, tolerance provenance, frozen-policy transfer and training incompatibility are in [BOARD_CUT_REVIEW](BOARD_CUT_REVIEW.md).

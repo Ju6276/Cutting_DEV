@@ -1,3 +1,5 @@
+> 2026-11-13: the user authorized **free_cut_v4**: projected knife-path coverage + board arrival, with a nonpenetrating execution stop. See [BOARD_CUT_REVIEW](BOARD_CUT_REVIEW.md). The v1-v3 separation task below remains the historical checkpoint contract; do not silently change old training labels. v4 currently supports physical evaluation with a frozen old policy, not WM/critic training.
+
 # Free-object single cut: versioned task implementation
 
 Status 2026-11-12: **implementation and bounded update checks authorized; long training not authorized.** Task decisions are in
