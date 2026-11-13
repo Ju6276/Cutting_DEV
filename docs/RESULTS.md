@@ -926,3 +926,38 @@ timings. (2) The comparison "11 % imagined per-step completion probability vs 0.
 transitions in replay" mixes different states, actions and statistics and is withdrawn as evidence
 of model exploitation. In v3 the completion probability is the predicted release fraction times the
 head probability, so "missed completions" can come from the progress prediction, the head or both.
+
+#### 2026-11-13 — Same-trajectory prediction check of the two short-run checkpoints
+
+`scripts/diagnose_free_cut_predictions.py`: deterministic policy, one episode per world on
+`eval_cucumber.json` (the same 64 conditions for both checkpoints), every step recorded; then the
+checkpoint's own WM, critic and policy are evaluated on those recorded states and executed actions.
+Reports: `runs/free_cut_short_20261112/same_trajectory_{first_joint_update,last}/report.json` (+ steps.npz).
+
+| | first_joint_update (1 update) | last (43 policy updates) |
+|---|---|---|
+| Episodes: success / workspace / timeout | 13 / 0 / 51 | 43 / 21 / 0 |
+| 1-step WM error: progress / force component / EE position | 0.006 / 0.15 N / 0.12 mm | 0.09 / 1.15 N / 2.5 mm |
+| Completion probability on separating steps: total (release fraction x head) | 0.04 (0.26 x 0.14) | 0.59 (0.61 x 0.97) |
+| Completion probability on non-separating steps; share >= 0.5 | 0.0002; 0 % | 0.71; 74 % |
+| 8-step cumulative completion when not separated within 8 steps | 0.001 | 0.999 |
+| WM predicts the workspace exit in the last 8 steps before a real exit | (no exits) | 8.9 % (9.4 % when there is no exit) |
+| Critic minus realised return-to-go, workspace episodes | - | +294 |
+| Imagined actor objective vs realised return-to-go, workspace episodes | - | 97.7 vs -102.9 |
+| Same, successful episodes | 4.3 vs 95.9 | 98.6 vs 100.6 |
+
+- All 21 workspace endings: x axis, step 52, the sawing output had one sign at every step (mean
+  |a4| before clipping 1.42) and the integrated target offset reached -102 mm, i.e. the lateral
+  workspace half-width. The cut had stalled near 95 % release while the knife slid along the blade.
+- On these trajectories the WM gives a high completion probability where the cut has not separated
+  (mostly the stalled workspace episodes), does not predict the lateral exit, and the critic values
+  them far above any achievable return (+294 above the realised return, above the 110 maximum).
+  Inside the model these episodes therefore score like successful cuts (97.7) while they end at -103.
+- With the untrained policy the same WM was accurate on its own trajectories (progress 0.006,
+  0.12 mm) and conservative about completion. The large errors appear on the state-action region the
+  updated policy moved to (saturated lateral motion, stalled cut), which the replay data from earlier
+  policies barely cover.
+- Interpretation (not yet a conclusion): this matches the pattern "model score improves, physical
+  result gets worse, the error concentrates on the actions the policy now prefers". Whether more
+  data from the new policy corrects it (normal model-based RL dynamics) or the policy keeps exploiting
+  it is not determined by 43 updates.
