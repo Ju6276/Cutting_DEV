@@ -11,7 +11,8 @@ Then, on the recorded trajectories and with the checkpoint's own networks:
   end-effector position, completion probability split into predicted release fraction and
   head probability;
 - k-step open-loop prediction with the recorded actions: cumulative completion probability
-  and predicted workspace exit, against what physically happened within k steps;
+  (no completion after a predicted hard ending, as in training) and predicted workspace exit,
+  against what physically happened within k steps;
 - critic value V(s_t) against the realised undiscounted return-to-go;
 - the imagined actor objective from s_t (policy actions inside the WM for the actor horizon,
   survival-weighted rewards plus the terminal critic value, as in training) against the
@@ -103,7 +104,7 @@ def main():
     history = frame['observation'].float()[None].repeat(policy.history, 1, 1)
     alive = torch.ones(n, dtype=torch.bool, device=device)
     rec = {k: [] for k in ('state', 'action', 'goal', 'history', 'reward', 'rho', 'separated', 'collision',
-                           'outside', 'timeout', 'ee', 'peak', 'a4', 'offset_x', 'alive')}
+                           'outside', 'timeout', 'ee', 'peak', 'a4', 'offset_x', 'alive', 'speed')}
     with torch.no_grad():
         for t in range(horizon + 1):
             if not bool(alive.any()):
@@ -126,6 +127,7 @@ def main():
             rec['ee'].append(spec.fk(frame['joint_q'].double())[:, :3])
             rec['peak'].append(frame['peak_wrench'].abs().float())
             rec['offset_x'].append(physics.mapper.added_motion_command[:, 0].clone())
+            rec['speed'].append(task.heads.cutting_speed(frame['observation'].float()) - goal[:, 7])
             ended = terminated | truncated
             alive &= ~ended
             state = next_state
@@ -175,6 +177,8 @@ def main():
         # ---- k-step open loop with the recorded actions
         k = args.k
         cum_survive = torch.ones(N, device=device)
+        completion_mass = torch.zeros(N, device=device)
+        hard_absorbed = torch.zeros(N, dtype=torch.bool, device=device)
         pred_exit = torch.zeros(N, dtype=torch.bool, device=device)
         pred_force = torch.zeros(N, dtype=torch.bool, device=device)
         state_k = S
@@ -185,14 +189,17 @@ def main():
             act = stack['action'][tj.clamp(max=T - 1), w_of]
             nk, _, pk, _, _ = one_step(wm, state_k, act, G)
             pk = torch.where(usable, pk, 0.)
-            cum_survive = cum_survive * (1 - pk)
-            failure, _ = spec.hard_events(nk)
+            failure, timeout_k = spec.hard_events(nk)
+            # Completion is only reachable before a predicted hard ending (training rule).
+            completion_mass = completion_mass + torch.where(hard_absorbed, 0., cum_survive * pk)
+            cum_survive = torch.where(hard_absorbed, cum_survive, cum_survive * (1 - pk))
+            hard_absorbed |= usable & (failure | timeout_k)
             out_axis = task.workspace_features(spec.field(nk, 'observation'), spec.fk(spec.field(nk, 'joint_q')))
             pred_exit |= usable & (out_axis > 0).any(-1)
             pred_force |= usable & (spec.field(nk, 'peak_wrench').abs() > spec.force_limits).any(-1)
             state_k = torch.where(usable[:, None], nk, state_k)
             steps_used += usable.long()
-        pred_cum_completion = 1 - cum_survive
+        pred_cum_completion = completion_mass  # with hard-event absorption
         window_end = (t_of + steps_used - 1)
         actual_sep_k = ending['separated'][w_of] & (end_t[w_of] <= window_end)
         actual_exit_k = ending['outside'][w_of] & (end_t[w_of] <= window_end)
@@ -276,6 +283,7 @@ def main():
             'a4_mean': float(a4.mean()), 'a4_abs_mean': float(a4.abs().mean()),
             'a4_same_sign_fraction': float(max((a4 > 0).float().mean(), (a4 < 0).float().mean())),
             'final_offset_x_mm': float(1000 * stack['offset_x'][L - 1, w]),
+            'speed_abs_error_mps': float(stack['speed'][:L, w].abs().mean()),
             'return': float(rtg[0, w]),
         })
     exit_worlds = [x for x in worlds if x['outside']]
@@ -290,6 +298,7 @@ def main():
         'checkpoint_iteration': saved.get('iteration'), 'policy_updates': saved['learner'].get('updates'),
         'conditions': str(args.conditions), 'worlds': n, 'k': k, 'rollout_seconds': rollout_seconds,
         'total_seconds': time.monotonic() - started,
+        'speed_abs_error_mps_median': float(np.median([x['speed_abs_error_mps'] for x in worlds])),
         'episodes': {'success': int(success.sum()), 'separated': int(ending['separated'].sum()),
                      'force_limit': int(ending['collision'].sum()), 'workspace': int(ending['outside'].sum()),
                      'timeout': int(ending['timeout'].sum()), 'mean_return': float(rtg[0].mean())},
@@ -310,6 +319,13 @@ def main():
         'per_world': worlds,
     }
     (args.output / 'report.json').write_text(json.dumps(report, indent=1) + '\n')
+    np.savez_compressed(args.output / 'transitions.npz', state=S.cpu().numpy(), action=A.cpu().numpy(),
+                        goal=G.cpu().numpy(), history=H.permute(1, 0, 2).cpu().numpy(),
+                        t=t_of.cpu().numpy(), world=w_of.cpu().numpy(), reward=stack['reward'][t_of, w_of].cpu().numpy(),
+                        rho_next=rho_true.cpu().numpy(), separated_next=sep_next.cpu().numpy(),
+                        collision_next=stack['collision'][t_of, w_of].cpu().numpy(),
+                        outside_next=stack['outside'][t_of, w_of].cpu().numpy(),
+                        timeout_next=stack['timeout'][t_of, w_of].cpu().numpy())
     np.savez_compressed(args.output / 'steps.npz', t=t_of.cpu().numpy(), world=w_of.cpu().numpy(),
                         rho_true=rho_true.cpu().numpy(), rho_pred=rho_pred.cpu().numpy(),
                         p_complete=prob.cpu().numpy(), release_fraction=fraction.cpu().numpy(),
