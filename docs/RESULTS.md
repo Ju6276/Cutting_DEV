@@ -961,3 +961,42 @@ Reports: `runs/free_cut_short_20261112/same_trajectory_{first_joint_update,last}
   result gets worse, the error concentrates on the actions the policy now prefers". Whether more
   data from the new policy corrects it (normal model-based RL dynamics) or the policy keeps exploiting
   it is not determined by 43 updates.
+
+## 2026-11-13 — Budgeted joint training on the free cucumber with same-trajectory checks
+
+Resumed from the short run's `last.pt` (43 policy updates) on Codex's infra code (`b1bcb92`): same task,
+reward, networks and action interface; fixed budget of 1250 more iterations (to 2691), 9 h cap, no
+extension. Completed in 7.5 h (GPU shared with the diagnostics): 543 policy updates. Run:
+`runs/free_cut_joint_20261113/training`; every checkpoint evaluated with
+`diagnose_free_cut_predictions.py` (`12b951f`) on the same 64 development conditions
+(`eval_cucumber.json`, deterministic policy, one episode each): `runs/free_cut_joint_20261113/eval/`.
+Episode-level, paired across nodes; a development set, not a final test set.
+
+| Policy updates | Success / workspace / timeout / force | Mean return | Median speed error (mm/s) | p(complete) on separating / non-separating steps | Critic - return-to-go (all) | Imagined objective / return-to-go (all) |
+|---:|---|---:|---:|---|---:|---|
+| 43 | 44 / 20 / 0 / 0 | 36.5 | 123 | 0.63 / 0.70 | n/a | n/a |
+| 66 | 49 / 15 / 0 / 0 | 54.3 | 50 | 0.18 / 0.013 | +59 | 46.7 / -6.6 |
+| 166 | 41 / 0 / 23 / 0 | 58.6 | 79 | 0.32 / 0.014 | +13 | 10.8 / -1.4 |
+| 266 | 46 / 1 / 17 / 0 | 64.4 | 87 | 0.48 / 0.008 | +1 | 11.6 / 11.2 |
+| 366 | 46 / 0 / 17 / 1 | 64.4 | 70 | 0.50 / 0.014 | +9 | 19.7 / 11.6 |
+| 466 | 52 / 0 / 12 / 0 | 79.7 | 79 | 0.34 / 0.014 | +3 | 27.8 / 20.9 |
+| 543 | 52 / 0 / 12 / 0 | 80.3 | 78 | 0.43 / 0.010 | +6 | 22.7 / 17.9 |
+
+The 43-update row is the corrected-script rerun; simulator nondeterminism changes single-node counts by
+about one episode, so only clear changes are read.
+
+- Physical performance improved over the budget (success 69 % -> 81 %, mean return 36.5 -> 80.3) with
+  a plateau between 266 and 366 updates. One force-limit ending occurred (366 updates); otherwise none.
+- The false completions and the missed lateral exits of the 43-update checkpoint were corrected within
+  the first 23 updates of new data (non-separating completion probability 0.70 -> 0.013; exit
+  prediction before real exits 10 % -> 95 % with 0.1 % false alarms). Overall critic bias and the gap
+  between imagined objective and realised return-to-go stayed small afterwards (within about 10).
+  The pattern "model score rises while physical results worsen" was not observed in this budget.
+- Remaining: completion recall on separating steps stays at 0.3-0.5; the critic underestimates the
+  return of successful episodes by 30-50; successful cuts take about 10 steps, i.e. 2-3x the commanded
+  speed; the timeouts stall at 91-98 % release; the mean sawing magnitude rose again late (median
+  |a4| 0.65-0.84 at the last two nodes).
+- Training episodes in this run: 6205 (success 4768, workspace 339, timeout 1098, force 0), with
+  exploration noise. Time shares: WM 44 %, reset 24 %, physics 16 %, policy 15 %; 21.7 s per
+  iteration with the diagnostics sharing the GPU. Resets grew to a quarter of the time because
+  episodes became short.
