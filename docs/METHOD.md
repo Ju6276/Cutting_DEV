@@ -202,7 +202,9 @@ not change the eight-step world-model loss or 32-step actor BPTT horizon.
 LR and the step endpoint use vector steps. Checkpoints record
 `vector_steps_v1` and the environment count. Resume loads colocated replay only
 when checkpoint name/iteration match, closes open episodes and restarts physics
-with source warmup. `--resume-without-replay` starts empty explicitly. There is one
+without repeating collection warmup when replay is restored. Schedule state version 2
+persists the original warmup anchor, fractional UTD accumulator and ScheduleCfg.
+`--resume-without-replay` starts empty explicitly and repeats collection warmup. There is one
 overwritten `replay.pt`, not one per checkpoint. Transition-rescaled schedule
 units require conversion.
 
@@ -787,3 +789,35 @@ bitwise reproducibility is not promised. Original third-party licenses remain. N
 adds no further third-party kernel changes. GPU regression includes packed materials,
 controller/coupling, graph/eager comparisons and scratch eviction; passing these does not
 establish real-world physical calibration. Full provenance lives in FREE_CUT_REPAIR.
+
+
+## Resume, evaluation shutdown and WM diagnostic counts (2026-11-13)
+
+The infrastructure correction on `codex/free-cut-infra` preserves the task, physics,
+networks, losses and action mapping. New schedule state version 2 retains the
+warmup origin, fractional update accumulator and full schedule configuration.
+With replay restored, future update steps match uninterrupted schedule advancement.
+An explicitly empty replay starts a new collection warmup; the legacy Gazebo runner
+has no replay persistence and requests this mode explicitly. Fresh-run source cadence
+(first update 42; UTD 0.4) is unchanged.
+
+Old schedule files contain no fractional phase or prior warmup origin. A replay-restored
+legacy resume emits a warning and records `legacy_defaults_origin0_phase0` in schedule
+provenance: source config, original warmup origin zero and accumulator zero. This avoids
+another 40-step warmup after an already-warmed run but is a declared migration, **not**
+exact recovery of lost state. New saves then preserve the migrated cadence. Physical
+worlds still restart, so cadence equivalence does not imply identical resumed trajectories.
+
+`evaluate_multi.py` closes its environment in a context manager on normal completion,
+step errors, wall-budget timeout, SIGINT and SIGTERM. Completed episode rows remain flushed;
+interrupted runs do not write a normal summary. Signal handlers are restored even if
+construction or shutdown raises. Uncatchable kills and machine failure cannot run cleanup.
+
+WM classification diagnostics now expose int64 event numerators and valid-transition
+counts. The learner sums those across all microbatches and minibatches, then divides once.
+`term_acc` and `completion_*_fraction` therefore use **pooled valid transitions** rather
+than an average of minibatch rates. The latter can differ for variable-length windows.
+False-positive/missed fractions keep all valid transitions as their denominator; these
+are not conditional FPR/FNR. Raw counts permit conditional rates to be derived separately.
+Continuous errors/BCE, Brier score and probability excess keep their previous aggregation;
+loss weighting and optimizer updates are unchanged. See [repair review](FREE_CUT_INFRA_REVIEW.md).

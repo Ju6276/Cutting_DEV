@@ -226,7 +226,8 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
                         change_wm_terminal_gradient=args.change_wm_terminal_gradient)
         if learner.critic_prefit_pending and args.critic_prefit_rounds < 1:
             raise ValueError('Checkpoint has a pending critic pre-fit; set --critic-prefit-rounds')
-        schedule = OnlineSchedule.resume(saved.get('schedule', {}), worlds=args.worlds)
+        schedule = OnlineSchedule.resume(saved.get('schedule', {}), worlds=args.worlds,
+                                         replay_restored=not args.resume_without_replay)
         torch.set_rng_state(saved['torch_rng'].cpu())
         torch.cuda.set_rng_state(saved['cuda_rng'].cpu())
     replay = BatchedOnlineReplay(args.worlds, spec.state_dim, device,

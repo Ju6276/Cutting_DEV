@@ -5,6 +5,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from third_party.supermimic.dynamics import DynamicsMLP, MLP
+from .metric_counts import RATE_COUNTS
 from .state_spec import CuttingStateSpec
 from .control_state import ControlStateSpec
 
@@ -136,19 +137,21 @@ class CuttingWorldModel(nn.Module):
         state = states[0]
         loss_state = states.new_zeros(())
         loss_term = states.new_zeros(())
-        errors, accuracies = [], []
+        errors = []
+        correct = torch.zeros((), dtype=torch.int64, device=states.device)
         for t in range(len(actions)):
             state, _, logits = self.fit_predict(state, actions[t], goal)
             sq = self.spec.error_vector(state, states[t + 1]).square()
             loss_state = loss_state + sq.sum(-1).mean()
             loss_term = loss_term + F.binary_cross_entropy_with_logits(logits, done[t])
             errors.append(sq.detach().mean())
-            accuracies.append(((logits.detach() > 0) == done[t].bool()).float().mean())
+            correct += ((logits.detach() > 0) == done[t].bool()).sum()
         k = len(actions)
         loss = (loss_state + loss_term) / k
         return loss, {'state_loss': loss_state.detach() / k, 'term_bce': loss_term.detach() / k,
                       'nse_1step': errors[0], 'nse_kstep': errors[-1],
-                      'term_acc': torch.stack(accuracies).mean()}
+                      'term_acc': correct / done.numel(), 'term_correct_count': correct,
+                      'metric_transition_count': correct.new_tensor(done.numel())}
 
     def masked_window_loss(self, states, actions, goal, done, valid_steps):
         if valid_steps.shape != done.shape or valid_steps.dtype != torch.bool:
@@ -160,11 +163,10 @@ class CuttingWorldModel(nn.Module):
         state = states[0]
         loss_state = states.new_zeros(())
         loss_term = states.new_zeros(())
-        correct = states.new_zeros(())
+        correct = torch.zeros((), dtype=torch.int64, device=states.device)
         completion_metrics = {k: states.new_zeros(()) for k in
-                              ('completion_brier_physical', 'completion_probability_excess',
-                               'completion_false_positive_fraction', 'completion_incomplete_fraction',
-                               'completion_missed_fraction', 'completion_positive_fraction')}
+                              ('completion_brier_physical', 'completion_probability_excess')}
+        completion_counts = {key: correct.clone() for key in RATE_COUNTS if key != 'term_acc'}
         last_error = states.new_zeros(states.shape[1])
         for t in range(len(actions)):
             valid = valid_steps[t]
@@ -188,12 +190,12 @@ class CuttingWorldModel(nn.Module):
                     valid, (probability - labels).square(), 0.).sum()
                 completion_metrics['completion_probability_excess'] += torch.where(
                     valid, (probability - rho).clamp_min(0), 0.).sum()
-                completion_metrics['completion_false_positive_fraction'] += (
+                completion_counts['completion_false_positive_fraction'] += (
                     valid & (probability >= .5) & ~labels.bool()).sum()
-                completion_metrics['completion_incomplete_fraction'] += (valid & ~labels.bool()).sum()
-                completion_metrics['completion_missed_fraction'] += (
+                completion_counts['completion_incomplete_fraction'] += (valid & ~labels.bool()).sum()
+                completion_counts['completion_missed_fraction'] += (
                     valid & (probability < .5) & labels.bool()).sum()
-                completion_metrics['completion_positive_fraction'] += (valid & labels.bool()).sum()
+                completion_counts['completion_positive_fraction'] += (valid & labels.bool()).sum()
             error = sq.detach().mean(-1)
             last_error = torch.where(valid, error, last_error)
             if t == 0:
@@ -203,6 +205,11 @@ class CuttingWorldModel(nn.Module):
         return loss, {'state_loss': loss_state.detach() / count,
                       'term_bce': loss_term.detach() / count,
                       'nse_1step': first_error, 'nse_kstep': last_error.mean(),
-                      'term_acc': correct.detach() / count,
+                      'term_acc': correct / count, 'term_correct_count': correct,
+                      'metric_transition_count': count,
                       **({key: value.detach() / count for key, value in completion_metrics.items()}
+                         if hasattr(self.spec, 'free_task') else {}),
+                      **({key: value / count for key, value in completion_counts.items()}
+                         if hasattr(self.spec, 'free_task') else {}),
+                      **({RATE_COUNTS[key]: value for key, value in completion_counts.items()}
                          if hasattr(self.spec, 'free_task') else {})}

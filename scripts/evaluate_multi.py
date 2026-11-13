@@ -19,6 +19,7 @@ import torch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT), str(ROOT / 'backends/mujoco')]
+from cutting_world_model.evaluation_lifecycle import evaluation_environment
 from cutting_world_model.multi_env import MultiConditionEnvironment
 from cutting_world_model.policy import SliceItPolicy
 from cutting_world_model.provenance import git_revision
@@ -51,72 +52,71 @@ def main():
     reward = {'w_speed': float(config['w_speed'])} if config.get('w_speed') else None
     if config.get('task') != metadata.get('free_cut_task'):
         raise ValueError('Evaluation task must match checkpoint task')
-    env = MultiConditionEnvironment.from_config(ROOT / 'backends/mujoco', config, reward=reward)
-    heads, dt = env.heads, metadata['environment']['agent_control_dt']
-    (args.output / 'manifest.json').write_text(json.dumps({
-        'git': git_revision(ROOT), 'command': sys.argv, 'checkpoint': str(args.checkpoint),
-        'conditions': config, 'episodes_per_world': args.episodes,
-        'policy': 'deterministic, no exploration noise'}, indent=2) + '\n')
-    frame = env.current
-    history = frame['observation'].float()[None].repeat(policy.history, 1, 1)
-    n = env.worlds
-    done_count = torch.zeros(n, dtype=torch.long, device=device)
-    acc = {k: torch.zeros(n, device=device) for k in
-           ('steps', 'peak_material', 'peak_ratio', 'impulse', 'speed_error', 'speed_steps', 'return')}
-    rows = []
-    conditions = env.conditions(range(n))
-    with (args.output / 'episodes.jsonl').open('w') as log, torch.no_grad():
-        step = 0
-        while bool((done_count < args.episodes).any()):
-            step += 1
-            if args.max_steps is not None and step > args.max_steps:
-                break
-            if time.monotonic() - started > args.max_hours * 3600:
-                raise TimeoutError('Evaluation reached its wall budget')
-            goal = MultiConditionEnvironment.goal(frame)
-            action = spec.execute(policy(history, goal))
-            frame, reward, terminated, truncated, info = env.step(action)
-            obs = frame['observation']
-            cutting = ((obs[:, 1] * heads.max_distance[1]).abs() > heads.env['goal_threshold'][1]
-                       if not metadata.get('free_cut_task') else torch.ones(n, device=device, dtype=torch.bool))
-            speed_error = (heads.cutting_speed(obs) - frame['target_speed'][:, 0]).abs()
-            acc['steps'] += 1
-            acc['return'] += reward
-            acc['peak_material'] = torch.maximum(acc['peak_material'], info['peak_force'].float())
-            acc['peak_ratio'] = torch.maximum(acc['peak_ratio'], info['safety_margin'].float())
-            acc['impulse'] += info['material_impulse'].float()
-            acc['speed_error'] += torch.where(cutting, speed_error, 0.)
-            acc['speed_steps'] += cutting.float()
-            history = torch.cat((history[1:], obs.float()[None]), 0)
-            ended = terminated | truncated
-            for w in ended.nonzero().flatten().tolist():
-                if int(done_count[w]) < args.episodes:
-                    ending = (('separated' if metadata.get('free_cut_task') else 'goal') if info['success'][w] else 'force_limit' if info['collision'][w]
-                              else 'workspace' if info['outside'][w] else 'time_limit')
-                    row = {'world': w, 'episode': int(done_count[w]), **conditions[w], 'ending': ending,
-                           'return_undiscounted': float(acc['return'][w]),
-                           'steps': int(acc['steps'][w]), 'seconds': float(acc['steps'][w]) * dt,
-                           'peak_material_force_n': float(acc['peak_material'][w]),
-                           'peak_limit_ratio': float(acc['peak_ratio'][w]),
-                           'material_impulse_ns': float(acc['impulse'][w]),
-                           'released_fraction': float(info['released_springs'][w]) / float(frame['total_springs'][w, 0]),
-                           'released_springs': int(info['released_springs'][w]),
-                           'speed_error_mps': float(acc['speed_error'][w] / acc['speed_steps'][w])
-                           if acc['speed_steps'][w] > 0 else None}
-                    if metadata.get('free_cut_task'):
-                        row.update(separated=bool(info['separated'][w]), success=bool(info['success'][w]),
-                                   timeout=bool(info['timeout'][w]), truncated=bool(truncated[w]))
-                    rows.append(row)
-                    log.write(json.dumps(row) + '\n')
-                    log.flush()
-                done_count[w] += 1
-            if bool(ended.any()):
-                for k in acc:
-                    acc[k][ended] = 0
-                frame = env.reset(ended)
-                conditions = env.conditions(range(n))
-                history[:, ended] = frame['observation'][ended].float()[None]
-    env.close()
+    with evaluation_environment(lambda: MultiConditionEnvironment.from_config(ROOT / 'backends/mujoco', config, reward=reward)) as env:
+        heads, dt = env.heads, metadata['environment']['agent_control_dt']
+        (args.output / 'manifest.json').write_text(json.dumps({
+            'git': git_revision(ROOT), 'command': sys.argv, 'checkpoint': str(args.checkpoint),
+            'conditions': config, 'episodes_per_world': args.episodes,
+            'policy': 'deterministic, no exploration noise'}, indent=2) + '\n')
+        frame = env.current
+        history = frame['observation'].float()[None].repeat(policy.history, 1, 1)
+        n = env.worlds
+        done_count = torch.zeros(n, dtype=torch.long, device=device)
+        acc = {k: torch.zeros(n, device=device) for k in
+               ('steps', 'peak_material', 'peak_ratio', 'impulse', 'speed_error', 'speed_steps', 'return')}
+        rows = []
+        conditions = env.conditions(range(n))
+        with (args.output / 'episodes.jsonl').open('w') as log, torch.no_grad():
+            step = 0
+            while bool((done_count < args.episodes).any()):
+                step += 1
+                if args.max_steps is not None and step > args.max_steps:
+                    break
+                if time.monotonic() - started > args.max_hours * 3600:
+                    raise TimeoutError('Evaluation reached its wall budget')
+                goal = MultiConditionEnvironment.goal(frame)
+                action = spec.execute(policy(history, goal))
+                frame, reward, terminated, truncated, info = env.step(action)
+                obs = frame['observation']
+                cutting = ((obs[:, 1] * heads.max_distance[1]).abs() > heads.env['goal_threshold'][1]
+                           if not metadata.get('free_cut_task') else torch.ones(n, device=device, dtype=torch.bool))
+                speed_error = (heads.cutting_speed(obs) - frame['target_speed'][:, 0]).abs()
+                acc['steps'] += 1
+                acc['return'] += reward
+                acc['peak_material'] = torch.maximum(acc['peak_material'], info['peak_force'].float())
+                acc['peak_ratio'] = torch.maximum(acc['peak_ratio'], info['safety_margin'].float())
+                acc['impulse'] += info['material_impulse'].float()
+                acc['speed_error'] += torch.where(cutting, speed_error, 0.)
+                acc['speed_steps'] += cutting.float()
+                history = torch.cat((history[1:], obs.float()[None]), 0)
+                ended = terminated | truncated
+                for w in ended.nonzero().flatten().tolist():
+                    if int(done_count[w]) < args.episodes:
+                        ending = (('separated' if metadata.get('free_cut_task') else 'goal') if info['success'][w] else 'force_limit' if info['collision'][w]
+                                  else 'workspace' if info['outside'][w] else 'time_limit')
+                        row = {'world': w, 'episode': int(done_count[w]), **conditions[w], 'ending': ending,
+                               'return_undiscounted': float(acc['return'][w]),
+                               'steps': int(acc['steps'][w]), 'seconds': float(acc['steps'][w]) * dt,
+                               'peak_material_force_n': float(acc['peak_material'][w]),
+                               'peak_limit_ratio': float(acc['peak_ratio'][w]),
+                               'material_impulse_ns': float(acc['impulse'][w]),
+                               'released_fraction': float(info['released_springs'][w]) / float(frame['total_springs'][w, 0]),
+                               'released_springs': int(info['released_springs'][w]),
+                               'speed_error_mps': float(acc['speed_error'][w] / acc['speed_steps'][w])
+                               if acc['speed_steps'][w] > 0 else None}
+                        if metadata.get('free_cut_task'):
+                            row.update(separated=bool(info['separated'][w]), success=bool(info['success'][w]),
+                                       timeout=bool(info['timeout'][w]), truncated=bool(truncated[w]))
+                        rows.append(row)
+                        log.write(json.dumps(row) + '\n')
+                        log.flush()
+                    done_count[w] += 1
+                if bool(ended.any()):
+                    for k in acc:
+                        acc[k][ended] = 0
+                    frame = env.reset(ended)
+                    conditions = env.conditions(range(n))
+                    history[:, ended] = frame['observation'][ended].float()[None]
     summary = {}
     for group in sorted({r['group'] for r in rows}):
         members = [r for r in rows if r['group'] == group]

@@ -151,7 +151,9 @@ def run(args, env, output):
         else:
             learner.restore(saved['learner'])
         if not args.evaluate:
-            schedule = OnlineSchedule.resume(saved.get('schedule', {}), worlds=1)
+            # This legacy runner does not persist replay; explicitly refill it.
+            schedule = OnlineSchedule.resume(saved.get('schedule', {}), worlds=1,
+                                             replay_restored=False)
         torch.set_rng_state(saved['torch_rng'].cpu())
         if torch.cuda.is_available():
             torch.cuda.set_rng_state(saved['cuda_rng'].cpu())

@@ -926,3 +926,29 @@ timings. (2) The comparison "11 % imagined per-step completion probability vs 0.
 transitions in replay" mixes different states, actions and statistics and is withdrawn as evidence
 of model exploitation. In v3 the completion probability is the predicted release fraction times the
 head probability, so "missed completions" can come from the progress prediction, the head or both.
+
+
+## 2026-11-13 — Resume cadence, evaluation cleanup and integer metric repair
+
+Infrastructure-only branch `codex/free-cut-infra`, based on `c912fb4`.
+No reward/network/action/physics modification and no new training run. Claude's
+same-trajectory diagnostic uses its separate checkout. Review details and commands:
+[FREE_CUT_INFRA_REVIEW](FREE_CUT_INFRA_REVIEW.md).
+
+- Fixed replay-restored resume: new checkpoints keep the collection warmup anchor,
+  fractional UTD phase and schedule config. Explicit empty replay still refills.
+  Legacy files lack this state; they warn and record a defaults/origin-0/phase-0
+  migration. Do not describe legacy migration or restarted physics as exact continuation.
+- Frozen multi-object evaluation closes the environment on timeout, step error,
+  SIGINT/SIGTERM and normal exit. Real OS-signal subprocess tests verify child reaping;
+  completed rows are retained and abnormal exits do not emit a normal summary.
+- Classification metrics sum int64 counts and divide once across valid transitions.
+  Pooled rates replace averages of per-minibatch rates. No clipping and no loss changes.
+- GPU7 root suite: **344 passed / 5 skipped** (234.82 s); backend: **38 passed** (5.82 s).
+  Tests include GPU physics paths; these durations are test durations, not training throughput.
+- Baseline source equivalence: on the same masked v3 batch, float32/float64 loss,
+  parameter gradients and parameters after two Adam steps are bitwise equal before/after
+  the metrics change. Evidence: `runs/infra_fix_20261113/baseline_equivalence.json`.
+
+This does not resolve or measure the short-run policy's completion/force prediction errors,
+critic bias or accumulated lateral motion. Those remain the same-trajectory investigation.
