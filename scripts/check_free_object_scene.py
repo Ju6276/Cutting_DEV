@@ -41,6 +41,22 @@ def components(count, tets):
     return np.array([find(i) for i in range(count)])
 
 
+def knife_summary(r, press_end_time):
+    """Commanded vs actual knife-edge height (mm above the settled object's lowest particle)."""
+    final_cmd = min(x['commanded_edge_above_board_mm'] for x in r)
+    press = [x for x in r if x['phase'] == 'press']
+    reach = next((x['sim_time_s'] for x in r if x['edge_above_board_mm'] <= final_cmd + .5), None)
+    lag = [x['edge_above_board_mm'] - x['commanded_edge_above_board_mm'] for x in press]
+    return {'start_edge_above_board_mm': r[0]['edge_above_board_mm'],
+            'commanded_final_edge_above_board_mm': final_cmd,
+            'edge_at_press_end_mm': press[-1]['edge_above_board_mm'],
+            'lowest_edge_mm': min(x['edge_above_board_mm'] for x in r),
+            'press_end_time_s': press_end_time,
+            'time_edge_within_0p5mm_of_commanded_final_s': reach,
+            'tracking_lag_mm_mean_during_press': sum(lag) / len(lag),
+            'tracking_lag_mm_max_during_press': max(lag)}
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--backend-root', type=Path, default=ROOT / 'backends/mujoco')
@@ -125,6 +141,11 @@ def main():
 
     q0, _ = state()
     q0 = q0.clone()
+    # Knife edge height in the DiSECt frame (y up): knife body y plus the lowest knife vertex.
+    knife_low = float(model.knife_tri_vertices.reshape(-1, 3)[:, 1].min())
+    edge0 = (material.position[:, 1] + knife_low).double().clone()
+    board = q0[:, :, 1].min(1).values.double()  # lowest particle of the settled object
+    press_end_time = (int(round(args.rest_seconds / dt)) + int(round((distance / args.down_speed) / dt))) * dt
     total = int(frame['cut_spring_ke'].shape[-1])
     zero = torch.zeros(n, 6, device=env.device)
     rows = [[] for _ in range(n)]
@@ -161,6 +182,9 @@ def main():
                             'net_force_n': float(net[w, :3].norm()), 'net_vertical_n': float(net[w, 1]),
                             'step_peak_net_force_n': float(step_net[w]), 'step_peak_utilisation': float(step_util[w]),
                             'min_particle_y_mm': float(q[w][:, 1].min()) * 1000,
+                            'sim_time_s': float(physics.sim_time[w]),
+                            'edge_above_board_mm': 1000 * float(material.position[w, 1] + knife_low - board[w]),
+                            'commanded_edge_above_board_mm': 1000 * float(edge0[w] - board[w] + physics.reference_trajectory.displacement(physics.sim_time[w:w + 1].double())[0, 1]),
                             'max_particle_speed_mps': float(qd[w].norm(dim=-1).max()),
                             'side_shift_mm': [[round(1000 * x, 3) for x in s] for s in shift],
                             'finite': bool(torch.isfinite(q[w]).all())})
@@ -187,6 +211,7 @@ def main():
                     'intact_springs': int(intact.sum()), 'side_shift_mm': end['side_shift_mm'],
                     'net_force_n': end['net_force_n']},
             'first_all_released': first_released[w],
+            'knife': knife_summary(r, press_end_time),
             'peak_net_force_n_2ms': float(peak_net[w]),
             'peak_sensor_force_component_n_2ms': float(peak_sensor[w, :3].max()),
             'peak_sensor_torque_component_nm_2ms': float(peak_sensor[w, 3:].max()),

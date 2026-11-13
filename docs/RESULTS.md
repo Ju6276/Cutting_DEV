@@ -1059,3 +1059,26 @@ limit disabled; 2 ms force sampling; potato at 8e-6 s. Reports: `runs/free_objec
 Not decided here: the potato's resting pose is a geometry choice of asset preparation (a hull-based
 stable pose is the realistic placement); why the free prism keeps 16-22 springs intact is not
 established. The free cucumber (2026-11-12/13) separates under the same references.
+
+#### 2026-11-13 — Knife-edge tracking, travel and potato rest (three free objects)
+
+`check_free_object_scene.py` now records the knife-edge height (knife body y plus its lowest vertex,
+DiSECt frame) and the commanded edge height, relative to the settled object's lowest particle.
+Press at 3 cm/s from the scene start (no extra lift), Young/cut-spring x1/x1, x2/x1, x2/x2, force limit
+disabled. Reports: `runs/free_object_check_20261113/knife_lag/`. Object heights as placed: cucumber 39.4,
+prism 50.0, potato 53.6 mm.
+
+| Object (settle) | Rest: centroid motion in 0.25 s / max particle speed | Separated | Lowest edge vs object bottom | Mean / max tracking lag in the press | Edge within 0.5 mm of the commanded end |
+|---|---|---|---|---|---|
+| cucumber (0.75 s) | <= 0.024 mm / 3 mm/s | 2 of 3 (x2/x1: 62/65) | -3.5, -1.3, -3.4 mm | 4.3-4.6 / 4.7-7.0 mm | 0.40-0.50 s after the commanded end; not reached for x2/x1 |
+| prism (0.75 s) | 0.001 mm / 0.4 mm/s | 0 of 3 (282-287/304) | -3.6, -3.6, -3.3 mm | 4.5-5.4 / 5.0-6.4 mm | 0.50 s; not reached for two worlds |
+| potato (0.75 s) | 0.6-1.1 mm / 74-102 mm/s | 0 of 3 (8-121/245) | -3.9 to -4.0 mm | 4.3-4.7 / 5.1-6.7 mm | 0.40-0.50 s |
+| potato (3.0 s) | 0.26-0.41 mm / 39-65 mm/s | 0 of 3 (55-121/245) | -3.2 to -3.6 mm | 4.3-4.7 / 5.3-6.4 mm | 0.40-0.50 s |
+
+- Placement and simulation (reported separately from cutting): cucumber and prism are at rest and
+  numerically sound; the potato in its principal-axis pose is still moving after 3 s of settling.
+- Travel: in every case the knife edge reaches 1.3-4.0 mm below the object's lowest particle, so the
+  springs left intact on the free prism are not explained by insufficient knife travel.
+- Lag (from knife motion, not from cut time): during a 3 cm/s press the edge trails the command by
+  about 4.5 mm (about 0.15 s) and reaches the commanded end 0.4-0.5 s after it; on stiffer material it
+  can stay short of it. Not yet measured at 1 cm/s, the speed that sets the time budget.
