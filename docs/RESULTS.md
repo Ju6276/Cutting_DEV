@@ -1000,3 +1000,40 @@ about one episode, so only clear changes are read.
   exploration noise. Time shares: WM 44 %, reset 24 %, physics 16 %, policy 15 %; 21.7 s per
   iteration with the diagnostics sharing the GPU. Resets grew to a quarter of the time because
   episodes became short.
+
+#### 2026-11-13 — Same-condition reference comparison and reward decomposition (543-update policy)
+
+`scripts/compare_free_cut_references.py`; report `runs/free_cut_joint_20261113/reference_comparison/report.json`.
+Same 64 development conditions as the policy diagnostic (0 condition mismatches), same task settlement,
+180-step deadline, limits and reward. References: press straight down at each case's commanded speed
+over the scene-reference travel plus that case's start lift, then hold; and the same press with a
++-2 cm, 1 Hz lateral sinusoid. The references command knife motion directly and bypass the six-action
+compliance mapping, so they are physical control references; differences are not all attributable
+to the learning algorithm. The reward reconstruction from recorded transitions matches the logged
+reward to below 1e-6.
+
+| Controller | Success / timeout | Mean return | Median speed error | Median steps | Peak utilisation median / max |
+|---|---|---:|---:|---:|---|
+| Policy (543 updates) | 52 / 12 | 80.3 | 76 mm/s | 11 | 0.41 / 0.96 |
+| Press at commanded speed | 45 / 19 | 75.1 | 5 mm/s | 66 | 0.42 / 0.78 |
+| Press + saw | 38 / 26 | 61.9 | 7 mm/s | 107 | 0.40 / 0.78 |
+
+Mean return terms (progress / speed cost per released fraction / speed cost per time / load /
+terminal): policy 9.8 / -6.0 / -4.0 / -0.7 / 81.3; press 9.7 / -0.4 / -3.6 / -0.9 / 70.3;
+press + saw 9.6 / -0.4 / -5.7 / -1.0 / 59.4. On the 27 cases all three complete: median return 104.2
+(policy) vs 109.6 and 109.7; 10 vs 55 and 54 steps.
+
+Case pairing: of the 12 policy failures (all timeouts; final progress 0.71-0.99), a reference completes
+5 (press 3, saw 4); in 7 all three time out (mostly cut-spring stiffness above x1 or commanded speed
+below 2 cm/s). The policy completes 10 cases the press does not.
+
+Frozen 543-update critic: on the policy's own trajectories, value minus realised return-to-go has mean
++6.3 and mean absolute value 26.6. On the reference trajectories the gap between reference return and
+this critic's score is -3.5 (abs 35.3) and -2.7 (abs 37.3); the critic estimates the current policy's
+return, and the reference states may lie outside the training data, so these are recorded gaps, not
+critic errors.
+
+Reading: under this reward and deadline, cutting at 2-3x the commanded speed costs about 6 points more
+speed penalty than the press but avoids timeouts that cost the full completion reward; the policy's
+speed choice is consistent with the reward as specified, not by itself evidence of a model error.
+Most remaining policy failures are cases that the simple references do not complete either.
