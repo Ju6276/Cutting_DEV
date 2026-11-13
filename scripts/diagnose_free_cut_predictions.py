@@ -104,7 +104,8 @@ def main():
     history = frame['observation'].float()[None].repeat(policy.history, 1, 1)
     alive = torch.ones(n, dtype=torch.bool, device=device)
     rec = {k: [] for k in ('state', 'action', 'goal', 'history', 'reward', 'rho', 'separated', 'collision',
-                           'outside', 'timeout', 'ee', 'peak', 'a4', 'offset_x', 'alive', 'speed')}
+                           'outside', 'timeout', 'ee', 'peak', 'a4', 'offset_x', 'alive', 'speed',
+                           'next_state')}
     with torch.no_grad():
         for t in range(horizon + 1):
             if not bool(alive.any()):
@@ -120,6 +121,7 @@ def main():
             rec['alive'].append(alive.clone())
             frame, reward, terminated, truncated, info = env.step(action)
             next_state = spec.pack_batch_transition(frame, state)
+            rec['next_state'].append(next_state.clone())  # full successor, saved before any reset
             rec['reward'].append(reward.float())
             rec['rho'].append(frame['cut_progress'][:, 0].float())
             for key in ('separated', 'collision', 'outside', 'timeout'):
@@ -188,16 +190,20 @@ def main():
             usable = (tj < length[w_of])
             act = stack['action'][tj.clamp(max=T - 1), w_of]
             nk, _, pk, _, _ = one_step(wm, state_k, act, G)
-            pk = torch.where(usable, pk, 0.)
             failure, timeout_k = spec.hard_events(nk)
-            # Completion is only reachable before a predicted hard ending (training rule).
-            completion_mass = completion_mass + torch.where(hard_absorbed, 0., cum_survive * pk)
-            cum_survive = torch.where(hard_absorbed, cum_survive, cum_survive * (1 - pk))
-            hard_absorbed |= usable & (failure | timeout_k)
+            # Training rule: a predicted force/workspace failure in this step excludes completion
+            # in the same step (completion_reward masks failure); at the deadline step completion
+            # still counts (success before timeout). After a predicted hard ending the rollout is
+            # absorbed: no further state advance, completion or event counting.
+            live = usable & ~hard_absorbed
+            pk = torch.where(live & ~failure, pk, 0.)
+            completion_mass = completion_mass + cum_survive * pk
+            cum_survive = cum_survive * (1 - pk)
             out_axis = task.workspace_features(spec.field(nk, 'observation'), spec.fk(spec.field(nk, 'joint_q')))
-            pred_exit |= usable & (out_axis > 0).any(-1)
-            pred_force |= usable & (spec.field(nk, 'peak_wrench').abs() > spec.force_limits).any(-1)
-            state_k = torch.where(usable[:, None], nk, state_k)
+            pred_exit |= live & (out_axis > 0).any(-1)
+            pred_force |= live & (spec.field(nk, 'peak_wrench').abs() > spec.force_limits).any(-1)
+            state_k = torch.where(live[:, None], nk, state_k)
+            hard_absorbed |= live & (failure | timeout_k)
             steps_used += usable.long()
         pred_cum_completion = completion_mass  # with hard-event absorption
         window_end = (t_of + steps_used - 1)
@@ -320,6 +326,7 @@ def main():
     }
     (args.output / 'report.json').write_text(json.dumps(report, indent=1) + '\n')
     np.savez_compressed(args.output / 'transitions.npz', state=S.cpu().numpy(), action=A.cpu().numpy(),
+                        next_state=stack['next_state'].flatten(0, 1)[flat].cpu().numpy(),
                         goal=G.cpu().numpy(), history=H.permute(1, 0, 2).cpu().numpy(),
                         t=t_of.cpu().numpy(), world=w_of.cpu().numpy(), reward=stack['reward'][t_of, w_of].cpu().numpy(),
                         rho_next=rho_true.cpu().numpy(), separated_next=sep_next.cpu().numpy(),
