@@ -1077,8 +1077,73 @@ prism 50.0, potato 53.6 mm.
 
 - Placement and simulation (reported separately from cutting): cucumber and prism are at rest and
   numerically sound; the potato in its principal-axis pose is still moving after 3 s of settling.
-- Travel: in every case the knife edge reaches 1.3-4.0 mm below the object's lowest particle, so the
-  springs left intact on the free prism are not explained by insufficient knife travel.
+- Historical travel inference (superseded by the geometry repair below): these heights used
+  translation plus the lowest local vertex, omitting rotation and comparing against the initial
+  settled bottom. They alone do not establish coverage of the remaining connections.
 - Lag (from knife motion, not from cut time): during a 3 cm/s press the edge trails the command by
   about 4.5 mm (about 0.15 s) and reaches the commanded end 0.4-0.5 s after it; on stiffer material it
   can stay short of it. Not yet measured at 1 cm/s, the speed that sets the time budget.
+
+
+#### 2026-11-13 — Corrected knife geometry and an actual free-prism rerun
+
+User-authorized measurement repair, not a physics/task change. Based on 1ed9b54;
+script: `check_free_object_scene.py`, measurement revision `knife_pose_geometry_v2`.
+The knife vertices are now transformed by the actual xyzw rotation **and** translation.
+The edge is this asset's two lowest local vertices. Heights relative to the initial
+settled bottom, the instantaneous bottom and the DiSECt world origin are separate.
+The initial/current particle minima are not labelled as the board height.
+
+Arrival now means entry into the existing symmetric +/-0.5 mm height band during
+the post-command hold, excluding retraction; the old one-sided check also accepted
+arbitrarily deep overshoot. This is a measurement tolerance, not a task threshold.
+The commanded edge is the translated initial edge with its initial orientation;
+it is a reference proxy, not a directly imposed DiSECt pose.
+
+One actual three-world run took 238 s: free prism, E/spring x1/x1, x2/x1, x2/x2,
+0.75 s per-material settle, original 3 cm/s press/hold/retract, force-limit termination
+disabled. Neither material, controller, trajectory, force limits nor separation
+criteria were changed. Output: `runs/knife_geometry_fix_20261113/prism_press/`;
+raw geometry: `geometry.npz`; offline spatial analysis:
+`runs/knife_geometry_fix_20261113/analyse_geometry.py` and
+`prism_press/geometry_analysis.json`. All remain on GPU7.
+
+| E / spring | Released / 304 | Lowest edge vs initial / current bottom (mm) | Maximum omitted-rotation error (mm) | Mean press height lag (mm) | Peak net force (N) |
+|---|---|---|---|---|---|
+| 1 / 1 | 285 | -3.745 / -3.924 | 0.163 | 4.528 | 4.199 |
+| 2 / 1 | 288 | -3.781 / -3.846 | 0.194 | 4.589 | 4.656 |
+| 2 / 2 | 282 | -3.858 / -3.932 | 0.588 | 5.164 | 12.106 |
+
+Height extrema above are from 50 ms control-step endpoints. The raw geometry
+samples knife pose, both material spring endpoints, stiffness and instantaneous
+object bottom synchronously every 2 ms; endpoint interpolation follows
+`eval_cut_springs`, not the knife contact-search coordinates.
+At 3 cm/s, the measured arrival delays were 0.45, 0.50 and 0.50 s.
+These are not estimates for 1 cm/s.
+
+Spatial observations from the 2 ms record:
+- All final residual connections were inside the blade's longitudinal span at its
+  deepest pressing/holding position. At that instant, their endpoints were
+  3.05-12.10 mm above the blade edge at the same longitudinal coordinate.
+- For each residual spring, the minimum distance of either endpoint to the edge
+  segment during press/hold was 0.031-0.068 mm.
+- Residual endpoints were not universally only in the bottommost layer: at the
+  deepest instant the first two worlds spanned about 0.08-8.39 mm above the current
+  bottom; the x2/x2 world spanned 0.09-0.28 mm.
+- All states were finite, but no world fully separated. This supports no obvious
+  gross vertical-stroke or blade-length shortfall in this run. Proximity alone is
+  not evidence of contact at every material substep, sufficient damage, a physics
+  bug, or task impossibility. No residual springs were removed or counted as cut.
+
+The script also records mean particle velocity and RMS speed alongside maximum
+particle speed, so a single fast particle is not reported as whole-object motion.
+Potato orientation, the 1 cm/s lag and multi-object training were not changed or
+run in this repair.
+
+Validation on GPU7: root suite with CUDA assets and the MPPI environment:
+**324 passed, 5 skipped**; backend suite: **38 passed**. Regression tests include
+a 90-degree rotated knife, asymmetric material-edge interpolation in batched
+worlds, and overshoot/retraction exclusion from the arrival statistic. Independent
+NumPy reconstruction of the saved geometry matched the reported step heights
+within 7.5e-6 mm; final residual counts matched exactly.
+Logs and source patch/hash: `runs/knife_geometry_fix_20261113/`.

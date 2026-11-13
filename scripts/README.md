@@ -112,3 +112,19 @@ are unchanged. Critic differences on reference trajectories are
 The original 4b08d49 summary remains historical: its condition check covered only
 the final (sawing) reference, and it did not retain reference raw transitions.
 This repair does not retrospectively claim those missing checks or data.
+
+
+### Free-object geometry measurements
+
+`check_free_object_scene.py` now writes measurement revision
+`knife_pose_geometry_v2`. It transforms the actual knife mesh with the full pose,
+uses the asset's lowest local vertices as the edge, and keeps initial-bottom,
+current-bottom and world-height references separate. The edge-height summary
+uses 50 ms step endpoints; `geometry.npz` retains synchronized 2 ms knife poses,
+spring endpoints/stiffness and object bottoms for offline review. This asset
+selection is a geometric diagnostic, never a success criterion.
+
+Existing output directories are rejected. `--wall-seconds` (default 1800) is
+checked between control steps, not a hard watchdog; use an outer timeout for a
+strict process budget. The geometry report does not certify swept cut coverage
+or diagnose the damage law from minimum height alone.
