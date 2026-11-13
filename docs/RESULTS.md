@@ -893,3 +893,36 @@ optimistic than on recorded data. Not judged from 43 updates; to be measured in 
 update warmup (counted from the resume iteration). A WM metric ratio is logged as 1.0000026 (float
 accumulation in weighted minibatch means). The W&B offline exporter logged transient "Bad Gateway"
 retries. Timeouts end at a median progress of 0.85 under the initial/early policy.
+
+#### 2026-11-13 — Deterministic evaluation of the two short-run checkpoints; corrections
+
+Evaluation (`scripts/evaluate_multi.py`, `configs/free_cut/eval_cucumber.json`: training distribution,
+seed 100, 64 worlds x 2 episodes; reports `runs/free_cut_short_20261112/eval_{first_joint,last}`):
+
+| | `first_joint_update.pt` (no policy update) | `last.pt` (43 policy updates) |
+|---|---|---|
+| Separated (task success) | 24/128 (19 %) | 88/128 (69 %) |
+| Timeout | 104 (81 %) | 0 |
+| Workspace | 0 | 40 (31 %), every one at step 52 |
+| Force limit | 0 | 0 |
+| Median episode length | 180 steps | 7 steps |
+| Median speed error | 20 mm/s | 131 mm/s |
+| Peak limit utilisation, median / max | 0.32 / 0.52 | 0.44 / 0.77 |
+| Mean undiscounted return | 9.8 | 36.6 |
+
+For reference, the fixed press at the commanded speed returned about 110 in the physical reward check.
+After 43 updates the policy separates the object in about 6 steps (far above the commanded 1-5 cm/s);
+the workspace endings had released about 95 % of the springs. Inference, not verified: the sawing
+output keeps one sign, and the mapper integrates it into the target offset (about 2 mm per step), so
+the target leaves the 10 cm half-width of the workspace after about 50 steps. 43 updates do not
+judge the method; the cause of the behaviour change is not established (WM completion/progress
+prediction, critic and the integrated lateral offset are all candidates). Next: same-trajectory
+prediction records (WM given the executed actions from the same start states) before any
+attribution.
+
+Corrections to the short-run entry above: (1) GPU7 was shared with a verification job between about
+00:55 and 01:12 Berlin time on 2026-11-13, during the resumed run, so its timings are not exclusive-GPU
+timings. (2) The comparison "11 % imagined per-step completion probability vs 0.3 % separated
+transitions in replay" mixes different states, actions and statistics and is withdrawn as evidence
+of model exploitation. In v3 the completion probability is the predicted release fraction times the
+head probability, so "missed completions" can come from the progress prediction, the head or both.
