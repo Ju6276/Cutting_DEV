@@ -30,11 +30,14 @@ identical randomized resets. Termination is recorded before resetting; separatio
 success, force failure, workspace failure and timeout are distinct. A wall-budget
 stop is incomplete, never counted as task success or a completed timeout.
 
-MPPI sees the WM state, including simulator cut_progress and robot/control history.
-The policy has observation history, remaining time and the task goal, not direct
-cut_progress. This is a privileged-state planning baseline, not an equal-information
-or real-robot deployable planner. The new progress observation would need an
-estimator for real use. Exact WM pairing does not remove this information difference.
+The 2026-11-12/13 runs below used simulator cut_progress and are historical
+privileged-state results. The current free-cut CLI defaults to
+--mpc-progress-source estimated: robot/controller observations refresh the state,
+while cut progress is internally predicted by the unchanged WM. Reproducing the
+old results requires explicit --mpc-progress-source observed. Neither mode changes
+the WM architecture or weights. See the observation-only integration section below.
+The policy still has a different input interface; this change alone does not make
+the comparison equal-information or certify real-robot deployment.
 
 ## Example (A6000)
 
@@ -51,13 +54,14 @@ in runs/free_cut_mppi_20261112/run_mppi.sh. That script is the executed command.
       --checkpoint PATH/last.pt --paired-checkpoint PATH/last.pt \
       --mpc-horizon 8 --mpc-samples 512 --mpc-refinements 1 \
       --mpc-temperature 1 --mpc-noise-std 0.5 --mpc-discount 1 \
-      --mpc-terminal-value none --episodes 1 --seed 0 --wall-seconds 900 \
+      --mpc-terminal-value none --mpc-progress-source observed \
+      --episodes 1 --seed 0 --wall-seconds 900 \
       --output runs/UNIQUE_DIRECTORY
 
-The same entry accepts --method supermimic or constant-zero. The former reads
+The same entry accepts --method supermimic, constant-zero, fdcc-press or fdcc-saw. The former reads
 the exact paired policy checkpoint; constant-zero is a fixed-action reference.
-This entry does not silently connect legacy SAC checkpoints or prescribed
-knife trajectories to the new task.
+Legacy SAC checkpoints are not silently connected. FDCC prescribed references
+are explicit methods with their own pose-command record, described below.
 
 ## Outputs and present validation scope
 
@@ -242,3 +246,161 @@ logs are alongside the run directory on GPU7. An initial launch used the stale
 script before server synchronization and rejected the new flag before simulation;
 pre_sync_attempt.log preserves it. It is not a physical trial.
 GPU0 returned to 43 MiB / 0% after completion; another user's GPU1 job was untouched.
+
+## Observation-only planning and classical controls (2026-11-13)
+
+Implementation: cutting_world_model/mpc.py (EstimatedProgressState),
+cutting_world_model/traditional.py and scripts/evaluate_free_cut.py.
+No physics, task reward, limit or training code changes.
+
+### Frozen model and causal progress prediction
+
+At the start of a fresh uncut episode, rho_hat=0 in all history slots. Before
+executing action a_t, predict rho_hat_(t+1) using exactly the bounded action sent
+to the physical environment and the current observation-corrected WM state.
+On receiving the next sensor/controller frame, replace the measurable state
+fields and retain rho_hat_(t+1). Shift the previous estimated frame into history.
+Do not advance progress with unexecuted sampled plans. Reset both plan and belief
+on every episode boundary. No fitting or optimizer is introduced.
+
+The measured allowlist is the compact WM base fields except cut_progress and
+success_counter (the unused free-cut counter is zero). It contains joint state,
+wrench history and sampled peaks, motion command, EE pose/velocity/acceleration,
+observation and elapsed steps. Target pose/speed are task commands. No particle,
+spring, material label, true progress, reward or terminal label enters planning.
+A missing or NaN progress field must leave actions and state bitwise unchanged
+for the same observable stream and RNG seed; this is covered with actual MPPI.
+
+This is a deterministic, uncorrected progress estimate. Force observations influence
+the next model prediction; there is no measurement update that directly observes
+true damage. Drift must be reported. The physical evaluator still uses full
+separation to score and end episodes, for ALL controllers. A real-robot completion
+detector, calibrated force interface and real-time execution remain separate needs.
+No claim of complete real deployment follows from removing privileged progress.
+
+Use the previous frozen command with --mpc-progress-source estimated.
+Keep --mpc-progress-source observed only as a clearly labelled privileged control.
+Both manifests preserve exact checkpoint identity and upstream MPPI revision.
+
+### Non-learning, non-MPC FDCC references
+
+Use --method fdcc-press or --method fdcc-saw with the same --conditions, --group,
+--seed and wall budget; omit --checkpoint and --paired-checkpoint. Reference feed
+speed is the episode target-speed command. The reset robot pose and task target
+height determine travel; hold at the endpoint, without retraction. No material
+geometry, stiffness, hidden progress or completion labels select the command.
+
+fdcc-saw adds a prescribed sinusoidal displacement along DiSECt +z (blade
+direction), default amplitude 0.02 m and frequency 1 Hz, exposed as
+--saw-amplitude and --saw-frequency. These are previously used engineering test
+values, not calibrated or optimized parameters. They do not enter the task reward.
+
+The existing reference branch DOES run the FDCC controller, the MuJoCo robot,
+the knife coupling, DiSECt material, sensor feedback and 500 Hz force checks.
+It bypasses only the six-dimensional policy action mapper, using the exported
+fixed FDCC parameters. In episode NPZ, six zero action values are placeholders;
+reference_commands.json records the actual pose commands and per-episode path,
+frame, parameters and digest. Do not interpret the zero vector as this controller.
+
+Upstream port provenance: cambel/cartesian_controllers
+f4359b966bb3b8d8a07d829df463da814c2bee33 (FZI FDCC; existing BSD license).
+This is a classical controller with a prescribed engineering knife path, not a
+claimed reproduction of Mu/Jia's three-phase cutting controller.
+
+### Code search: what is actually available
+
+- [pytorch_mppi](https://github.com/UM-ARM-Lab/pytorch_mppi): generic MPPI, already
+  pinned/integrated. No cutting state estimator or UR5e interface is supplied.
+- [FZI Cartesian controllers](https://github.com/fzi-forschungszentrum-informatik/cartesian_controllers):
+  open force/position/compliance controllers and UR examples; source of the
+  existing FDCC family. Not a complete cutting-paper implementation.
+- [DiSECt author panda-force](https://github.com/eric-heiden/panda-force): verified
+  public real-robot experiment code, main f1ce0ae93f51daacb4232c3180b6a5ce9abc7345.
+  README explicitly links its experiments to DiSECt. Read
+  [example_cutting.py](https://github.com/eric-heiden/panda-force/blob/f1ce0ae93f51daacb4232c3180b6a5ce9abc7345/experiments/example_cutting.py):
+  prescribed Cartesian downfeed plus optional sine displacement, IK to Panda
+  joint waypoints, configured joint impedance, then follow_qs via ZMQ/libfranka;
+  the checked example defaults to zero lateral amplitude. No learned controller
+  or MPC. This is a direct cutting-project source for a classical baseline,
+  though transferring the Panda execution to UR5e FDCC must be declared. The
+  present FDCC references were implemented independently, not copied or claimed
+  as an exact reproduction of these trajectories/gains.
+  Also read force_control.cpp: separate FF+PI joint-torque force demo, not a
+  complete food-cutting policy. The README marks cut_vertical.cpp and
+  cut_vertical_edc.cpp outdated. Root has no LICENSE file; source is publicly
+  readable, and no code from this repository is vendored in this change.
+- [DiSECt basic_cutting.py](https://github.com/NVlabs/DiSECt/blob/main/examples/basic_cutting.py):
+  official prescribed pressing/slicing motion, requires_grad=False, direct knife
+  simulation. It has no robot compliance control; not the same execution path as FDCC.
+- [DiSECt optimize_slicing.py](https://github.com/NVlabs/DiSECt/blob/main/examples/optimize_slicing.py):
+  official non-policy trajectory optimization using MDMM constraints and physical
+  gradients; optimizes frequency, amplitudes and pressing velocities to reduce
+  mean force subject to final height/blade-travel constraints. Offline optimization,
+  not online MPC and not a real-time force controller. Its existence is confirmed;
+  the earlier numerical reproduction difficulties are NOT resolved by this change.
+- [SafeDDC](https://github.com/imitsioni/SafeDDC): public author MPC implementation,
+  repository examples are inverted_pendulum and safety; no full food-cutting entry.
+- Mu/Xue/Jia ICRA2019 and Mu/Jia ICRA2022: author PDFs and experiment descriptions
+  found, but no verified public controller implementation in this search.
+- One-Shot Demonstration for Slicing and Cutting Everyday Food Items (RA-L2025)
+  uses demonstration-fitted DMPs; it is not a no-learning baseline. Primary text
+  inspected for a code link, no GitHub link found. No unavailable code is claimed
+  as reproduced.
+
+Search scope is these retrieved primary repositories/papers, not a proof that no
+other traditional cutting code exists. We do not add another optimizer/platform
+merely because a generic library exists.
+
+### GPU7 commands for the current interfaces
+
+The exact executed commands are preserved in each run manifest and
+runs/estimated_mppi_fdcc_20261113/run.py. Example:
+
+```bash
+cd /dataHDD/dong/Projects/Cutting_DEV_mppi_v3
+source runs/sac_env.sh
+PYTHONPATH=.:backends/mujoco /dataHDD/dong/Envs/cutting-mppi-20261108/bin/python scripts/evaluate_free_cut.py \
+  --method wm-mppi --conditions configs/free_cut/short_train_cucumber.json \
+  --group free_cucumber_003 --checkpoint runs/free_cut_short_20261112/training/last.pt \
+  --paired-checkpoint runs/free_cut_short_20261112/training/last.pt \
+  --mpc-progress-source estimated --mpc-discount 1 \
+  --seed 0 --episodes 1 --wall-seconds 900 --output runs/NEW_MPPI_DIRECTORY
+```
+
+For the two classical references, replace wm-mppi with fdcc-press or fdcc-saw
+and remove both checkpoint arguments. Use a fresh output directory for each run.
+Do not rerun merely to replace a failure.
+
+### Review scope and remaining deployment work
+
+For Claude review, inspect EstimatedProgressState and MPPIPolicy.act/observe in
+cutting_world_model/mpc.py, the reference controller in traditional.py, the
+reference dispatch in free_cut_evaluation.py, and the CLI defaults/manifest in
+scripts/evaluate_free_cut.py. The new tests exercise actual upstream MPPI with
+missing and corrupted progress fields, actual-action history transitions, reset,
+frozen weights and FDCC dispatch/trajectory endpoint. Full root and backend
+suites also run on GPU7. The physical trials are additional to those tests.
+
+The new mode changes state initialization/update, not the learned model, rewards
+or planner cost. It does not solve state-estimation accuracy: in the 27-step
+physical MPPI episode, posthoc progress MAE is 0.246 on a 0–1 scale and maximum
+absolute error 0.646. Predicted progress first reaches exactly 1 at frame23; physical
+separation occurs at frame27. Thus prediction-only progress must not be used as
+a verified real-world stop signal. These truth comparisons happen after execution,
+not in the controller. Artifact: wm-mppi/progress_estimate_diagnostics.json.
+
+The mean planning time in that shared-GPU run is 0.470 s for a 50 ms simulated
+control interval. This implementation has not demonstrated real-time deployment.
+No progress estimator fit, completion detector, weight update or tuning run was
+added to repair these observations. They remain explicit limits of the frozen
+WM341 integration, rather than additional claims about model quality.
+
+### Physical results for the observation-only/classical integration
+
+| Method | Outcome | Steps | Released | Return | Peak net material force N | Impulse N s | Peak sensor-limit ratio |
+| --- | --- | ---: | --- | ---: | ---: | ---: | ---: |
+| wm-mppi | success | 27 | 65/65 | 107.087 | 7.005 | 1.226 | 0.1208 |
+| fdcc-press | success | 45 | 65/65 | 109.875 | 3.443 | 1.148 | 0.0784 |
+| fdcc-saw | timeout, incomplete | 180 | 64/65 | -4.719 | 5.903 | 1.219 | 0.0877 |
+
+One episode per controller, same sampled condition. These are integration outcomes, not algorithm rankings. Full provenance, tests and limitations: RESULTS, 2026-11-13 frozen WM341 integration; server artifact directory runs/estimated_mppi_fdcc_20261113/.

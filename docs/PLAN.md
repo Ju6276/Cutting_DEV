@@ -98,8 +98,9 @@ WM341 is an early fit, not the approved final pretrained model.
 Pass means task/physics metadata validation, finite bounded actions, correct
 physical terminal logging and unchanged weights; cutting success is reported
 separately. Stop at the budget; do not extend it to chase a successful cut.
-The current planner observes simulator cut progress while the policy does not;
-record this privileged-state difference, never present it as identical information.
+The first integration runs observed simulator cut progress while the policy did not;
+record that historical privileged-state difference. The later observation-only
+integration below replaces that online input with frozen-model progress prediction.
 
 Integration outcome: two bounded frozen runs completed full separation (34/35 steps),
 without force or workspace failures. See FREE_CUT_MPPI. No training launched here.
@@ -133,3 +134,33 @@ Outcome: completed this bounded check. Prism timed out at 180 steps with 281/304
 springs released (23 remain), peak net force 12.94 N, no force/workspace failure.
 180 real-state replans; weights unchanged. See FREE_CUT_MPPI and RESULTS.
 No further trials, solver tuning or training started automatically.
+
+## Authorized frozen observation-only MPPI and classical references (2026-11-13)
+
+The user requested retaining the existing WM and upstream MPPI, removing true cut
+progress from planning, and adding a non-learning/non-MPC controller. Work stays
+in codex/free-cut-mppi. No learner, reward, force limit, material or physics edits.
+The compact estimator initializes fresh-object progress to zero and recursively
+predicts it for the executed action. Measurable state/history is refreshed. This
+does not provide a corrected progress observer or a real-robot completion detector.
+
+Add FDCC press/saw references using the existing fixed controller gains and target
+speed/endpoint, through real robot/controller/material coupling. No optimizer,
+model loading or damage observation. Saw reference uses the previously measured
+2 cm / 1 Hz prescription, not learned or automatically tuned.
+
+Bounded integration budget: three one-world cucumber episodes (estimated-progress
+MPPI, FDCC press and FDCC saw), at most 900 s each, existing WM341/seed0/H8/512
+candidates/one refinement/gamma1/no critic; no success-chasing reruns or long training.
+Check hidden-state invariance, executed-action causal history, resets, frozen
+weights, controller reference dispatch, and report actual task outcomes separately.
+GPU7 has an existing training process; keep it and its checkout untouched. Small
+validation jobs share the available memory sequentially; timings are not performance
+comparisons under this contention. Both A6000 GPUs were busy at inspection.
+
+Outcome: all three authorized evaluations completed within their wall budgets.
+Estimated-progress MPPI and FDCC press separated 65/65 in 27/45 steps; FDCC
+saw timed out at 180 steps with 64/65, incomplete. See RESULTS for all metrics. True progress was excluded from planning; the unchanged
+WM estimate nevertheless overpredicts progress. No fitting, training, threshold
+change or automatic real deployment is authorized by these results. Source and
+tests are ready for Claude review on codex/free-cut-mppi.

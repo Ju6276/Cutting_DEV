@@ -80,8 +80,8 @@ class FreeCutEvaluationEnvironment:
         self.current = self._recordable(self.env.reset())
         return self.current
 
-    def step(self, action):
-        frame, reward, terminated, truncated, info = self.env.step(action)
+    def step(self, action, reference=False):
+        frame, reward, terminated, truncated, info = self.env.step(action, reference=reference)
         self.current = self._recordable(frame)
         return self.current, reward, terminated, truncated, info
 

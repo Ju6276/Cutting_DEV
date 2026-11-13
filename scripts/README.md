@@ -86,3 +86,9 @@ scene: mesh connectivity across the cut plane, rest on the board, press/hold/ret
 - check_free_cut_reset.py: bounded eager vs packed/graph stationary reset timing and state comparison.
 - check_free_cut_learning.py: actual six-action controller collection followed by one WM and
   actor/critic update; deliberately small verification batches, not a training experiment.
+
+- evaluate_free_cut.py: wm-mppi defaults to --mpc-progress-source estimated;
+  observed reproduces the historical privileged planner. fdcc-press and
+  fdcc-saw run fixed-gain compliant references without a checkpoint. Actual
+  target-pose commands are in reference_commands.json; see
+  [FREE_CUT_MPPI](../docs/FREE_CUT_MPPI.md).

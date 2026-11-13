@@ -24,6 +24,7 @@ class MPPIConfig:
     noise_std: float = .5
     discount: float = .99
     terminal_value: str = 'none'
+    progress_source: str = 'observed'
 
     def __post_init__(self):
         for name in ('horizon', 'samples', 'refinements'):
@@ -34,6 +35,8 @@ class MPPIConfig:
                 raise ValueError(f'{name} must be finite and positive')
         if not math.isfinite(self.discount) or not 0 < self.discount <= 1:
             raise ValueError('discount must be in (0, 1]')
+        if self.progress_source not in ('observed', 'estimated'):
+            raise ValueError('progress_source must be observed or estimated')
         if self.terminal_value not in ('none', 'critic'):
             raise ValueError('terminal_value must be none or critic')
 
@@ -112,6 +115,54 @@ class ModelRollout:
         return self.terminal_cost(states[0, :, -1], states.shape[-2])
 
 
+class EstimatedProgressState:
+    """Causal belief: measured robot/controller history, model-only cut progress.
+
+    Reset assumes a fresh, uncut object. No particle, spring, progress, reward or
+    terminal label is read. Progress is predicted for the executed action once;
+    the subsequent observation replaces only the measurable fields. This is a
+    deterministic predictor, not a trained/corrected progress observer.
+    """
+    def __init__(self, wm):
+        self.wm, self.spec = wm, wm.spec
+        from .free_cut_state import FreeCutStateSpec
+        if not isinstance(self.spec, FreeCutStateSpec):
+            raise ValueError('Estimated progress requires the compact free-cut WM')
+        self.pending = None
+
+    def measured_frame(self, frame, progress):
+        # Explicit allowlist, so omitted/poisoned simulator-only fields are irrelevant.
+        measured = {key: frame[key] for key in self.spec.base_fields
+                    if key not in ('cut_progress', 'success_counter')}
+        measured['cut_progress'] = progress
+        measured['success_counter'] = torch.zeros_like(progress)
+        return measured
+
+    def reset(self, frame):
+        q = frame['joint_q']
+        rho = q.new_zeros((*q.shape[:-1], *self.spec.shapes['cut_progress']))
+        self.pending = None
+        return self.spec.pack_batch(self.measured_frame(frame, rho)).to(next(self.wm.parameters()))
+
+    @torch.no_grad()
+    def predict_executed(self, state, action, goal):
+        if self.pending is not None:
+            raise RuntimeError('Observe the executed transition before planning again')
+        predicted, _, _ = self.wm.predict(state, action.to(state), goal.to(state))
+        rho = self.spec.field(predicted, 'cut_progress').detach().clone()
+        if not bool(torch.isfinite(rho).all()) or bool(((rho < 0) | (rho > 1)).any()):
+            raise FloatingPointError('Invalid internally predicted progress')
+        self.pending = rho
+
+    def observe(self, frame, state):
+        if self.pending is None:
+            raise RuntimeError('Progress update requires a preceding executed action')
+        rho = self.pending
+        result = self.spec.pack_batch_transition(self.measured_frame(frame, rho), state)
+        self.pending = None
+        return result
+
+
 class MPPIPolicy:
     def __init__(self, checkpoint, env, config, paired_checkpoint=None):
         from pytorch_mppi import MPPI
@@ -142,6 +193,8 @@ class MPPIPolicy:
         self.wm.requires_grad_(False)
         self.spec = self.wm.spec
         self.config = config
+        self.progress_estimator = (EstimatedProgressState(self.wm)
+                                   if config.progress_source == 'estimated' else None)
         self.critic = None
         self.critic_weights = None
         if config.terminal_value == 'critic':
@@ -174,14 +227,20 @@ class MPPIPolicy:
             'initial_plan': 'action_bounds_midpoint', 'action_coordinates': 'normalized_minus1_plus1',
             'information': {
                 'state_fields': list(self.spec.base_fields),
-                'uses_simulator_cut_progress': 'cut_progress' in self.spec.base_fields,
+                'uses_simulator_cut_progress': ('cut_progress' in self.spec.base_fields
+                                                and self.progress_estimator is None),
+                'progress_source': config.progress_source,
+                'progress_initialization': ('fresh_uncut_zero' if self.progress_estimator else 'frame'),
+                'progress_correction': 'none',
+                'physical_terminal_labels': 'evaluation_only_not_planner_input',
                 'history_frames': self.spec.history_length,
                 'dynamics_features': self.spec.dynamics_dim,
             },
         }
 
     def reset(self, frame):
-        self.state = self.spec.pack_batch(frame).to(next(self.wm.parameters()))
+        self.state = (self.progress_estimator.reset(frame) if self.progress_estimator
+                      else self.spec.pack_batch(frame).to(next(self.wm.parameters())))
         self.planner.U.zero_()
         self.episode += 1
         self.step = 0
@@ -209,7 +268,15 @@ class MPPIPolicy:
             peak_ratio = torch.maximum(peak_ratio, torch.where(previous_survival > 0, ratio, 0.))
         terminal_return = -self.rollout.terminal_cost(prediction, self.config.horizon)[0]
         synchronize(self.state.device)
+        executed = self.spec.execute(self.rollout.task_action(normalized))[None]
+        if self.progress_estimator is not None:
+            self.progress_estimator.predict_executed(self.state, executed, goal)
+        progress = (float(self.spec.field(self.state, 'cut_progress')[0, 0])
+                    if 'cut_progress' in self.spec.base_fields else None)
         self.plans.append({
+            'initial_cut_progress': progress,
+            'predicted_executed_cut_progress': (float(self.progress_estimator.pending[0, 0])
+                                                if self.progress_estimator is not None else None),
             'episode': self.episode, 'step': self.step,
             'planning_seconds': time.monotonic() - started,
             'predicted_task_return': float(predicted_return),
@@ -223,10 +290,11 @@ class MPPIPolicy:
             'effective_candidates': float(1 / self.planner.omega.square().sum()),
         })
         self.step += 1
-        return self.spec.execute(self.rollout.task_action(normalized))[None]
+        return executed
 
     def observe(self, frame):
-        self.state = self.spec.pack_batch_transition(frame, self.state)
+        self.state = (self.progress_estimator.observe(frame, self.state) if self.progress_estimator
+                      else self.spec.pack_batch_transition(frame, self.state))
 
     def unchanged(self):
         wm_same = all(torch.equal(value.cpu(), self.weights[name])

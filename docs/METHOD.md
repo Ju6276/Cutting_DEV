@@ -797,3 +797,17 @@ replace a training object's asset for a requested unseen-object evaluation. Only
 the declared scene/name metadata are projected; all task, state interface and
 contact implementation checks remain strict. The manifest retains the original
 training identity, actual scene and hashes. The WM is not updated during planning.
+
+## Frozen free-cut MPPI without observed damage; classical FDCC references (2026-11-13)
+
+See [FREE_CUT_MPPI](FREE_CUT_MPPI.md#observation-only-planning-and-classical-controls-2026-11-13).
+The frozen WM itself is unchanged. A deterministic progress belief replaces physical
+cut_progress at the planning interface and in its history. Real robot/controller
+observations refresh all measurable fields after each executed action. This is
+not an independently trained damage estimator, and simulation success labels remain
+evaluation-only. Historical observed-progress runs remain explicitly privileged.
+
+fdcc-press/fdcc-saw use the existing licensed FDCC port with fixed exported gains
+and per-episode commanded-speed trajectories. They execute through robot/material
+feedback, bypass the policy action mapper, load no checkpoint and perform no MPC.
+No task/physics/threshold/learner edits were made for either controller.

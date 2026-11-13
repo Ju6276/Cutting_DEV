@@ -92,7 +92,8 @@ def make_controller(args, env, manifest):
         from cutting_world_model.mpc import MPPIConfig, MPPIPolicy
         config = MPPIConfig(args.mpc_horizon, args.mpc_samples, args.mpc_refinements,
                             args.mpc_temperature, args.mpc_noise_std, args.mpc_discount,
-                            args.mpc_terminal_value)
+                            args.mpc_terminal_value,
+                            progress_source=getattr(args, 'mpc_progress_source', 'observed'))
         policy = MPPIPolicy(args.checkpoint, env, config, paired_checkpoint)
         manifest['planner'] = policy.manifest
     elif args.method == 'sac':

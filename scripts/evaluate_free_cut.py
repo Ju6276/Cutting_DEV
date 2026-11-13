@@ -22,7 +22,7 @@ from evaluate_benchmark import make_controller
 
 def argument_parser():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--method', choices=('wm-mppi', 'supermimic', 'constant-zero'), required=True)
+    p.add_argument('--method', choices=('wm-mppi', 'supermimic', 'constant-zero', 'fdcc-press', 'fdcc-saw'), required=True)
     p.add_argument('--conditions', type=Path, required=True,
                    help='Exact conditions file recorded by the training checkpoint')
     p.add_argument('--group', required=True)
@@ -43,6 +43,10 @@ def argument_parser():
     p.add_argument('--mpc-discount', type=float, default=None,
                    help='Defaults to the task gamma; a mismatch is rejected')
     p.add_argument('--mpc-terminal-value', choices=('none', 'critic'), default='none')
+    p.add_argument('--mpc-progress-source', choices=('estimated', 'observed'), default='estimated',
+                   help='estimated never reads simulator progress; observed is the historical privileged control')
+    p.add_argument('--saw-amplitude', type=float, default=.02, help='Prescribed displacement amplitude in m')
+    p.add_argument('--saw-frequency', type=float, default=1., help='Prescribed frequency in Hz')
     return p
 
 
@@ -51,10 +55,13 @@ def main():
     args = parser.parse_args()
     if args.episodes < 1 or not 0 < args.wall_seconds < float('inf'):
         parser.error('Episodes and finite wall budget must be positive')
-    if args.method != 'constant-zero' and args.checkpoint is None:
+    traditional = args.method in ('fdcc-press', 'fdcc-saw')
+    if args.method in ('wm-mppi', 'supermimic') and args.checkpoint is None:
         parser.error('Frozen learned controllers require --checkpoint')
     if args.paired_checkpoint is not None and args.method != 'wm-mppi':
         parser.error('--paired-checkpoint applies only to MPPI')
+    if traditional and args.checkpoint is not None:
+        parser.error('FDCC references do not load a checkpoint')
     conditions = json.loads(args.conditions.read_text())
     selected = selected_config(conditions, args.group, args.seed, args.transfer_scene)
     gamma = conditions['task']['gamma']
@@ -109,7 +116,13 @@ def main():
         env = FreeCutEvaluationEnvironment(args.backend_root, conditions, args.group, args.seed,
                                            args.transfer_scene)
         write_json(args.output / 'task.json', env.metadata)
-        policy = make_controller(args, env, manifest)
+        if traditional:
+            from cutting_world_model.traditional import FDCCReferencePolicy
+            policy = FDCCReferencePolicy(env, saw=args.method == 'fdcc-saw',
+                                         amplitude=args.saw_amplitude, frequency=args.saw_frequency)
+            manifest['traditional_controller'] = policy.manifest
+        else:
+            policy = make_controller(args, env, manifest)
         manifest['setup_seconds'] = time.monotonic() - started
         write_json(args.output / 'manifest.json', manifest)
         report = evaluate(env, policy, args.output, args.episodes, started + args.wall_seconds)
@@ -122,6 +135,9 @@ def main():
     finally:
         if policy is not None and hasattr(policy, 'plans'):
             write_json(args.output / 'planning.json', {'planner': policy.manifest, 'steps': policy.plans})
+        if policy is not None and hasattr(policy, 'commands'):
+            write_json(args.output / 'reference_commands.json',
+                       {'controller': policy.manifest, 'episodes': policy.trajectories, 'steps': policy.commands})
         if policy is not None and hasattr(policy, 'close'):
             policy.close()
         if env is not None:

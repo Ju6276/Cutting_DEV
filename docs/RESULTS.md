@@ -896,3 +896,58 @@ At the last decision the WM plan predicted +56.53 before the deadline but actual
 execution did not separate; this is a recorded mismatch, not a root-cause verdict.
 No automatic extra tests or tuning. Full command/provenance/runtime and source
 validation: [FREE_CUT_MPPI](FREE_CUT_MPPI.md#unseen-prism-transfer-2026-11-13).
+
+## 2026-11-13 — Frozen WM341 MPPI without true progress, and classical FDCC references
+
+Authorized bounded integration, GPU7 codex/free-cut-mppi. No WM/policy/critic
+training, no physics/reward/force-limit changes. Existing GPU7 training and its
+checkout were untouched; both A6000 GPUs were busy. CPU/GPU contention means
+wall times are not fair throughput comparisons.
+
+The planner remains upstream pytorch_mppi e04a569cd4215e705f9013145c496fc59cb25ed6,
+H8, 512 candidates, one refinement, temperature 1, noise 0.5, gamma 1, no critic. WM341
+(iteration 894, no policy/critic updates) is frozen. Weight SHA256 remains
+04805daa38aa2fb6c35d8e53f114d0b95d0110e910b86a4be19d3ed3596219cf.
+
+MPPI now initializes fresh-object progress to zero and carries its own WM
+prediction for each executed action, merging new measured robot/controller
+fields. It never reads true progress, springs or particle state. Physical truth
+is retained ONLY in evaluation/recording/stopping, as for all controls.
+FDCC press/saw use the exported fixed controller, measured force feedback,
+MuJoCo robot and DiSECt coupling. No learning/model/MPC. Saw amplitude 2 cm / 1 Hz is
+a declared engineering prescription, not a reproduced cutting-paper controller.
+
+One episode each, seed 0, same free_cut_v3 cucumber conditions: feed 0.0332536 m/s,
+lift 0.0098250 m; E x1.49723, density x0.86638, spring x0.81350. Simulation limits
+[50,50,50,5,5,5], horizon 180. No reruns or tuning to replace a negative result.
+
+| Method | Outcome | Steps | Released | Return | Peak net material force N | Impulse N s | Peak sensor-limit ratio |
+| --- | --- | ---: | --- | ---: | ---: | ---: | ---: |
+| wm-mppi | success | 27 | 65/65 | 107.087 | 7.005 | 1.226 | 0.1208 |
+| fdcc-press | success | 45 | 65/65 | 109.875 | 3.443 | 1.148 | 0.0784 |
+| fdcc-saw | timeout, incomplete | 180 | 64/65 | -4.719 | 5.903 | 1.219 | 0.0877 |
+
+All reports verify unchanged controller/model parameters and zero optimizer
+updates. All recorded implementation hashes match the submitted source.
+Full separation remains 65/65, with force/workspace failure taking priority.
+The saw reference holds at its endpoint; no withdrawal or new success rule.
+
+The internal progress estimate is NOT accurate merely because MPPI completed
+this episode: posthoc MAE 0.246, maximum error 0.646 on a 0–1 scale; it first reaches
+exactly 1 at frame 23 while physical completion is frame 27. No truth correction
+was fed to planning. An independently validated real completion detector is
+still needed. Planning averaged 0.470 s for a 50 ms control interval on the shared
+GPU, so real-time execution was not demonstrated. No claim of algorithm
+advantage, causal force adaptation or unseen-object generalization follows.
+
+Validation: targeted actual-MPPI/reference tests 26 passed; full root suite 326
+passed / 5 skipped (360.16s), backend 38 passed (8.37s). Logs include existing
+DiSECt deprecation warnings. Missing/NaN true progress produces bitwise identical
+actions and states for a fixed observation/RNG stream.
+
+Artifacts (server only): /dataHDD/dong/Experiments/Cutting_DEV/runs/estimated_mppi_fdcc_20261113/.
+Each method has manifest, report and episode NPZ; MPPI has planning records and
+posthoc progress diagnostics; FDCC has actual pose commands/reference paths.
+comparison.json combines the results; root_tests.log and backend_tests.log
+record complete tests. Implementation, runnable commands and verified public
+cutting sources (including DiSECt author's panda-force) are in FREE_CUT_MPPI.md.
