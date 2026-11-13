@@ -1037,3 +1037,25 @@ Reading: under this reward and deadline, cutting at 2-3x the commanded speed cos
 speed penalty than the press but avoids timeouts that cost the full completion reward; the policy's
 speed choice is consistent with the reward as specified, not by itself evidence of a model error.
 Most remaining policy failures are cases that the simple references do not complete either.
+
+## 2026-11-13 — Free prism and free potato: platform check (same protocol as the free cucumber)
+
+Scenes: `configs/free_scenes/{prism,potato_003}.json` (no static vertices; otherwise the existing
+scene settings; potato at its existing principal-axis orientation: shortest axis up) exported to
+`backends/mujoco/runs/sweep/free_{prism,potato_003}`. Check: `check_free_object_scene.py`, per-world
+material settle 0.75 s, 0.25 s rest, reference press at 3 cm/s to the scene goal, hold, retract; force
+limit disabled; 2 ms force sampling; potato at 8e-6 s. Reports: `runs/free_object_check_20261113/`.
+
+- Topology: both meshes have exactly two components joined only by their cut springs (prism 304,
+  potato 245), so the separation check applies.
+- Prism: rest motion 0.001 mm. No world separated: 282-288 of 304 springs released at the end (press
+  and press + saw, Young/cut-spring x1/x1, x2/x1, x2/x2); 242-264 when the press ends. Peak net force
+  4-12 N. The halves moved 0.4 mm apart; with sawing the object slid 23-31 mm along the blade. The
+  fixed-bottom prism released 298-304 under the same reference before (2026-11-12).
+- Potato (principal-axis pose): not at rest after settling (particle speeds 60-104 mm/s and about
+  1 mm of motion during the 0.25 s rest). Under the press it was pushed 7-20 mm across the cut plane
+  (x) and released only 4-120 of 245 springs; with sawing one world was lifted 25 mm. No world separated.
+
+Not decided here: the potato's resting pose is a geometry choice of asset preparation (a hull-based
+stable pose is the realistic placement); why the free prism keeps 16-22 springs intact is not
+established. The free cucumber (2026-11-12/13) separates under the same references.
