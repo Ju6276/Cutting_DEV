@@ -850,3 +850,46 @@ are in runs/free_cut_second_review_20261112/regression_final.json and *_final.lo
 Code: 0ef9718, c720cd9, abe84b2. The latter removes demonstrated float32 cancellation in
 release-fraction gradients and logs emitted probabilities directly. No long training,
 S3 restart, merge to main or new learned policy was produced by this review.
+
+## 2026-11-13 — free_cut_v3 short training-path validation (free cucumber, single object)
+
+Engineering check of the production training path; not a learning result. Config
+`configs/free_cut/short_train_cucumber.json` (256 worlds, S0 material randomization, original
+simulation limits, 180-step horizon, v3 reward unchanged). `train_gpu.py` with compile, critic `real`,
+actor horizon 8, BC 0.25, 500 WM-only updates (unchanged). Run 1: 3.6 h cap
+(`runs/free_cut_short_20261112/training`), then resume from its `last.pt` with replay for 2.3 h
+(`.../training_resume`). GPU7 RTX 4090, no other job.
+
+**Chain.** Collection, per-material re-settling resets, terminal settlement, WM pretraining, transition
+to joint training, 43 actor/critic updates, periodic checkpoints (250 ... 1250, `wm_only_complete.pt`,
+`first_joint_update.pt`) and resume with replay all ran. 543 update records, no non-finite value, no
+traceback. 2425 episodes: success 1026, timeout 1399, force limit 0, workspace 0; every success has
+complete separation and no separated episode is recorded otherwise. Peak limit utilisation 0.74;
+the original limits were never reached (data coverage, not adjusted).
+
+**Time and memory.**
+
+| Stage | s per vector step (256 worlds) | Share in run 1 |
+|---|---:|---|
+| WM-only (iterations 40-1330) | 14.5 | physics 21 %, reset 16 %, WM updates 63 % |
+| Joint (from about iteration 1330) | about 19.4 | adds actor/critic updates |
+
+WM update about 24 s compiled (104 s eager in the earlier profile). GPU memory 2.8 GB in the WM-only
+stage, about 7.8 GB once actor/critic were compiled. Estimate for one object, 5000 iterations: about
+5.2 h to the first joint update plus about 20 h of joint training (about 1500 policy updates), i.e.
+about 25 h. Three objects (three worker processes on one GPU, potato at 8e-6 s) are not measured and
+must not be extrapolated linearly.
+
+**WM progress and completion.** Fraction of sampled WM transitions that are separations: about 0.2-0.3 %.
+Missed completions among them (head probability < 0.5): 100 % at WM update 61, about 80 % at the
+end of WM-only training, 73 % at update 543. False completion among incomplete transitions: 0.07-0.09 %
+at the end. In imagination after 43 policy updates the mean per-step completion probability was 0.11
+with predicted progress 0.71 and 8-step survival 0.55, far above the physical separation rate per
+transition; this indicates that the policy reaches WM states where the completion head is more
+optimistic than on recorded data. Not judged from 43 updates; to be measured in the long run
+(imagined vs physical completion on the same start states).
+
+**Observations for the code owner (none blocks training).** A resume restarts the 40-iteration
+update warmup (counted from the resume iteration). A WM metric ratio is logged as 1.0000026 (float
+accumulation in weighted minibatch means). The W&B offline exporter logged transient "Bad Gateway"
+retries. Timeouts end at a median progress of 0.85 under the initial/early policy.
