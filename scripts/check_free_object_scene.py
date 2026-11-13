@@ -12,6 +12,7 @@ the knife and the six-component sensor wrench the limit applies to. Each world i
 with its own material scales before the episode.
 """
 import argparse
+from contextlib import nullcontext
 import json
 from pathlib import Path
 import sys
@@ -101,6 +102,8 @@ def main():
     parser.add_argument('--settle-seconds', type=float, default=.75,
                         help='settling with each world\'s material before the episode; 0 keeps the export')
     parser.add_argument('--friction-velocity', type=float, default=.01)
+    parser.add_argument('--trace-damage', action='store_true',
+                        help='Read-only observation of every material damage launch; slower')
     parser.add_argument('--wall-seconds', type=float, default=1800.,
                         help='Collection wall budget, checked between control steps')
     parser.add_argument('--output', type=Path, required=True)
@@ -220,44 +223,53 @@ def main():
             if first_released[w] is None:
                 first_released[w] = {'sim_time_s': float(p.sim_time[w]), 'phase': name, 'step': step}
 
-    for step, name in enumerate(phase_of, 1):
-        if time.monotonic() - started > args.wall_seconds:
-            raise TimeoutError('Platform-check wall budget exceeded; no complete report written')
-        env.needs_reset.zero_()
-        step_net.zero_()
-        step_util.zero_()
-        frame, reward, terminated, truncated, info = env.step(zero, reference=True, sample_callback=sample)
-        q, qd = state()
-        net = material.knife_wrench()
-        released = (frame['cut_spring_ke'] == 0).sum(-1)
-        knife_world = transformed_knife_vertices(knife_local, material.position, material.rotation)
-        edge_y = knife_world[:, edge_mask, 1].min(1).values.double()
-        current_bottom = q[:, :, 1].min(1).values.double()
-        commanded_y = edge0 + physics.reference_trajectory.displacement(physics.sim_time.double())[:, 1]
-        legacy_y = material.position[:, 1].double() + knife_low
-        mean_velocity = qd.mean(1)
-        rms_speed = qd.square().sum(-1).mean(1).sqrt()
+    damage_trace = None
+    if args.trace_damage:
+        from cut_damage_trace import DamageTrace
+        damage_trace = DamageTrace(material)
+    with damage_trace if damage_trace is not None else nullcontext():
+        for step, name in enumerate(phase_of, 1):
+            if time.monotonic() - started > args.wall_seconds:
+                raise TimeoutError('Platform-check wall budget exceeded; no complete report written')
+            if damage_trace is not None:
+                damage_trace.phase = name
+            env.needs_reset.zero_()
+            step_net.zero_()
+            step_util.zero_()
+            frame, reward, terminated, truncated, info = env.step(zero, reference=True, sample_callback=sample)
+            if damage_trace is not None:
+                damage_trace.snapshot(physics.sim_time)
+            q, qd = state()
+            net = material.knife_wrench()
+            released = (frame['cut_spring_ke'] == 0).sum(-1)
+            knife_world = transformed_knife_vertices(knife_local, material.position, material.rotation)
+            edge_y = knife_world[:, edge_mask, 1].min(1).values.double()
+            current_bottom = q[:, :, 1].min(1).values.double()
+            commanded_y = edge0 + physics.reference_trajectory.displacement(physics.sim_time.double())[:, 1]
+            legacy_y = material.position[:, 1].double() + knife_low
+            mean_velocity = qd.mean(1)
+            rms_speed = qd.square().sum(-1).mean(1).sqrt()
 
-        for w in range(n):
-            shift = [(q[w][side[k]].mean(0) - q0[w][side[k]].mean(0)).tolist() for k in range(side.shape[0])]
-            rows[w].append({'step': step, 'phase': name, 'released': int(released[w]),
-                            'net_force_n': float(net[w, :3].norm()), 'net_vertical_n': float(net[w, 1]),
-                            'step_peak_net_force_n': float(step_net[w]), 'step_peak_utilisation': float(step_util[w]),
-                            'min_particle_y_mm': float(q[w][:, 1].min()) * 1000,
-                            'sim_time_s': float(physics.sim_time[w]),
-                            'edge_world_y_mm': 1000 * float(edge_y[w]),
-                            'knife_mesh_min_world_y_mm': 1000 * float(knife_world[w, :, 1].min()),
-                            'edge_vs_initial_bottom_mm': 1000 * float(edge_y[w] - initial_bottom[w]),
-                            'edge_vs_current_bottom_mm': 1000 * float(edge_y[w] - current_bottom[w]),
-                            'commanded_edge_vs_initial_bottom_mm': 1000 * float(commanded_y[w] - initial_bottom[w]),
-                            'legacy_height_error_mm': 1000 * float(legacy_y[w] - edge_y[w]),
-                            'knife_position_m': material.position[w].tolist(),
-                            'knife_rotation_xyzw': material.rotation[w].tolist(),
-                            'mean_particle_velocity_mps': mean_velocity[w].tolist(),
-                            'rms_particle_speed_mps': float(rms_speed[w]),
-                            'max_particle_speed_mps': float(qd[w].norm(dim=-1).max()),
-                            'side_shift_mm': [[round(1000 * x, 3) for x in s] for s in shift],
-                            'finite': bool(torch.isfinite(q[w]).all())})
+            for w in range(n):
+                shift = [(q[w][side[k]].mean(0) - q0[w][side[k]].mean(0)).tolist() for k in range(side.shape[0])]
+                rows[w].append({'step': step, 'phase': name, 'released': int(released[w]),
+                                'net_force_n': float(net[w, :3].norm()), 'net_vertical_n': float(net[w, 1]),
+                                'step_peak_net_force_n': float(step_net[w]), 'step_peak_utilisation': float(step_util[w]),
+                                'min_particle_y_mm': float(q[w][:, 1].min()) * 1000,
+                                'sim_time_s': float(physics.sim_time[w]),
+                                'edge_world_y_mm': 1000 * float(edge_y[w]),
+                                'knife_mesh_min_world_y_mm': 1000 * float(knife_world[w, :, 1].min()),
+                                'edge_vs_initial_bottom_mm': 1000 * float(edge_y[w] - initial_bottom[w]),
+                                'edge_vs_current_bottom_mm': 1000 * float(edge_y[w] - current_bottom[w]),
+                                'commanded_edge_vs_initial_bottom_mm': 1000 * float(commanded_y[w] - initial_bottom[w]),
+                                'legacy_height_error_mm': 1000 * float(legacy_y[w] - edge_y[w]),
+                                'knife_position_m': material.position[w].tolist(),
+                                'knife_rotation_xyzw': material.rotation[w].tolist(),
+                                'mean_particle_velocity_mps': mean_velocity[w].tolist(),
+                                'rms_particle_speed_mps': float(rms_speed[w]),
+                                'max_particle_speed_mps': float(qd[w].norm(dim=-1).max()),
+                                'side_shift_mm': [[round(1000 * x, 3) for x in s] for s in shift],
+                                'finite': bool(torch.isfinite(q[w]).all())})
     # Raw geometry is retained for spatial review without repeating expensive physics.
     np.savez_compressed(args.output / 'geometry.npz',
                         **{k: np.asarray(v) for k, v in geometry.items()},
@@ -275,6 +287,8 @@ def main():
               'total_springs': total, 'force_limit_termination': 'disabled (measurement)',
               'sampling': '2 ms coupling steps for peaks; step-end values in series', 'limits': args.limits,
               'settle_seconds': args.settle_seconds, 'worlds': []}
+    if damage_trace is not None:
+        report['damage_trace'] = damage_trace.save(args.output / 'damage_trace.npz')
     for w in range(n):
         r = rows[w]
 

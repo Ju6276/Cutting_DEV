@@ -1147,3 +1147,90 @@ worlds, and overshoot/retraction exclusion from the arrival statistic. Independe
 NumPy reconstruction of the saved geometry matched the reported step heights
 within 7.5e-6 mm; final residual counts matched exactly.
 Logs and source patch/hash: `runs/knife_geometry_fix_20261113/`.
+
+
+#### 2026-11-13 — Why free-prism connections remain after the blade descends
+
+User-authorized bounded debugging, based on c0d5a76. No physics, reward, material
+or separation-rule change. An opt-in observer reads the exact inputs to every
+`eval_cut_springs` launch and its stiffness output, before particle integration.
+It is installed only in this diagnostic process and restored on exit.
+
+Run: same free prism and 3 cm/s press/hold/retract, E/spring x1/x1, x2/x1, x2/x2,
+force-limit termination disabled; 478 s wall time. Runtime material dt was
+**1e-5 s** (use runtime dt, not the export JSON's nominal dt). The trace covered
+435,000 material launches, each processing all three worlds. Outputs:
+`runs/residual_damage_debug_20261113/prism_press_trace/`;
+analysis: `runs/residual_damage_debug_20261113/summarize_trace.py`.
+A first instrumentation attempt stopped before the motion loop because Tape was
+imported from the wrong module; the dispatcher import was corrected and tested.
+
+The implemented rule is, per material substep:
+
+`ke_next = max(0, ke - nonzero(|knife_force_left| + |knife_force_right|)
+                          * max(endpoint_distance - rest_length, 0) * softness)`.
+
+Passing a geometric plane does not itself remove a material connection. The
+observer recomputed this formula independently in PyTorch. Maximum per-substep
+stiffness discrepancy was 0.00024414, consistent with float32 rounding at initial
+stiffness 1800-4000; cumulative discrepancies were at most 0.00293 per spring.
+Actual accumulated decrements also matched initial minus final stiffness.
+
+| E / spring | Released / 304 | Residual count | Residual stiffness range | Residual contact duration range (s) |
+|---|---|---|---|---|
+| 1 / 1 | 284 | 20 | 0.369-301.965 | 0.107-0.203 |
+| 2 / 1 | 287 | 17 | 2.873-605.772 | 0.086-0.201 |
+| 2 / 2 | 282 | 22 | 38.552-643.559 | 0.222-0.409 |
+
+Every residual spring had both knife contact and positive damage; none was simply
+skipped by the update. Their stiffness had decreased by about 70-99.98%, but not
+to zero. Most bottom-connection damage happened during the hold while the robot
+caught up with the reference; a few continued damaging briefly during retraction.
+Last damage times ranged from 2.230 to 2.926 s; after retraction no residual spring
+had knife contact, so damage ceased. Some retain substantial stiffness: this is
+not solely a tiny-positive-number issue. Compared with the uninstrumented rerun,
+the first two worlds differ by one released spring; this is not a bitwise
+deterministic replication claim.
+
+Measured edge minima were 3.85-3.93 mm below the current particle minimum. Together
+with the earlier geometry trace, no gross vertical stroke shortfall was found.
+The observed mechanism is incomplete damage accumulation over this reference
+contact history, not an observed missed stiffness update. This does not certify
+the physical fidelity of the damage/contact law or prove the task impossible.
+
+Separate source limitation, not a proposed repair: the active analytic knife SDF
+uses its x-y cross-section; `vec3.h::sdf_knife` does not use the depth parameter,
+and `sim.py::knife_sdf` leaves longitudinal clipping commented out. Thus the
+finite mesh length is not a longitudinal SDF collision boundary. Mesh and SDF
+tip heights for this asset agree (both -29.54 mm locally). Residual connections in
+this run lie within the displayed blade length, so the source observation alone
+does not explain their survival. No contact-model redesign was made.
+
+
+Follow-up chosen *after* the trace: one reference at the already planned minimum
+speed, 1 cm/s. Same scene/material/settle/hold settings and separation criterion;
+no damage observer in this follow-up. The existing `--down-speed` option also
+sets retraction speed, so the full sequence changes from 4.35 to 10.55 simulated
+seconds. First-separation checks include all phases and remained false.
+Run took 560 s; output: `runs/residual_damage_debug_20261113/prism_press_1cms/`.
+
+| E / spring | Released / 304 | Mean press height lag (mm) | Arrival delay after commanded end (s) | Lowest edge vs current bottom (mm) | Peak net force (N) |
+|---|---|---|---|---|---|
+| 1 / 1 | 283 | 1.639 | 0.25 | -4.261 | 2.486 |
+| 2 / 1 | 281 | 1.682 | 0.20 | -4.284 | 2.896 |
+| 2 / 2 | 281 | 1.768 | 0.25 | -4.459 | 5.679 |
+
+Tracking improved and force decreased, but slowing this reference did not fully
+separate the prism. No simple speed remedy was demonstrated. No missed stiffness
+updates were found in the traced 3 cm/s run; incomplete accumulation under that
+contact history is established, while physical fidelity and reachability under
+other controls remain separate questions. This bounded diagnostic ends here:
+no automatic speed/friction/softness sweep and no weakening of the success rule.
+The prism need not block preparation of the other freely placed objects.
+
+Validation on GPU7: root suite with CUDA assets/MPPI environment **328 passed,
+5 skipped**; backend **38 passed**. Tests cover contact/extension gating,
+non-mutating inputs, observer restoration on exception, and an actual DiSECt
+kernel with observation enabled/disabled producing identical stiffness and force
+outputs for the same synthetic inputs. Tests and run logs are in
+`runs/residual_damage_debug_20261113/`.

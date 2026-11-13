@@ -128,3 +128,21 @@ Existing output directories are rejected. `--wall-seconds` (default 1800) is
 checked between control steps, not a hard watchdog; use an outer timeout for a
 strict process budget. The geometry report does not certify swept cut coverage
 or diagnose the damage law from minimum height alone.
+
+
+### Residual material-connection diagnosis
+
+`check_free_object_scene.py --trace-damage` optionally observes every
+`eval_cut_springs` launch after settling. `cut_damage_trace.py` temporarily wraps
+the launch dispatcher in this diagnostic process, restores it on exit, reads the
+pre-integration spring extension/contact forces, and compares an independent
+expected stiffness with the kernel's actual output. It does not write physics
+tensors, modify the integrator or enter a training path.
+
+`damage_trace.npz` stores initial/final stiffness, per-phase contact and damage
+counts, actual/expected accumulated decrement, maximum per-substep formula
+difference, and last-contact/last-damage substep indices. Indices multiplied by the
+recorded material dt give time since the post-settle diagnostic began. A contact
+count uses the kernel's nonzero knife-force criterion; it is not geometric
+intersection. The option adds overhead; use the same outer process timeout as the
+platform check. `geometry.npz` and first-separation events remain available.
