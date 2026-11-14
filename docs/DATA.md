@@ -13,9 +13,15 @@ data or source is stored on the Mac. This is a location/status index, not a run 
 - runs/board_cut_audit_20261113/: 64-case legacy/v4 comparison and raw evidence.
 - runs/board_review_20261114/: four-world-per-object boundary checks, initial rest
   velocities, source manifests, unit/regression logs. Not a long-training dataset.
-- Prepared free scenes under backend runs/sweep/: free_cucumber_003, free_prism,
-  free_potato_003. The potato retains its old principal-axis pose and is still
-  moving after reset. Presence of a scene file does not certify stationary rest.
+- Current free scenes under backend runs/sweep/: free_cucumber_003, free_prism,
+  free_potato_stable_20261114_v3. The new potato uses a gravity-supported resting
+  pose and 8 s per-material settling. Three material pairs passed the production
+  reset check (<0.01 mm COM movement during the following 0.25 s).
+- Historical free_potato_003 retains its old principal-axis pose and unsettled
+  reset; it is preserved for reproducing old measurements, not the active potato
+  development configuration.
+- Current task configurations: configs/free_cut/pose_{cucumber,prism,potato}.json.
+  These are development inputs, not an approved multi-object long-training budget.
 
 No checkpoints, assets or measured raw data were deleted in the 2026-11-14 cleanup.
 Old task instructions were archived; active document links were updated.
