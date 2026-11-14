@@ -81,9 +81,15 @@ runs/bm_a6000_capacity_20261114. The active GPU7 main run is unchanged.
 Every future long run must initialize online W&B and expose a verified cloud URL.
 No offline fallback for authentication/network problems. See AGENTS and RUNNING.
 The already running GPU7 job remains uninterrupted: its original offline history
-was uploaded and a CPU-only watcher now syncs new records every 60 seconds until
-the training process exits, then performs a final sync.
+was uploaded. A CPU-only online forwarder now resumes the same cloud run and
+polls the original history file every 30 seconds. It forwards complete original
+metric records without restarting training. The history axis remains iteration;
+the online transport counter is not the training iteration. It finishes the
+cloud run when training exits. W&B CLI sync of an incomplete offline file marked
+the cloud run failed despite live training; periodic CLI sync was stopped and
+replaced by this online forwarder. Forwarder system-resource stats are disabled
+so they cannot be confused with training GPU usage.
 Run: https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/k48zc1lh
-Watcher and status: runs/pose_wrench6_3072_20261114/sync_cloud.py and cloud_sync.json.
+Watcher and status: runs/pose_wrench6_3072_20261114/forward_cloud.py and cloud_sync.json.
 This is recovery for the existing offline launch; future launches use online
 tracking directly. Server checkpoints/logs remain recovery copies.
