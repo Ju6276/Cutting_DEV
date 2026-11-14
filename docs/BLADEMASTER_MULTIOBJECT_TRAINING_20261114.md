@@ -195,3 +195,12 @@ run record.
   the first reached 5,000-vector-step or 24-hour limit.
 
 This is a launch record, not a training-success or convergence report.
+
+First full-size WM update verified: iteration 42, 126 transitions, 10 WM
+optimizer steps, state loss 0.03954, terminal BCE 0.61515, total loss 0.65469,
+gradient norm 6.3162, terminal accuracy 0.752997. All are finite; iteration 44
+then began the next WM update. First update took 179.3 seconds including Torch
+compilation. Subsequent minibatches were roughly 8 seconds each, so the 500-WM
+pretraining stage can take roughly 12 hours; this is an early estimate, not an
+extension of the fixed budget. Driver memory reached 2,368 MiB during this WM
+update; joint-training peak remains unmeasured.
