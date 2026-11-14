@@ -9,6 +9,7 @@ from torch.nn import functional as F
 
 from third_party.supermimic.objective import policy_objective, gae_targets
 from third_party.supermimic.trainer_config import WMTrainerCfg, PolicyTrainerCfg
+from .metric_counts import RATE_COUNTS, COUNT_KEYS
 from .task_heads import pose_error
 
 
@@ -182,10 +183,10 @@ class OnlineLearner:
                 count = valid.sum()
                 for key, value in {
                     'sampled_transitions': count,
-                    'sample_terminal_transitions': torch.where(valid, batch.done, 0.).sum(),
+                    'sample_terminal_transitions': (valid & batch.done.bool()).sum(),
                     'short_windows': (valid.sum(0) < cfg.window).sum(),
                 }.items():
-                    aggregate[key] = aggregate.get(key, 0.) + value.detach()
+                    aggregate[key] = aggregate.get(key, 0) + value.detach()
             optimizer.zero_grad(set_to_none=True)
             for part in chunks(cfg.batch_size, self.microbatch):
                 if valid is None:
@@ -202,6 +203,11 @@ class OnlineLearner:
                 (loss * weight).backward()
                 metrics['loss'] = loss.detach()
                 for key, value in metrics.items():
+                    if key in COUNT_KEYS:
+                        aggregate[key] = aggregate.get(key, 0) + value.detach()
+                        continue
+                    if key in RATE_COUNTS and RATE_COUNTS[key] in metrics:
+                        continue
                     metric_weight = ((part.stop - part.start) / cfg.batch_size
                                      if key in ('nse_1step', 'nse_kstep') else weight)
                     aggregate[key] = (aggregate.get(key, 0.)
@@ -209,7 +215,12 @@ class OnlineLearner:
             gn = finite_gradient_norm(model.parameters(), cfg.grad_clip)
             optimizer.step()
             aggregate['grad_norm'] = aggregate.get('grad_norm', 0.) + gn.detach() / cfg.batches_per_update
-        metrics = {key: float(value) for key, value in aggregate.items()}
+        count_keys = COUNT_KEYS | {'sampled_transitions', 'sample_terminal_transitions', 'short_windows'}
+        metrics = {key: int(value) if key in count_keys else float(value)
+                   for key, value in aggregate.items()}
+        for rate, numerator in RATE_COUNTS.items():
+            if numerator in metrics:
+                metrics[rate] = metrics[numerator] / metrics['metric_transition_count']
         if not member:
             self.wm_updates += 1
         return metrics
