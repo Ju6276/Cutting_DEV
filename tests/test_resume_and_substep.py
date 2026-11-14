@@ -85,3 +85,25 @@ def test_substep_change_is_the_only_difference_allowed():
     changed = {'environment': {}, 'task_conditions': {'groups': [
         {'name': 'p', 'material': {'density': [.8, 2.]}, 'sim_dt': 8e-6}]}}
     assert module.without_substeps(old) != module.without_substeps(changed)
+
+
+def test_named_checkpoint_keeps_replay_when_last_is_replaced(tmp_path):
+    module = train_gpu()
+    old = filled_replay(steps=4)
+    named = tmp_path / 'checkpoint_00000004.pt'
+    old.save(module.replay_path(named), iteration=4, checkpoint=named.name)
+    filled_replay(steps=7).save(tmp_path / 'replay.pt', iteration=7, checkpoint='last.pt')
+    target = BatchedOnlineReplay(2, 3, torch.device('cpu'), capacity=16)
+    module.restore_replay(target, named, {'iteration': 4})
+    assert torch.equal(target.buffer.s, old.buffer.s)
+    assert module.replay_path(tmp_path / 'last.pt') == tmp_path / 'replay.pt'
+
+
+def test_named_checkpoint_accepts_matching_legacy_latest_replay(tmp_path):
+    module = train_gpu()
+    named = tmp_path / 'checkpoint_00000004.pt'
+    source = filled_replay(steps=4)
+    source.save(tmp_path / 'replay.pt', iteration=4, checkpoint=named.name)
+    target = BatchedOnlineReplay(2, 3, torch.device('cpu'), capacity=16)
+    module.restore_replay(target, named, {'iteration': 4})
+    assert torch.equal(target.buffer.s, source.buffer.s)

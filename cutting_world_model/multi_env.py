@@ -130,6 +130,13 @@ def _group_worker(connection, arguments):
                 break
             if command == 'close':
                 break
+            if command == 'capture':
+                from .training_snapshot import capture_group
+                capture_group(group.env, arguments[0], payload[0])
+                connection.send(('ok', None))
+                continue
+            if command not in ('step', 'reset'):
+                raise ValueError('Unknown object-group command: ' + command)
             result = group.step(*payload) if command == 'step' else group.reset(*payload)
             connection.send(('ok', _cpu(result)))
     except BaseException:

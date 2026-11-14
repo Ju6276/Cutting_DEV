@@ -47,11 +47,19 @@ def without_substeps(metadata):
     return {**metadata, 'task_conditions': conditions}
 
 
+def replay_path(checkpoint_path):
+    path = Path(checkpoint_path)
+    return path.parent / ('replay.pt' if path.name == 'last.pt' else path.stem + '.replay.pt')
+
+
 def restore_replay(replay, checkpoint_path, saved):
     """Load the replay snapshot written with ``checkpoint_path``. Episodes in progress at the
     checkpoint are closed: the environment restarts every world, so no training window may
     join a pre-resume step to a post-resume step."""
-    path = Path(checkpoint_path).parent / 'replay.pt'
+    path = replay_path(checkpoint_path)
+    if not path.exists():
+        # Legacy runs kept only the latest replay; identity checks below still apply.
+        path = Path(checkpoint_path).parent / 'replay.pt'
     if not path.exists():
         raise FileNotFoundError(f'{path} missing; use --resume-without-replay to start empty')
     snapshot = torch.load(path, map_location='cpu', weights_only=False)
@@ -125,6 +133,8 @@ def main():
                         help='target fraction of ended episodes that hit the force limit')
     parser.add_argument('--risk-lambda-init', type=float, default=10.)
     parser.add_argument('--risk-lambda-lr', type=float, default=50.)
+    parser.add_argument('--snapshot-at', type=int, action='append', default=[],
+                        help='Capture actual batched environment geometry at this vector iteration (repeatable)')
     parser.add_argument('--checkpoint-every', type=int, default=0,
                         help='also save checkpoint_<iteration>.pt (and the replay) every N iterations; 0: off')
     parser.add_argument('--blademaster-config', type=Path, help='Independent BladeMaster UR5e task JSON')
@@ -142,6 +152,8 @@ def main():
         parser.error("--actor-objective bc requires --actor-bc-alpha")
     if (args.force_penalty == 'linear') != (args.force_penalty_scale is not None):
         parser.error('--force-penalty-scale is required for, and only for, the linear penalty')
+    if any(step < 1 for step in args.snapshot_at):
+        parser.error('--snapshot-at iterations must be positive')
     if args.max_transitions is not None and args.max_transitions <= 0:
         parser.error('--max-transitions must be positive')
     if args.warmup_transitions < 0 or args.transitions_per_update <= 0:
@@ -181,13 +193,18 @@ def run(args, output, status, started):
         if reward is not None:
             raise ValueError('BladeMaster uses its task reward; legacy force-penalty overrides are unsupported')
         from cutting_world_model.blademaster_backend import BladeMasterEnvironment
-        env = BladeMasterEnvironment(args.backend_root, json.loads(args.blademaster_config.read_text()))
+        bm_config=json.loads(args.blademaster_config.read_text())
+        status['worlds']=int(bm_config['worlds'])
+        write_json(output / 'progress.json', status)
+        env = BladeMasterEnvironment(args.backend_root, bm_config)
         args.worlds = env.worlds
         status['worlds'] = env.worlds
         task_goal = BladeMasterEnvironment.goal
     elif args.conditions is not None:
         from cutting_world_model.multi_env import MultiConditionEnvironment
         conditions = json.loads(args.conditions.read_text())
+        status['worlds']=sum(group['worlds'] for group in conditions['groups'])
+        write_json(output / 'progress.json', status)
         if conditions.get('w_speed'):
             reward = {**(reward or {}), 'w_speed': float(conditions['w_speed'])}
         env = MultiConditionEnvironment.from_config(args.backend_root, conditions, reward=reward)
@@ -205,6 +222,9 @@ def run(args, output, status, started):
 
 
 def run_with_environment(args, output, status, started, env, conditions, task_goal):
+    if args.snapshot_at and not (hasattr(env, 'members') or
+                                getattr(getattr(env, 'physics', None), 'batch_groups', None)):
+        raise ValueError('--snapshot-at requires DiSECt groups or batched BladeMaster')
     device = 'cuda:0'
     frame = env.current
     one = {k: v[0].cpu().numpy() for k, v in frame.items()}
@@ -289,7 +309,7 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
         'wm_terminal_gradient': learner.wm.terminal_gradient,
         'wm_terminal_gradient_changed_at_resume': args.change_wm_terminal_gradient,
         'reward': metadata.get('free_cut_task') or reward_settings(metadata['environment']) or 'sliceit',
-        'replay_snapshot': 'replay.pt rewritten with every checkpoint',
+        'replay_snapshot': 'last.pt pairs with replay.pt; named checkpoints retain <stem>.replay.pt',
     }
     write_json(output / 'manifest.json', manifest)
     tracker = ExperimentTracker(output, manifest, args.wandb_project, args.wandb_entity, args.wandb_mode)
@@ -330,7 +350,7 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
                     'torch_rng': torch.get_rng_state(),
                     'cuda_rng': torch.cuda.get_rng_state(), 'git': revisions}, temp)
         temp.replace(output / name)
-        replay.save(output / 'replay.pt', metadata=metadata, iteration=schedule.iteration,
+        replay.save(replay_path(output / name), metadata=metadata, iteration=schedule.iteration,
                     transitions=schedule.transitions, checkpoint=name)
 
     risk_window = [0, 0]  # force-limit and all ended episodes since the last dual update
@@ -434,6 +454,10 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
             progress(iteration=schedule.iteration, updates=learner.updates,
                      episodes=int(episodes.sum()),
                      replay_rows=replay.buffer.size, timing=dict(timing))
+            if schedule.iteration in args.snapshot_at:
+                from cutting_world_model.training_snapshot import capture_training_environment
+                capture_training_environment(env, args.backend_root,
+                    output / ('snapshot_%08d' % schedule.iteration), status)
             metrics.update({'updates': learner.updates,
                             'learning/wm_updates': learner.wm_updates,
                             'learning/policy_updates': learner.updates,

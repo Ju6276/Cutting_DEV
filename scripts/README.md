@@ -248,3 +248,22 @@ sidecar records all world IDs and the captured-state checksum.
 - `audit_pose_reward.py`: ten independent reference motions per object under the actual pose reward, with raw transitions, reward decomposition and WM-equation checks. It uses reference commands, not policy actions; it does not establish learned-model accuracy.
 - `prepare_blademaster_disect_assets.py` and `check_blademaster_disect_assets.py`: four analytic reproduction assets, prescribed cut topology, compatible elastic coefficients only.
 - `check_blademaster_backend.py`: actual UR5e/BladeMaster interaction and optimizer/replay checks. Training entry is `train_gpu.py --blademaster-config configs/blademaster/banana_ur5e.json`; this is an independent task identity and requires the external reproduction checkout and scipy. See the backend review before running.
+
+### Capacity and running-training snapshots (2026-11-14)
+
+- `check_training_capacity.py`: bounded DiSECt multi-object capacity probe,
+  including actual transitions, full learner updates, selected reset and
+  checkpoint/replay restoration. Read `report.json.status`; a zero exit alone
+  does not establish sufficient memory headroom. It collects at least 40 steps,
+  retains actor8/critic32 and effective training batches, and records provenance.
+- `train_gpu.py --snapshot-at N`: optional read-only geometry capture from the
+  actual running grouped DiSECt or batched BladeMaster environment at vector
+  step N. No renderer runs in the training process.
+- `render_training_snapshot.py --recording SNAPSHOT --output IMAGE.png`:
+  offline actual-world overview; `--detail` selects up to two captured worlds
+  per object. Additional grid offsets and distant robot mesh simplification are
+  rendering only. The output JSON identifies every shown world and source hash.
+  Validation captures are explicitly labelled validation, not long training.
+
+Named training checkpoints retain matching `<stem>.replay.pt` files.
+`last.pt` retains the legacy companion `replay.pt`.

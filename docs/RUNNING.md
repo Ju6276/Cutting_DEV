@@ -104,6 +104,8 @@ The first 500 WM rounds leave policy/critic unchanged.
 `--resume RUN/last.pt` restores networks, optimizers and training counters.
 Physics restarts. By default replay loads from colocated `replay.pt` only when
 checkpoint name/iteration match; open replay episodes are closed at restart.
+Named checkpoints from the 2026-11-14 restart retain a matching <stem>.replay.pt; last.pt uses replay.pt. Do not separate weights from their paired replay when resuming.
+
 With a restored replay, version-2 schedule state preserves the warmup origin and fractional update phase; no second warmup is inserted. Deliberately empty replay starts a refill warmup. Legacy schedule snapshots emit a migration warning. Use `--resume-without-replay` for old checkpoints
 without matching snapshots (the historical README command). One `replay.pt`
 is overwritten at every save: older checkpoints can be evaluated but cannot all

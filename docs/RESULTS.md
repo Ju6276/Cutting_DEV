@@ -1742,3 +1742,31 @@ disproportionate fitting relative to the small BladeMaster data stream.
 The three-component policy wrench interface was a retained design, not a missing
 WM force output. The next run explicitly versions the six-component actor input.
 Restart details and capacity measurements: [TRAINING_SCALE_20261114](TRAINING_SCALE_20261114.md).
+
+
+## 2026-11-14 — Full-wrench collection-scaled restart preflight
+
+The old192-world DiSECt and3-world BM runs were stopped before policy training.
+New interface:10x34 actor observation including all six wrench components,
+same6 controls; transition-scaled updates, real critic32, actor8, BC0.25.
+No claim of a new learning algorithm or calibrated real-robot forces.
+
+DiSECt GPU7:3072 worlds(1024/object),40 steps/122880 transitions; full WM, actor,
+critic updates, selected reset, actual geometry capture and checkpoint/replay
+restore plus continued updates passed. Effective real critic targets131072;
+final optimizer counts20/2/40. Mean physics-step23.924s. Free memory3.449GiB after
+learning and4.701GiB after restoration. This is capacity validation, not a
+success-rate result; no episode ended during this40-step initial-policy sample.
+Preserve separate earlier reference/reward/terminal evidence.
+
+BM GPU7:256 true batched worlds;40 steps/10240 transitions, full WM/actor/critic32
+updates and replay restore passed. Root420/5 skipped and backend39 at its own
+commit; external new forward regressions4 passed, full external2164 not completed.
+BM long training is deferred by user decision.
+
+After integration, root425 passed/5 skipped; backend39 passed. Fixed named
+checkpoint replay retention: each periodic checkpoint now has its own paired
+replay; last.pt still uses replay.pt. Existing metadata/iteration rejection and
+legacy matching fallback remain. Mid-gradient emergency snapshots are resumable,
+not identical to uninterrupted execution. See TRAINING_SCALE_20261114 and
+BLADEMASTER_BATCHING_REVIEW for exact scope, code identity and paths.

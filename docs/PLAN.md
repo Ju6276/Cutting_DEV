@@ -23,25 +23,25 @@ checkpoints/replay preserved. Neither had started policy updates. Their launch
 records are historical, not active jobs.
 
 Current work:
-1. Add opt-in sensor_wrench6_v1 actor observation (34 dimensions, retaining target
+1. Implemented opt-in sensor_wrench6_v1 actor observation (34 dimensions, retaining target
    pose/velocity axes, reward and six-dimensional control actions). The old
    SliceIt-derived selected-axis input stays available.
-2. Add physical-transition update cadence: 10240-transition warmup, then one
+2. Physical-transition cadence implemented: at least 10240-transition warmup (increased for enough consecutive vector steps at large world counts), then one
    ten-minibatch WM round per 640 new transitions; unchanged source mode retained.
    Preserve cadence/replay on restart, version metadata and collection-aligned LR.
 3. Capacity test >=256 worlds on each backend, including partial reset,
    replay and actual WM+actor+critic updates. BladeMaster requires genuinely
    batched material kernels, not simply 256 sequential solvers.
-4. Restart each validated backend from fresh networks: seed0, real critic,
+4. Latest user decision: validate both backends on GPU7, then restart ONLY the DiSECt main run there. BladeMaster long training waits for the user's later arrangement. Fresh networks: seed0, real critic,
    actor horizon8, BC.25, 500 WM-only rounds. Each run has a 24h or 1280000
    physical-transition ceiling, whichever first. No automatic extensions.
    Do not touch unrelated jobs or claim equivalent physics/data distributions.
 
-A6000 GPU1: 384-world physical-step/reset probe passed (128 per object);
+A6000 GPU1 is unavailable: another user's openpi training occupies ~44GiB. Do not stop it. Its 768-world learning probe was intentionally interrupted during initialization; no learning failure is inferred. Earlier A6000 physical evidence: 384-world physical-step/reset probe passed (128 per object);
 768-world physical-step/reset probe also passed (~13.2s/step); full learning check next. Choose using measured throughput and full
 learning memory, not initialization alone. Do not change physics to fit memory.
-GPU7: BladeMaster batch implementation/independent-world validation in progress.
-New training has NOT launched yet.
+GPU7: BladeMaster 256-world physical/learning/restore validation passed. Its root suite passed 420 tests (5 skipped), backend 39. DiSECt 3072-world full learning, selected reset, geometry capture and save/restore passed; combined regression passed: root425/skip5, backend39.
+New training has NOT launched yet. GPU7 DiSECt selected scale is3072 (1024/object), with3.449GiB free after full learning. Launch after commit/synchronization, using warmup30720 and the bounded recipe in the restart record. Capture actual long-run geometry for the requested screenshot.
 See [restart record](TRAINING_SCALE_20261114.md) and
 [force observation](WRENCH_OBSERVATION_REVIEW.md).
 
