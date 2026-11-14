@@ -1712,3 +1712,19 @@ The active board branch did not contain b1bcb92's schedule persistence change.
 Its warmup-anchor/config/accumulator repair and resume tests were restored;
 fresh-run cadence and physical/task behavior are unchanged. Historical old
 snapshots lacking these fields cannot promise exact cadence recovery.
+
+## 2026-11-14 — Full-batch launch checks and new runs
+
+A6000 GPU1:192 worlds,64 iterations,12288 transitions,10 WM and8 policy updates,
+finite optimizer execution.189 unselected worlds unchanged during a three-world
+partial reset; actual reset cost26.92 s. Restore advanced 64 -> 70 with updates at 67/69,
+preserving replay and cadence. Final microbatches 128/8192 reduce cached WM update
+time from~29 to 14.56 s and policy/critic time from~9 to 4.68 s; reset costs remain.
+Full details and limits: [launch record](TRAINING_20261114.md).
+
+Fresh main job launched 06:21+01:00 on 2026-11-14, source 905afb9,192 worlds,
+at most5000 iterations/24h. Separate GPU7 BladeMaster job uses cf20ef0 and
+external solver db06c1a,3 intact-object worlds and nominal parameters. Both start
+with500 WM-only updates. These are starts, not completed training results.
+The shared integration passed392 root tests/5 skips and39 backend tests; those
+include the logging and BM selected-world placement corrections.

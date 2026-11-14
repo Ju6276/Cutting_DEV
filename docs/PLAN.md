@@ -23,7 +23,7 @@ Checkout: /dataHDD/dong/Projects/Cutting_DEV_pose_train_20261114.
 Configuration: [pose_three_object_train](../configs/free_cut/pose_three_object_train.json).
 64 worlds per object, 192 total, parallel object groups and one shared learner.
 Start fresh, 500 WM-only updates, real-data critic targets, actor horizon 8,
-BC 0.25, microbatch 64 and critic microbatch 1024. No risk-head variant.
+BC 0.25, microbatch 128 and critic microbatch 8192. No risk-head variant.
 
 Budget: at most 5000 vector iterations (960000 physical transitions) or
 24 wall hours, whichever occurs first; no automatic extension. Save every
@@ -40,20 +40,21 @@ Do not redesign the reward from a few early failures. Nonfinite values,
 corrupt data or execution failures stop the run; ordinary timeouts do not.
 Wall-budget expiry saves and ends; checkpoint evaluation is a separate bounded job.
 
-Preflight is in progress: verify asset hashes, full suites, a same-batch short
-run including learning/checkpoint restore, and actual memory/throughput.
+Preflight passed: identical asset hashes, full suites,192-world physical learning,
+masked resets and replay/schedule restore. The A6000 GPU1 job launched at
+2026-11-14 06:21+01:00 from 905afb9, fresh networks; see the launch record.
 The short probe reduces WM warmup only for interface validation and is discarded;
 the long run starts fresh with the 500-update warmup.
 [Launch record](TRAINING_20261114.md) records the actual outcome and command.
 
 ## Parallel work, separate physical identities
 
-- DiSECt tofu: diagnose actual contact geometry separately from ghost FEM nodes,
-  correct measurements and fix demonstrated physics errors only. It is not in
-  the main training distribution; do not tune main physics for this candidate.
-- BladeMaster: prepare uncut cucumber/half-potato/prism geometry, validate native
-  cutting, reaction coupling and multi-object learning. GPU7 training is
-  conditionally authorized only after those checks. Serial independent solvers,
+- DiSECt tofu diagnostic fixed: former 10 mm minima were ghost nodes, not actual
+  contact geometry. New nominal reference sampled at 50 ms shows 0.309 mm actual
+  overlap. No physical parameter was changed; see GROUND_CONTACT_REVIEW.
+  It remains outside the main training distribution.
+- BladeMaster: uncut cucumber/half-potato/prism geometry and physical/update/
+  reset/resume checks passed. GPU7 training started from cf20ef0. Serial independent solvers,
   initially one world per object; nominal parameters, different fracture law
   and depth-progress task. It is not the same distribution/reward as the main run.
   Its wall/iteration cap is at most 24 h / 5000 steps, without automatic extension.

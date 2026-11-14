@@ -19,6 +19,7 @@
 | [REAL2SIM](REAL2SIM.md) | Conditional real-robot draft, not a scheduled task |
 | [Ground-contact review](GROUND_CONTACT_REVIEW.md) | Ghost nodes versus actual contact geometry; corrected tofu diagnosis |
 | [BladeMaster assets](BLADEMASTER_DISECT_ASSETS.md) | Four reproduction geometries and elastic parameters converted to prescribed-interface DiSECt scenes |
+| [BladeMaster multi-object run](BLADEMASTER_MULTIOBJECT_TRAINING_20261114.md) | Three intact meshes, native cutting, validation and GPU7 engineering training |
 | [BladeMaster backend](BLADEMASTER_BACKEND_REVIEW.md) | Independent UR5e/FDCC material backend, distinct task semantics and actual update/restart checks |
 | [SOURCES](SOURCES.md) | Upstream versions and provenance |
 

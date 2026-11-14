@@ -218,3 +218,22 @@ recording is rejected. No weights, meshes or textures were added to Git.
 DiSECt-compatible meshes: `/dataHDD/dong/Assets/Cutting_DEV/blademaster_disect_20261114/`; exported scenes: backend `runs/sweep/bm_{banana,cake,tofu,luncheon}_20261114/scene.pt`. Preparation/reference evidence: `runs/bm_disect_assets_20261114/`. Source geometry/parameter identities and exclusions are in [the asset note](BLADEMASTER_DISECT_ASSETS.md).
 
 Independent BM/UR5e physical interaction, real-action replay and optimizer/restart checks: `runs/blademaster_ur5e_20261114/`; general training-entry smoke run: `runs/blademaster_entry_20261114/`. External solver source is configurable and not bundled. No new source, weights or datasets were copied to Mac.
+
+## Active runs — 2026-11-14
+
+- A6000 (tamsGPU5), GPU1, frozen checkout
+  `/dataHDD/dong/Projects/Cutting_DEV_pose_train_20261114`, source 905afb9.
+  `runs/pose_three_object_long_20261114/training/`: current progress,
+  every 250-step checkpoints, final/interrupt `last.pt` and latest matching replay.
+  The sibling`runs/pose_longtrain_preflight_20261114/` is disposable validation
+  evidence, not an initialization checkpoint for the long run.
+- GPU7, `/dataHDD/dong/Projects/Cutting_DEV_bm_multi_20261114`, training source cf20ef0,
+  `runs/blademaster_three_train_20261114/`. Source patch and full settings are in
+  [the BM launch record](BLADEMASTER_MULTIOBJECT_TRAINING_20261114.md).
+- BM intact particle assets:
+  `/dataHDD/dong/Assets/Cutting_DEV/blademaster_intact_20261114/`.
+  External solver checkout `/dataHDD/dong/Projects/BladeMaster-Warp-ur5e-mesh-20261114`
+  is committed as db06c1a. It imports uncut reference points, not DiSECt cut springs.
+- Tofu correction evidence: shared GPU7 `runs/ground_contact_20261114/`.
+  Ghost coordinates and occupied contact geometry are reported separately.
+- No source, checkpoints or new experiment datasets were copied to the Mac.
