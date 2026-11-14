@@ -49,7 +49,8 @@ def episode_row(e, episode, iteration, returns, lengths, info, truncated, peak_m
 
            'peak_material_force_n': float(peak_material[e]), 'peak_limit_ratio': float(peak_ratio[e])}
     for key, cast in (('timeout', bool), ('separated', bool), ('cut_progress', float),
-                      ('depth_progress', float), ('released_springs', int)):
+                      ('depth_progress', float), ('released_springs', int),
+                      ('material_components', int), ('damage_saturated_fraction', float)):
         if key in info:
             row[key] = cast(info[key][e])
     if condition is not None:

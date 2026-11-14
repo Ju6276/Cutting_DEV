@@ -1,0 +1,98 @@
+{
+  "description": "Three intact meshes sampled for BM; nominal transferred elasticity/density, not calibrated food models",
+  "source_root": "/dataHDD/dong/Projects/BladeMaster-Warp-ur5e-mesh-20261114",
+  "worlds": 3,
+  "clearance_m": 0.005,
+  "settle_seconds": 0.2,
+  "force_limits": [
+    50.0,
+    50.0,
+    50.0,
+    5.0,
+    5.0,
+    5.0
+  ],
+  "task": {
+    "version": "blademaster_pose_v1",
+    "horizon_steps": 180,
+    "weights": {
+      "progress": 10,
+      "speed": 20,
+      "load": 1,
+      "jerk": 0.1,
+      "success": 100,
+      "failure": 100
+    },
+    "gamma": 1.0,
+    "initial_progress_fraction": 0.001,
+    "workspace": {
+      "frame": "robot_base",
+      "point": "ee",
+      "lower": [
+        0.038,
+        0.405,
+        0.096
+      ],
+      "upper": [
+        0.238,
+        0.605,
+        0.269
+      ]
+    },
+    "board": {
+      "height_m": 0.0,
+      "stop_gap_m": 1e-06
+    }
+  },
+  "target_speed_m_s": 0.03,
+  "groups": [
+    {
+      "name": "cucumber_003",
+      "worlds": 1,
+      "material": "paper-banana",
+      "geometry_asset": "/dataHDD/dong/Assets/Cutting_DEV/blademaster_intact_20261114/cucumber_003.npz",
+      "material_overrides": {
+        "young_modulus": 2600000,
+        "poisson_ratio": 0.37,
+        "density": 950,
+        "blade_half_size": [
+          0.0005,
+          0.06,
+          0.04
+        ]
+      }
+    },
+    {
+      "name": "potato_half",
+      "worlds": 1,
+      "material": "paper-banana",
+      "geometry_asset": "/dataHDD/dong/Assets/Cutting_DEV/blademaster_intact_20261114/potato_half.npz",
+      "material_overrides": {
+        "young_modulus": 2000000,
+        "poisson_ratio": 0.45,
+        "density": 1101,
+        "blade_half_size": [
+          0.0005,
+          0.06,
+          0.04
+        ]
+      }
+    },
+    {
+      "name": "prism",
+      "worlds": 1,
+      "material": "paper-banana",
+      "geometry_asset": "/dataHDD/dong/Assets/Cutting_DEV/blademaster_intact_20261114/prism.npz",
+      "material_overrides": {
+        "young_modulus": 40000,
+        "poisson_ratio": 0.45,
+        "density": 830,
+        "blade_half_size": [
+          0.0005,
+          0.06,
+          0.04
+        ]
+      }
+    }
+  ]
+}

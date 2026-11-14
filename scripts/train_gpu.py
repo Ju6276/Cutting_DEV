@@ -349,12 +349,13 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
             risk_window[1] += int(ended.sum())
             metrics = {'iteration': schedule.iteration + 1, 'physics/reward_mean': float(reward.mean())}
             metrics.update(ended_metrics(ended, returns, lengths, info, truncated, peak_material, peak_ratio,
-                                         env.groups if conditions is not None else None,
-                                         env.group_index if conditions is not None else None))
+                                         getattr(env, 'groups', None),
+                                         getattr(env, 'group_index', None)))
             for e in ended.nonzero().flatten().tolist():
                 append_json(output / 'episodes.jsonl', episode_row(
                     e, int(episodes[e]), schedule.iteration + 1, returns, lengths, info, truncated,
-                    peak_material, peak_ratio, env.conditions([e])[0] if conditions is not None else None))
+                    peak_material, peak_ratio, env.conditions([e])[0] if conditions is not None else
+                    ({'object': env.object_names[e]} if hasattr(env, 'object_names') else None)))
             schedule.after_environment_step()
             if ended.any():
                 tick = time.monotonic()

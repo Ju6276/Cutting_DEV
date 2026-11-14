@@ -1,0 +1,98 @@
+From db06c1a9917c9f79d05afdcbed41ad4c2498cb50 Mon Sep 17 00:00:00 2001
+From: Ju Dong <92909096+Ju6276@users.noreply.github.com>
+Date: Sat, 14 Nov 2026 05:56:45 +0100
+Subject: [PATCH] Accept intact uniform-volume mesh samples in forward solver
+
+---
+ blademaster_warp/geometry.py  | 20 ++++++++++++++++++++
+ blademaster_warp/solver.py    |  8 +++++---
+ tests/test_reference_cloud.py | 16 ++++++++++++++++
+ 3 files changed, 41 insertions(+), 3 deletions(-)
+ create mode 100644 tests/test_reference_cloud.py
+
+diff --git a/blademaster_warp/geometry.py b/blademaster_warp/geometry.py
+index f87d1eb..5c50e16 100644
+--- a/blademaster_warp/geometry.py
++++ b/blademaster_warp/geometry.py
+@@ -101,3 +101,23 @@ def stencil(reference, origin, spacing, cells):
+     ijk = base[:, None] + offsets[None]
+     nodes = np.ravel_multi_index(ijk.transpose(2, 0, 1), tuple(cells + 1))
+     return nodes, w, g
++
++
++def reference_cloud(points_array, size, spacing):
++    """Accept intact uniform-volume samples; no cut codes or interface supplied."""
++    ref = np.asarray(points_array, dtype=np.float64)
++    size = np.asarray(size, dtype=np.float64)
++    if ref.ndim != 2 or ref.shape[1] != 3 or len(ref) < 4 or not np.isfinite(ref).all():
++        raise ValueError("reference_points must contain finite Nx3 samples")
++    if spacing <= 0 or size.shape != (3,) or (size <= 0).any():
++        raise ValueError("Positive sampling domain and spacing required")
++    origin = -np.array([size[0]/2, size[1]/2, 0.])
++    cells = grid_cells(size, spacing)
++    coordinates = (ref-origin)/(spacing/2)-.5
++    if not np.allclose(coordinates, np.round(coordinates), atol=1e-7, rtol=0):
++        raise ValueError("Reference points must lie on the uniform subcell lattice")
++    if (ref < origin).any() or (ref >= origin+cells*spacing).any():
++        raise ValueError("Reference samples outside the stencil domain")
++    if ref[:,2].min() < spacing/4-1e-12 or len(np.unique(ref,axis=0)) != len(ref):
++        raise ValueError("Overlapping ground samples or duplicate points")
++    return ref.copy(), origin, cells
+diff --git a/blademaster_warp/solver.py b/blademaster_warp/solver.py
+index da42ab0..5503357 100644
+--- a/blademaster_warp/solver.py
++++ b/blademaster_warp/solver.py
+@@ -5,7 +5,7 @@ import time
+ import numpy as np
+ import warp as wp
+ from . import material as m, contact as c, tool
+-from .geometry import points, stencil
++from .geometry import points, stencil, reference_cloud
+ from .blade_constraint import BladeConstraint
+ 
+ 
+@@ -179,7 +179,7 @@ PAIR_LIST_LANES = 16
+ class Solver:
+     precision = "float32"
+ 
+-    def __init__(self, config=Config(), device="cuda:0", *, precision="float32"):
++    def __init__(self, config=Config(), device="cuda:0", *, precision="float32", reference_points=None):
+         if precision not in ("float32", "float64"):
+             raise ValueError("Solver precision must be float32 or float64")
+         if precision == "float64" and config.pair_search == "hash":
+@@ -190,7 +190,9 @@ class Solver:
+         if not self.device.is_cuda:
+             raise ValueError("CUDA device required")
+         cfg = config
+-        self.reference, self.origin, cells = points(cfg.size, cfg.grid_spacing, cfg.shape, cfg.sampling_seed)
++        self.reference, self.origin, cells = (
++            points(cfg.size, cfg.grid_spacing, cfg.shape, cfg.sampling_seed)
++            if reference_points is None else reference_cloud(reference_points, cfg.size, cfg.grid_spacing))
+         self.n = len(self.reference)
+         nodes, weights, gradients = stencil(self.reference, self.origin, cfg.grid_spacing, cells)
+         self.node_count = int(np.prod(cells + 1))
+diff --git a/tests/test_reference_cloud.py b/tests/test_reference_cloud.py
+new file mode 100644
+index 0000000..8196a05
+--- /dev/null
++++ b/tests/test_reference_cloud.py
+@@ -0,0 +1,16 @@
++import numpy as np
++import pytest
++from blademaster_warp.geometry import points, reference_cloud, stencil
++
++def test_reference_cloud_preserves_uniform_volume_and_stencils():
++    p,o,c=points((.02,.02,.02),.01,"block")
++    got,origin,cells=reference_cloud(p,(.02,.02,.02),.01)
++    np.testing.assert_array_equal(got,p)
++    np.testing.assert_array_equal(origin,o)
++    np.testing.assert_array_equal(cells,c)
++    for a,b in zip(stencil(p,o,.01,c),stencil(got,origin,.01,cells)):
++        np.testing.assert_array_equal(a,b)
++    with pytest.raises(ValueError,match="lattice"):
++        reference_cloud(p+.001,(.02,.02,.02),.01)
++    with pytest.raises(ValueError,match="duplicate"):
++        reference_cloud(np.concatenate((p,p[:1])),(.02,.02,.02),.01)
+-- 
+2.25.1
+

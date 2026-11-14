@@ -9,6 +9,7 @@ sequentially. No DiSECt scene, pre-cut interface or spring array is constructed.
 import copy
 from dataclasses import asdict, replace
 import json
+import hashlib
 import math
 from pathlib import Path
 import subprocess
@@ -86,6 +87,9 @@ def load_material(config):
         raise FileNotFoundError('BladeMaster source_root lacks ExternalToolPort')
     sys.path.insert(0, str(root))
     from blademaster_warp.solver import Solver
+    import inspect
+    if Path(inspect.getfile(Solver)).resolve().parents[1] != root:
+        raise RuntimeError('A different BladeMaster source is already imported; start a fresh process')
     from blademaster_warp.coupling import ExternalToolPort, ToolState
     from blademaster_warp.presets import banana_config, banana_dt
     from blademaster_warp.scenarios import scene_config
@@ -98,6 +102,16 @@ def load_material(config):
         if name not in names:
             raise ValueError('Unknown BladeMaster preset')
         cfg = scene_config(names[name])
+    if config.get('geometry_asset'):
+        asset=Path(config['geometry_asset'])
+        with np.load(asset) as data:
+            cfg=replace(cfg,size=tuple(data['size'].tolist()),grid_spacing=float(data['grid_spacing']),shape='intact_mesh')
+        allowed={'young_modulus','poisson_ratio','density','blade_half_size'}
+        overrides=dict(config.get('material_overrides',{}))
+        if set(overrides)-allowed:raise ValueError('Only explicit elastic/density/blade overrides are supported')
+        if 'blade_half_size' in overrides:overrides['blade_half_size']=tuple(overrides['blade_half_size'])
+        cfg=replace(cfg,**overrides)
+        cfg=replace(cfg,dt=banana_dt(cfg,cfg.grid_spacing,.002))
     cfg = replace(cfg, external_tool=True, tool_substep='hold', grid_storage='compact')
     if abs(round(.002/cfg.dt)*cfg.dt-.002) > 1e-12:
         raise ValueError('BladeMaster material dt must divide the 2 ms coupling interval')
@@ -116,9 +130,40 @@ class BladeMasterBatch(CuttingBatch):
             raise ValueError('worlds must be positive')
         self.task = json.loads((root/'runs/source/task.json').read_text())
         self.task['controller']['max_force_torque'] = validate_force_limits(config['force_limits'], required=True)
-        self.material_config, self.Solver, self.Port, self.ToolState, revision = load_material(config)
-        self.material_metadata = dict(preset=config['material'], config=asdict(self.material_config),
-                                      source_root=config['source_root'], source_revision=revision)
+        groups=config.get('groups') or [dict(name=config['material'],worlds=self.worlds,
+                                              material=config['material'])]
+        if sum(g['worlds'] for g in groups)!=self.worlds:
+            raise ValueError('BladeMaster group world counts must sum to worlds')
+        self.material_configs=[];self.reference_points=[];self.group_names=[];self.group_index=[]
+        material_groups=[]
+        for group_index,group in enumerate(groups):
+            if type(group['worlds']) is not int or group['worlds']<1:
+                raise ValueError('Positive integer group worlds required')
+            member={**config,**group}
+            cfg,self.Solver,self.Port,self.ToolState,revision=load_material(member)
+            asset=member.get('geometry_asset')
+            points=None
+            geometry=None
+            if asset:
+                import inspect
+                if 'reference_points' not in inspect.signature(self.Solver).parameters:
+                    raise ValueError('This BladeMaster source lacks the intact mesh sampling extension')
+                with np.load(asset) as data:points=data['reference_points'].copy()
+                geometry=dict(path=asset,sha256=hashlib.sha256(Path(asset).read_bytes()).hexdigest(),
+                              particle_count=len(points),predefined_cut_interface=False)
+                # Blade edge lies along material y. Cover the whole initial body with margin.
+                if np.max(np.abs(points[:,1]))+cfg.grid_spacing/4>=cfg.blade_half_size[1]:
+                    raise ValueError('Blade edge does not cover the initial object width')
+            material_groups.append(dict(name=group['name'],worlds=group['worlds'],
+                preset=member['material'],config=asdict(cfg),source_revision=revision,geometry=geometry))
+            for _ in range(group['worlds']):
+                self.material_configs.append(cfg);self.reference_points.append(points)
+                self.group_names.append(group['name']);self.group_index.append(group_index)
+        self.material_config=self.material_configs[0]
+        if any((c.blade_half_size,c.blade_bevel_height)!=(self.material_config.blade_half_size,
+             self.material_config.blade_bevel_height) for c in self.material_configs):
+            raise ValueError('Shared UR5e batch must use one fixed blade mounting and geometry')
+        self.material_metadata=dict(source_root=config['source_root'],groups=material_groups)
         self.clearance = float(config['clearance_m'])
         self.settle_seconds = float(config['settle_seconds'])
         if not all(math.isfinite(x) for x in (self.clearance,self.settle_seconds)) or self.clearance <= 0 or self.settle_seconds < 0:
@@ -146,7 +191,7 @@ class BladeMasterBatch(CuttingBatch):
         self.vertices = torch.tensor(blade_vertices(self.material_config.blade_half_size,
                                   self.material_config.blade_bevel_height),device=self.device,dtype=self.dtype)
         self.stop_gap = float(config['task']['board']['stop_gap_m'])
-        self.depth_span = float(self.material_config.size[2]+self.clearance)
+        self.depth_span = float(max(c.size[2] for c in self.material_configs)+self.clearance)
         wanted = frames[self.chain.tip].clone()
         wanted[:,2] += board[2]+self.depth_span+self.material_config.blade_half_size[2]-mounted[:,2]
         self.robot.set_joint_positions(self.solve_pose(self.robot.q.double(),wanted))
@@ -214,7 +259,8 @@ class BladeMasterBatch(CuttingBatch):
             self.frames[self.chain.tip],self.ee_from_blade.expand(self.worlds,-1)))
 
     def _new_material(self, index):
-        solver = self.Solver(self.material_config,device='cuda:0')
+        kwargs={} if self.reference_points[index] is None else {'reference_points':self.reference_points[index]}
+        solver = self.Solver(self.material_configs[index],device='cuda:0',**kwargs)
         port = self.Port(solver)
         pose = self.tool_pose()[index].cpu().numpy()
         state = self.ToolState(pose[:3],pose[3:],np.zeros(3),np.zeros(3))
@@ -285,9 +331,7 @@ class BladeMasterBatch(CuttingBatch):
                     # Robot uses float32; retain positive numerical clearance.
                     alpha=(fraction-1e-5).clamp_min(0)
                     corrected=torch.where(hit[:,None],old_q+alpha[:,None]*(new_q-old_q),new_q)
-                    saved_qd=self.robot.qd.clone()
-                    self.robot.set_joint_positions(corrected)
-                    self.robot.qd[~hit]=saved_qd[~hit]
+                    self.robot.set_joint_positions(corrected,mask=hit)
                 self.frames=self.chain(self.robot.q.double(),mass_matrix=False)[0]
                 gap=gap_from_pose(self.frames[self.chain.tip],self.board_geometry)
                 self.contacted |= hit & (gap<=1e-5)
@@ -338,6 +382,11 @@ class BladeMasterEnvironment(GPUEnvironment):
         validate_task(config['task'])
         self.physics=BladeMasterBatch(backend_root,config)
         self.worlds,self.device=self.physics.worlds,self.physics.device
+        from types import SimpleNamespace
+        group_names=list(dict.fromkeys(self.physics.group_names))
+        self.groups=[SimpleNamespace(name=n) for n in group_names]
+        self.group_index=torch.tensor(self.physics.group_index,device=self.device)
+        self.object_names=list(self.physics.group_names)
         self.metadata=copy.deepcopy(self.physics.task)
         self.metadata.update(physical_backend='mujoco_warp_blademaster',
             task_interface_revision='blademaster_pose_v1',state_layout='coupled_recurrent_v1',
@@ -393,6 +442,17 @@ class BladeMasterEnvironment(GPUEnvironment):
         self.current=frame
         info={k:events[k] for k in ('success','collision','outside','timeout','board_contact')}
         info.update(peak_force=force,depth_progress=frame['cut_progress'][:,0],**self.physics.step_metrics)
+        # Native fracture is diagnostic only: do not relabel pose success as separation.
+        if bool(events['terminated'].any()):
+            from blademaster_warp.topology import components
+            count=torch.full((self.worlds,),-1,dtype=torch.long,device=self.device)
+            released=torch.full((self.worlds,),float('nan'),device=self.device)
+            for index in events['terminated'].nonzero().flatten().tolist():
+                solver=self.physics.solvers[index]
+                _,sizes=components(solver.node_numpy,solver.weight_numpy,solver.codes.numpy())
+                count[index]=len(sizes)
+                released[index]=float((solver.damage.numpy()>=1).mean())
+            info.update(material_components=count,damage_saturated_fraction=released)
         return frame,reward.float(),events['terminated'],torch.zeros_like(events['terminated']),info
 
     @staticmethod
