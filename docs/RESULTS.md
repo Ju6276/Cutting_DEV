@@ -1775,3 +1775,57 @@ The bounded main DiSECt run has now launched on GPU7 PID1048242, frozen02203b1,
 3072 worlds. Runtime manifest agrees with the validated recipe. First-step
 training geometry is captured and rendered; initial collection is not a policy
 performance result. Exact paths and synchronization record:TRAINING_SCALE_20261114.
+
+## 2026-11-14 — Native BladeMaster cuts at three plane offsets
+
+User requested changing the single-cut location without preparing a new cut
+interface, and comparing the reaction. GPU9 (134.100.13.219, RTX 4090) was idle
+before this bounded test. GPU7's active learning job was not changed.
+
+Evidence: `runs/bm_offset_native_20261114/` on GPU7 contains the exact
+`check_offsets.py`, log, report and nine raw trajectories. The original test
+directory on GPU9 is
+`/dataHDD/dong/Projects/BladeMaster-offset-check-20261114`.
+Source was exported from BladeMaster-Warp-batched commit `e2e5221`.
+GPU9 used Warp 1.18.0. This is a native scalar ExternalToolPort test, not the
+UR5e/FDCC task, learned policy, batched training, or a force-limited success test.
+
+Protocol: identical intact asset bytes within each object, nominal transferred
+elasticity/density and paper-banana remaining parameters; settle 0.2 s, blade
+normal offset -10/0/+10 mm, identity orientation, prescribed 3 cm/s downstroke,
+2 ms coupling/sample interval, stop edge at +1 micrometre above board, then hold
+0.2 s. Every trial starts from a fresh connected undamaged asset. No remeshing,
+pre-cut interface, or offset-specific material change. Budget 20 minutes; all
+nine trials completed within that budget.
+
+| Object | Plane offset (mm) | Final component sizes | Peak force (N) | Mean force (N) |
+|---|---:|---|---:|---:|
+| cucumber | -10 | 2261 / 3997 | 10.483 | 2.151 |
+| cucumber | 0 | 2762 / 3496 | 5.757 | 2.086 |
+| cucumber | +10 | 3133 / 3125 | 6.463 | 2.172 |
+| half potato | -10 | 812 / 1965 | 6.972 | 2.925 |
+| half potato | 0 | 1368 / 1409 | 8.396 | 3.221 |
+| half potato | +10 | 1774 / 1003 | 9.371 | 2.988 |
+| prism | -10 | 7293 / 11220 | 1.722 | 0.627 |
+| prism | 0 | 9537 / 8976 | 1.680 | 0.572 |
+| prism | +10 | 11220 / 7293 | 0.844 | 0.444 |
+
+All trials start with one component and finish with two according to native
+reference-grid/side-code connectivity. Force is the norm of the **interval-average
+material-on-tool force** at 2 ms, summarized over the prescribed downstroke,
+excluding the final hold. It is not an instantaneous material-substep peak,
+filtered UR sensor wrench, or board reaction. No force-limit abort was enabled.
+
+This supports changing the cut plane location on the same intact asset in the
+native backend. It does not establish arbitrary orientation/multi-cut capability,
+UR5e reachability, policy generalization, or real force accuracy. Force differences
+are observed, not solely attributed to geometry: only one trial per setting,
+with discretization/contact/free-object motion all contributing. In particular
+the prism's asymmetric offset peaks should not be interpreted as a calibrated
+physical prediction. The training configuration still uses fixed cut locations.
+
+FDCC terminology clarification: current tensor controller ports the SliceIt
+cambel/cartesian_controllers FZI implementation (f4359b9). It is forward-dynamics
+Cartesian compliance/admittance control, producing joint **position** commands
+in this integration. It blends pose-derived virtual spring and wrench error;
+it is not UR's built-in force_mode nor a direct joint-torque policy.
