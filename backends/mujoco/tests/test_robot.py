@@ -94,3 +94,25 @@ def test_source_adjacent_collision_exclusion():
     np.testing.assert_array_equal(model.body_mass, original.body_mass)
     np.testing.assert_array_equal(model.body_inertia, original.body_inertia)
     np.testing.assert_array_equal(model.geom_pos, original.geom_pos)
+
+
+def test_masked_joint_placement_preserves_other_world_velocity_and_derived_state():
+    import pytest
+    import torch
+    import warp as wp
+    import mujoco_warp as mjw
+    from cutting_gpu_backend.robot import Robot
+    if not torch.cuda.is_available():
+        pytest.skip('CUDA robot integration required')
+    episode=np.load('runs/source/episode_000.npz')
+    robot=Robot('runs/model_coupled/robot.mjb',episode['joint_q'][0],episode['joint_qd'][0],2)
+    with wp.ScopedStream(robot.stream):
+        robot.qd[1]=torch.tensor([.1,-.2,.15,.1,-.1,.05],device=robot.q.device)
+        mjw.forward(robot.gpu_model,robot.data)
+    fields=('qpos','qvel','xpos','xquat','cvel','qfrc_bias')
+    before={k:wp.to_torch(getattr(robot.data,k))[1].clone() for k in fields}
+    pose=robot.q.clone();pose[0,0]+=.02;pose[1,0]+=1
+    robot.set_joint_positions(pose,mask=torch.tensor([True,False],device=robot.q.device))
+    for k,v in before.items():
+        torch.testing.assert_close(wp.to_torch(getattr(robot.data,k))[1],v,atol=1e-10,rtol=1e-10)
+    assert robot.qd[0].eq(0).all()

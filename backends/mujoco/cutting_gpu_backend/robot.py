@@ -35,11 +35,19 @@ class Robot:
         self.qd = wp.to_torch(self.data.qvel)
 
     @torch.no_grad()
-    def set_joint_positions(self, q):
-        """Place each world at its own joint configuration at rest (before saving the reset state)."""
+    def set_joint_positions(self, q, mask=None):
+        """Place selected worlds at rest; preserve all other q/qd before forward."""
         with wp.ScopedStream(self.stream):
-            self.q.copy_(torch.as_tensor(q, device=self.q.device, dtype=self.q.dtype))
-            self.qd.zero_()
+            q=torch.as_tensor(q, device=self.q.device, dtype=self.q.dtype)
+            if mask is None:
+                self.q.copy_(q)
+                self.qd.zero_()
+            else:
+                mask=torch.as_tensor(mask,device=self.q.device,dtype=torch.bool)
+                if mask.shape != self.q.shape[:1]:
+                    raise ValueError('Joint-placement mask must select worlds')
+                self.q[mask]=q[mask]
+                self.qd[mask]=0
             mjw.forward(self.gpu_model, self.data)
 
     def save_reset_state(self):
