@@ -13,7 +13,7 @@ import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from cutting_world_model.online_replay import BatchedOnlineReplay
-from cutting_world_model.online_schedule import OnlineSchedule
+from cutting_world_model.online_schedule import OnlineSchedule, TransitionSchedule
 from cutting_world_model.episode_log import ended_metrics, episode_row
 from cutting_world_model.policy import SliceItPolicy, SliceItCritic
 from cutting_world_model.provenance import git_revision
@@ -69,6 +69,12 @@ def main():
     parser.add_argument('--backend-root', type=Path,
                         default=Path(__file__).resolve().parents[1] / 'backends/mujoco')
     parser.add_argument('--worlds', type=int, default=16)
+    parser.add_argument('--schedule', choices=('source', 'transitions'), default='source',
+                        help='source: original vector-step cadence; transitions: collection-scaled variant')
+    parser.add_argument('--warmup-transitions', type=int, default=10240)
+    parser.add_argument('--transitions-per-update', type=int, default=640)
+    parser.add_argument('--max-transitions', type=int,
+                        help='Additional physical transitions budget; stops at a vector boundary')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--microbatch', type=int, default=64)
     parser.add_argument('--wm-only-updates', type=int, default=500,
@@ -136,6 +142,10 @@ def main():
         parser.error("--actor-objective bc requires --actor-bc-alpha")
     if (args.force_penalty == 'linear') != (args.force_penalty_scale is not None):
         parser.error('--force-penalty-scale is required for, and only for, the linear penalty')
+    if args.max_transitions is not None and args.max_transitions <= 0:
+        parser.error('--max-transitions must be positive')
+    if args.warmup_transitions < 0 or args.transitions_per_update <= 0:
+        parser.error('Invalid physical-transition schedule settings')
     if args.wm_only_updates < 0:
         parser.error("--wm-only-updates must be nonnegative")
     if args.critic_reset and (args.critic_target == 'imagined' or not args.resume):
@@ -222,7 +232,12 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
                                               'lambda_init': args.risk_lambda_init,
                                               'lambda_lr': args.risk_lambda_lr}
                                              if args.risk_constraint else None))
-    schedule = OnlineSchedule(worlds=args.worlds)
+    if args.schedule == 'transitions' and args.warmup_transitions < args.worlds * (learner.wcfg.window + 1):
+        raise ValueError('Transition warmup must cover at least WM window+1 vector steps; '
+                         'increase --warmup-transitions for this environment count')
+    schedule = (TransitionSchedule(worlds=args.worlds, warmup_transitions=args.warmup_transitions,
+                                   transitions_per_update=args.transitions_per_update)
+                if args.schedule == 'transitions' else OnlineSchedule(worlds=args.worlds))
     if args.resume:
         saved = torch.load(args.resume, map_location=device, weights_only=False)
         compare = without_substeps if args.allow_substep_change else (lambda m: m)
@@ -237,8 +252,13 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
                         change_wm_terminal_gradient=args.change_wm_terminal_gradient)
         if learner.critic_prefit_pending and args.critic_prefit_rounds < 1:
             raise ValueError('Checkpoint has a pending critic pre-fit; set --critic-prefit-rounds')
-        schedule = OnlineSchedule.resume(saved.get('schedule', {}), worlds=args.worlds,
-                                         replay_restored=not args.resume_without_replay)
+        schedule_type = TransitionSchedule if args.schedule == 'transitions' else OnlineSchedule
+        schedule = schedule_type.resume(saved.get('schedule', {}), worlds=args.worlds,
+                                        replay_restored=not args.resume_without_replay)
+        if args.schedule == 'transitions' and (
+                schedule.warmup_transitions != args.warmup_transitions
+                or schedule.transitions_per_update != args.transitions_per_update):
+            raise ValueError('Resume cadence options differ from saved transition schedule')
         torch.set_rng_state(saved['torch_rng'].cpu())
         torch.cuda.set_rng_state(saved['cuda_rng'].cpu())
     replay = BatchedOnlineReplay(args.worlds, spec.state_dim, device,
@@ -258,7 +278,7 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
         'git': revisions, 'command': sys.argv,
         'arguments': {k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()},
         'world_model': asdict(learner.wcfg), 'policy': asdict(learner.pcfg),
-        'schedule': asdict(schedule.config), 'training_stage': learning_status(learner),
+        'schedule': asdict(schedule.config), 'collection_schedule': schedule.state_dict(), 'training_stage': learning_status(learner),
         'endpoint': 'wall budget or iteration budget',
         'timeout': 'SIGTERM saves last.pt and progress.json',
         'state_dim': spec.state_dim, 'delta_dim': spec.delta_dim,
@@ -318,10 +338,13 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
                       schedule.iteration + args.max_iterations)
     status['state'] = 'running'
     timing = {'physics': 0., 'reset': 0., 'world_model': 0., 'policy': 0.}
+    transition_limit = (None if args.max_transitions is None else
+                        schedule.transitions + args.max_transitions)
     error = None
     try:
-        while schedule.iteration < schedule.config.total_iterations:
-            if physical_limit is not None and schedule.iteration >= physical_limit:
+        while not schedule.finished:
+            if ((physical_limit is not None and schedule.iteration >= physical_limit)
+                    or (transition_limit is not None and schedule.transitions >= transition_limit)):
                 status['state'] = 'completed'
                 break
             if stop_requested or time.monotonic() - started >= args.max_hours * 3600:

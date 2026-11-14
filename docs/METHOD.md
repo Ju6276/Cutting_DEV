@@ -839,3 +839,16 @@ The [BladeMaster-derived DiSECt candidates](BLADEMASTER_DISECT_ASSETS.md) keep t
 The [BladeMaster UR5e adapter](BLADEMASTER_BACKEND_REVIEW.md) instead runs the external forward material solver with the existing robot, six-action FDCC interface and 500 Hz sensor-wrench feedback. It has the independent `blademaster_pose_v1` identity and analytical board-normal depth progress, no DiSECt cut-spring input or separation label. Real mapped actions feed the normal replay/WM/BPTT update path. Material reaction reaches the robot through controller feedback, not an additional full two-way MuJoCo contact solve. The current batch implementation has serial independent material solvers and is not a 256-world throughput claim.
 
 Per-object settling settings now belong to `group_reset_settings` when object groups differ. Shared reward, force limits and robot/task fields must still match. Homogeneous groups retain the former metadata shape for compatibility.
+
+
+## Collection-scaled cadence and full-wrench policy observation (2026-11-14)
+
+The source mode is preserved. The opt-in transition schedule earns WM updates
+from newly collected physical transitions rather than a world-count-independent
+vector-step counter; its warmup, integer credit, LR clock and budget are specified
+in [TRAINING_SCALE_20261114](TRAINING_SCALE_20261114.md).
+The opt-in sensor_wrench6_v1 observation adds all six sensor components while
+preserving pose/velocity axes, action mapping and reward. WM already predicted
+six-dimensional wrench. See [WRENCH_OBSERVATION_REVIEW](WRENCH_OBSERVATION_REVIEW.md)
+for layout, normalization and checkpoint compatibility. These are explicit
+engineering variants, not claimed methodological contributions.

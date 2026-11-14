@@ -22,7 +22,7 @@ from pathlib import Path
 import torch
 
 from .gpu_env import GPUEnvironment
-from .task_heads import validate_force_limits
+from .task_heads import validate_force_limits, FORCE_OBSERVATION_REVISION
 
 MATERIAL_KEYS = ('youngs_modulus', 'density', 'cut_spring_stiffness')
 
@@ -65,14 +65,15 @@ class LocalGroup:
     """One object group simulated in this process."""
 
     def __init__(self, backend_root, scene, worlds, lift, reward, force_limits, sim_dt=None,
-                 force_model='scalar', friction_velocity=None, settle_seconds=0., task=None):
+                 force_model='scalar', friction_velocity=None, settle_seconds=0., task=None, force_observation=None):
         if not math.isfinite(settle_seconds) or settle_seconds < 0:
             raise ValueError('settle_seconds must be finite and nonnegative')
         self.settle_seconds = settle_seconds
         self.env = GPUEnvironment(backend_root, worlds, reward=reward, scene=scene,
                                   initial_lift=lift, force_limits=force_limits, sim_dt=sim_dt,
                                   force_model=force_model, friction_velocity=friction_velocity,
-                                  settle_seconds=0., **({'task': task} if task is not None else {}))
+                                  settle_seconds=0., **({'task': task} if task is not None else {}),
+                                  **({'force_observation': force_observation} if force_observation is not None else {}))
         self.env.target_speed = torch.zeros(worlds, device=self.env.device)
         if settle_seconds > 0:
             self.env.metadata['settle_seconds'] = float(settle_seconds)
@@ -146,13 +147,13 @@ class ProcessGroup:
     concurrently; tensors cross the process boundary on the CPU."""
 
     def __init__(self, backend_root, scene, worlds, lift, reward, force_limits, sim_dt=None,
-                 force_model='scalar', friction_velocity=None, settle_seconds=0., task=None):
+                 force_model='scalar', friction_velocity=None, settle_seconds=0., task=None, force_observation=None):
         import torch.multiprocessing as mp
         context = mp.get_context('spawn')
         self.connection, child = context.Pipe()
         self.process = context.Process(target=_group_worker, daemon=True, args=(
             child, (str(backend_root), scene, worlds, lift.cpu(), reward, force_limits, sim_dt,
-                    force_model, friction_velocity, settle_seconds, task)))
+                    force_model, friction_velocity, settle_seconds, task, force_observation)))
         self._closed = False
         try:
             self.process.start()
@@ -221,10 +222,12 @@ class ProcessGroup:
 
 
 class MultiConditionEnvironment:
-    def __init__(self, backend_root, groups, reward=None, seed=0, force_limits=None, parallel=False, task=None):
+    def __init__(self, backend_root, groups, reward=None, seed=0, force_limits=None, parallel=False, task=None, force_observation=None):
         """``parallel``: one persistent process per object group (``ProcessGroup``);
         otherwise groups are stepped one after another in this process (reference path)."""
         force_limits = validate_force_limits(force_limits, required=True)
+        if force_observation is not None and force_observation != FORCE_OBSERVATION_REVISION:
+            raise ValueError("Unknown force_observation revision: " + str(force_observation))
         if not groups:
             raise ValueError('At least one object group is required')
         self.groups = list(groups)
@@ -240,7 +243,8 @@ class MultiConditionEnvironment:
                 maker = ProcessGroup if parallel else LocalGroup
                 self.members.append(maker(backend_root, group.scene, group.worlds, lift, reward, force_limits,
                                           group.sim_dt, group.force_model, group.friction_velocity,
-                                          group.settle_seconds, **({'task': task} if task is not None else {})))
+                                          group.settle_seconds, **({'task': task} if task is not None else {}),
+                                          **({'force_observation': force_observation} if force_observation is not None else {})))
                 self.lift.append(lift)
                 self.slices.append(slice(start, start + group.worlds))
                 start += group.worlds
@@ -331,7 +335,8 @@ class MultiConditionEnvironment:
                               settle_seconds=float(g.get('settle_seconds', 0.)))
                   for g in config['groups']]
         return cls(backend_root, groups, reward=reward, seed=int(config.get('seed', 0)),
-                   force_limits=config.get('force_limits'), parallel=bool(config.get('parallel', False)), task=config.get('task'))
+                   force_limits=config.get('force_limits'), parallel=bool(config.get('parallel', False)), task=config.get('task'),
+                   force_observation=config.get('force_observation'))
 
     @torch.no_grad()
     def reset(self, mask=None):

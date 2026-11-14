@@ -11,15 +11,20 @@ class SliceItPolicy(nn.Module):
 
     def __init__(self, goal_dim=7, observation_dim=24):
         super().__init__()
-        if observation_dim not in (24, 25):
-            raise ValueError('Policy supports source observations or free-cut observations with time')
-        self.observation_terms = type(self).observation_terms + ((1,) if observation_dim == 25 else ())
+        if observation_dim not in (24, 25, 33, 34):
+            raise ValueError('Policy supports 3- or 6-axis wrench observations, optionally with time')
+        force_width = 18 if observation_dim in (33, 34) else 9
+        self.observation_terms = (3, 3, 3, 6, force_width) + (
+            (1,) if observation_dim in (25, 34) else ())
+        self.observation_dim = observation_dim
         hidden = (2048, 1024, 512, 256)
         self.encoder = MLP(goal_dim, hidden, 32)
         self.decoder = MLP(32 + self.history * observation_dim, hidden, 6, last_gain=.01)
 
     def forward(self, history, target_pose):
-        # history is (time, batch, 24), oldest first, matching the source's term-major layout.
+        # History is (time, batch, observation_dim), source-compatible term-major layout.
+        if history.shape[0] != self.history or history.shape[-1] != self.observation_dim:
+            raise ValueError("Policy observation history shape does not match its interface")
         parts = []
         begin = 0
         for size in self.observation_terms:

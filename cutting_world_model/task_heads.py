@@ -17,6 +17,23 @@ FORCE_PENALTIES = ("sliceit", "linear")
 REWARD_KEYS = ("force_penalty", "force_penalty_scale", "w_speed")
 
 
+FORCE_OBSERVATION_REVISION = "sensor_wrench6_v1"
+
+
+def configure_force_observation(metadata, revision=None):
+    """Opt in to full sensor wrench without changing target pose/velocity axes.
+
+    None preserves old metadata exactly, including old-checkpoint compatibility.
+    The revision and explicit force axes are saved in checkpoint task metadata.
+    """
+    if revision is None:
+        return metadata
+    if revision != FORCE_OBSERVATION_REVISION:
+        raise ValueError("Unknown force_observation revision: " + str(revision))
+    return {**metadata, "policy_observation_revision": revision,
+            "environment": {**metadata["environment"], "force_observation_dims": list(range(6))}}
+
+
 def validate_force_limits(values, *, required=False):
     """Validate the six task limits; legacy single-scene callers may omit them."""
     message = 'force_limits must explicitly contain six finite positive force/torque limits'
@@ -63,6 +80,15 @@ class SliceItHeads:
         self.controller = controller
         self.dims = environment["target_dims"]
         self.history = environment["wrench_hist_size"]
+        self.force_dims = environment.get("force_observation_dims", self.dims)
+        if self.force_dims != self.dims and self.force_dims != list(range(6)):
+            raise ValueError("force_observation_dims must preserve target dims or contain all six axes")
+        offset = 2 * len(self.dims)
+        if environment["jerkiness_as_obs"]:
+            offset += len(self.dims)
+        if environment["last_action_as_obs"]:
+            offset += environment.get("n_actions", 6)
+        self.force_start = offset
         self.max_distance = [environment["max_distance"][i] for i in self.dims]
         velocities = environment.get("max_velocity", [.5, .5, .5, .785398, .785398, .785398])
         self.max_velocity = [velocities[i] for i in self.dims]
@@ -82,6 +108,14 @@ class SliceItHeads:
         elif self.force_penalty_scale is not None:
             raise ValueError("force_penalty_scale applies to the linear force penalty only")
 
+    @property
+    def force_slice(self):
+        return slice(self.force_start, self.force_start + self.history * len(self.force_dims))
+
+    @property
+    def observation_dim(self):
+        return self.force_slice.stop
+
     def observation(self, pose_error, velocity, jerk, previous_action, wrench_history):
         # SliceIt flattens force histories by component, then by time.
         dims = self.dims
@@ -95,7 +129,7 @@ class SliceItHeads:
         if self.env["last_action_as_obs"]:
             pieces.append(previous_action)
         force = wrench_history / wrench_history.new_tensor(self.force_limits)
-        force = force[..., dims].transpose(-1, -2).flatten(-2)
+        force = force[..., self.force_dims].transpose(-1, -2).flatten(-2)
         pieces.append(force)
         return torch.cat(pieces, dim=-1)
 
@@ -109,8 +143,11 @@ class SliceItHeads:
         dims = len(self.dims)
         limits = observation.new_tensor([self.force_limits[i] for i in self.dims])
         # Observations store each component across the history window.
-        force = observation[..., -self.history * dims:].reshape(*observation.shape[:-1], dims, self.history)
-        force = force.transpose(-1, -2)
+        force = observation[..., self.force_slice].reshape(
+            *observation.shape[:-1], len(self.force_dims), self.history)
+        # Reward uses the original target axes, independently of what the actor sees.
+        selected = [self.force_dims.index(i) for i in self.dims]
+        force = force[..., selected, :].transpose(-1, -2)
         force = (force * limits).mean(dim=-2)
         return torch.linalg.vector_norm(force[..., :3], dim=-1)
 

@@ -3,13 +3,13 @@ import torch
 
 from cutting_gpu_backend.environment import CuttingBatch
 from .kinematics import SerialKinematics, observation_velocity
-from .task_heads import REWARD_KEYS, SliceItHeads, pose_error, TASK_INTERFACE_REVISION, validate_force_limits
+from .task_heads import REWARD_KEYS, SliceItHeads, pose_error, TASK_INTERFACE_REVISION, validate_force_limits, configure_force_observation
 
 
 class GPUEnvironment:
     def __init__(self, backend_root, worlds=1, reference_trajectory=None, reward=None, scene=None,
                  initial_lift=None, force_limits=None, sim_dt=None, force_model='scalar',
-                 friction_velocity=None, settle_seconds=0., task=None):
+                 friction_velocity=None, settle_seconds=0., task=None, force_observation=None):
         """``reward`` optionally selects the force penalty, e.g. {'force_penalty': 'linear',
         'force_penalty_scale': 50.}; None keeps the source SliceIt reward and metadata.
         ``scene`` is an exported DiSECt scene relative to ``backend_root``; None keeps the
@@ -37,7 +37,7 @@ class GPUEnvironment:
                                                      dtype=self.physics.dtype)[None].repeat(worlds, 1)
         self.target_speed = None  # per-world target cutting speed (m/s), set by a task sampler
         self.worlds, self.device = worlds, self.physics.device
-        self.metadata = dict(self.physics.task)
+        self.metadata = configure_force_observation(dict(self.physics.task), force_observation)
         if reward:
             unknown = set(reward) - set(REWARD_KEYS)
             if unknown:

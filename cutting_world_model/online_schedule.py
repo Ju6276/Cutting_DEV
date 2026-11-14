@@ -71,6 +71,10 @@ class OnlineSchedule:
             result.resume_provenance = 'empty_replay_refill'
         return result
 
+    @property
+    def finished(self):
+        return self.iteration >= self.config.total_iterations
+
     def after_environment_step(self):
         self.iteration += 1
         self.transitions += self.worlds
@@ -83,4 +87,83 @@ class OnlineSchedule:
                 self.accumulator -= 1.
                 updates += 1
                 self.update_iterations.append(self.iteration)
+        return updates
+
+
+class TransitionSchedule(OnlineSchedule):
+    """Opt-in collection-scaled cadence. Source OnlineSchedule stays unchanged.
+
+    Updates are earned by new physical transitions AFTER the warmup boundary.
+    Integer credits make restart and vector-width changes in separate fresh runs
+    independent of floating-point accumulation. LR uses 256-transition units.
+    """
+    def __init__(self, worlds, warmup_transitions=10240, transitions_per_update=640,
+                 lr_reference_worlds=256, config=None):
+        for name, value in (("warmup_transitions", warmup_transitions),
+                            ("transitions_per_update", transitions_per_update),
+                            ("lr_reference_worlds", lr_reference_worlds)):
+            if type(value) is not int or value < (0 if name == "warmup_transitions" else 1):
+                raise ValueError(name + " must be an integer in its valid range")
+        super().__init__(config=config, worlds=worlds)
+        self.warmup_transitions = warmup_transitions
+        self.transitions_per_update = transitions_per_update
+        self.lr_reference_worlds = lr_reference_worlds
+        self.warmup_start_transitions = 0
+        self.transition_credit = 0
+
+    def state_dict(self):
+        result = super().state_dict()
+        result.update(unit="physical_transitions_v2", state_version=3,
+                      warmup_transitions=self.warmup_transitions,
+                      transitions_per_update=self.transitions_per_update,
+                      lr_reference_worlds=self.lr_reference_worlds,
+                      warmup_start_transitions=self.warmup_start_transitions,
+                      transition_credit=self.transition_credit)
+        return result
+
+    @classmethod
+    def resume(cls, saved, worlds, *, replay_restored=True):
+        if saved.get("unit") != "physical_transitions_v2" or saved.get("state_version") != 3:
+            raise ValueError("Checkpoint lacks the physical-transitions schedule")
+        if saved["worlds"] != worlds:
+            raise ValueError("Checkpoint environment count differs")
+        result = cls(worlds=worlds, config=ScheduleCfg(**saved["config"]),
+                     **{k:saved[k] for k in ("warmup_transitions", "transitions_per_update",
+                                             "lr_reference_worlds")})
+        for key in ("iteration", "transitions", "warmup_start_transitions", "transition_credit"):
+            value = saved[key]
+            if type(value) is not int or value < 0:
+                raise ValueError("Invalid saved " + key)
+            setattr(result, key, value)
+        if result.warmup_start_transitions > result.transitions:
+            raise ValueError("Warmup origin exceeds collected transitions")
+        if result.transition_credit >= result.transitions_per_update:
+            raise ValueError("Invalid saved transition_credit")
+        result.start_iteration = saved["warmup_start_iteration"]
+        result.resume_provenance = saved.get("resume_provenance", "saved_transitions_v2")
+        if not replay_restored:
+            result.warmup_start_transitions = result.transitions
+            result.transition_credit = 0
+            result.start_iteration = result.iteration
+            result.resume_provenance = "empty_replay_refill"
+        return result
+
+    @property
+    def finished(self):
+        return self.transitions >= self.config.total_iterations * self.lr_reference_worlds
+
+    def after_environment_step(self):
+        previous = self.transitions
+        self.iteration += 1
+        self.transitions += self.worlds
+        self.checkpoint_due = self.iteration % self.config.checkpoint_interval == 0
+        boundary = self.warmup_start_transitions + self.warmup_transitions
+        earned = max(0, self.transitions - max(previous, boundary))
+        old_credit = self.transition_credit
+        updates, self.transition_credit = divmod(old_credit + earned, self.transitions_per_update)
+        # Attribute each update to the transition at which it was earned, not
+        # the end of a large vector batch; the LR clock is collection-aligned.
+        first = max(previous, boundary) + self.transitions_per_update - old_credit
+        self.update_iterations = [(first + i*self.transitions_per_update)/self.lr_reference_worlds
+                                  for i in range(updates)]
         return updates

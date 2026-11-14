@@ -15,50 +15,39 @@ Each episode samples E and cut-spring stiffness scales 0.5–2 and density
 once per world. No new geometry or material calibration is claimed.
 The old v3 checkpoint/replay is not resumed into this task.
 
-## Authorized main run
+## Authorized restart: collection-scaled, full wrench observation
 
-The user requested an A6000 long run after checking code/configuration.
-Use GPU1 only; GPU0's unrelated SuperMimic run is left untouched.
-Checkout: /dataHDD/dong/Projects/Cutting_DEV_pose_train_20261114.
-Configuration: [pose_three_object_train](../configs/free_cut/pose_three_object_train.json).
-64 worlds per object, 192 total, parallel object groups and one shared learner.
-Start fresh, 500 WM-only updates, real-data critic targets, actor horizon 8,
-BC 0.25, microbatch 128 and critic microbatch 8192. No risk-head variant.
+The user rejected the 192-world DiSECt and 3-world serial BladeMaster runs as
+long-training configurations. Both were stopped with SIGTERM and their last
+checkpoints/replay preserved. Neither had started policy updates. Their launch
+records are historical, not active jobs.
 
-Budget: at most 5000 vector iterations (960000 physical transitions) or
-24 wall hours, whichever occurs first; no automatic extension. Save every
-250 vector iterations, at WM warmup completion, first joint update and exit.
-Offline W&B plus local progress/episode/update JSON are sufficient; no login
-or key rotation is required for this run.
+Current work:
+1. Add opt-in sensor_wrench6_v1 actor observation (34 dimensions, retaining target
+   pose/velocity axes, reward and six-dimensional control actions). The old
+   SliceIt-derived selected-axis input stays available.
+2. Add physical-transition update cadence: 10240-transition warmup, then one
+   ten-minibatch WM round per 640 new transitions; unchanged source mode retained.
+   Preserve cadence/replay on restart, version metadata and collection-aligned LR.
+3. Capacity test >=256 worlds on each backend, including partial reset,
+   replay and actual WM+actor+critic updates. BladeMaster requires genuinely
+   batched material kernels, not simply 256 sequential solvers.
+4. Restart each validated backend from fresh networks: seed0, real critic,
+   actor horizon8, BC.25, 500 WM-only rounds. Each run has a 24h or 1280000
+   physical-transition ceiling, whichever first. No automatic extensions.
+   Do not touch unrelated jobs or claim equivalent physics/data distributions.
 
-Question: can the existing algorithm learn the current three-object pose task?
-Report per-object pose success, force/workspace/timeout outcomes, separation,
-speed error, return, force peaks and utilization, physical transition count,
-WM/critic diagnostics, reset/physics/update time and memory.
-This is a development run, not a matched-budget algorithm comparison.
-Do not redesign the reward from a few early failures. Nonfinite values,
-corrupt data or execution failures stop the run; ordinary timeouts do not.
-Wall-budget expiry saves and ends; checkpoint evaluation is a separate bounded job.
+A6000 GPU1: 384-world physical-step/reset probe passed (128 per object);
+768-world physical-step/reset probe also passed (~13.2s/step); full learning check next. Choose using measured throughput and full
+learning memory, not initialization alone. Do not change physics to fit memory.
+GPU7: BladeMaster batch implementation/independent-world validation in progress.
+New training has NOT launched yet.
+See [restart record](TRAINING_SCALE_20261114.md) and
+[force observation](WRENCH_OBSERVATION_REVIEW.md).
 
-Preflight passed: identical asset hashes, full suites,192-world physical learning,
-masked resets and replay/schedule restore. The A6000 GPU1 job launched at
-2026-11-14 06:21+01:00 from 905afb9, fresh networks; see the launch record.
-The short probe reduces WM warmup only for interface validation and is discarded;
-the long run starts fresh with the 500-update warmup.
-[Launch record](TRAINING_20261114.md) records the actual outcome and command.
-
-## Parallel work, separate physical identities
-
-- DiSECt tofu diagnostic fixed: former 10 mm minima were ghost nodes, not actual
-  contact geometry. New nominal reference sampled at 50 ms shows 0.309 mm actual
-  overlap. No physical parameter was changed; see GROUND_CONTACT_REVIEW.
-  It remains outside the main training distribution.
-- BladeMaster: uncut cucumber/half-potato/prism geometry and physical/update/
-  reset/resume checks passed. GPU7 training started from cf20ef0. Serial independent solvers,
-  initially one world per object; nominal parameters, different fracture law
-  and depth-progress task. It is not the same distribution/reward as the main run.
-  Its wall/iteration cap is at most 24 h / 5000 steps, without automatic extension.
-  Coordinate GPU7 validation with the tofu diagnostic and root regression suites.
+DiSECt tofu remains outside the main distribution. The former apparent 10mm
+overlap was a ghost-node diagnostic error; physical contact geometry is tracked
+separately, with no changed physical parameters. See GROUND_CONTACT_REVIEW.
 
 ## Completed evidence and scope
 

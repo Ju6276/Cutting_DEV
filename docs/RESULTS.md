@@ -1728,3 +1728,17 @@ external solver db06c1a,3 intact-object worlds and nominal parameters. Both star
 with500 WM-only updates. These are starts, not completed training results.
 The shared integration passed392 root tests/5 skips and39 backend tests; those
 include the logging and BM selected-world placement corrections.
+
+
+## 2026-11-14 — Stop initial multi-object runs for scale/interface correction
+
+The 192-world DiSECt and three-world serial BladeMaster jobs were interrupted
+with SIGTERM at the user's request to correct long-training scale/configuration.
+DiSECt stopped at iteration802,153984 physical transitions,304 completed WM rounds;
+BladeMaster at iteration552,1656 transitions,204 WM rounds. Both had zero policy
+updates. Final checkpoints and replay were preserved; they are engineering
+history, not completed learning results. The source vector-step cadence generated
+disproportionate fitting relative to the small BladeMaster data stream.
+The three-component policy wrench interface was a retained design, not a missing
+WM force output. The next run explicitly versions the six-component actor input.
+Restart details and capacity measurements: [TRAINING_SCALE_20261114](TRAINING_SCALE_20261114.md).

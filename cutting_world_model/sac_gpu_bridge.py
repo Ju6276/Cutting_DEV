@@ -98,13 +98,15 @@ def observation_size(environment):
         size += dims
     if environment["last_action_as_obs"]:
         size += environment["n_actions"]
-    return size + dims * environment["wrench_hist_size"]
+    return size + len(environment.get("force_observation_dims", environment["target_dims"])) * environment["wrench_hist_size"]
 
 
 def validate_task(source_parameters, metadata):
     """Require the source observation, reward, timing, and action definitions."""
     source = source_parameters["ur3e_gym"]
     current = metadata["environment"]
+    if current.get("force_observation_dims", current["target_dims"]) != current["target_dims"]:
+        raise ValueError("Original SliceIt SAC requires the legacy target-axis wrench observation")
     keys = (
         "target_dims", "n_actions", "action_type", "ft_hist", "wrench_hist_size",
         "last_action_as_obs", "normalize_velocity", "jerkiness_as_obs",

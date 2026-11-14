@@ -5,7 +5,7 @@ from torch import nn
 
 from .kinematics import (SerialKinematics, quat_exp, quat_mul, pose_difference,
                          observation_velocity)
-from .task_heads import SliceItHeads, pose_error
+from .task_heads import SliceItHeads, pose_error, FORCE_OBSERVATION_REVISION
 
 
 class CuttingStateSpec(nn.Module):
@@ -53,6 +53,14 @@ class CuttingStateSpec(nn.Module):
         self.fk = SerialKinematics(metadata['robot_xml'], metadata['robot_base'],
                                    metadata['robot_tip'], metadata['joint_names'])
         self.layout, self.shapes = {}, metadata['state_shapes']
+        if self.heads.force_dims != self.heads.dims:
+            if metadata.get('policy_observation_revision') != FORCE_OBSERVATION_REVISION:
+                raise ValueError('Six-axis wrench observations require versioned checkpoint metadata')
+            task = metadata.get('free_cut_task')
+            with_time = task is not None and task['version'] != 'free_cut_v1'
+            expected = self.heads.observation_dim + int(with_time)
+            if self.shapes['observation'] != [expected]:
+                raise ValueError('Checkpoint observation shape differs from its wrench interface')
         offset = 0
         for name in self.physical_fields + self.history_fields:
             size = int(np.prod(self.shapes[name]))

@@ -1,3 +1,9 @@
+> 2026-11-14 status update: the initial 192-world DiSECt / 3-world BladeMaster
+> runs have been saved and stopped. User-authorized >=256-world capacity checks,
+> full-wrench observation and collection-scaled scheduling are in progress.
+> See [current plan](docs/PLAN.md) and [restart record](docs/TRAINING_SCALE_20261114.md).
+> Earlier launch records below describe the stopped runs.
+
 # Cutting DEV
 
 UR5e robotic cutting with SliceIt/DiSECt, SAC and a SuperMimic-style learned
