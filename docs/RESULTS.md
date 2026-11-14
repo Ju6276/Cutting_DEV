@@ -1829,3 +1829,64 @@ cambel/cartesian_controllers FZI implementation (f4359b9). It is forward-dynamic
 Cartesian compliance/admittance control, producing joint **position** commands
 in this integration. It blends pose-derived virtual spring and wrench error;
 it is not UR's built-in force_mode nor a direct joint-torque policy.
+
+## 2026-11-14 — A6000 shared-device BladeMaster training capacity
+
+Stopped the user's HOAP-2 job on A6000 GPU0 by SIGINT to its verified process
+group (1057890); supervisor exited with code 130. Existing HOAP outputs and
+checkpoints were retained. Another user's openpi remained active, consuming
+26,224 MiB on GPU0 and 44,110 MiB on GPU1. GPU0 had 22,265 MiB free before probes.
+
+Same intact cucumber / half potato / prism assets and nominal material presets
+as the 256-world BladeMaster configuration. Full six-wrench observations (34),
+state 980, source-sized networks, WM batch 2048/window 8/10 minibatches, policy
+batch 4096/actor h8/BC 0.25, real critic 4096 windows of 32 steps/131,072 samples.
+Microbatch 512 and critic microbatch 8192; replay capacity 1000 per world.
+Each probe collects 40 fresh physical steps, then updates, resets one world per
+object, saves/restores learner+replay, and updates again. WM warmup is skipped
+only to exercise the learning lifecycle in this bounded preflight.
+
+Cutting_DEV code: 3738271 (clean); external BladeMaster source: e2e5221 (clean).
+The run-local probe adapts scripts/check_training_capacity.py by selecting
+BladeMasterEnvironment and overriding both group counts and total worlds.
+GPU0 free-memory reserve criterion: 3 GiB after learning and restoration.
+Total active probe time: about 63 minutes, within the two-hour budget.
+
+| Worlds | Cucumber / potato / prism | Mean physical step (s) | Observed peak process memory (MiB) | Free after restore (GiB) | Result |
+|---:|---|---:|---:|---:|---|
+| 256 | 86 / 85 / 85 | 27.69 | 22004 | N/A | Updates passed; robot reset allocation failed |
+| 192 | 64 / 64 / 64 | 22.33 | 17302 | 4.84 | Full lifecycle passed |
+| 208 | 70 / 69 / 69 | 23.50 | 18354 | 3.81 | Full lifecycle passed |
+
+For 256 worlds the complete initial WM, actor and critic updates were finite.
+Only 0.312 GiB remained after learning; the MuJoCo Warp collision temporaries
+during selected reset exhausted device memory. No successful restore is claimed
+for that size. The memory watchdog stopped that probe and resources were released.
+
+192 and 208 worlds both passed all phases. Unselected worlds were unchanged by
+reset, and each completed 20 WM optimizer steps, 2 policy steps and 40 critic
+steps including restoration. 208 worlds left 3.814 GiB after restore and
+completed in 1,173 s; 192 left 4.841 GiB and completed in 1,123 s.
+These short collections had no completed episodes; physical reference task
+completion remains the separate previously recorded check.
+
+208 is the largest fully validated candidate in this shared-device probe.
+224 was estimated below the chosen reserve using measured scaling and was not
+run; neither the exact shared-device maximum nor an exclusive 48 GB maximum was
+measured. The earlier GPU7 256-world preflight used microbatch 64 and a different
+restore allocation pattern; these are not matched hardware-throughput tests.
+The timings here include contention with openpi.
+
+Evidence on A6000:
+ /dataHDD/dong/Experiments/Cutting_DEV/runs/bm_a6000_capacity_20261114/
+contains configs, probe/supervisors, logs, reports, and successful learner/replay
+checkpoints. GPU7 has the same records excluding checkpoint tensors under the
+same runs name. No new BladeMaster long training was launched; GPU7's active
+3072-world DiSECt-backed WM+BPTT run was unchanged.
+
+GPU7 status at this review: iteration 160, 491,520 transitions, WM updates 715,
+policy updates 215, running. Its latest 1,000 completed training episodes were
+838 pose successes and 162 force-limit failures (all failures from prism).
+Earlier windows differed substantially; this is online completed-episode data,
+not a frozen success-rate evaluation. W&B run k48zc1lh remains offline with no
+cloud URL or sync marker.

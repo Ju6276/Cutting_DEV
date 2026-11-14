@@ -64,3 +64,14 @@ See [RESULTS](RESULTS.md), [task](TASK_FREE_CUT.md),
 [assets](BLADEMASTER_DISECT_ASSETS.md) and [backend](BLADEMASTER_BACKEND_REVIEW.md).
 Do not wait to explain every residual cutting spring before progressing with
 the selected pose task. Keep all assets/checkpoints on servers.
+
+### A6000 BladeMaster capacity — completed 2026-11-14
+
+The user's HOAP job was stopped as requested; other users' jobs remain active.
+With openpi occupying 26,224 MiB of GPU0, the three-object full training
+preflight passed at 192 and 208 environments. At 256, updates passed but robot
+reset ran out of memory. 208 (70 cucumber / 69 half-potato / 69 prism) is the
+largest validated shared-device candidate, with 3.81 GiB free after restore;
+exclusive 48 GB capacity is still unmeasured. No BladeMaster long run started.
+See RESULTS: "A6000 shared-device BladeMaster training capacity" and
+runs/bm_a6000_capacity_20261114. The active GPU7 main run is unchanged.
