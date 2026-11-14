@@ -178,9 +178,11 @@ def test_free_cut_grouped_goal_replay_and_partial_reset(parallel):
                  target_speed=[.03, .03], settle_seconds=.002, force_model='net',
                  friction_velocity=.01, material={'youngs_modulus': [1., 2.]})
     cfg = dict(force_limits=[50, 50, 50, 5, 5, 5], parallel=parallel, task=task_config(3),
-               groups=[dict(group, name='a'), dict(group, name='b')])
+               groups=[dict(group, name='a'), dict(group, name='b', settle_seconds=.004)])
     env = MultiConditionEnvironment.from_config(root, cfg)
     try:
+        assert 'settle_seconds' not in env.metadata
+        assert [r['settle_seconds'] for r in env.metadata['group_reset_settings']] == [.002, .004]
         one = {k: v[0].cpu().numpy() for k, v in env.current.items()}
         wm = CuttingWorldModel(ControlStateSpec.metadata_from_frame(env.metadata, one),
                                hidden=(12, 12)).cuda()

@@ -164,8 +164,8 @@ GPU9: see "Data on other servers".
   tetrahedral mesh, then the exporter rebuilds its cutting interface.
 - Export: `/dataHDD/dong/Assets/Cutting_DEV/prepared/sweep/free_potato_stable_20261114_v3/scene.pt`.
   The directory suffix denotes an export attempt, not the free_cut_v3 task.
-- Development configuration: `configs/free_cut/pose_potato.json`, with 8 s
-  per-material settling. This is not a bulk training dataset.
+- Historical whole-potato preparation used 8 s per-material settling. The current
+  `configs/free_cut/pose_potato.json` selects the half-potato asset below with 1 s.
 - Checks/temporary engineering checkpoints: `runs/pose_task_20261114/` on GPU7.
   They use task `free_cut_pose_v1`; none is a learned cutting-policy result.
 - Failed export-attempt logs and historical data are retained in run storage,
@@ -179,7 +179,8 @@ asset and not a fixed object. Mesh:
 `/dataHDD/dong/Research/food_meshes/tet/potato_003_half_20261114.msh`;
 scene: backend `runs/sweep/free_potato_half_20261114/scene.pt`;
 source configuration: `configs/free_scenes/potato_003_half.json`.
-Original whole geometry and active development configs remain unchanged.
+Original whole geometry remains available. The active potato development config
+now selects this half with 1 s settling after the randomized reset check.
 Asset invariants, exact conditions, settling traces and reference results are in
 `runs/potato_preparation_20261114/`; interpretation is in RESULTS 2026-11-14.
 
@@ -199,3 +200,21 @@ Display mappings and stills remain in server runs, including
 `runs/multi_scene_preview_20261114/{cucumber,potato}/appearance.npz`.
 Mappings include the recording and texture checksums; applying one to a different
 recording is rejected. No weights, meshes or textures were added to Git.
+
+
+## Half-potato reset and reward audit — 2026-11-14
+
+- Active asset: `prepared/sweep/free_potato_half_20261114/scene.pt`.
+- Randomized production resets: `runs/half_potato_randomized_20261114/`.
+  128 draws from the configured E/density/cutting-spring distributions, randomized
+  clearance/speed, plus 16 E/density/spring/clearance endpoint combinations.
+  All 144 passed the unchanged stability window over a 0.5 s post-reset observation.
+- Reward audit output: `runs/pose_reward_audit_20261114/`; read completed
+  `report.json`/summary only. Per-step raw states, outcomes and reward components
+  are retained. Physical references are not inserted into policy replay.
+
+### BladeMaster paths added 2026-11-14
+
+DiSECt-compatible meshes: `/dataHDD/dong/Assets/Cutting_DEV/blademaster_disect_20261114/`; exported scenes: backend `runs/sweep/bm_{banana,cake,tofu,luncheon}_20261114/scene.pt`. Preparation/reference evidence: `runs/bm_disect_assets_20261114/`. Source geometry/parameter identities and exclusions are in [the asset note](BLADEMASTER_DISECT_ASSETS.md).
+
+Independent BM/UR5e physical interaction, real-action replay and optimizer/restart checks: `runs/blademaster_ur5e_20261114/`; general training-entry smoke run: `runs/blademaster_entry_20261114/`. External solver source is configurable and not bundled. No new source, weights or datasets were copied to Mac.

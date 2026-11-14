@@ -251,10 +251,23 @@ class MultiConditionEnvironment:
                     member.finish_start(self.device)
             # Friction can differ by object. Observation/limit frames must still agree.
             self.metadata = dict(self.members[0].metadata)
-            shared = lambda m: {k: v for k, v in m.items() if k != 'material_contact'}
+            # Reset preparation can differ by object without changing learner
+            # state/reward semantics. Preserve it explicitly at group scope.
+            per_group = {'material_contact', 'settle_seconds', 'reset_material_protocol'}
+            shared = lambda m: {k: v for k, v in m.items() if k not in per_group}
             for member, group in zip(self.members[1:], self.groups[1:]):
                 if shared(member.metadata) != shared(self.metadata):
                     raise ValueError(f'{group.name}: task metadata differs from {self.groups[0].name}')
+            reset_settings = [
+                {'settle_seconds': m.metadata.get('settle_seconds', 0.),
+                 'reset_material_protocol': m.metadata.get('reset_material_protocol')}
+                for m in self.members]
+            if any(settings != reset_settings[0] for settings in reset_settings[1:]):
+                self.metadata.pop('settle_seconds', None)
+                self.metadata.pop('reset_material_protocol', None)
+                self.metadata['group_reset_settings'] = [
+                    {'name': g.name, 'scene': g.scene, **settings}
+                    for g, settings in zip(self.groups, reset_settings)]
             if any('material_contact' in m.metadata for m in self.members):
                 self.metadata.pop('material_contact', None)
                 self.metadata['group_material_contact'] = [

@@ -241,3 +241,10 @@ The grid uses display offsets only. All worlds retain individual simulated
 geometry; robot visual mappers are shared to reduce rendering cost. Material
 uses a distant fallback color. The image explicitly says NO TRAINING and its
 sidecar records all world IDs and the captured-state checksum.
+
+## Current preparation and reward checks
+
+- `check_potato_randomized_reset.py`: production half-potato resets over 128 distribution draws and 16 parameter corners; fixed stability criteria, no material retuning.
+- `audit_pose_reward.py`: ten independent reference motions per object under the actual pose reward, with raw transitions, reward decomposition and WM-equation checks. It uses reference commands, not policy actions; it does not establish learned-model accuracy.
+- `prepare_blademaster_disect_assets.py` and `check_blademaster_disect_assets.py`: four analytic reproduction assets, prescribed cut topology, compatible elastic coefficients only.
+- `check_blademaster_backend.py`: actual UR5e/BladeMaster interaction and optimizer/replay checks. Training entry is `train_gpu.py --blademaster-config configs/blademaster/banana_ur5e.json`; this is an independent task identity and requires the external reproduction checkout and scipy. See the backend review before running.

@@ -1,5 +1,5 @@
 {
-  "description": "Pose task development only: potato; horizon is not yet a multi-object training budget",
+  "description": "Pose task development: freely placed flat-bottom half potato; matched randomized reset checked separately",
   "status": "New task identity; old checkpoints/replay cannot silently resume into it.",
   "seed": 0,
   "force_limits": [
@@ -45,8 +45,8 @@
   },
   "groups": [
     {
-      "name": "free_potato",
-      "scene": "runs/sweep/free_potato_stable_20261114_v3/scene.pt",
+      "name": "free_potato_half",
+      "scene": "runs/sweep/free_potato_half_20261114/scene.pt",
       "worlds": 4,
       "clearance": [
         0.005,
@@ -72,7 +72,7 @@
       ],
       "force_model": "net",
       "friction_velocity": 0.01,
-      "settle_seconds": 8.0,
+      "settle_seconds": 1.0,
       "sim_dt": 8e-06
     }
   ]

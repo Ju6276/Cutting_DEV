@@ -831,3 +831,11 @@ initialization and settling; it performs no control actions or optimizer updates
 `render_environment_batch.py` uses each world's captured robot transforms and
 particles, arranging isolated worlds in a display-only grid. Such images are
 initialization previews, not screenshots of an ongoing training run.
+
+## Additional material implementations (2026-11-14)
+
+The [BladeMaster-derived DiSECt candidates](BLADEMASTER_DISECT_ASSETS.md) keep the current prescribed-interface pose task. Only geometry and compatible elastic quantities (E, nu, rho) transfer; cutting-spring and contact values remain explicitly inherited from the DiSECt template. They are reproduction shapes, not scanned foods or real-food calibrations.
+
+The [BladeMaster UR5e adapter](BLADEMASTER_BACKEND_REVIEW.md) instead runs the external forward material solver with the existing robot, six-action FDCC interface and 500 Hz sensor-wrench feedback. It has the independent `blademaster_pose_v1` identity and analytical board-normal depth progress, no DiSECt cut-spring input or separation label. Real mapped actions feed the normal replay/WM/BPTT update path. Material reaction reaches the robot through controller feedback, not an additional full two-way MuJoCo contact solve. The current batch implementation has serial independent material solvers and is not a 256-world throughput claim.
+
+Per-object settling settings now belong to `group_reset_settings` when object groups differ. Shared reward, force limits and robot/task fields must still match. Homogeneous groups retain the former metadata shape for compatibility.

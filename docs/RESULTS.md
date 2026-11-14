@@ -1615,3 +1615,70 @@ The actual-scene display check `single_tool_checks.json` confirms that enabling
 the debug blade adds exactly one visible actor per viewport and leaves material
 and knife coordinates unchanged; exterior scan colors remain identical.
 `capture_checks.json` verifies the 256-world snapshot and local topology.
+
+## 2026-11-14 — Half-potato selection and completed integration work
+
+The user selected the free flat-bottom half as the default potato. Only the active scene/name and per-material settle duration (1 s) changed; the whole asset remains for historical comparisons. Production material sampling covered 128 draws plus all 16 E/density/spring/clearance corners. All **144/144** met the existing stability criteria throughout a 0.5 s follow-up: 0.25 s windows, COM speed <=0.2 mm/s, mass-weighted particle RMS <=1 mm/s, displacement <=0.01 mm. No initial tool contact, cutting damage or fixed particles. This is finite coverage of the declared range, not a proof for every possible draw. Evidence: `runs/half_potato_randomized_20261114/`.
+
+An actual multi-object construction exposed a metadata bug: different per-object settling durations were treated as different reward/task definitions. The metadata now records heterogeneous reset settings per object; shared force, reward and robot definitions must still agree. Serial/process group regression checks passed. A three-object batch (cucumber, half potato, prism) then collected 36 real transitions and performed one WM plus one actor/critic update with finite losses and gradients. Evidence: `runs/half_potato_multi_update_20261114/`. This validates the shared update path, not policy convergence.
+
+Whole/half force differences are observations under changed geometry, mass, height and discretization together. They do not isolate shape from size, nor constitute real-food calibration.
+
+### Complete pose-task reference audit (30 episodes)
+
+Three objects, ten reference commands each. Same nominal material multiplier, 10 mm initial clearance, 30 mm/s target speed, 180-step horizon, gamma=1 and existing six-axis limits. Labels fast/extreme-fast describe commanded feed multipliers (3x/20x), not measured robot-speed multipliers. References bypass the learned six-action mapping and are not replay training actions.
+
+| Object | Reference | Outcome | Steps | Return | Released / total springs |
+|---|---|---|---:|---:|---:|
+| cucumber | press | success | 46 | 107.620 | 65/65 |
+| cucumber | saw | success | 46 | 108.274 | 63/65 |
+| cucumber | fast | success | 28 | 104.743 | 62/65 |
+| cucumber | extreme_fast | success | 22 | 103.419 | 62/65 |
+| cucumber | slow | success | 140 | 96.310 | 62/65 |
+| cucumber | stall | timeout | 180 | -20.000 | 0/65 |
+| cucumber | retract | timeout | 180 | -17.276 | 18/65 |
+| cucumber | slow_press | success | 89 | 101.761 | 62/65 |
+| cucumber | hold_in_material | timeout | 180 | -15.136 | 21/65 |
+| cucumber | force_attempt | timeout | 180 | -14.128 | 64/65 |
+| potato | press | success | 39 | 102.848 | 75/144 |
+| potato | saw | success | 39 | 102.876 | 75/144 |
+| potato | fast | success | 27 | 101.830 | 75/144 |
+| potato | extreme_fast | success | 23 | 101.751 | 75/144 |
+| potato | slow | success | 106 | 95.512 | 75/144 |
+| potato | stall | timeout | 180 | -20.000 | 0/144 |
+| potato | retract | timeout | 180 | -18.671 | 1/144 |
+| potato | slow_press | success | 70 | 98.339 | 75/144 |
+| potato | hold_in_material | timeout | 180 | -18.293 | 25/144 |
+| potato | force_attempt | timeout | 180 | -16.497 | 86/144 |
+| prism | press | success | 54 | 107.469 | 262/304 |
+| prism | saw | success | 54 | 107.475 | 264/304 |
+| prism | fast | success | 31 | 104.528 | 262/304 |
+| prism | extreme_fast | success | 25 | 102.685 | 261/304 |
+| prism | slow | success | 168 | 94.776 | 259/304 |
+| prism | stall | timeout | 180 | -20.000 | 0/304 |
+| prism | retract | timeout | 180 | -15.362 | 85/304 |
+| prism | slow_press | success | 108 | 100.867 | 258/304 |
+| prism | hold_in_material | timeout | 180 | -14.327 | 114/304 |
+| prism | force_attempt | timeout | 180 | -14.663 | 256/304 |
+
+The success settlement is the user-selected pose/counter rule without failure. Spring release is a separate measurement; pose success is not a claim of complete physical separation. All terminal cases were retained, including timeouts. No task threshold or reward weight was changed to obtain these results.
+
+| Object, normal press | Peak material force (N) | Maximum sensor-limit utilization | Minimum blade-board gap (mm) |
+|---|---:|---:|---:|
+| cucumber | 3.540 | 0.068 | 0.183 |
+| potato | 7.827 | 0.147 | 0.546 |
+| prism | 4.204 | 0.109 | 0.160 |
+
+Maximum reward decomposition error: 3.72e-06; WM reward-equation error supplied with the actual physical next-state fields: 3.72e-06. This checks equations and time alignment, not learned-model prediction accuracy. Physically observed force-terminal episodes: **0/30**. The aggressive force-attempt command is not claimed to trigger a force event if it did not. Unit coverage of force settlement must not be described as a physical force-limit episode.
+
+Raw per-step rewards, components, poses, forces, terminal flags and packed transitions are in `runs/pose_reward_audit_20261114/`. Manifests explicitly record nominal-material and clearance/speed overrides of the source development configs. Shared GPU timings are not throughput benchmarks. These are finite reference comparisons, not policy performance or reward-optimality proofs.
+
+### Two additional material paths
+
+- Four BladeMaster reproduction shapes were converted to DiSECt prescribed interfaces: banana, cake, tofu and luncheon. All passed topology checks and completed nominal pose references, none fully separated. E/nu/rho transfer is explicit; fracture/plasticity is not mapped to cut springs. Cake/tofu defaults now settle for 3 s and have actual reset/step checks. **Tofu is not training-ready under the inherited ground parameters**: material penetrated the penalty ground by about 4.7 mm initially and 10.4 mm at the end of the old 0.75 s reference. Knife nonpenetration is a distinct condition. All four remain candidate assets. Details: [asset note](BLADEMASTER_DISECT_ASSETS.md).
+
+- Independent BladeMaster/UR5e backend: actual 37-step reference completion, 48 mapped-action transitions, finite and changing WM/actor/critic weights, optimizer/replay restore followed by another update, and two-world masked reset preserving the other world exactly. The real knife now has a swept-board guard at each 1 ms robot substep. Separate `blademaster_pose_v1` uses analytical depth progress, not DiSECt spring labels; do not present it as a matched-reward backend comparison. Details: [backend review](BLADEMASTER_BACKEND_REVIEW.md).
+
+### Integrated validation
+
+Final root suite: **366 passed, 5 skipped**; backend: **38 passed**. Logs: `runs/half_potato_integration_verified_root_20261114.log` and `runs/half_potato_integration_backend_20261114.log`. The added legacy-reward-override rejection test initially had a script-import-path error; the test harness was corrected, its focused suite passed 15 tests, and the final full suite above passed. No long training was launched and no source/weights/data were copied to Mac.

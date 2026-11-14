@@ -1,7 +1,7 @@
 # Cutting DEV
 
 UR5e robotic cutting with SliceIt/DiSECt, SAC and a SuperMimic-style learned
-world model. The robot and material execute physical transitions; policy
+world model, plus an independently versioned BladeMaster material adapter. The robot and material execute physical transitions; policy
 gradients pass through the learned world model.
 
 | Component | Location | Responsibility |
@@ -19,7 +19,7 @@ gradients pass through the learned world model.
 
 The selected task direction is **target-pose completion with a board execution boundary**. Material separation and knife coverage are reported separately, not extra completion gates; existing release-progress reward shaping remains. The v3 free-cucumber policy has 543 updates; v4 was a frozen-policy coverage/board audit and is now a historical diagnostic, not a long-training recipe.
 
-The board stop is implemented and physically checked; it is not a compliant board-force simulator. The new task is implemented as `free_cut_pose_v1`, with the existing v3 running rewards retained and pose-based +100 settlement. Development configurations and remaining work are listed in [PLAN](docs/PLAN.md). No new long training was launched. Current definition: [TASK_FREE_CUT](docs/TASK_FREE_CUT.md); dated evidence: [RESULTS](docs/RESULTS.md).
+The board stop is implemented and physically checked; it is not a compliant board-force simulator. The new task is implemented as `free_cut_pose_v1`, with the existing v3 running rewards retained and pose-based +100 settlement. The default pose-task potato is now the freely placed flat-bottom half, with 1 s per-material settling checked on 144 conditions. Development configurations and remaining work are listed in [PLAN](docs/PLAN.md). No new long training was launched. Current definition: [TASK_FREE_CUT](docs/TASK_FREE_CUT.md); dated evidence: [RESULTS](docs/RESULTS.md).
 
 Historical source and v1-v3 code/checkpoints remain for reproduction. The default source command below lacks the new board boundary; do not mistake it for the next training launch. Material/friction values remain uncalibrated for the real robot.
 
@@ -132,3 +132,7 @@ they cannot establish physical separation or real-robot force safety.
 
 The two original Git histories are retained. Third-party licenses are listed
 in [NOTICE](NOTICE.md). Data, credentials and environments stay outside Git.
+
+## Additional material paths
+
+[BladeMaster-derived DiSECt assets](docs/BLADEMASTER_DISECT_ASSETS.md) retain prescribed cut planes and transfer only compatible elastic parameters. [BladeMaster UR5e backend](docs/BLADEMASTER_BACKEND_REVIEW.md) uses the external forward solver and a distinct depth-progress task; it does not reuse DiSECt spring labels or checkpoints. These are bounded engineering validations, not long-trained policies or calibrated real-food models.

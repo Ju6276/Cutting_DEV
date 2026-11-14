@@ -16,6 +16,8 @@
 | [NOVELTY](NOVELTY.md) | Literature evidence and candidate ideas, not implemented methods |
 | [READING_LIST](READING_LIST.md) | Literature/data entry points |
 | [REAL2SIM](REAL2SIM.md) | Conditional real-robot draft, not a scheduled task |
+| [BladeMaster assets](BLADEMASTER_DISECT_ASSETS.md) | Four reproduction geometries and elastic parameters converted to prescribed-interface DiSECt scenes |
+| [BladeMaster backend](BLADEMASTER_BACKEND_REVIEW.md) | Independent UR5e/FDCC material backend, distinct task semantics and actual update/restart checks |
 | [SOURCES](SOURCES.md) | Upstream versions and provenance |
 
 [Script map](../scripts/README.md) distinguishes current execution, source
