@@ -16,6 +16,9 @@ class ControlStateSpec(CuttingStateSpec):
     @classmethod
     def metadata_from_frame(cls, task, frame):
         if task.get('free_cut_task') and cls is ControlStateSpec:
+            if task['free_cut_task']['version'] == 'blademaster_pose_v1':
+                from .blademaster_state import BladeMasterStateSpec
+                return BladeMasterStateSpec.metadata_from_frame(task, frame)
             from .free_cut_state import FreeCutStateSpec
             return FreeCutStateSpec.metadata_from_frame(task, frame)
         result = dict(task)

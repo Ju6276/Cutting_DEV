@@ -108,7 +108,7 @@ class OnlineLearner:
         self.microbatch = microbatch
         self.wcfg, self.pcfg = wm_cfg or WMTrainerCfg(), policy_cfg or PolicyTrainerCfg()
         task = wm.spec.metadata.get('free_cut_task', {})
-        if task.get('version') in ('free_cut_v2', 'free_cut_v3', 'free_cut_pose_v1'):
+        if task.get('version') in ('free_cut_v2', 'free_cut_v3', 'free_cut_pose_v1', 'blademaster_pose_v1'):
             if policy_cfg is not None and policy_cfg.gamma != task['gamma']:
                 raise ValueError('Policy/critic discount must match the finite-horizon task')
             self.pcfg = replace(self.pcfg, gamma=task['gamma'])

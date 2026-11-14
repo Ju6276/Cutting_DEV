@@ -121,6 +121,7 @@ def main():
     parser.add_argument('--risk-lambda-lr', type=float, default=50.)
     parser.add_argument('--checkpoint-every', type=int, default=0,
                         help='also save checkpoint_<iteration>.pt (and the replay) every N iterations; 0: off')
+    parser.add_argument('--blademaster-config', type=Path, help='Independent BladeMaster UR5e task JSON')
     parser.add_argument('--conditions', type=Path,
                         help='multi-condition task JSON (object groups, materials, start clearance, '
                              'target speeds, w_speed); worlds = sum of group worlds')
@@ -164,7 +165,17 @@ def run(args, output, status, started):
     reward = ({'force_penalty': 'linear', 'force_penalty_scale': args.force_penalty_scale}
               if args.force_penalty == 'linear' else None)
     conditions = None
-    if args.conditions is not None:
+    if getattr(args, 'blademaster_config', None) is not None:
+        if args.conditions is not None:
+            raise ValueError('Choose BladeMaster config or DiSECt conditions, not both')
+        if reward is not None:
+            raise ValueError('BladeMaster uses its task reward; legacy force-penalty overrides are unsupported')
+        from cutting_world_model.blademaster_backend import BladeMasterEnvironment
+        env = BladeMasterEnvironment(args.backend_root, json.loads(args.blademaster_config.read_text()))
+        args.worlds = env.worlds
+        status['worlds'] = env.worlds
+        task_goal = BladeMasterEnvironment.goal
+    elif args.conditions is not None:
         from cutting_world_model.multi_env import MultiConditionEnvironment
         conditions = json.loads(args.conditions.read_text())
         if conditions.get('w_speed'):

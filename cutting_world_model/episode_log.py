@@ -15,9 +15,10 @@ def episode_metrics(prefix, mask, returns, lengths, info, truncated, peak_materi
             prefix + 'collision_rate': float(info['collision'][mask].float().mean()),
             prefix + 'outside_rate': float(info['outside'][mask].float().mean()),
             prefix + 'truncated_rate': float(truncated[mask].float().mean()),
-            **({prefix + 'timeout_rate': float(info['timeout'][mask].float().mean()),
-                prefix + 'separated_rate': float(info['separated'][mask].float().mean())}
+            **({prefix + 'timeout_rate': float(info['timeout'][mask].float().mean())}
                if 'timeout' in info else {}),
+            **({prefix + 'separated_rate': float(info['separated'][mask].float().mean())}
+               if 'separated' in info else {}),
             prefix + 'peak_material_force_mean': float(peak_material[mask].float().mean()),
             prefix + 'peak_limit_ratio_mean': float(peak_ratio[mask].float().mean())}
 
@@ -45,11 +46,12 @@ def episode_row(e, episode, iteration, returns, lengths, info, truncated, peak_m
                             bool(info['timeout'][e]) if 'timeout' in info else False),
            'success': bool(info['success'][e]), 'collision': bool(info['collision'][e]),
            'outside': bool(info['outside'][e]), 'truncated': bool(truncated[e]),
-           'released_springs': int(info['released_springs'][e]),
+
            'peak_material_force_n': float(peak_material[e]), 'peak_limit_ratio': float(peak_ratio[e])}
-    if 'timeout' in info:
-        row.update(timeout=bool(info['timeout'][e]), separated=bool(info['separated'][e]),
-                   cut_progress=float(info['cut_progress'][e]))
+    for key, cast in (('timeout', bool), ('separated', bool), ('cut_progress', float),
+                      ('depth_progress', float), ('released_springs', int)):
+        if key in info:
+            row[key] = cast(info[key][e])
     if condition is not None:
         row['condition'] = condition
     return row

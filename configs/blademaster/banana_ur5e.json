@@ -1,0 +1,49 @@
+{
+  "description": "Independent BM blade-depth pose task; interface validation limits, not calibrated hardware limits.",
+  "source_root": "/dataHDD/dong/Projects/BladeMaster-Warp-forward-check-20261107",
+  "material": "paper-banana",
+  "worlds": 1,
+  "clearance_m": 0.005,
+  "settle_seconds": 0.1,
+  "force_limits": [
+    50.0,
+    50.0,
+    50.0,
+    5.0,
+    5.0,
+    5.0
+  ],
+  "task": {
+    "version": "blademaster_pose_v1",
+    "horizon_steps": 180,
+    "weights": {
+      "progress": 10,
+      "speed": 20,
+      "load": 1,
+      "jerk": 0.1,
+      "success": 100,
+      "failure": 100
+    },
+    "gamma": 1.0,
+    "initial_progress_fraction": 0.001,
+    "workspace": {
+      "frame": "robot_base",
+      "point": "ee",
+      "lower": [
+        0.038,
+        0.405,
+        0.096
+      ],
+      "upper": [
+        0.238,
+        0.605,
+        0.269
+      ]
+    },
+    "board": {
+      "height_m": 0.0,
+      "stop_gap_m": 1e-06
+    }
+  },
+  "target_speed_m_s": 0.03
+}

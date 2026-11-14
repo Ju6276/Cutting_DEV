@@ -8,7 +8,7 @@ import numpy as np
 import torch
 
 REVISION = 'free_cut_v3'
-SUPPORTED_REVISIONS = ('free_cut_v1', 'free_cut_v2', REVISION, 'free_cut_v4', 'free_cut_pose_v1')
+SUPPORTED_REVISIONS = ('free_cut_v1', 'free_cut_v2', REVISION, 'free_cut_v4', 'free_cut_pose_v1', 'blademaster_pose_v1')
 WEIGHTS = ('progress', 'speed', 'load', 'jerk', 'success', 'failure')
 
 
@@ -29,7 +29,7 @@ def validate_task(config):
         lo, hi = np.asarray(box['lower']), np.asarray(box['upper'])
         if lo.shape != (3,) or hi.shape != (3,) or not np.isfinite([lo, hi]).all() or not (lo < hi).all():
             raise ValueError('Workspace needs finite ordered XYZ bounds')
-    if config['version'] in ('free_cut_v4', 'free_cut_pose_v1'):
+    if config['version'] in ('free_cut_v4', 'free_cut_pose_v1', 'blademaster_pose_v1'):
         required.add('board')
         board = config.get('board', {})
         expected = {'height_m', 'stop_gap_m'}
@@ -95,7 +95,7 @@ class FreeCutTask:
         self.horizon = self.config['horizon_steps']
         self.weights = self.config['weights']
         self.dt = heads.env['agent_control_dt']
-        if self.config['version'] in ('free_cut_v3', 'free_cut_v4', 'free_cut_pose_v1'):
+        if self.config['version'] in ('free_cut_v3', 'free_cut_v4', 'free_cut_pose_v1', 'blademaster_pose_v1'):
             # Over one finite episode: sum positive delta-rho <= 1 and sum dt/T <= 1.
             # Enforce settlement dominance for every accepted configuration, not one probe.
             penalty_bound = (2 * self.weights['speed'] + self.horizon * self.dt *
@@ -137,7 +137,7 @@ class FreeCutTask:
             force = force | collision
         outside = self.workspace(observation, pose)
         separated = progress >= 1
-        if self.config['version'] == 'free_cut_pose_v1':
+        if self.config['version'] in ('free_cut_pose_v1', 'blademaster_pose_v1'):
             if success_counter is None or board is None:
                 raise ValueError('Pose task requires arrival counter and board measurements')
             if bool((board['knife_min_board_gap'][..., 0] < -2e-6).any()):
@@ -179,7 +179,7 @@ class FreeCutTask:
         utilization = (peak.abs() / peak.new_tensor(self.heads.force_limits)).amax(-1)
         jerk = self.heads.jerkiness(observation).clamp(max=1)
         increment = progress - previous_progress
-        if self.config['version'] in ('free_cut_v3', 'free_cut_v4', 'free_cut_pose_v1'):
+        if self.config['version'] in ('free_cut_v3', 'free_cut_v4', 'free_cut_pose_v1', 'blademaster_pose_v1'):
             # Symmetric relative mismatch: reciprocal speeds v/v* and v*/v have
             # equal cost per released fraction. Reverse motion has maximum cost.
             mismatch = ((speed - target_speed) / (speed.abs() + target_speed)).square()

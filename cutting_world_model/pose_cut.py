@@ -58,38 +58,7 @@ class PoseCutStateSpec(FreeCutStateSpec):
     @torch.compiler.disable
     def integrate_physical(self, state, delta):
         fields = super().integrate_physical(state, delta)
-        old_q = self.field(state,'joint_q')
-        proposed = fields['joint_q']
-        start_gap = gap_from_pose(self.fk(old_q), self.board_geometry)
-        end_gap = gap_from_pose(self.fk(proposed), self.board_geometry)
-        stop = self.board_geometry['stop_gap_m']
-        limited = end_gap < stop
-        # A learned transition is a discrete endpoint prediction. Projection is a
-        # kinematic boundary proxy, not a claim of predicted board contact force.
-        fraction=torch.ones_like(end_gap)
-        if bool(limited.any()):
-            lo, hi = torch.zeros_like(end_gap), torch.ones_like(end_gap)
-            with torch.no_grad():
-                for _ in range(32):
-                    mid=(lo+hi)/2
-                    safe=gap_from_pose(self.fk(old_q+mid[...,None]*(proposed-old_q)),self.board_geometry)>=stop
-                    lo=torch.where(safe,mid,lo);hi=torch.where(safe,hi,mid)
-            root_q=old_q+lo[...,None]*(proposed-old_q)
-            root_gap=gap_from_pose(self.fk(root_q),self.board_geometry)
-            if torch.is_grad_enabled() and root_q.requires_grad:
-                # Implicit derivative of gap(q_old + alpha*dq)=stop. Treating
-                # bisection alpha as a constant gives an incorrect BPTT gradient.
-                normal=torch.autograd.grad(root_gap.sum(),root_q,retain_graph=True)[0]
-                slope=(normal*(proposed-old_q)).sum(-1).detach()
-                valid=slope.abs()>1e-10
-                denom=torch.where(valid,slope,torch.ones_like(slope))
-                correction=(root_gap-root_gap.detach())/denom
-                lo=lo-torch.where(valid,correction,torch.zeros_like(correction))
-            fraction=torch.where(limited,lo,fraction)
-        fraction=torch.where(start_gap < stop-2e-6,torch.zeros_like(fraction),fraction)
-        fields['joint_q']=old_q+fraction[...,None]*(proposed-old_q)
-        fields['joint_qd']=torch.where(limited[...,None],torch.zeros_like(fields['joint_qd']),fields['joint_qd'])
-        return fields
+        return project_board(self, state, fields)
 
     def derive(self, old, fields, action, goal):
         fields=dict(fields,control_history=self.shifted_history(old))
@@ -131,3 +100,37 @@ class PoseCutStateSpec(FreeCutStateSpec):
         counter=self.field(state,'success_counter')[...,None]/(self.heads.env['successes_threshold']+1)-1
         remaining=(1-self.field(state,'step_count')/self.free_task.horizon).clamp(0,1)
         return torch.cat((force,workspace,target,counter,remaining),-1)
+
+def project_board(self, state, fields):
+    old_q = self.field(state,'joint_q')
+    proposed = fields['joint_q']
+    start_gap = gap_from_pose(self.fk(old_q), self.board_geometry)
+    end_gap = gap_from_pose(self.fk(proposed), self.board_geometry)
+    stop = self.board_geometry['stop_gap_m']
+    limited = end_gap < stop
+    # A learned transition is a discrete endpoint prediction. Projection is a
+    # kinematic boundary proxy, not a claim of predicted board contact force.
+    fraction=torch.ones_like(end_gap)
+    if bool(limited.any()):
+        lo, hi = torch.zeros_like(end_gap), torch.ones_like(end_gap)
+        with torch.no_grad():
+            for _ in range(32):
+                mid=(lo+hi)/2
+                safe=gap_from_pose(self.fk(old_q+mid[...,None]*(proposed-old_q)),self.board_geometry)>=stop
+                lo=torch.where(safe,mid,lo);hi=torch.where(safe,hi,mid)
+        root_q=old_q+lo[...,None]*(proposed-old_q)
+        root_gap=gap_from_pose(self.fk(root_q),self.board_geometry)
+        if torch.is_grad_enabled() and root_q.requires_grad:
+            # Implicit derivative of gap(q_old + alpha*dq)=stop. Treating
+            # bisection alpha as a constant gives an incorrect BPTT gradient.
+            normal=torch.autograd.grad(root_gap.sum(),root_q,retain_graph=True)[0]
+            slope=(normal*(proposed-old_q)).sum(-1).detach()
+            valid=slope.abs()>1e-10
+            denom=torch.where(valid,slope,torch.ones_like(slope))
+            correction=(root_gap-root_gap.detach())/denom
+            lo=lo-torch.where(valid,correction,torch.zeros_like(correction))
+        fraction=torch.where(limited,lo,fraction)
+    fraction=torch.where(start_gap < stop-2e-6,torch.zeros_like(fraction),fraction)
+    fields['joint_q']=old_q+fraction[...,None]*(proposed-old_q)
+    fields['joint_qd']=torch.where(limited[...,None],torch.zeros_like(fields['joint_qd']),fields['joint_qd'])
+    return fields

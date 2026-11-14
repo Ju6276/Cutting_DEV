@@ -20,6 +20,8 @@ class GPUEnvironment:
         # force_model / friction_velocity: material force signal and knife friction (CuttingBatch).
         from .free_cut import validate_task, FreeCutTask, validate_topology
         task = None if task is None else validate_task(task)
+        if task is not None and task['version'] == 'blademaster_pose_v1':
+            raise ValueError('Use BladeMasterEnvironment for the BladeMaster task')
         if task is not None and (force_model != 'net' or reward):
             raise ValueError('free_cut requires net feedback and its own reward settings')
         force_limits = validate_force_limits(force_limits, required=task is not None)

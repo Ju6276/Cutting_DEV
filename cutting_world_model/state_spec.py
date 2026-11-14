@@ -117,6 +117,7 @@ class CuttingStateSpec(nn.Module):
             'previous_acceleration': [1.] * 6, 'observation': [1.] * int(np.prod(self.shapes['observation'])),
             'success_counter': [metadata['environment']['successes_threshold'] + 1.],
         }
+        history_scale['cut_progress'] = [1.]
         history_scale['step_count'] = [metadata.get('free_cut_task', {}).get('horizon_steps', 1)]
         history_scale.update(controller_tare_compensation=force.tolist(), filter_offset=force.tolist())
         for name in self.history_fields:
