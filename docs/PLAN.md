@@ -75,3 +75,15 @@ largest validated shared-device candidate, with 3.81 GiB free after restore;
 exclusive 48 GB capacity is still unmeasured. No BladeMaster long run started.
 See RESULTS: "A6000 shared-device BladeMaster training capacity" and
 runs/bm_a6000_capacity_20261114. The active GPU7 main run is unchanged.
+
+### Online experiment tracking — required 2026-11-15
+
+Every future long run must initialize online W&B and expose a verified cloud URL.
+No offline fallback for authentication/network problems. See AGENTS and RUNNING.
+The already running GPU7 job remains uninterrupted: its original offline history
+was uploaded and a CPU-only watcher now syncs new records every 60 seconds until
+the training process exits, then performs a final sync.
+Run: https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/k48zc1lh
+Watcher and status: runs/pose_wrench6_3072_20261114/sync_cloud.py and cloud_sync.json.
+This is recovery for the existing offline launch; future launches use online
+tracking directly. Server checkpoints/logs remain recovery copies.

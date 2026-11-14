@@ -304,3 +304,17 @@ microbatch 64, full networks and eager execution. It is not a convergence experi
 not produce a trained policy, and does not authorize long training. CUDA compilation memory
 and different-object worker processes are not bounded by this one-object eager profile.
 The source training logger now separates time/reset from time/physics.
+
+## Online W&B for long training (required since 2026-11-15)
+
+Every long training run uses --wandb-mode online. Both training entry points
+already default to online; do not override that default with offline/disabled.
+ExperimentTracker propagates initialization errors rather than falling back.
+Before launch, set NETRC=/dataHDD/dong/.config/wandb/netrc on GPU7 or A6000.
+Check authentication without printing credentials. Verify the resulting run URL
+and cloud history before leaving the run unattended. Fix login/connectivity
+failure before training; local-only logging is not an acceptable fallback.
+
+Local server checkpoints and logs remain recovery copies. Historical commands
+with --wandb-mode offline describe previous runs and must not be copied into a
+new long-training launch.

@@ -61,3 +61,14 @@
   force scattering use `edge_coordinate_consistent_v2`. It is recorded in task
   metadata for all feedback modes. Historical physics is at `38b85a5`; do not
   bypass metadata mismatches to present old checkpoints as same-physics results.
+
+- User requirement (2026-11-15): every long training run must use online W&B.
+  Launch with --wandb-mode online; never substitute offline/disabled to work
+  around login or network errors. Verify an authenticated account, a live run
+  URL and remotely readable history before leaving a long run unattended.
+  If online initialization fails, fix it or report the blocker before training.
+  Server-side checkpoints/logs remain recovery copies; they do not replace cloud
+  tracking. Historical offline launch commands are provenance, not instructions
+  for future launches. Short capacity/diagnostic scripts are not long training.
+  GPU7 and A6000 credentials are in /dataHDD/dong/.config/wandb/netrc; use NETRC
+  without printing file contents or keys.
