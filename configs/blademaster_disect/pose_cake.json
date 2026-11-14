@@ -1,0 +1,79 @@
+{
+  "description": "BladeMaster-inspired cake in DiSECt; development only",
+  "status": "candidate_not_training_validated; source plasticity/fracture not mapped; ground contact not calibrated.",
+  "seed": 0,
+  "force_limits": [
+    50.0,
+    50.0,
+    50.0,
+    5.0,
+    5.0,
+    5.0
+  ],
+  "parallel": true,
+  "task": {
+    "version": "free_cut_pose_v1",
+    "horizon_steps": 180,
+    "weights": {
+      "progress": 10,
+      "speed": 20,
+      "load": 1,
+      "jerk": 0.1,
+      "success": 100,
+      "failure": 100
+    },
+    "gamma": 1.0,
+    "initial_progress_fraction": 0.001,
+    "workspace": {
+      "frame": "robot_base",
+      "point": "ee",
+      "lower": [
+        0.038,
+        0.405,
+        0.096
+      ],
+      "upper": [
+        0.238,
+        0.605,
+        0.269
+      ]
+    },
+    "board": {
+      "height_m": 0.0,
+      "stop_gap_m": 1e-06
+    }
+  },
+  "groups": [
+    {
+      "name": "bm_cake",
+      "scene": "runs/sweep/bm_cake_20261114/scene.pt",
+      "worlds": 2,
+      "clearance": [
+        0.03,
+        0.03
+      ],
+      "material": {
+        "youngs_modulus": [
+          1.0,
+          1.0
+        ],
+        "density": [
+          1.0,
+          1.0
+        ],
+        "cut_spring_stiffness": [
+          1.0,
+          1.0
+        ]
+      },
+      "target_speed": [
+        0.03,
+        0.03
+      ],
+      "force_model": "net",
+      "friction_velocity": 0.01,
+      "settle_seconds": 3.0,
+      "sim_dt": 1e-05
+    }
+  ]
+}

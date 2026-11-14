@@ -1,0 +1,192 @@
+{
+  "banana": {
+    "source_revision": "4b2d983daeaf9ba1f6a66bc0bb01712b1eb602c5",
+    "source_preset": {
+      "shape": "banana",
+      "size": [
+        0.12,
+        0.06,
+        0.03
+      ],
+      "young": 400000.0,
+      "poisson": 0.45,
+      "density": 1100.0,
+      "x_offset": 0.00037,
+      "source": "presets.banana_config + geometry.levelset",
+      "omitted": {
+        "yield_stress_pa": 30000.0,
+        "cutting_energy_j_m2": 700.0,
+        "sharpness": 0.9
+      }
+    },
+    "mesh": "/dataHDD/dong/Assets/Cutting_DEV/blademaster_disect_20261114/banana.msh",
+    "config": "configs/blademaster_disect/banana.json",
+    "vertices": 254,
+    "tetrahedra": 741,
+    "extents_m": [
+      0.11997684417425997,
+      0.02385010556137412,
+      0.049520574753122604
+    ],
+    "volume_m3": 3.686520698448354e-05,
+    "min_edge_m": 0.0020357594329879335,
+    "fixed_particles": 0,
+    "cut_plane": "DiSECt x=0",
+    "centre_offset_x_m": 0.00037,
+    "inherited_disect_template": "configs/free_scenes/potato_003_half.json",
+    "mapped_fields": [
+      "young",
+      "poisson",
+      "density",
+      "mu",
+      "lambda"
+    ],
+    "omitted_source_parameters": {
+      "yield_stress_pa": 30000.0,
+      "cutting_energy_j_m2": 700.0,
+      "sharpness": 0.9
+    },
+    "surface_method": "analytic source boundary; fTetWild tetrahedralization",
+    "support_projection_volume_change_fraction": 0.0
+  },
+  "cake": {
+    "source_revision": "4b2d983daeaf9ba1f6a66bc0bb01712b1eb602c5",
+    "source_preset": {
+      "shape": "cylinder",
+      "size": [
+        0.16,
+        0.16,
+        0.056
+      ],
+      "young": 10000.0,
+      "poisson": 0.4,
+      "density": 1100.0,
+      "x_offset": 0.04037,
+      "source": "scenarios._scene_config(fig4)",
+      "omitted": {
+        "cutting_energy_j_m2": 10.0
+      }
+    },
+    "mesh": "/dataHDD/dong/Assets/Cutting_DEV/blademaster_disect_20261114/cake.msh",
+    "config": "configs/blademaster_disect/cake.json",
+    "vertices": 609,
+    "tetrahedra": 2638,
+    "extents_m": [
+      0.15988449042539,
+      0.056,
+      0.16007574152539633
+    ],
+    "volume_m3": 0.0011146438499084247,
+    "min_edge_m": 0.007396106918884012,
+    "fixed_particles": 0,
+    "cut_plane": "DiSECt x=0",
+    "centre_offset_x_m": 0.04037,
+    "inherited_disect_template": "configs/free_scenes/potato_003_half.json",
+    "mapped_fields": [
+      "young",
+      "poisson",
+      "density",
+      "mu",
+      "lambda"
+    ],
+    "omitted_source_parameters": {
+      "cutting_energy_j_m2": 10.0
+    },
+    "surface_method": "analytic source boundary; fTetWild tetrahedralization",
+    "support_projection_volume_change_fraction": 0.0005263375584644421
+  },
+  "tofu": {
+    "source_revision": "4b2d983daeaf9ba1f6a66bc0bb01712b1eb602c5",
+    "source_preset": {
+      "shape": "block",
+      "size": [
+        0.08,
+        0.08,
+        0.07
+      ],
+      "young": 6000.0,
+      "poisson": 0.35,
+      "density": 1100.0,
+      "x_offset": 0.00037,
+      "source": "scenarios._scene_config(fig7-shallow)",
+      "omitted": {
+        "cutting_energy_j_m2": 10.0
+      }
+    },
+    "mesh": "/dataHDD/dong/Assets/Cutting_DEV/blademaster_disect_20261114/tofu.msh",
+    "config": "configs/blademaster_disect/tofu.json",
+    "vertices": 1202,
+    "tetrahedra": 5660,
+    "extents_m": [
+      0.08,
+      0.07,
+      0.08
+    ],
+    "volume_m3": 0.0004475242192525611,
+    "min_edge_m": 0.004395134919566169,
+    "fixed_particles": 0,
+    "cut_plane": "DiSECt x=0",
+    "centre_offset_x_m": 0.00037,
+    "inherited_disect_template": "configs/free_scenes/potato_003_half.json",
+    "mapped_fields": [
+      "young",
+      "poisson",
+      "density",
+      "mu",
+      "lambda"
+    ],
+    "omitted_source_parameters": {
+      "cutting_energy_j_m2": 10.0
+    },
+    "surface_method": "analytic source boundary; fTetWild tetrahedralization",
+    "support_projection_volume_change_fraction": 0.0005527114649474681
+  },
+  "luncheon": {
+    "source_revision": "4b2d983daeaf9ba1f6a66bc0bb01712b1eb602c5",
+    "source_preset": {
+      "shape": "block",
+      "size": [
+        0.1,
+        0.05,
+        0.042
+      ],
+      "young": 20000.0,
+      "poisson": 0.4,
+      "density": 1200.0,
+      "x_offset": 0.00037,
+      "source": "scenarios._scene_config(fig8)",
+      "omitted": {
+        "yield_stress_pa": 2000.0,
+        "cutting_energy_j_m2": 10.0
+      }
+    },
+    "mesh": "/dataHDD/dong/Assets/Cutting_DEV/blademaster_disect_20261114/luncheon.msh",
+    "config": "configs/blademaster_disect/luncheon.json",
+    "vertices": 839,
+    "tetrahedra": 3757,
+    "extents_m": [
+      0.1,
+      0.042,
+      0.05
+    ],
+    "volume_m3": 0.0002097653480018321,
+    "min_edge_m": 0.004020739917610016,
+    "fixed_particles": 0,
+    "cut_plane": "DiSECt x=0",
+    "centre_offset_x_m": 0.00037,
+    "inherited_disect_template": "configs/free_scenes/potato_003_half.json",
+    "mapped_fields": [
+      "young",
+      "poisson",
+      "density",
+      "mu",
+      "lambda"
+    ],
+    "omitted_source_parameters": {
+      "yield_stress_pa": 2000.0,
+      "cutting_energy_j_m2": 10.0
+    },
+    "surface_method": "analytic source boundary; fTetWild tetrahedralization",
+    "support_projection_volume_change_fraction": 0.00137754096394132
+  }
+}
