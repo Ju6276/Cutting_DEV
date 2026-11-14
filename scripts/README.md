@@ -179,8 +179,9 @@ Use TASK_FREE_CUT and PLAN for the selected task, not this script's existence.
 
 ## Recorded appearance and stills
 
-- `render_episode.py --material cucumber|potato|prism` selects explicit schematic
-  exterior/cut-face colors; default `generic` is neutral. Robot visual meshes are
+- `render_episode.py --material cucumber|potato|prism` selects fallback
+  surface colors; default `generic` is neutral. Prepared cut-face highlighting is
+  off by default; `--highlight-cut-faces` restores the contrasting diagnostic band. Robot visual meshes are
   preserved. `--surface-map appearance.npz` adds projected scan texture.
 - `prepare_scan_appearance.py --recording episode.npz --usd Object.usd
   --texture textures/Scan.jpg --output appearance.npz` runs in the food-mesh
@@ -197,5 +198,46 @@ Use TASK_FREE_CUT and PLAN for the selected task, not this script's existence.
   (legacy vertex-color encoding); use a wall limit when rendering batches.
 
 Visual seams are pre-generated DiSECt cut surfaces, not separation measurements.
-Source textures are real scans; cut-face/board shading is illustrative. These
+Source textures are real scans. With highlighting off, prepared faces inherit
+nearby exterior appearance; existing geometric openings are not filled. Board
+shading and the optional contrasting cut-face colors are illustrative. These
 commands render existing data and never start policy training.
+
+
+### Single-tool views and actual batch initialization
+
+The mounted URDF knife/adapter is the default visible tool. The blue DiSECt
+contact proxy is hidden unless `--show-contact-blade` is explicitly supplied
+to either renderer. Hiding the proxy does not change its contact computation
+or assert that its geometry matches the appearance mesh. Blender stills accept
+`--view close` (default) or `--view wide`.
+
+To inspect a full batch without starting training, run in the training environment
+after sourcing `runs/sac_env.sh`:
+
+```bash
+PYTHONPATH=. .venv/bin/python scripts/capture_environment_batch.py \
+  --config configs/free_cut/pose_cucumber.json --worlds 256 \
+  --output runs/batch_preview --wall-seconds 300
+```
+
+This loads one object group, samples its material/clearance/target-speed settings
+and settles actual worlds. It stores per-world particles, joint states, robot
+transforms and material parameters. No policy or optimizer is loaded. The
+`world_states.npz` leading dimension is world, not time. Output directories must
+be new, and a completed `report.json` is required for rendering. Packed topology
+is reduced to its first per-world block for the world-0 display template.
+
+Then, in the VTK rendering environment:
+
+```bash
+python scripts/render_environment_batch.py --recording runs/batch_preview \
+  --source-root /dataHDD/dong/Projects/SliceIt/catkin_ws/src \
+  --source-root /dataHDD/dong/Projects/SliceIt/underlay_ws/src \
+  --source-root /opt/ros/noetic/share --output runs/batch_preview/all_worlds.png
+```
+
+The grid uses display offsets only. All worlds retain individual simulated
+geometry; robot visual mappers are shared to reduce rendering cost. Material
+uses a distant fallback color. The image explicitly says NO TRAINING and its
+sidecar records all world IDs and the captured-state checksum.

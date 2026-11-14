@@ -1551,3 +1551,67 @@ it does not require the differentiable BladeMaster branch. Old WM weights cannot
 be claimed compatible with the new physical dynamics. Historical force convergence
 issues in BladeMaster RESULTS remain relevant; migration alone does not validate
 cutting forces. No migration or new training was launched here.
+
+
+### Render follow-up — remove prepared-face highlighting (2026-11-14)
+
+At the user's request, both video and Blender still exporters now default to
+unhighlighted prepared faces. Textured recordings use nearby exterior texture
+colors; untextured recordings use the same exterior color. The optional
+`--highlight-cut-faces` restores the old schematic band for diagnosis. Geometry,
+recorded forces, connectivity and policy inputs are unchanged.
+
+Re-rendered the recorded cucumber and potato initial states; outputs are
+`runs/multi_scene_preview_20261114/{cucumber,potato}/no_highlight.png`.
+Existing mesh openings remain visible; these are not painted cracks and were not
+filled to make the material appear intact. Tool mounting/camera inspection is
+documented in METHOD. Validation logs are in
+`runs/potato_preparation_20261114/no_highlight_{root,backend}_tests.log`;
+actual-scene appearance checks are in `no_highlight_checks.json`.
+
+
+### Single mounted tool, whole-arm view and 256-world initialization preview
+
+Default renders now show the URDF mounted knife/adapter only, in steel gray.
+The blue DiSECt material-contact proxy is still used for physics and is visible
+only with `--show-contact-blade`. The previously visible blue edge was the
+second representation protruding from the exterior mesh; this change removes
+the duplicate display and does not establish geometric identity of the two tools.
+
+Reviewed both Blender outputs:
+`runs/multi_scene_preview_20261114/cucumber/single_knife_close.png` and
+`single_knife_wide.png`, with corresponding scene, blend and provenance files.
+The pale prepared-face highlight is disabled. Existing geometric seams remain;
+no material vertices or openings were altered to conceal them.
+
+Initialized and settled **256 actual cucumber worlds** using
+`configs/free_cut/pose_cucumber.json`, overriding only world count and disabling
+the unnecessary single-group subprocess wrapper. No policy was loaded, no
+physical control actions were issued and no optimizer updates occurred.
+`runs/batch_preview_256_verified_20261114/` contains config, task, world states,
+world-0 display template, completion report, capture checks, full-grid PNG and
+render provenance. World-0 particle, knife, joint and body arrays agree with
+the template; per-world material and lift differ; local surface indices are valid.
+The grid is a display layout of isolated worlds, not their physical positions.
+The preview explicitly says NO TRAINING; coarse material colors at this distance
+are display colors. It is not a screenshot of the previous free_cut_v3 run.
+
+At inspection there was no active Cutting training on GPU7 or A6000. The earlier
+cucumber training used 256 environments; three-object long training has not
+started. A6000 GPU0 was running a separate HOAP2/SuperMimic job, left untouched.
+Only the requested preview PNGs were copied to Mac temporary storage; project,
+data and rendered scene files remain on GPU7.
+
+During preview development, an incorrect provenance call and the use of packed
+all-world topology with world-0 vertices were caught before producing the final
+image. The capture script now supplies the repo path and extracts the first local
+topology block. Failed intermediate directories have no completed report and
+are not final evidence.
+
+
+Final validation: root **351 passed, 5 skipped**; backend **38 passed**.
+Logs: `runs/potato_preparation_20261114/final_render_{root,backend}_tests.log`.
+The actual-scene display check `single_tool_checks.json` confirms that enabling
+the debug blade adds exactly one visible actor per viewport and leaves material
+and knife coordinates unchanged; exterior scan colors remain identical.
+`capture_checks.json` verifies the 256-world snapshot and local topology.

@@ -270,18 +270,39 @@ def load_appearance(path, recording):
     return appearance
 
 
-def scene(d, width, height, edges, robot, material_kind='generic', appearance=None):
+def material_face_colors(d, material_kind='generic', appearance=None, highlight_cut_faces=False):
     exterior, interior = MATERIAL_STYLES[material_kind]
+    cut_count = len(d['cut_tri'])
+    if appearance is None:
+        outer = np.tile(np.rint(np.array(exterior)*255).astype(np.uint8), (len(d['tri']),1))
+        cut = np.tile(np.rint(np.array(interior if highlight_cut_faces else exterior)*255).astype(np.uint8),
+                      (cut_count,1))
+    else:
+        outer = appearance['rgb']
+        if highlight_cut_faces:
+            cut = np.tile(np.rint(np.array(interior)*255).astype(np.uint8), (cut_count,1))
+        else:
+            # Carry nearby scan appearance onto the prepared faces. This removes
+            # the schematic pale band, not actual surface openings or connectivity.
+            fine = display_vertices(d, 0, appearance)[:len(appearance['indices'])].reshape(-1,3,3).mean(1)
+            points = vtk.vtkPoints()
+            points.SetData(numpy_to_vtk(np.ascontiguousarray(fine),deep=True))
+            cloud = vtk.vtkPolyData(); cloud.SetPoints(points)
+            locator = vtk.vtkStaticPointLocator(); locator.SetDataSet(cloud); locator.BuildLocator()
+            centers = material_vertices(d,0)[d['cut_tri']].mean(1)
+            nearest = np.array([locator.FindClosestPoint(center) for center in centers],dtype=int)
+            cut = outer[nearest]
+    return np.concatenate((outer, cut))
+
+
+def scene(d, width, height, edges, robot, material_kind='generic', appearance=None, highlight_cut_faces=False, show_contact_blade=False):
+    exterior = MATERIAL_STYLES[material_kind][0]
     if appearance is None:
         faces = np.concatenate((d['tri'], d['cut_tri']))
-        colors = np.empty((len(faces), 3), dtype=np.uint8)
-        colors[:len(d['tri'])] = np.rint(np.array(exterior) * 255).astype(np.uint8)
-        colors[len(d['tri']):] = np.rint(np.array(interior) * 255).astype(np.uint8)
     else:
         count = len(appearance['indices'])
         faces = np.concatenate((np.arange(count).reshape(-1, 3), d['cut_tri'] + count))
-        colors = np.concatenate((appearance['rgb'],
-            np.tile(np.rint(np.array(interior)*255).astype(np.uint8), (len(d['cut_tri']),1))))
+    colors = material_face_colors(d, material_kind, appearance, highlight_cut_faces)
     material = polydata(display_vertices(d, 0, appearance), faces)
     scalars = numpy_to_vtk(colors, deep=True, array_type=vtk.VTK_UNSIGNED_CHAR)
     scalars.SetName('Display material: exterior and generated cut faces')
@@ -317,7 +338,8 @@ def scene(d, width, height, edges, robot, material_kind='generic', appearance=No
         for _, a, _ in robot:
             ren.AddActor(a)
         ren.AddActor(actor(material, exterior, specular=.06, edges=edges, smooth=True))
-        ren.AddActor(actor(knife, (.16, .48, .73), specular=.65))
+        if show_contact_blade:
+            ren.AddActor(actor(knife, (.16, .48, .73), specular=.65))
         ren.AddActor(board)
         if not close:
             ren.AddActor(floor)
@@ -371,7 +393,8 @@ def overlay(image, d, report, i, speed, fonts, title):
     big, normal, small = fonts
     draw.text((30, 15), title, fill=INK, font=big)
     draw.text((30, 57), 'UR5e  /  compliant control  /  DiSECt material simulation', fill=MUTED, font=normal)
-    legend = 'Gray: mounted URDF tool   |   Blue: DiSECt contact blade'
+    legend = ('Gray: mounted URDF tool | Blue: contact proxy (debug)' if report.get('show_contact_blade')
+              else 'Mounted knife exterior | Contact proxy hidden')
     draw.text((width - draw.textlength(legend, font=small) - 30, 66), legend, fill=MUTED, font=small)
     for x, label in ((30, 'ROBOT VIEW'), (int(width * .4) + 24, 'CUTTING CLOSE-UP')):
         draw.rounded_rectangle((x - 10, header + 10, x + draw.textlength(label, font=small) + 10,
@@ -427,6 +450,8 @@ def main():
     parser.add_argument('--output', type=Path)
     parser.add_argument('--preview', action='store_true', help='render start, midpoint and final PNGs only')
     parser.add_argument('--wireframe', action='store_true')
+    parser.add_argument('--show-contact-blade', action='store_true', help='Debug only: overlay the blue DiSECt contact proxy')
+    parser.add_argument('--highlight-cut-faces', action='store_true', help='Debug only: color prepared cut faces with a contrasting interior color')
     parser.add_argument('--surface-map', type=Path, help='Recorded-geometry texture projection from prepare_scan_appearance.py')
     parser.add_argument('--material', choices=tuple(MATERIAL_STYLES), default='generic',
                         help='Illustrative surface/cut-face colors; not scan textures')
@@ -437,6 +462,7 @@ def main():
     if any(key not in d for key in ('cut_tri', 'cut_edge_indices', 'cut_edge_coords')):
         parser.error('Recording lacks DiSECt cut-surface topology; record with the current recorder')
     report = json.loads((args.recording / 'report.json').read_text())
+    report = dict(report, show_contact_blade=args.show_contact_blade)
     indices = frame_indices(d['sim_time'], args.fps, args.speed)
     width, height = args.size[0] * 2, args.size[1]
     title = args.title or report['label'].replace('_', ' ')
@@ -449,7 +475,7 @@ def main():
     else:
         robot = robot_actors(d)
     appearance = load_appearance(args.surface_map, args.recording / 'episode.npz') if args.surface_map else None
-    win, renderers, material, knife = scene(d, width, height, args.wireframe, robot, args.material, appearance)
+    win, renderers, material, knife = scene(d, width, height, args.wireframe, robot, args.material, appearance, args.highlight_cut_faces, args.show_contact_blade)
     fonts = (font(30, True), font(21), font(16))
     grab = vtk.vtkWindowToImageFilter()
     grab.SetInput(win)
@@ -503,6 +529,8 @@ def main():
         'playback_speed': args.speed, 'video_frames': len(indices),
         'simulation_seconds': float(d['sim_time'][-1] - d['sim_time'][0]),
         'preview_only': args.preview,
+        'show_contact_blade': args.show_contact_blade,
+        'highlight_cut_faces': args.highlight_cut_faces,
         'display_material': args.material, 'scan_texture': appearance is not None,
         'appearance': json.loads(str(appearance['metadata'])) if appearance is not None else None,
         'robot_geometry': args.robot_geometry, 'visual_mesh_sources': sources,

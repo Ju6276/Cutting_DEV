@@ -795,3 +795,39 @@ establish real-world physical calibration. Full provenance lives in FREE_CUT_REP
 ## 2026-11-13 — Opt-in board-path physical task
 
 The free_cut_v4 physical environment adds a finite-knife swept stop at the DiSECt ground plane and projected interface coverage. Physical separation is separately logged; path completion does not assert all material connections vanish. This is an execution interlock, not a board contact-force model. Source v1-v3 dynamics and task conditions remain the defaults. Full definition, tolerance provenance, frozen-policy transfer and training incompatibility are in [BOARD_CUT_REVIEW](BOARD_CUT_REVIEW.md).
+
+
+## Recorded tool mounting and unused camera meshes (2026-11-14)
+
+The retained URDF mounts `knife_and_adapter.stl` as the visual geometry of
+`b_bot_right_inner_knuckle`. Its joint and the intervening gripper-base joints
+are fixed to the UR5e end-effector chain. The knife and adapter share one mesh;
+this model does not simulate a frictional grasp or tool slippage. The DiSECt
+contact blade is the coupled material-side proxy, driven by robot tool motion
+and returning a wrench through the existing coupling.
+
+`b_bot_cam_mount` uses `sr305_mount.stl`; inside/outside camera links use
+`sr305_simplified_body.stl`. These inherited model parts are not policy image
+inputs. `GPUEnvironment._observe` builds observations from target-pose error,
+motion derivatives, actions and wrench history, plus task time where applicable.
+
+Rendering defaults to no contrasting prepared-cut-face highlight. Original
+texture is extended from nearby exterior display triangles without moving
+vertices, deleting faces, filling openings or changing physical connectivity.
+`--highlight-cut-faces` is an explicit diagnostic display option, recorded in
+render provenance. Thus removing the pale band does not assert that a material
+is intact or separated.
+
+
+The visible knife defaults to the mounted URDF knife/adapter only. The blue
+DiSECt contact proxy remains active in physics but appears only with
+`--show-contact-blade`. This corrects the confusing double outline, not any
+geometric mismatch between the two representations. Still renders support
+close and whole-arm views. Rendering settings do not alter tool transforms,
+material contact, reaction forces, task termination or learning inputs.
+
+`capture_environment_batch.py` records all worlds after actual randomized
+initialization and settling; it performs no control actions or optimizer updates.
+`render_environment_batch.py` uses each world's captured robot transforms and
+particles, arranging isolated worlds in a display-only grid. Such images are
+initialization previews, not screenshots of an ongoing training run.
