@@ -1391,3 +1391,163 @@ pose checkpoints passed its focused suite (9 passed). Board-projection gradient
 finite differences, compiled/eager forward/backward agreement, real physical
 settlement, optimizer/replay restart, and two-object environment integration are
 separate evidence above. No claim of training convergence follows from test counts.
+
+## 2026-11-14 — Whole versus flat-bottom half potato preparation
+
+**Scope and authorization.** One bounded preparation comparison, not policy training:
+two freely placed geometries, three E/cut-spring pairs (1/1, 2/1, 2/2; density x1),
+up to 8 s of settling, then one nominal-material reference press per geometry.
+The user approved this scope. Wall cap was 45 minutes for the preparation comparison;
+the physical runner had a 1700 s internal budget and completed both shapes. No
+material/contact tuning, fixing of particles, artificial velocity reset, reward
+change or new long run.
+
+**Assets.** Whole: `free_potato_stable_20261114_v3`. Half:
+`free_potato_half_20261114`, generated from the upper geometric half of the same
+uncut mesh, capped horizontally and placed with this cap down. Whole/half heights
+are 52.35/26.03 mm, uncut mesh volumes 156.03/75.10 cm3, and tetrahedra 2795/1671.
+Half remeshing used the existing fTetWild settings; flattening its support cap
+changed remeshed volume by 0.00335%, with no inverted/zero-volume tets. The COM
+projection is inside the cap support polygon. Both exported scenes have zero fixed
+particles. Since mass, height and discretization change together, this is a
+preparation comparison, not an isolated support-shape causal experiment. The half
+is our prepared asset, not a claim of using the exact official potato mesh.
+
+**Controls.** The source scene JSON differs only in the mesh filename. Runtime
+integration is 8 microseconds; net knife wrench, friction transition 0.01 m/s,
+board boundary, force limits [50,50,50,5,5,5] and `free_cut_pose_v1` reward are
+unchanged. Knife start clearance is 10 mm for both. Reference feed is 30 mm/s,
+ending its commanded vertical displacement at the board stop gap and then holding.
+The original 180-step (9 s) task limit remains. Reference cuts restore the nominal
+material's complete 8-second settled state, including residual velocity; they
+do not test the proposed shorter settling duration.
+
+**Settling measurements.** Samples every 50 ms; an operational stable window
+requires six consecutive samples spanning 0.25 s with COM speed <=0.2 mm/s,
+mass-weighted particle RMS speed <=1 mm/s, and COM displacement within the window
+<=0.01 mm. These are common diagnostic thresholds, not a task reward or a guarantee
+about unsampled extrema. Report the first such window that stays accepted through
+the remainder of the trace; one run per material pair.
+
+| E / cutting spring | Whole | Flat-bottom half |
+|---|---:|---:|
+| x1 / x1 | 4.65 s | 0.55 s |
+| x2 / x1 | 5.35 s | 0.55 s |
+| x2 / x2 | No continuously accepted window by 8 s | 0.55 s |
+
+At 1 s the half's COM speeds are all below 0.006 mm/s and mass-weighted particle RMS
+speeds are 0.075–0.081 mm/s. There was no knife contact or spring release during
+settling. All three worlds together took 73.28 s (whole) / 68.27 s (half) wall time
+to integrate 8 s. The first 1 s of the half trace took 8.73 s wall time, including
+cold graph setup; these are three-world measurements, not per-environment costs
+or full-training throughput. Earlier potato checks sampled fewer time points and
+reported mostly endpoint/short follow-up stability; the stricter sampled window
+here exposes intervening residual motion.
+
+**One nominal reference per geometry.**
+
+| Geometry | Pose-task outcome | Steps | Released springs | Peak material resultant | Max six-axis limit utilisation | Minimum knife gap |
+|---|---|---:|---:|---:|---:|---:|
+| Whole | Timeout | 180 | 73/247 | 25.78 N | 0.602 | +0.182 mm |
+| Half | Pose success | 39 | 75/144 | 5.92 N | 0.147 | +0.553 mm |
+
+Neither cut triggered a force/workspace failure or knife-board penetration.
+Neither material fully separated. Whole final TCP height error is 3.38 mm against
+the 2 mm target tolerance; the blade's lowest point being near the board does not
+make the full target pose satisfied. Return sums were -14.46 / 102.84 respectively.
+These two reference episodes do not establish learned-policy performance or prove
+the whole object impossible to cut.
+
+**Correction from inspecting the exported model.** The effective ground contact
+distance is **0.01 mm**, not the 1 mm previously inferred from the JSON
+`ground_radius`. The exporter assigns that setting to `contact_closeness`, while
+the running particle contact kernel reads `contact_distance` (default 1e-5 m).
+Normal ground damping is zero; material damping is not zero. Exported bottom
+height is 0.8 mm, so neither mesh starts with the previously suspected 0.2 mm
+contact-layer compression. This is an existing configuration/kernel field mismatch;
+it was recorded, not changed mid-comparison. Static/trajectory evidence does not
+isolate the cause of all oscillation.
+
+**Decision supported.** Prefer the unheld flat-bottom half as the next potato
+preparation candidate. A 1 s settling duration is supported by these three traces,
+but the two reference cuts above used 8 s, and the full continuously randomized
+material/density distribution has not been validated at 1 s. Existing active
+`pose_potato.json` remains the whole/8 s development config; no silent task or
+training-distribution replacement. Full separation remains a reported outcome,
+not the pose-task success gate.
+
+**Reproduction and evidence.** New entries:
+`scripts/prepare_half_food_mesh.py`, `scripts/compare_potato_preparation.py`,
+`configs/free_scenes/potato_003_half.json`.
+Server outputs: `runs/potato_preparation_20261114/`: protocol, asset quality,
+initial-ground calculation, `physics/summary.json`, per-shape traces and full
+geometry recordings, reference goal audit, comparison PNG/PDF and test logs.
+The runner's final source adds effective-parameter/goal-error logging to the
+executed experiment without changing its physics or decision rules.
+
+Validation: targeted stability-window tests 5 passed; root GPU suite 351 passed /
+5 skipped; backend suite 38 passed. Logs: root_tests_commit.log and backend_tests_commit.log.
+
+
+### Follow-up: force provenance, separation and display
+
+Nominal potato parameters match the local SliceIt DiSECt fork's
+`examples/config/osx/ansys_potato.json`: E=2e6 Pa, nu=0.45, density=1101 kg/m3,
+interior/surface cutting stiffness=200. Nominal means scale x1, not calibrated
+properties for our scanned whole/half geometries. No new force decomposition was
+measured. The 25.78/5.92 N values are total material resultant peaks for the two
+reference runs, not individual sensor-axis thresholds.
+
+The pose task pays +100 for the prescribed arrival condition with failure
+precedence and the finite-blade board boundary; it does not require separation.
+The fixed reference ends on that condition. Source inspection of
+`eval_cut_springs` confirms damage reduces stiffness only with knife contact and
+positive spring extension (`max(0, ke - incontact * extension * softness)`).
+Geometric blade passage is not an unconditional connectivity deletion. This
+explains how the two metrics can disagree; it does not identify the cause of the
+69 residual half-potato springs or establish an implementation defect. Do not
+attribute the residual connections to a policy: these runs use prescribed motion.
+
+Actual scan textures were retrieved from the same HF mirror's
+`OmniObject3D_objects_with_texture.zip`, by range extraction of three individual
+objects, not downloading the archive. For cucumber_002, cucumber_003 and potato_003,
+mesh points, faces and USD transforms equal the existing untextured copies exactly.
+`scan_identity.json` records the check. The original renderer used one flat amber
+color for all foods, losing these appearance assets.
+
+New optional display pipeline: rigid scan registration, texture sampling onto
+barycentrically subdivided recorded exterior triangles, and a Blender Cycles still
+renderer. Registration RMS to the coarse settled surface is 1.075 mm (cucumber_003)
+and 0.763 mm (potato_003); this is approximate appearance registration, not a
+physics alignment or calibration. Recorded positions, cut topology and measured
+quantities are preserved. Cut-face colors are schematic; the pre-existing visible
+cut seam is NOT evidence of completed separation. No high-resolution scan is
+substituted for the deforming physical geometry. Appearance binding checks on the
+actual two recordings report zero deviation from barycentric interpolation and
+reject a mapping applied to a different recording. Blender 2.82 legacy vertex-color
+encoding was checked with an emission-only neutral 0.5 sample (saved RGB 128),
+avoiding double gamma conversion. Both actual scene stills were rendered and
+visually inspected. These are initial-state previews, not a new policy evaluation.
+Evidence: `appearance_checks.json`, `color_encoding.log` and
+`runs/multi_scene_preview_20261114/textured_comparison.png`.
+
+### BladeMaster forward path located (read-only, not newly integrated)
+
+GPU7 checkout:
+`/dataHDD/dong/Projects/BladeMaster-Warp-forward-check-20261107`,
+clean at `4b2d983`, remote `Ju6276/BladeMaster-Lab`. This is the project's
+reproduction, not the paper authors' code. Existing
+`runs/forward_port_20261107/report.json` records a completed external-tool test:
+1452 particles, 3.8 simulated seconds, 40.25 wall seconds including compilation,
+two 726-particle components, force peak 0.813 N and torque peak 0.0151 N m.
+These are the old banana-preset test's results, not potato/cucumber measurements
+or current UR5e integration evidence.
+
+`ExternalToolPort.advance(ToolState, interval)` accepts pose/linear/angular
+velocity and returns `force_n`, `torque_nm`. The existing robot driver is Franka.
+An UR5e backend needs frame/time/reset/batch adapters and removal or replacement
+of DiSECt spring-based progress interfaces. WM+BPTT needs only forward simulation;
+it does not require the differentiable BladeMaster branch. Old WM weights cannot
+be claimed compatible with the new physical dynamics. Historical force convergence
+issues in BladeMaster RESULTS remain relevant; migration alone does not validate
+cutting forces. No migration or new training was launched here.

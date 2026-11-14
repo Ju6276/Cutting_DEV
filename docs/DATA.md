@@ -170,3 +170,32 @@ GPU9: see "Data on other servers".
   They use task `free_cut_pose_v1`; none is a learned cutting-policy result.
 - Failed export-attempt logs and historical data are retained in run storage,
   excluded from Git. No server weights or experimental evidence were deleted.
+
+## Flat-bottom half potato candidate — 2026-11-14
+
+Derived from the stable whole uncut tetrahedral mesh, retaining its upper half,
+capping horizontally, remeshing and placing the cap down. Not the official potato
+asset and not a fixed object. Mesh:
+`/dataHDD/dong/Research/food_meshes/tet/potato_003_half_20261114.msh`;
+scene: backend `runs/sweep/free_potato_half_20261114/scene.pt`;
+source configuration: `configs/free_scenes/potato_003_half.json`.
+Original whole geometry and active development configs remain unchanged.
+Asset invariants, exact conditions, settling traces and reference results are in
+`runs/potato_preparation_20261114/`; interpretation is in RESULTS 2026-11-14.
+
+
+## Scan appearance assets — 2026-11-14
+
+Geometry provenance remains [OmniObject3D](https://omniobject3d.github.io/), downloaded
+from [the HF mirror](https://huggingface.co/datasets/AlbertS666/OmniObject3D-objects).
+Original geometry-only imports are under `food_meshes/omniobject3d/`; matching
+textured USDs and `textures/Scan.jpg` are now under
+`/dataHDD/dong/Research/food_meshes/omniobject3d_textured/`
+for cucumber_002, cucumber_003 and potato_003. These are appearance assets, not
+physical material calibration data. Prism remains the DiSECt benchmark geometry.
+The half potato is our derived preparation, not an additional official scan.
+
+Display mappings and stills remain in server runs, including
+`runs/multi_scene_preview_20261114/{cucumber,potato}/appearance.npz`.
+Mappings include the recording and texture checksums; applying one to a different
+recording is rejected. No weights, meshes or textures were added to Git.

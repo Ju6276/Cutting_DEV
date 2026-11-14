@@ -165,3 +165,37 @@ Use TASK_FREE_CUT and PLAN for the selected task, not this script's existence.
 
 - `check_pose_cut.py`: physical pose/board settlement, real-controller data, one WM/actor/critic update and checkpoint round-trip.
 - `prepare_stable_food_pose.py`: gravity-supported pose of an uncut tetrahedral mesh; no remeshing or material tuning. Re-export DiSECt after applying the pose. Requires the food-mesh Python environment.
+
+## Potato preparation comparison
+
+- `prepare_half_food_mesh.py`: cap the upper half of an existing uncut y-up food
+  mesh and remesh it with a flat support face; run in the food-mesh environment.
+- `compare_potato_preparation.py`: bounded six-condition settling comparison and
+  two nominal pose-task reference cuts. No training, material/contact tuning or
+  change to success rules. Asset preparation changes mass, height and mesh.
+  Results and the current candidate decision are in [RESULTS](../docs/RESULTS.md)
+  and [PLAN](../docs/PLAN.md).
+
+
+## Recorded appearance and stills
+
+- `render_episode.py --material cucumber|potato|prism` selects explicit schematic
+  exterior/cut-face colors; default `generic` is neutral. Robot visual meshes are
+  preserved. `--surface-map appearance.npz` adds projected scan texture.
+- `prepare_scan_appearance.py --recording episode.npz --usd Object.usd
+  --texture textures/Scan.jpg --output appearance.npz` runs in the food-mesh
+  environment. It records rigid-registration error and file identities. Dense
+  display triangles stay on the recorded FEM surface; there is no geometric
+  smoothing or force change.
+- `render_episode_still.py --export --recording DIR --material cucumber
+  --surface-map DIR/appearance.npz --source-root ROS_ROOT --scene DIR/still_scene.npz`
+  exports the actual recorded geometry using the rendering Python environment.
+  Repeat `--source-root` for needed URDF packages.
+- Then `blender -b -t 8 --python-exit-code 1 -P scripts/render_episode_still.py --
+  --scene DIR/still_scene.npz --output DIR/textured_still.png` renders a Cycles CPU
+  still (plus reproducible .blend and provenance JSON). Tested with GPU7 Blender 2.82
+  (legacy vertex-color encoding); use a wall limit when rendering batches.
+
+Visual seams are pre-generated DiSECt cut surfaces, not separation measurements.
+Source textures are real scans; cut-face/board shading is illustrative. These
+commands render existing data and never start policy training.

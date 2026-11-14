@@ -5,6 +5,7 @@ Uses one EGL window for both viewports. Geometry interpolates between recorded
 control boundaries; force peaks and released-spring counts remain measured data.
 """
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -22,6 +23,14 @@ MUTED = (91, 107, 124)
 TEAL = (16, 133, 136)
 AMBER = (205, 123, 42)
 
+# Display materials, not recovered scan textures or physical parameters.
+MATERIAL_STYLES = {
+    'generic': ((.48, .53, .58), (.69, .73, .76)),
+    'prism': ((.49, .61, .66), (.68, .77, .79)),
+    'potato': ((.43, .29, .15), (.87, .80, .56)),
+    'cucumber': ((.10, .25, .075), (.69, .79, .48)),
+}
+
 
 def polydata(points, faces):
     poly = vtk.vtkPolyData()
@@ -35,12 +44,18 @@ def polydata(points, faces):
     return poly
 
 
-def actor(source, color, opacity=1., specular=.2, edges=False):
+def actor(source, color, opacity=1., specular=.2, edges=False, smooth=False):
     mapper = vtk.vtkPolyDataMapper()
     if isinstance(source, vtk.vtkPolyData):
         normals = vtk.vtkPolyDataNormals()
-        normals.SetInputData(source)
-        normals.SetFeatureAngle(40)
+        if smooth:
+            clean = vtk.vtkCleanPolyData()
+            clean.SetInputData(source)
+            clean.SetTolerance(1e-9)
+            normals.SetInputConnection(clean.GetOutputPort())
+        else:
+            normals.SetInputData(source)
+        normals.SetFeatureAngle(70 if smooth else 40)
         normals.SplittingOn()
         mapper.SetInputConnection(normals.GetOutputPort())
     else:
@@ -239,8 +254,38 @@ def material_vertices(d, index):
     return np.concatenate((points, virtual))
 
 
-def scene(d, width, height, edges, robot):
-    material = polydata(material_vertices(d, 0), np.concatenate((d['tri'], d['cut_tri'])))
+def display_vertices(d, index, appearance=None):
+    points = material_vertices(d, index)
+    if appearance is None:
+        return points
+    exterior = (points[appearance['indices']] * appearance['weights'][..., None]).sum(1)
+    return np.concatenate((exterior, points))
+
+
+def load_appearance(path, recording):
+    appearance = dict(np.load(path, allow_pickle=False))
+    metadata = json.loads(str(appearance['metadata']))
+    if metadata['recording_sha256'] != hashlib.sha256(recording.read_bytes()).hexdigest():
+        raise ValueError('Appearance mapping belongs to a different recording')
+    return appearance
+
+
+def scene(d, width, height, edges, robot, material_kind='generic', appearance=None):
+    exterior, interior = MATERIAL_STYLES[material_kind]
+    if appearance is None:
+        faces = np.concatenate((d['tri'], d['cut_tri']))
+        colors = np.empty((len(faces), 3), dtype=np.uint8)
+        colors[:len(d['tri'])] = np.rint(np.array(exterior) * 255).astype(np.uint8)
+        colors[len(d['tri']):] = np.rint(np.array(interior) * 255).astype(np.uint8)
+    else:
+        count = len(appearance['indices'])
+        faces = np.concatenate((np.arange(count).reshape(-1, 3), d['cut_tri'] + count))
+        colors = np.concatenate((appearance['rgb'],
+            np.tile(np.rint(np.array(interior)*255).astype(np.uint8), (len(d['cut_tri']),1))))
+    material = polydata(display_vertices(d, 0, appearance), faces)
+    scalars = numpy_to_vtk(colors, deep=True, array_type=vtk.VTK_UNSIGNED_CHAR)
+    scalars.SetName('Display material: exterior and generated cut faces')
+    material.GetCellData().SetScalars(scalars)
     knife = polydata(d['knife'][0], d['knife_tri'])
     center = (d['particles'].min(axis=(0, 1)) + d['particles'].max(axis=(0, 1))) / 2
     close_points = [d['particles'].reshape(-1, 3), d['knife'].reshape(-1, 3)]
@@ -255,7 +300,7 @@ def scene(d, width, height, edges, robot):
     board_center = ground.mean(0)
     board_top = board_center[2]
     board = box(board_center - [0, 0, .006], [np.ptp(ground[:, 0]), np.ptp(ground[:, 1]), .012],
-                (.69, .55, .38))
+                (.68, .59, .46))
     floor = box([.05, .2, -.019], [2., 2., .025], (.84, .87, .89))
     win = vtk.vtkRenderWindow()
     win.SetOffScreenRendering(1)
@@ -271,7 +316,7 @@ def scene(d, width, height, edges, robot):
         ren.UseFXAAOn()
         for _, a, _ in robot:
             ren.AddActor(a)
-        ren.AddActor(actor(material, (.86, .63, .31), specular=.12, edges=edges))
+        ren.AddActor(actor(material, exterior, specular=.06, edges=edges, smooth=True))
         ren.AddActor(actor(knife, (.16, .48, .73), specular=.65))
         ren.AddActor(board)
         if not close:
@@ -304,7 +349,7 @@ def scene(d, width, height, edges, robot):
             camera.SetParallelScale(.40)
         camera.SetViewUp(0, 0, 1)
         ren.AutomaticLightCreationOff()
-        for offset, intensity in (([.6, -.8, 1.2], .85), ([-.5, -.2, .7], .45), ([.1, .8, 1.], .6)):
+        for offset, intensity in (([.6, -.8, 1.2], .65), ([-.5, -.2, .7], .25), ([.1, .8, 1.], .35)):
             light = vtk.vtkLight()
             light.SetLightTypeToSceneLight()
             light.SetPosition(*(center + offset))
@@ -382,6 +427,9 @@ def main():
     parser.add_argument('--output', type=Path)
     parser.add_argument('--preview', action='store_true', help='render start, midpoint and final PNGs only')
     parser.add_argument('--wireframe', action='store_true')
+    parser.add_argument('--surface-map', type=Path, help='Recorded-geometry texture projection from prepare_scan_appearance.py')
+    parser.add_argument('--material', choices=tuple(MATERIAL_STYLES), default='generic',
+                        help='Illustrative surface/cut-face colors; not scan textures')
     parser.add_argument('--robot-geometry', choices=('visual', 'collision'), default='visual')
     parser.add_argument('--source-root', type=Path, action='append', default=[], help='ROS package search root for URDF visual meshes')
     args = parser.parse_args()
@@ -400,7 +448,8 @@ def main():
         robot, sources = visual_actors(d, task, args.source_root)
     else:
         robot = robot_actors(d)
-    win, renderers, material, knife = scene(d, width, height, args.wireframe, robot)
+    appearance = load_appearance(args.surface_map, args.recording / 'episode.npz') if args.surface_map else None
+    win, renderers, material, knife = scene(d, width, height, args.wireframe, robot, args.material, appearance)
     fonts = (font(30, True), font(21), font(16))
     grab = vtk.vtkWindowToImageFilter()
     grab.SetInput(win)
@@ -419,7 +468,7 @@ def main():
     try:
         for j in selected:
             i = indices[j]
-            for poly, points in ((material, material_vertices(d, i)), (knife, d['knife'][i])):
+            for poly, points in ((material, display_vertices(d, i, appearance)), (knife, d['knife'][i])):
                 poly.GetPoints().SetData(numpy_to_vtk(np.ascontiguousarray(points), deep=True))
                 poly.Modified()
             for k, a, local in robot:
@@ -454,6 +503,8 @@ def main():
         'playback_speed': args.speed, 'video_frames': len(indices),
         'simulation_seconds': float(d['sim_time'][-1] - d['sim_time'][0]),
         'preview_only': args.preview,
+        'display_material': args.material, 'scan_texture': appearance is not None,
+        'appearance': json.loads(str(appearance['metadata'])) if appearance is not None else None,
         'robot_geometry': args.robot_geometry, 'visual_mesh_sources': sources,
     }, indent=2) + '\n')
     print(output, flush=True)

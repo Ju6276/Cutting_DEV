@@ -21,6 +21,22 @@ Task contract: [TASK_FREE_CUT](TASK_FREE_CUT.md).
   dataset requires its own checked settling duration; the old 0.75 s remains
   inadequate. No friction/damping tuning or artificial velocity reset.
 
+## Completed preparation comparison
+
+The authorized whole/half potato comparison is complete; see RESULTS 2026-11-14.
+Both assets are unheld, with the same material/contact parameters. Across three
+material pairs, the flat-bottom half met the common settling-window check at
+0.55 s and remained stable through 8 s; whole required 4.65/5.35 s or did not
+remain within the window by 8 s. Nominal references: half pose-success in 39 steps,
+whole timeout at 180. Neither fully separated; no force or board violations.
+
+Recommendation: use the flat-bottom half as the next preparation candidate, with
+1 s settling as a candidate supported by these traces. The reference cuts still
+used 8 s, and full randomized-density training has not been tested at 1 s. Active
+pose_potato.json remains whole/8 s; no training was started. Recorded separately:
+JSON ground_radius maps to contact_closeness but the kernel reads contact_distance;
+this comparison preserved the actual 0.01 mm contact distance, not the JSON's 1 mm.
+
 ## Next steps
 
 1. Use the versioned pose configs and checked settling durations for development collection. No bulk multi-object replay has yet been collected.
