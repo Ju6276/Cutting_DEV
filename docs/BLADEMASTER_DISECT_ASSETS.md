@@ -128,23 +128,24 @@ two objects. The earlier full references below used 0.75 s; their results are
 explicitly retained as observations under the old initialization, not evidence
 for the final 3 s configuration.
 
-**Loading and pose success do not certify acceptable material/board contact.**
-In the 0.75 s reference, tofu's lowest particle was at -4.84 mm initially
-and -10.36 mm at pose completion relative to board y=0. Cake was -0.869 mm
-initially and -0.799 mm finally; banana was -0.117 and -0.099 mm.
-These values come directly from DiSECt material `particle_q.y`, not a rendered
-robot-frame transform. `dflex/sim.py::eval_contacts` uses the same y-up normal,
-with penetration `min(y - contact_distance, 0)` driving a finite penalty force;
-it has no hard position projection. Inheriting another object's ground/contact
-parameters does not prevent soft objects from penetrating the board.
+**Correction: raw FEM node height is not material surface height.**
+The original report called tofu's -4.84 mm initial / -10.36 mm final minimum
+particle y "material penetration". This inference is withdrawn. DiSECt's
+pre-cut mesh duplicates FEM nodes on the empty side of cut tetrahedra; these
+contact-disabled ghost degrees of freedom can move outside the occupied body.
+Ground collision acts on the enabled nodes and interpolated cut-edge points.
+The old report mixed all these categories and did not save their separate
+heights. Its raw numbers remain historical measurements, not contact validation.
 
-No ground stiffness, material parameter or task tolerance was changed to hide
-this. All candidates are marked `candidate_not_training_validated`, especially
-tofu with substantial material penetration. The checker now records effective
-ground stiffness/damping/distance and counts below y=0, -1 mm and -5 mm separately
-from the knife's board gap. The earlier full references did not retain particle
-positions, so their final below-board particle counts cannot be reconstructed.
-The new 3 s construction check records these counts explicitly.
+The corrected checker reports ghost and physical contact geometry separately.
+A new 3 s nominal tofu reset gave -4.702 mm for all FEM nodes, but only
+-0.096 mm for enabled contact nodes and -0.074 mm for cut-surface interpolation
+points. Every node below -1 mm was a ghost. No ground stiffness, material,
+knife limit, reward or task condition was changed. Clamping ghosts or increasing
+ground stiffness to fix the old diagnostic would impose unwarranted forces.
+See [GROUND_CONTACT_REVIEW](GROUND_CONTACT_REVIEW.md) for the complete reference
+and regression evidence. Candidates remain uncalibrated development assets;
+pose completion still does not imply material separation.
 
 ## Completed nominal UR5e reference episodes
 
@@ -164,9 +165,8 @@ these runtimes are not throughput measurements.
 
 No case triggered force-limit, workspace or knife-through-board failure.
 None fully separated. Minimum recorded knife-board gaps were respectively
-+0.058, +0.414, +0.979 and +0.075 mm. Luncheon's material minimum y was
--0.705 mm at reset and -0.313 mm finally. Material penetration and pose success
-are separate facts; the table is not evidence of fully cut or calibrated foods.
++0.058, +0.414, +0.979 and +0.075 mm. Luncheon's all-FEM-node minimum y was
+-0.705 mm at reset and -0.313 mm finally. Raw node heights include ghosts and cannot alone establish physical penetration; the table is not evidence of fully cut or calibrated foods.
 
 Reports: `reference/report.json`, `reference_remaining/report.json`, and
 `reference_summary.json`. Actual per-case configuration is embedded in each
@@ -181,7 +181,7 @@ physical UR5e reference step. Both cake and tofu completed this one-step budget
 without exception. The embedded configs confirm `settle_seconds=3.0`.
 This is a reset/step check, not another complete reference episode.
 
-| Object | Reset particle RMS (mm/s) | Initial minimum y (mm) | Particles below board | Below -1 mm | Below -5 mm |
+| Object | Reset particle RMS (mm/s) | Initial all-node minimum y (mm) | All FEM nodes below board | Below -1 mm | Below -5 mm |
 |---|---:|---:|---:|---:|---:|
 | cake | 0.303 | -0.937 | 120 | 0 | 0 |
 | tofu | 0.218 | -4.702 | 121 | 11 | 0 |
@@ -190,8 +190,16 @@ After the one step, minima were -0.938/-4.703 mm with unchanged counts.
 The effective kernel settings in both cases were `contact_ke=1000`,
 `contact_kd=0`, and `contact_distance=0.00001 m`. These effective values are
 reported rather than assuming JSON ground-radius aliases set the kernel value.
-Longer settling reduces motion; it does not eliminate material penetration.
+These historical counts include ghost nodes. They do not measure occupied material
+penetration; see the corrected contact-geometry check below.
 Evidence: `final_3s_smoke/report.json`. All six focused CPU tests passed;
 combined root/backend regression is run by the parent integration task.
 
 Integrated validation in the shared cutting worktree: **366 root tests passed, 5 skipped; 38 backend tests passed**. Logs: `runs/half_potato_integration_verified_root_20261114.log` and `runs/half_potato_integration_backend_20261114.log`. The earlier partial agent suites are not the final acceptance record.
+
+
+Follow-up ground-contact correction: the new 3 s tofu reference completed at
+70 steps, with actual contact geometry sampled no lower than -0.309 mm, while
+ghosts reached -10.396 mm. The historical all-node counts above must not be
+read as physical material penetration. Full evidence and limitations are in
+[GROUND_CONTACT_REVIEW](GROUND_CONTACT_REVIEW.md).

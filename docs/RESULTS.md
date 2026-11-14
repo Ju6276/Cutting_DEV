@@ -9,8 +9,8 @@ prism development) are in [archive/RESULTS_20261102_20261110](archive/RESULTS_20
 - Selected task direction: target-pose completion plus board boundary; see TASK_FREE_CUT and PLAN. v1-v3 separation and v4 coverage results retain their own definitions.
 - Latest v3 checkpoint: 543 policy updates. The 64-case board audit found old successes involving knife penetration; do not treat its old success rate as physically valid full cutting.
 - Board execution boundary: physically tested; not a board-force model. Separation and path completion differ.
-- Free prism supplies finite interaction data. The current potato reset is still moving; four v4 path completions do not certify a stable potato scene.
-- Force/contact parameters are not calibrated for this project's real robot. Ground contact permits material overlap; no task difficulty was created by tuning it.
+- Current three-object preparation uses free cucumber, free prism and the flat-bottom half potato. Half-potato randomized preparation passed 144 conditions; the earlier moving whole-potato scene is historical.
+- Force/contact parameters are not calibrated for this project's real robot. Ground contact is a finite penalty law. All-FEM-node minima mix real and ghost geometry; the latest tofu diagnostic separates them (see GROUND_CONTACT_REVIEW). No task difficulty was created by tuning ground contact.
 - Earlier scalar feedback, fixture tests, force-risk runs and prior next-step statements below are historical. The 2026-11-11 S3 rates and retired perturbation protocol are not current paper evidence.
 
 ## 2026-11-11 — Multi-object task and force-risk constraint: implementation check
@@ -1271,7 +1271,7 @@ Physical checks: GPU7, one frozen 543-update policy transfer per free scene, fou
 
 All 12 rollouts completed with finite data and no knife penetration. The reference 0.75 s per-material settling does not make the current potato stationary: COM speed confirms whole-object motion, not merely one fast deforming particle. Prism can supply development interaction data; the old reference's incomplete spring damage is not itself a reason to forbid collection. Potato needs a naturally stable resting preparation before using it as a stationary-start training condition. No pose was silently changed in this cleanup.
 
-Minimum particle height during pressing was -1.800 mm (cucumber), -2.094 mm (prism), -1.273 mm (potato). The upstream particle-ground eval_contacts law is a soft penalty contact (penetration-dependent elastic term plus damping/friction), not a geometric hard clamp. These values are physical-model overlap, not the 2-micrometre knife floating-point allowance. Their realism is unvalidated; no ground stiffness was tuned to improve outcomes.
+Minimum particle height during pressing was -1.800 mm (cucumber), -2.094 mm (prism), -1.273 mm (potato). The upstream particle-ground eval_contacts law is a soft penalty contact (penetration-dependent elastic term plus damping/friction), not a geometric hard clamp. Correction 2026-11-14: these all-node minima did not distinguish ghost FEM nodes from occupied contact geometry. They cannot establish actual surface overlap; retain them as raw diagnostics only. The knife tolerance is a separate quantity, and no ground stiffness was tuned to improve outcomes.
 
 Saved under runs/board_review_20261114/: per-scene source/checkpoint manifests, initial_rest.json, episode rows, and raw transitions including coverage masks and minimum particle heights. Endings above do not certify model calibration or readiness of the simplified training interface.
 
@@ -1675,10 +1675,40 @@ Raw per-step rewards, components, poses, forces, terminal flags and packed trans
 
 ### Two additional material paths
 
-- Four BladeMaster reproduction shapes were converted to DiSECt prescribed interfaces: banana, cake, tofu and luncheon. All passed topology checks and completed nominal pose references, none fully separated. E/nu/rho transfer is explicit; fracture/plasticity is not mapped to cut springs. Cake/tofu defaults now settle for 3 s and have actual reset/step checks. **Tofu is not training-ready under the inherited ground parameters**: material penetrated the penalty ground by about 4.7 mm initially and 10.4 mm at the end of the old 0.75 s reference. Knife nonpenetration is a distinct condition. All four remain candidate assets. Details: [asset note](BLADEMASTER_DISECT_ASSETS.md).
+- Four BladeMaster reproduction shapes were converted to DiSECt prescribed interfaces: banana, cake, tofu and luncheon. All passed topology checks and completed nominal pose references, none fully separated. E/nu/rho transfer is explicit; fracture/plasticity is not mapped to cut springs. Cake/tofu defaults now settle for 3 s and have actual reset/step checks. **Ground interpretation corrected below**: the earlier minima of about -4.7 mm initially and -10.4 mm at the end included ghost FEM nodes, so they do not establish occupied-material penetration. The later physical-contact diagnostic supersedes that interpretation. Knife nonpenetration is a distinct condition. All four remain candidate assets. Details: [asset note](BLADEMASTER_DISECT_ASSETS.md).
 
 - Independent BladeMaster/UR5e backend: actual 37-step reference completion, 48 mapped-action transitions, finite and changing WM/actor/critic weights, optimizer/replay restore followed by another update, and two-world masked reset preserving the other world exactly. The real knife now has a swept-board guard at each 1 ms robot substep. Separate `blademaster_pose_v1` uses analytical depth progress, not DiSECt spring labels; do not present it as a matched-reward backend comparison. Details: [backend review](BLADEMASTER_BACKEND_REVIEW.md).
 
 ### Integrated validation
 
 Final root suite: **366 passed, 5 skipped**; backend: **38 passed**. Logs: `runs/half_potato_integration_verified_root_20261114.log` and `runs/half_potato_integration_backend_20261114.log`. The added legacy-reward-override rejection test initially had a script-import-path error; the test harness was corrected, its focused suite passed 15 tests, and the final full suite above passed. No long training was launched and no source/weights/data were copied to Mac.
+
+## 2026-11-14 — Corrected tofu ground diagnostic and authorized pose training
+
+The prior candidate report called all-node minimum y physical penetration.
+This was incorrect: DiSECt cut tets contain extrapolated ghost nodes on an
+empty subdomain side. Their coordinates are not occupied material surface.
+The checker now records contact-enabled nodes and cut-edge interpolated
+points separately from ghosts. No ground kernel, material or reward changed.
+
+In a new nominal tofu reference with 3 s settling, 70 steps reached the pose,
+344/436 springs released, peak reaction was 12.113 N and max force utilization
+was 0.305. At 50 ms recording intervals, the lowest actual contact geometry
+was -0.309 mm and the lowest ghost was -10.396 mm. No sampled actual contact point
+was below -1 mm. The earlier all-node numbers remain raw FEM observations but
+must not be interpreted as 10 mm physical penetration. Small genuine penalty
+contact overlap remains, and these samples do not bound every material
+substep. The 0.75 s historical reference is not exactly reproduced by this 3 s run.
+See [ground review](GROUND_CONTACT_REVIEW.md) for source tracing and tests.
+
+The user authorized one A6000 three-object pose-task long run after preflight,
+plus separate tofu and conditional BladeMaster work. The planned main run is
+192 worlds (64 each), fresh networks, 500 WM-only updates then real critic+h8 + BC 0.25,
+with 5000 vector-step / 24 h limits. Preflight/actual launch status is in
+[TRAINING_20261114](TRAINING_20261114.md); authorization is not a claim that a
+long run has already started.
+
+The active board branch did not contain b1bcb92's schedule persistence change.
+Its warmup-anchor/config/accumulator repair and resume tests were restored;
+fresh-run cadence and physical/task behavior are unchanged. Historical old
+snapshots lacking these fields cannot promise exact cadence recovery.

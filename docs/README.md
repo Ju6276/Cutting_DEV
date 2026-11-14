@@ -8,6 +8,7 @@
 | [Literature search 2026-11-12](literature/force_adaptive_search_20261112.md) | Prior art for the candidate topic, searched outside the library (second-hand evidence levels) |
 | [OFFICIAL_SUPERMIMIC](OFFICIAL_SUPERMIMIC.md) | Official SuperMimic (5efbf11) adapted to the cutting prism: component mapping and every deviation |
 | [BENCHMARK](BENCHMARK.md) | Historical fixed-prism contract/commands, not the corrected multi-object task |
+| [Training 2026-11-14](TRAINING_20261114.md) | Current authorized three-object launch, preflight and resume repair |
 | [RUNNING](RUNNING.md) | Installation, execution and validation |
 | [DATA](DATA.md) | Server data/checkpoint locations, status and cleanup record |
 | [CONTACT_FIX_REVIEW](CONTACT_FIX_REVIEW.md) | Review handoff for the contact correction: derivation, evidence, test-coverage change and limitations |
@@ -16,6 +17,7 @@
 | [NOVELTY](NOVELTY.md) | Literature evidence and candidate ideas, not implemented methods |
 | [READING_LIST](READING_LIST.md) | Literature/data entry points |
 | [REAL2SIM](REAL2SIM.md) | Conditional real-robot draft, not a scheduled task |
+| [Ground-contact review](GROUND_CONTACT_REVIEW.md) | Ghost nodes versus actual contact geometry; corrected tofu diagnosis |
 | [BladeMaster assets](BLADEMASTER_DISECT_ASSETS.md) | Four reproduction geometries and elastic parameters converted to prescribed-interface DiSECt scenes |
 | [BladeMaster backend](BLADEMASTER_BACKEND_REVIEW.md) | Independent UR5e/FDCC material backend, distinct task semantics and actual update/restart checks |
 | [SOURCES](SOURCES.md) | Upstream versions and provenance |

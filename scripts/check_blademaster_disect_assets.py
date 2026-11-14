@@ -22,12 +22,34 @@ from cutting_world_model.provenance import git_revision
 
 
 def ground_stats(material):
-    """DiSECt particle y and ground both use material coordinates (board y=0)."""
-    y=material.state_field("particle_q")[:,:,1]
-    return dict(minimum_y_mm=(y.min(1).values*1000).tolist(),
-                particles_below_board=(y<0).sum(1).tolist(),
-                particles_below_minus_1mm=(y<-.001).sum(1).tolist(),
-                particles_below_minus_5mm=(y<-.005).sum(1).tolist(),
+    """Report physical contact geometry separately from extrapolated ghost nodes.
+
+    DiSECt duplicates cut-tet nodes on the empty side of each subdomain. Those
+    contact_mask=0 nodes are FEM degrees of freedom, not occupied material points.
+    Ground contact uses mask-enabled nodes and interpolated cut-edge points.
+    """
+    worlds=material.worlds
+    q=material.state_field("particle_q")
+    flat=q.reshape(-1,3)
+    mask=material.model.contact_mask.reshape(worlds,-1)>0
+    edges=material.model.cut_edge_indices.reshape(-1,2).long()
+    t=material.model.cut_edge_coords.reshape(-1,1)
+    virtual=(flat[edges[:,0]]*(1-t)+flat[edges[:,1]]*t).reshape(worlds,-1,3)
+    def stats(values):
+        return dict(count=int(values.numel()),
+                    minimum_y_mm=float(values.min()*1000) if values.numel() else None,
+                    below_board=int((values<0).sum()),
+                    below_minus_1mm=int((values<-.001).sum()),
+                    below_minus_5mm=int((values<-.005).sum()))
+    groups=[]
+    for w in range(worlds):
+        real=q[w,:,1][mask[w]]
+        cut=virtual[w,:,1]
+        groups.append(dict(all_fem_nodes=stats(q[w,:,1]),
+                           ghost_nodes=stats(q[w,:,1][~mask[w]]),
+                           contact_nodes=stats(real),cut_surface_points=stats(cut),
+                           physical_contact_geometry=stats(torch.cat((real,cut)))))
+    return dict(representation="physical_contact_geometry_v1",worlds=groups,
                 contact_ke=float(material.model.contact_ke),
                 contact_kd=float(material.model.contact_kd),
                 contact_distance_m=float(material.model.contact_distance))
@@ -97,6 +119,7 @@ def main():
                                      timeout=bool(info["timeout"][0]),separated=bool(info["separated"][0]),
                                      released=int(info["released_springs"][0]),
                                      peak_force_n=float(info["peak_force"][0]),limit_utilization=float(info["safety_margin"][0]),
+                                     ground=ground_stats(e.physics.material),
                                      gap_m=float(frame["knife_min_board_gap"].min()),
                                      goal_error=(frame["observation"][0,:3]*frame["observation"].new_tensor(e.heads.max_distance)).tolist()))
                     if (step+1) % 20 == 0:

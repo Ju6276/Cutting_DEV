@@ -44,15 +44,41 @@ def test_generated_candidates_keep_source_size_and_distinct_task_identity():
     assert 2*(radius*radius-offset*offset)**.5<.15
 
 
-def test_ground_overlap_is_measured_in_material_frame_not_robot_frame():
+def test_ground_overlap_excludes_ghost_dofs_but_includes_cut_surface():
     from types import SimpleNamespace
     import torch
     from scripts.check_blademaster_disect_assets import ground_stats
-    q=torch.tensor([[[0., .002, 0.], [0., -.0005, 0.], [0., -.002, 0.], [0., -.01, 0.]]])
-    m=SimpleNamespace(state_field=lambda _: q,
-                      model=SimpleNamespace(contact_ke=1000.,contact_kd=0.,contact_distance=.001))
-    result=ground_stats(m)
-    assert result["particles_below_board"]==[3]
-    assert result["particles_below_minus_1mm"]==[2]
-    assert result["particles_below_minus_5mm"]==[1]
-    assert result["minimum_y_mm"]==pytest.approx([-10.])
+    # The ghost falls 10 mm below the board; the actual cut point remains above.
+    q=torch.tensor([[[0., .002, 0.], [0., -.0001, 0.], [0., -.01, 0.], [0., .003, 0.]]])
+    model=SimpleNamespace(contact_ke=1000.,contact_kd=0.,contact_distance=.001,
+                          contact_mask=torch.tensor([1.,1.,0.,0.]),
+                          cut_edge_indices=torch.tensor([[0,2]]),
+                          cut_edge_coords=torch.tensor([.1]))
+    m=SimpleNamespace(worlds=1,state_field=lambda _: q,model=model)
+    result=ground_stats(m)["worlds"][0]
+    assert result["all_fem_nodes"]["minimum_y_mm"]==pytest.approx(-10.)
+    assert result["ghost_nodes"]["below_minus_1mm"]==1
+    assert result["physical_contact_geometry"]["minimum_y_mm"]==pytest.approx(-.1)
+    assert result["physical_contact_geometry"]["below_minus_1mm"]==0
+    # If the true interpolated cut surface penetrates, it must still be counted.
+    model.cut_edge_coords.fill_(.5)
+    result=ground_stats(m)["worlds"][0]
+    assert result["cut_surface_points"]["minimum_y_mm"]==pytest.approx(-4.)
+    assert result["physical_contact_geometry"]["below_minus_1mm"]==1
+
+
+def test_ground_report_keeps_packed_worlds_separate():
+    from types import SimpleNamespace
+    import torch
+    from scripts.check_blademaster_disect_assets import ground_stats
+    q=torch.tensor([[[0., .002, 0.], [0., -.01, 0.]],
+                    [[0., .004, 0.], [0., -.02, 0.]]])
+    model=SimpleNamespace(contact_ke=1000.,contact_kd=0.,contact_distance=.001,
+                          contact_mask=torch.tensor([1.,0.,1.,0.]),
+                          cut_edge_indices=torch.tensor([[0,1],[2,3]]),
+                          cut_edge_coords=torch.tensor([.1,.25]))
+    m=SimpleNamespace(worlds=2,state_field=lambda _: q,model=model)
+    result=ground_stats(m)["worlds"]
+    assert result[0]["physical_contact_geometry"]["minimum_y_mm"]==pytest.approx(.8)
+    assert result[1]["physical_contact_geometry"]["minimum_y_mm"]==pytest.approx(-2.)
+    assert result[0]["ghost_nodes"]["count"]==result[1]["ghost_nodes"]["count"]==1

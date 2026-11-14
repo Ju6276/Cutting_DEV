@@ -104,7 +104,7 @@ The first 500 WM rounds leave policy/critic unchanged.
 `--resume RUN/last.pt` restores networks, optimizers and training counters.
 Physics restarts. By default replay loads from colocated `replay.pt` only when
 checkpoint name/iteration match; open replay episodes are closed at restart.
-Source warmup still applies. Use `--resume-without-replay` for old checkpoints
+With a restored replay, version-2 schedule state preserves the warmup origin and fractional update phase; no second warmup is inserted. Deliberately empty replay starts a refill warmup. Legacy schedule snapshots emit a migration warning. Use `--resume-without-replay` for old checkpoints
 without matching snapshots (the historical README command). One `replay.pt`
 is overwritten at every save: older checkpoints can be evaluated but cannot all
 resume with the latest replay. Empty-replay resume is not exact continuation.
@@ -246,8 +246,8 @@ cut triangles. The board support is display geometry.
 
 ## Remote-only development and storage
 
-Open GPU7 in VS Code Remote SSH and use /dataHDD/dong/Projects/Cutting_DEV
-(branch main). The Mac holds no project checkout or experiment files.
+Open GPU7 in VS Code Remote SSH and use /dataHDD/dong/Projects/Cutting_DEV_board
+(branch codex/board-cut-v4). The isolated A6000 training checkout and launch status are in [TRAINING_20261114](TRAINING_20261114.md). The Mac holds no project checkout or experiment files.
 GPU9 is no longer a run target.
 
 GPU7 storage:
