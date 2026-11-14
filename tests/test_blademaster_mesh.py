@@ -22,3 +22,16 @@ def test_three_objects_share_blade_task_and_have_only_explicit_parameter_transfe
     assert all(set(g['material_overrides'])==allowed for g in c['groups'])
     assert len({tuple(g['material_overrides']['blade_half_size']) for g in c['groups']})==1
     assert c['task']['version']=='blademaster_pose_v1'
+
+
+def test_batched_256_keeps_the_nominal_physics_and_reward():
+    original=json.loads((ROOT/"configs/blademaster/three_intact_nominal.json").read_text())
+    batch=json.loads((ROOT/"configs/blademaster/three_intact_batched256.json").read_text())
+    assert batch["worlds"] == sum(g["worlds"] for g in batch["groups"]) == 256
+    assert [g["worlds"] for g in batch["groups"]] == [86,85,85]
+    assert batch["execution"] == "batched"
+    assert batch["force_observation"] == "sensor_wrench6_v1"
+    for key in ("task","force_limits","target_speed_m_s","clearance_m","settle_seconds"):
+        assert batch[key] == original[key]
+    for old,new in zip(original["groups"],batch["groups"]):
+        assert {k:v for k,v in old.items() if k!="worlds"} == {k:v for k,v in new.items() if k!="worlds"}

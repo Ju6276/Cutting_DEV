@@ -3,7 +3,7 @@
 The material frame is right handed, z up, metres. A single fixed tool mounting
 maps the material knife to the robot EE. Material reactions are interval-average
 wrenches at 500 Hz, transformed to the sensor origin before the source filter.
-Each world owns an independent material solver; these solvers currently advance
+The legacy path gives each world an independent material solver; these advance
 sequentially. No DiSECt scene, pre-cut interface or spring array is constructed.
 """
 import copy
@@ -30,7 +30,7 @@ from cutting_gpu_backend.environment import CuttingBatch
 from cutting_gpu_backend.metrics import StepMetrics
 from cutting_gpu_backend.robot import Robot
 from .kinematics import quat_apply, quat_log, quat_mul, quat_inverse, SerialKinematics
-from .task_heads import SliceItHeads, validate_force_limits
+from .task_heads import SliceItHeads, validate_force_limits, configure_force_observation
 from .free_cut import FreeCutTask, validate_task
 from .gpu_env import GPUEnvironment
 from .pose_cut import gap_from_pose
@@ -120,6 +120,31 @@ def load_material(config):
     return cfg, Solver, ExternalToolPort, ToolState, {'commit':revision,'dirty':dirty}
 
 
+class MaterialArrayView:
+    def __init__(self,array,index):self.array,self.index=array,index
+    def numpy(self):
+        import warp as wp
+        return wp.to_torch(self.array.data)[self.index].cpu().numpy().copy()
+
+
+class MaterialWorldView:
+    def __init__(self,solver,index):self.solver,self.index=solver,index
+    def state(self):
+        names=dict(position='x',velocity='v',deformation='F',plastic_deformation='Fp',
+                   sides='codes',damage='damage',blade_position='tool_pos',
+                   blade_velocity='tool_vel',blade_orientation='tool_rot',blade_omega='tool_omega')
+        result={name:getattr(self,source).numpy() for name,source in names.items()}
+        if any(not np.isfinite(value).all() for value in result.values()):
+            raise FloatingPointError('Nonfinite batched material world')
+        if np.linalg.det(result['deformation']).min()<=0:
+            raise FloatingPointError('Inverted batched material world')
+        return result
+    def __getattr__(self,name):
+        from blademaster_warp.batched import BatchArray
+        value=getattr(self.solver,name)
+        return MaterialArrayView(value,self.index) if isinstance(value,BatchArray) else value
+
+
 class BladeMasterBatch(CuttingBatch):
     @torch.no_grad()
     def __init__(self, root, config):
@@ -134,6 +159,7 @@ class BladeMasterBatch(CuttingBatch):
                                               material=config['material'])]
         if sum(g['worlds'] for g in groups)!=self.worlds:
             raise ValueError('BladeMaster group world counts must sum to worlds')
+        self.groups=groups
         self.material_configs=[];self.reference_points=[];self.group_names=[];self.group_index=[]
         material_groups=[]
         for group_index,group in enumerate(groups):
@@ -221,6 +247,10 @@ class BladeMasterBatch(CuttingBatch):
         self.target[:,2] -= gap_from_pose(self.target,self.board_geometry)-self.stop_gap
         self.force_limits = torch.tensor(config['force_limits'],device=self.device,dtype=self.dtype)[None].repeat(self.worlds,1)
         self.desired_wrench = torch.tensor(t['controller']['desired_force_torque'],device=self.device,dtype=self.dtype)[None].expand(self.worlds,-1)
+        self.batched = config.get('execution', 'serial') == 'batched'
+        if config.get('execution', 'serial') not in ('serial','batched'):
+            raise ValueError('Unknown BladeMaster execution mode')
+        self.batch_groups = []
         self.solvers = [None]*self.worlds
         self.ports = [None]*self.worlds
         self.sim_time = torch.zeros(self.worlds,device=self.device,dtype=self.dtype)
@@ -273,6 +303,54 @@ class BladeMasterBatch(CuttingBatch):
                 raise ValueError('Blade touches material during settling')
         self.solvers[index],self.ports[index] = solver,port
 
+    def _reset_batched(self, mask):
+        from blademaster_warp.batched import BatchedSolver
+        if not self.batch_groups:
+            offset=0
+            for group in self.groups:
+                count=group['worlds']
+                solver=BatchedSolver(self.material_configs[offset],count,device='cuda:0',
+                    reference_points=self.reference_points[offset])
+                indices=slice(offset,offset+count)
+                pose=self.tool_pose()[indices].cpu().numpy()
+                packed=np.zeros((count,49),dtype=np.float32);packed[:,:7]=pose
+                for _ in range(round(self.settle_seconds/.002)):
+                    out=solver.advance(packed,np.ones(count,dtype=np.int32),cutting=False).numpy()
+                    if (np.linalg.norm(out[:,:3]/.002,axis=1)>1e-6).any():
+                        raise ValueError('Blade touches material during batched settling')
+                    self._check_batch_result(out)
+                solver.save_reset()
+                self.batch_groups.append((indices,solver))
+                for local,index in enumerate(range(offset,offset+count)):
+                    self.solvers[index]=MaterialWorldView(solver,local)
+                offset+=count
+            if offset!=self.worlds:raise ValueError('Grouped BladeMaster world count mismatch')
+        else:
+            masks=mask.cpu().numpy()
+            for indices,solver in self.batch_groups:
+                if masks[indices].any():solver.reset(masks[indices])
+
+    @staticmethod
+    def _check_batch_result(out):
+        if not np.isfinite(out).all() or (out[:,6:9]!=0).any():
+            raise FloatingPointError('Invalid batched BladeMaster material interval')
+        if (out[:,-1]>1e-6).any():
+            raise FloatingPointError('Batched blade grid constraint failed to converge')
+
+    def _advance_batched(self,pose,linear,angular,active):
+        packed=torch.zeros((self.worlds,49),device=self.device,dtype=torch.float32)
+        packed[:,:7]=pose
+        packed[:,7:10]=linear
+        packed[:,10:13]=angular
+        host=packed.cpu().numpy();enabled=active.cpu().numpy()
+        for indices,solver in self.batch_groups:
+            selected=enabled[indices]
+            if not selected.any():continue
+            out=solver.advance(host[indices],selected).numpy()
+            self._check_batch_result(out[selected])
+            wrench=torch.as_tensor(out[:,:6]/.002,device=self.device,dtype=self.dtype)
+            self.net[indices]=torch.where(active[indices,None],wrench,self.net[indices])
+
     @torch.no_grad()
     def reset(self, mask=None):
         if mask is None: mask=torch.ones(self.worlds,device=self.device,dtype=torch.bool)
@@ -284,7 +362,10 @@ class BladeMasterBatch(CuttingBatch):
         self.feedback['sensor_wrench'][mask]=0;self.wrench_queue[mask]=0
         self.contacted[mask]=False;self.progress[mask]=0
         self.frames=self.chain(self.robot.q.double(),mass_matrix=False)[0]
-        for index in mask.nonzero().flatten().tolist():self._new_material(index)
+        if self.batched:
+            self._reset_batched(mask)
+        else:
+            for index in mask.nonzero().flatten().tolist():self._new_material(index)
         return self.frame()
 
     def frame(self):
@@ -338,11 +419,14 @@ class BladeMasterBatch(CuttingBatch):
             tool_pose=self.tool_pose()
             linear=(tool_pose[:,:3]-old_tool[:,:3])/.002
             angular=quat_log(quat_mul(tool_pose[:,3:],quat_inverse(old_tool[:,3:])))/.002
-            for index in active.nonzero().flatten().tolist():
-                p=tool_pose[index].cpu().numpy()
-                command=self.ToolState(p[:3],p[3:],linear[index].cpu().numpy(),angular[index].cpu().numpy())
-                reaction=self.ports[index].advance(command,.002).about(np.zeros(3))
-                self.net[index]=torch.as_tensor(np.r_[reaction.force_n,reaction.torque_nm],device=self.device)
+            if self.batched:
+                self._advance_batched(tool_pose,linear,angular,active)
+            else:
+                for index in active.nonzero().flatten().tolist():
+                    p=tool_pose[index].cpu().numpy()
+                    command=self.ToolState(p[:3],p[3:],linear[index].cpu().numpy(),angular[index].cpu().numpy())
+                    reaction=self.ports[index].advance(command,.002).about(np.zeros(3))
+                    self.net[index]=torch.as_tensor(np.r_[reaction.force_n,reaction.torque_nm],device=self.device)
             raw=-self.robot.sensor_wrench(self.config.sensor_ref_link).double()
             sensor=reaction_at_sensor(self.net[:,:3],self.net[:,3:],self.base_from_material,
                                       self.frames[self.config.sensor_ref_link])
@@ -371,7 +455,7 @@ class BladeMasterBatch(CuttingBatch):
         return self.frame(),collision,peak_force
 
     def close(self):
-        self.ports.clear();self.solvers.clear()
+        self.ports.clear();self.solvers.clear();self.batch_groups.clear()
 
 
 class BladeMasterEnvironment(GPUEnvironment):
@@ -397,6 +481,7 @@ class BladeMasterEnvironment(GPUEnvironment):
             depth_span_m=self.physics.depth_span,
             blademaster=self.physics.material_metadata,
             backend_config=copy.deepcopy(config))
+        self.metadata=configure_force_observation(self.metadata,config.get('force_observation'))
         self.environment=self.metadata['environment'];self.controller=self.metadata['controller']
         self.heads=SliceItHeads(self.environment,self.controller)
         self.free_task=FreeCutTask(config['task'],self.heads)
