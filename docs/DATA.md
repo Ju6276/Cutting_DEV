@@ -148,3 +148,19 @@ or modified in this cleanup. No matching cutting training/evaluation process
 was found in the snapshot. One A6000 was busy, so existing dependencies and
 other jobs were left untouched. Machine notes are snapshots, not live status.
 GPU9: see "Data on other servers".
+
+
+## 2026-11-14 pose task and natural potato preparation
+
+- Code: GPU7 `/dataHDD/dong/Projects/Cutting_DEV_board`, branch `codex/board-cut-v4`.
+- Raw stable-orientation mesh: `/dataHDD/dong/Research/food_meshes/tet/potato_003_stable_20261114.msh`.
+- Original mesh is preserved. Preparation script rotates the existing uncut
+  tetrahedral mesh, then the exporter rebuilds its cutting interface.
+- Export: `/dataHDD/dong/Assets/Cutting_DEV/prepared/sweep/free_potato_stable_20261114_v3/scene.pt`.
+  The directory suffix denotes an export attempt, not the free_cut_v3 task.
+- Development configuration: `configs/free_cut/pose_potato.json`, with 8 s
+  per-material settling. This is not a bulk training dataset.
+- Checks/temporary engineering checkpoints: `runs/pose_task_20261114/` on GPU7.
+  They use task `free_cut_pose_v1`; none is a learned cutting-policy result.
+- Failed export-attempt logs and historical data are retained in run storage,
+  excluded from Git. No server weights or experimental evidence were deleted.

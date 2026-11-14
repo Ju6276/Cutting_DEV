@@ -64,17 +64,28 @@ class GPUEnvironment:
         self.heads = SliceItHeads(self.environment, self.controller)
         self.free_task = None
         if task is not None:
-            validate_topology(self.physics.material)
+            if task['version'] != 'free_cut_pose_v1':
+                validate_topology(self.physics.material)
+            elif bool((self.physics.material.model.particle_inv_mass == 0).any()):
+                raise ValueError('Free pose task requires an unheld object')
+            elif self.physics.material.state_field('cut_spring_ke').shape[-1] == 0:
+                raise ValueError('Progress shaping needs nonempty cutting springs')
             self.metadata['free_cut_task'] = task
             self.metadata['task_interface_revision'] = task['version']
             self.metadata['goal_dim'] = 8
             self.free_task = FreeCutTask(task, self.heads)
-            if task['version'] == 'free_cut_v4':
+            if task['version'] in ('free_cut_v4', 'free_cut_pose_v1'):
                 self.physics.enable_board(task['board'])
                 self.metadata['knife_board_revision'] = 'swept_stop_path_v2'
         m = self.metadata
         self.fk = SerialKinematics(m['robot_xml'], m['robot_base'], m['robot_tip'], m['joint_names']).to(self.device)
         self.previous_pose = self.fk(self.physics.robot.q.double())
+        if task is not None and task['version'] == 'free_cut_pose_v1':
+            from .pose_cut import align_board_goal
+            geometry = align_board_goal(self.physics, backend_root)
+            self.metadata['board_pose_geometry'] = geometry
+            self.metadata['goal_alignment_revision'] = 'finite_blade_board_pose_v1'
+
         self.previous_velocity = torch.zeros((worlds, 6), device=self.device, dtype=torch.float64)
         self.previous_acceleration = torch.zeros_like(self.previous_velocity)
         self.success_counter = torch.zeros(worlds, device=self.device, dtype=torch.float64)
@@ -168,16 +179,19 @@ class GPUEnvironment:
             events = self.free_task.events(frame['observation'], frame['peak_wrench'],
                                            (frame['separation_progress'] if self.free_task.config['version'] == 'free_cut_v4'
                                             else frame['cut_progress'])[:, 0], self.step_count, collision, pose=frame['ee_pose'],
-                                           board=frame if self.free_task.config['version'] == 'free_cut_v4' else None)
+                                           board=frame if self.free_task.config['version'] in ('free_cut_v4', 'free_cut_pose_v1') else None,
+                                           success_counter=self.success_counter)
             reward = self.free_task.reward(self.current['cut_progress'][:, 0],
                                           frame['cut_progress'][:, 0], frame['observation'],
                                           frame['peak_wrench'], self.target_speed, events)
             terminated = events['terminated']
             success, outside, collision = events['success'], events['outside'], events['collision']
-            counter = self.success_counter
+            counter = events.get('counter', self.success_counter)
             truncated = torch.zeros_like(terminated)
             task_info = {k: events[k] for k in ('separated', 'timeout')}
             task_info['cut_progress'] = frame['cut_progress'][:, 0]
+            if self.free_task.config['version'] == 'free_cut_pose_v1':
+                task_info['board_contact'] = events['board_contact']
             if self.free_task.config['version'] == 'free_cut_v4':
                 task_info.update({k: events[k] for k in ('board_contact', 'board_incomplete', 'board_penetration')})
         else:

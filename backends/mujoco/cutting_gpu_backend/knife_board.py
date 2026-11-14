@@ -14,7 +14,7 @@ class KnifeBoard:
         self.config = dict(config)
         self.y = float(config['height_m'])
         self.stop_gap = float(config['stop_gap_m'])
-        self.tolerance = float(config['coverage_tolerance_m'])
+        self.tolerance = float(config.get('coverage_tolerance_m', .0005))
         self.vertices = material.model.knife_tri_vertices.reshape(-1, 3).to(material.position)
         # pack_model repeats knife vertices for worlds; one knife geometry suffices.
         self.vertices = torch.unique(self.vertices, dim=0)

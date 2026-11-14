@@ -1,37 +1,74 @@
-# Free-object single cut — current direction
+# Free-object single cut — target-pose task
 
-Updated 2026-11-14 after the user's simplification request. **Use target-pose completion with a board execution boundary. Do not turn geometric coverage or complete spring separation into additional training gates.**
+Updated 2026-11-14. The implemented task identity is `free_cut_pose_v1`.
+The user authorized changing the +100 success event to prescribed pose arrival and
+adding a nonpenetrating cutting-board boundary. Existing v3 running rewards are
+retained in this change; it is not a replacement of the entire reward with SliceIt's.
 
-## Three distinct things
+## Completion and failure
 
-1. **Control-task completion:** reach the prescribed knife/robot target within the configured position/orientation tolerances and arrival count, without force/workspace failure. Reuse the existing SliceIt pose-error/termination interface. Its configured `target_dims` select the checked axes; do not describe this as checking every Cartesian component unless configured that way. Its arrival counter is the existing accumulated counter, not a newly claimed consecutive hold.
-2. **Execution boundary:** the actual finite knife must not pass below the board. Stop unsafe downward/rotational motion. The board stop is a software interlock; it does not synthesize board reaction forces. A normal board stop earns no new penetration penalty.
-3. **Physical evaluation:** separately report material separation, residual springs, object motion and whether the knife missed the intended material. These measurements do not supply new policy inputs or extra WM progress/completion heads.
+- The prescribed goal is the captured robot-base end-effector pose, translated
+  along the board normal until the lowest point of the actual finite knife is at
+  the board stop height. The blade-to-tool offset and orientation are included.
+  It is not a target chosen by the policy, and not the old below-board goal.
+- The existing SliceIt interface checks configured axes `[0,2,4]` (x, z, pitch),
+  with thresholds `[0.04 m, 0.002 m, 0.04 rad]`. Its accumulated arrival counter
+  must exceed 10 while the current observation is inside those thresholds.
+  This is not a new consecutive-hold requirement.
+- Pose completion earns +100 only without force or workspace failure.
+  Force/workspace failure takes precedence and costs -100 once, including when
+  arrival happens on the same step. The environment requires reset after ending.
+- Timeout is an unsuccessful finite-horizon terminal, with no completion bonus
+  and no value bootstrap. Current development configuration: 180 steps, 9 s.
+- All springs need NOT be released to earn pose completion. Material separation,
+  residual springs, geometric coverage and sliding remain separately reported.
+  Pose-success rate must not be described as a physical-separation rate.
 
-Reaching a target is a valid RL task definition. It does not alone prove material separation. A controller can reach the target after an object moves away; report that physical outcome rather than quietly renaming it a completed cut.
+## Board requirement
 
-## Numerical handling
+The board is the DiSECt plane y=0. The existing finite-blade swept-motion stop
+prevents downward and rotational penetration; it is a software interlock, not a
+calibrated compliant board-contact force model. Ordinary board arrival is not a
+failure and has no added penalty. Geometric coverage is not a success gate.
+Invalid penetration below -2 micrometres aborts the simulator transition; it is
+not scored as an RL failure. The stop aims for +1 micrometre clearance.
 
-The existing board interlock aims for +1 micrometre clearance. A knife clearance below -2 micrometres triggers a simulator error; it must not generate a successful or penalized learning transition. Small errors within that numerical allowance are not a new RL cost. These values are local numerical settings, not published Mini45 tolerances or parameters copied from the papers. They do not authorize millimetres of penetration. Material-ground overlap is measured separately from knife clearance.
+The WM uses the recorded finite-blade geometry with forward kinematics to project
+predicted endpoints to the board boundary. This is a rigid kinematic proxy;
+physical execution checks the integrated DiSECt knife, including the swept arc.
+The boundary projection runs eagerly (including its implicit BPTT derivative); the rest of the WM can use the existing compilation path. The physical/proxy gap discrepancy is measured by `scripts/check_pose_cut.py`.
+This proxy must not be described as a learned board contact-force model.
 
-## What is implemented, what is not
+## Running rewards and world model
 
-- Source SliceIt target-pose reward/termination exists and remains available.
-- The board interlock is implemented and physically exercised on three free-object scenes.
-- `free_cut_v4` is the **retired coverage-task experiment**, preserved to reproduce the 2026-11-13 audit. It is not the selected long-training task, and WM construction rejects it.
-- The simplified pose task still needs an explicit board-aligned goal and versioned integration into the training entry. Do not launch v4 or silently relabel a v3 separation checkpoint as this new task.
-- This cleanup does not change reward weights, the WM network, BPTT, the critic or the action mapping. A learned coverage head, new penetration reward, and a requirement to break every spring are not part of the selected direction.
+Unchanged from v3: progress weight 10; speed weight 20 (progress and finite-time
+components); load weight 1; jerk weight 0.1; gamma=1. Six-axis sensor limits remain
+explicit configuration values, currently [50,50,50,5,5,5] for simulated development,
+not calibrated Mini45 safety limits. See [historical equations](archive/TASK_FREE_CUT_V1_V3.md).
 
-The existing default source path has no board interlock. Its old reproduction command is therefore not the new safe task launch. A board-aligned target must be checked against the actual material knife, including the robot/material coupling offset; the old lower target must not be copied without checking.
+Existing release-progress prediction remains for running reward shaping, not
+completion. No new coverage head is added. The +100 settlement is computed from
+predicted pose/counter and failure conditions; the learned terminal head cannot
+issue a probabilistic +100 completion reward. Its labels now mean task termination,
+not separation. Hard pose/force/workspace/deadline termination is enforced in
+imagination so terminal rewards and bootstrap are not repeated.
 
-## Historical implementations
+This changes the task identity and terminal semantics. Old v3 replay, critic and
+completion-head weights must not silently resume as the new task. Old checkpoints
+remain usable under their own version.
 
-- [v1-v3 equations and checkpoint contract](archive/TASK_FREE_CUT_V1_V3.md): separation-based rewards, progress state and learned completion head. These remain for reproducing existing policies and measurements.
-- [v4 board/coverage audit](BOARD_CUT_REVIEW.md): shows why knife-path completion and physical separation must be reported separately. The 64-case outcomes remain historical data, not the current task specification.
-- [PLAN](PLAN.md): actual next steps and object readiness. [RESULTS](RESULTS.md): dated measurements.
+## Entry points and retained history
 
-## Relationship to the papers
+- Development configuration: `configs/free_cut/pose_cucumber.json`.
+- Physical/update/checkpoint check: `scripts/check_pose_cut.py`.
+- Training entry: `scripts/train_gpu.py --conditions configs/free_cut/pose_cucumber.json`;
+  this file has four worlds and is not an approved long-training budget.
+- Source SliceIt and v1-v3 remain for old checkpoints.
+- v4 is the retired coverage-task evaluation, not a training entry.
+- [PLAN](PLAN.md) lists remaining work and actual object readiness.
+- [RESULTS](RESULTS.md) records physical measurements and their limits.
 
-[SliceIt, section III-C.4](https://arxiv.org/html/2404.02569v1#S3.SS3.SSS4) describes target-pose completion and collision penalties based on excessive contact force. It does not specify our micrometre geometric-error penalty; none is being added.
-
-[DiSECt's official optimization example](https://github.com/NVlabs/DiSECt/blob/main/examples/optimize_slicing.py) constrains final blade height to zero and lateral motion by blade length. It is constrained trajectory optimization, not an RL reward for numerical penetration. Our hard execution stop is an engineering safeguard, not a claim to reproduce its optimizer or SliceIt's compliant board-contact dynamics.
+[SliceIt III-C.4](https://arxiv.org/html/2404.02569v1#S3.SS3.SSS4) uses target-pose
+completion. The complete-spring-release criterion was our later task choice.
+The new software board stop is our integration safeguard, not a claim to
+reproduce SliceIt's compliant board-contact dynamics.

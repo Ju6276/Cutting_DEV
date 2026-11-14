@@ -91,6 +91,8 @@ def completion_progress_report(wm, states, actions, goal, valid_steps=None):
     progress threshold. The probability-minus-progress gap is a diagnostic: physical
     completion implies progress=1, hence P(complete) <= E[progress].
     """
+    if hasattr(wm.spec, 'pose_success'):
+        raise ValueError('Separation completion diagnostics do not apply to the pose task')
     if not hasattr(wm.spec, 'free_task'):
         raise ValueError('Completion diagnostics require a free-cut WM')
     if valid_steps is None:

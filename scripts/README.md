@@ -160,3 +160,8 @@ The old check_free_object_scene.py press/hold/retract entry has force-limit
 termination disabled and no board stop. Its output is a historical geometry /
 damage measurement, not executable safe-task data or a new-policy rollout.
 Use TASK_FREE_CUT and PLAN for the selected task, not this script's existence.
+
+## Current pose-task engineering checks
+
+- `check_pose_cut.py`: physical pose/board settlement, real-controller data, one WM/actor/critic update and checkpoint round-trip.
+- `prepare_stable_food_pose.py`: gravity-supported pose of an uncut tetrahedral mesh; no remeshing or material tuning. Re-export DiSECt after applying the pose. Requires the food-mesh Python environment.

@@ -29,9 +29,12 @@ class CuttingWorldModel(nn.Module):
                 raise ValueError('free_cut requires the compact control-history layout')
             from .free_cut_state import FreeCutStateSpec
             spec_class = FreeCutStateSpec
+            if metadata['free_cut_task']['version'] == 'free_cut_pose_v1':
+                from .pose_cut import PoseCutStateSpec
+                spec_class = PoseCutStateSpec
         self.spec = spec_class(metadata)
         self.dynamics = DynamicsMLP(self.spec.dynamics_dim, 6, 7, hidden, self.spec.delta_dim)
-        if metadata.get('free_cut_task', {}).get('version') in ('free_cut_v2', 'free_cut_v3'):
+        if metadata.get('free_cut_task', {}).get('version') in ('free_cut_v2', 'free_cut_v3', 'free_cut_pose_v1'):
             import math
             fraction = metadata['free_cut_task']['initial_progress_fraction']
             with torch.no_grad():
@@ -125,6 +128,8 @@ class CuttingWorldModel(nn.Module):
 
     def completion_labels(self, states, done):
         # Physical separation, independent of force failures and finite task deadlines.
+        if self.spec.metadata.get('free_cut_task', {}).get('version') == 'free_cut_pose_v1':
+            return done  # source-style task termination, not physical separation
         if hasattr(self.spec, 'free_task'):
             return (self.spec.field(states[1:], 'cut_progress')[..., 0] >= 1).to(done.dtype)
         return done
@@ -183,7 +188,7 @@ class CuttingWorldModel(nn.Module):
             bce = F.binary_cross_entropy_with_logits(logits, labels, reduction='none')
             loss_term = loss_term + torch.where(valid, bce, 0.).sum()
             correct = correct + (valid & ((logits.detach() > 0) == labels.bool())).sum()
-            if hasattr(self.spec, 'free_task'):
+            if hasattr(self.spec, 'free_task') and not hasattr(self.spec, 'pose_success'):
                 probability = logits.detach().sigmoid()
                 rho = self.spec.field(predicted.detach(), 'cut_progress')[..., 0]
                 completion_metrics['completion_brier_physical'] += torch.where(
@@ -207,4 +212,4 @@ class CuttingWorldModel(nn.Module):
                       'nse_1step': first_error, 'nse_kstep': last_error.mean(),
                       'term_acc': correct.detach() / count,
                       **({key: value.detach() / count for key, value in completion_metrics.items()}
-                         if hasattr(self.spec, 'free_task') else {})}
+                         if hasattr(self.spec, 'free_task') and not hasattr(self.spec, 'pose_success') else {})}

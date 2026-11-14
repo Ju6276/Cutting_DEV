@@ -18,7 +18,7 @@
   FDCC + DiSECt task in the unified MuJoCo Warp environment (`docs/BENCHMARK.md`).
   The original SliceIt SAC in Gazebo stays an independent baseline. PLAN is the
   single current task list; BENCHMARK defines the historical fixed-prism contract.
-  The opt-in versioned free-cut task is defined in TASK_FREE_CUT; its rewards and training budget remain under review.
+  The current opt-in pose task is defined in TASK_FREE_CUT; the user authorized pose-based +100 settlement with failure precedence and the board boundary, retaining v3 running costs. Long-training budgets still require a concrete plan.
 - The SuperMimic source configuration stays runnable as the `source` baseline
   variant: training objectives, update cadence, effective batch sizes, optimizer
   settings and network widths unchanged. Method changes enter as named variants,

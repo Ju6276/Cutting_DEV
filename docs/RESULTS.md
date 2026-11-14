@@ -1292,3 +1292,102 @@ pose completion. The target was not silently shifted in the paired runs.
 Data: nominal_targets.json. A first inspection script exited on an unsupported
 GPUEnvironment.close() call; it was corrected, and the report above was produced
 by the completed second inspection. Neither inspection ran a cutting trajectory.
+
+## 2026-11-14 — Implemented pose completion and board boundary
+
+Supersedes the earlier Nov-14 implementation-pending note. The user explicitly
+requested changing the +100 event to prescribed target-pose arrival without
+failure, retaining the remaining v3 reward terms and adding the board requirement.
+
+Implementation: `free_cut_pose_v1`; source/v1-v4 identities remain unchanged.
+The goal uses finite knife geometry and the tool offset, translated to the board.
+Force/workspace failures override arrival and are penalized once. Timeout is a
+terminal unsuccessful episode. The accumulated source arrival counter is retained.
+No spring-release or geometric-coverage gate, and no ordinary board-contact penalty.
+Release progress remains in running reward shaping and the WM, not in the success
+predicate. The learned terminal head predicts task termination and cannot itself
+award a probabilistic +100 bonus. Invalid physical penetration is still an error.
+
+The WM board endpoint projection has an implicit derivative checked against finite
+differences; detaching the bisection fraction would give the wrong BPTT gradient.
+Projection runs eagerly, with the rest of the model on the existing compilation
+path. Compiled forward/backward matched eager execution on a board-crossing case.
+
+### Physical task settlement
+
+Two nominal-material worlds per object, prescribed reference controller, active
+simulation force/workspace limits, new pose task. These are engineering checks,
+not learned-policy success rates:
+
+| Object | Pose success | Final arrival count | Material released | Minimum knife/board gap |
+|---|---:|---:|---|---:|
+| Free cucumber | 2/2, step 36 | 11 | 64/65 and 65/65 | +0.823 micrometres |
+| Free prism | 2/2, step 36 | 11 | 266/304 in both worlds | +0.885 micrometres |
+
+The +100 settlement is distinct from total final-step reward (~99.889 after the
+retained running costs). No crossing below the board occurred. The maximum
+difference between the rigid WM geometry proxy and integrated physical knife gap
+was 0.100 mm (cucumber), 0.066 mm (prism). These differences are reported, not hidden
+by describing the two kinematic paths as exact equivalents.
+
+### Actual optimizer and restart checks
+
+Collected 24 real controller steps in two cucumber worlds (48 transitions).
+A small WM (64x64, explicitly for engineering validation) performed an actual WM
+update and BPTT actor/real-target critic update. Saved model, optimizer states and
+replay; reloaded them, verified model outputs exactly, and executed another WM and
+actor/critic update. Both update counters advanced correctly. No terminal samples
+were in this small replay; physical terminal settlement was tested separately above.
+Losses/gradients were finite; these checks do not establish model accuracy or
+learning performance. Four-world cucumber/prism group construction and one real
+step also passed with shared task metadata.
+
+An earlier zero-action, full-episode engineering probe exhausted its 600-second
+wall budget during concurrent GPU tests. It is not a completed performance
+evaluation and is not included in success-rate claims. The final bounded update
+check and complete prescribed reference episodes replace it for their respective
+engineering purposes. Timing from these concurrent checks is not dedicated-GPU
+training throughput.
+
+Evidence: `runs/pose_task_20261114/{reference,reference_prism,update_final}/report.json`,
+`compile_final.json`, `multi.json`, test logs. The historical separation diagnostic
+now rejects pose checkpoints instead of silently applying spring-completion labels.
+
+### Potato preparation
+
+Prepared a gravity-supported resting orientation using the uncut tetrahedral
+mesh, volume-weighted centre of mass and convex-hull stable-pose candidates.
+Selected the supported candidate with lowest COM height. No bottom clipping,
+remeshing, fixed particles, altered material/friction parameters or velocity erasure.
+Re-exporting the cutting plane produced 247 cutting springs (old orientation: 245).
+
+Three material pairs (E/spring: 1/1, 2/1, 2/2), fixed nominal density, 8e-6 s material
+substeps. A continuous passive-rest check measured:
+- at 0.75 s: substantial vertical motion remained;
+- at 3 s: vertical COM speed 4.3–10.6 mm/s, horizontal components <=0.15 mm/s;
+- at 5 s: COM speed ~0.117–0.247 mm/s;
+- at 8 s: COM speed ~0.045–0.072 mm/s; particle RMS ~0.54–0.56 mm/s.
+Material/ground penalty-contact overlap was approximately 0.493 mm. This is not
+knife penetration and is not evidence of calibrated ground-contact fidelity.
+These observations support the new preparation with longer settling, not the
+claim that orientation alone solved all motion. Production per-material reset and
+a subsequent passive interval are checked separately in
+`potato_production_reset.json`.
+
+The potato development configuration now uses this asset and 8 s settling.
+That has real reset cost and is not yet a measured long-training throughput or
+a completed multi-object replay dataset. No long training has been launched.
+
+
+Production reset follow-up: `env.settle(8)` with the three material pairs above,
+then 0.25 s passive physics. Reset COM speed was 0.065–0.143 mm/s; subsequent COM
+displacement was 0.0019–0.0092 mm. Fixed-particle count was zero. The 8 s state is
+produced by dynamics, with its residual velocities preserved. This is a small
+preparation check, not validation of the entire randomized material range.
+
+Validation: full root suite 345 passed / 5 skipped, backend 38 passed. The
+subsequently added guard against using the historical separation diagnostic with
+pose checkpoints passed its focused suite (9 passed). Board-projection gradient
+finite differences, compiled/eager forward/backward agreement, real physical
+settlement, optimizer/replay restart, and two-object environment integration are
+separate evidence above. No claim of training convergence follows from test counts.

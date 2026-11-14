@@ -17,9 +17,9 @@ gradients pass through the learned world model.
 
 ## Status — 2026-11-14
 
-The selected task direction is **target-pose completion with a board execution boundary**. Material separation and knife coverage are evaluation diagnostics, not extra training gates. The v3 free-cucumber policy has 543 updates; v4 was a frozen-policy coverage/board audit and is now a historical diagnostic, not a long-training recipe.
+The selected task direction is **target-pose completion with a board execution boundary**. Material separation and knife coverage are reported separately, not extra completion gates; existing release-progress reward shaping remains. The v3 free-cucumber policy has 543 updates; v4 was a frozen-policy coverage/board audit and is now a historical diagnostic, not a long-training recipe.
 
-The board stop is implemented and physically checked; it is not a compliant board-force simulator. Integrating the simplified board-aligned pose task into the training entry remains explicit work in [PLAN](docs/PLAN.md). No new training was launched in the cleanup. Current definition: [TASK_FREE_CUT](docs/TASK_FREE_CUT.md); dated evidence: [RESULTS](docs/RESULTS.md).
+The board stop is implemented and physically checked; it is not a compliant board-force simulator. The new task is implemented as `free_cut_pose_v1`, with the existing v3 running rewards retained and pose-based +100 settlement. Development configurations and remaining work are listed in [PLAN](docs/PLAN.md). No new long training was launched. Current definition: [TASK_FREE_CUT](docs/TASK_FREE_CUT.md); dated evidence: [RESULTS](docs/RESULTS.md).
 
 Historical source and v1-v3 code/checkpoints remain for reproduction. The default source command below lacks the new board boundary; do not mistake it for the next training launch. Material/friction values remain uncalibrated for the real robot.
 

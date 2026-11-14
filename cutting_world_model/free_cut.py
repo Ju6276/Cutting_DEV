@@ -1,13 +1,14 @@
 """Versioned free-object single-cut tasks (v4 currently physical evaluation only).
 
-Weights are explicit experiment inputs. No legacy pose-success reward is reused.
+Weights are explicit experiment inputs. The pose variant reuses arrival semantics
+while preserving v3 running costs; historical separation variants remain unchanged.
 """
 import math
 import numpy as np
 import torch
 
 REVISION = 'free_cut_v3'
-SUPPORTED_REVISIONS = ('free_cut_v1', 'free_cut_v2', REVISION, 'free_cut_v4')
+SUPPORTED_REVISIONS = ('free_cut_v1', 'free_cut_v2', REVISION, 'free_cut_v4', 'free_cut_pose_v1')
 WEIGHTS = ('progress', 'speed', 'load', 'jerk', 'success', 'failure')
 
 
@@ -28,14 +29,18 @@ def validate_task(config):
         lo, hi = np.asarray(box['lower']), np.asarray(box['upper'])
         if lo.shape != (3,) or hi.shape != (3,) or not np.isfinite([lo, hi]).all() or not (lo < hi).all():
             raise ValueError('Workspace needs finite ordered XYZ bounds')
-    if config['version'] == 'free_cut_v4':
+    if config['version'] in ('free_cut_v4', 'free_cut_pose_v1'):
         required.add('board')
         board = config.get('board', {})
-        if set(board) != {'height_m', 'stop_gap_m', 'coverage_tolerance_m'}:
-            raise ValueError('Board requires height, execution stop gap and geometric coverage tolerance')
+        expected = {'height_m', 'stop_gap_m'}
+        if config['version'] == 'free_cut_v4':
+            expected.add('coverage_tolerance_m')
+        if set(board) != expected:
+            raise ValueError('Board fields do not match task version')
         if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in board.values()):
             raise ValueError('Board settings must be finite')
-        if board['height_m'] != 0 or not 0 < board['stop_gap_m'] < board['coverage_tolerance_m'] <= .001:
+        tolerance = board.get('coverage_tolerance_m', .001)
+        if board['height_m'] != 0 or not 0 < board['stop_gap_m'] < tolerance <= .001:
             raise ValueError('Current material ground is y=0; require 0 < stop gap < coverage tolerance <= 1 mm')
     if set(config) != required:
         raise ValueError('Free-cut task fields do not match its version')
@@ -90,7 +95,7 @@ class FreeCutTask:
         self.horizon = self.config['horizon_steps']
         self.weights = self.config['weights']
         self.dt = heads.env['agent_control_dt']
-        if self.config['version'] in ('free_cut_v3', 'free_cut_v4'):
+        if self.config['version'] in ('free_cut_v3', 'free_cut_v4', 'free_cut_pose_v1'):
             # Over one finite episode: sum positive delta-rho <= 1 and sum dt/T <= 1.
             # Enforce settlement dominance for every accepted configuration, not one probe.
             penalty_bound = (2 * self.weights['speed'] + self.horizon * self.dt *
@@ -125,13 +130,25 @@ class FreeCutTask:
                  observation.new_tensor(self.heads.max_distance)).abs()
         return (error > error.new_tensor(self.heads.env['workspace_limit'])).any(-1)
 
-    def events(self, observation, peak, progress, step_count, collision=None, pose=None, board=None):
+    def events(self, observation, peak, progress, step_count, collision=None, pose=None, board=None, success_counter=None):
         limits = peak.new_tensor(self.heads.force_limits)
         force = (peak.abs() > limits).any(-1)
         if collision is not None:
             force = force | collision
         outside = self.workspace(observation, pose)
         separated = progress >= 1
+        if self.config['version'] == 'free_cut_pose_v1':
+            if success_counter is None or board is None:
+                raise ValueError('Pose task requires arrival counter and board measurements')
+            if bool((board['knife_min_board_gap'][..., 0] < -2e-6).any()):
+                raise FloatingPointError('Invalid knife-board penetration, not an RL failure')
+            _, reached, _, counter = self.heads.termination(observation, success_counter, force)
+            success = reached & ~outside & ~force
+            timeout = (step_count >= self.horizon) & ~force & ~outside & ~success
+            return dict(separated=separated, collision=force, outside=outside,
+                        success=success, timeout=timeout, counter=counter,
+                        board_contact=board['knife_board_contact'][..., 0].bool(),
+                        terminated=force | outside | success | timeout)
         if self.config['version'] == 'free_cut_v4':
             if board is None:
                 raise ValueError('v4 requires physical knife-board and coverage measurements')
@@ -162,7 +179,7 @@ class FreeCutTask:
         utilization = (peak.abs() / peak.new_tensor(self.heads.force_limits)).amax(-1)
         jerk = self.heads.jerkiness(observation).clamp(max=1)
         increment = progress - previous_progress
-        if self.config['version'] in ('free_cut_v3', 'free_cut_v4'):
+        if self.config['version'] in ('free_cut_v3', 'free_cut_v4', 'free_cut_pose_v1'):
             # Symmetric relative mismatch: reciprocal speeds v/v* and v*/v have
             # equal cost per released fraction. Reverse motion has maximum cost.
             mismatch = ((speed - target_speed) / (speed.abs() + target_speed)).square()

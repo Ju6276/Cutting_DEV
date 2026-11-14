@@ -1,4 +1,5 @@
-> Current status (2026-11-14): the pose-task direction and boundary are defined in [TASK_FREE_CUT](TASK_FREE_CUT.md). Implementation chapters below retain source and historical variants; v4 is a retired coverage diagnostic, not the active training method.
+> Current task update (2026-11-14): `free_cut_pose_v1` changes completion to board-aligned pose arrival without failure; v3 running costs remain. See [TASK_FREE_CUT](TASK_FREE_CUT.md). Historical separation/coverage task sections below describe retained checkpoints, not the selected task.
+
 
 # Source mapping
 
