@@ -170,3 +170,28 @@ wall-clock check and SIGTERM stop request are checked between learner updates;
 the external watchdog's 120-second kill grace is for saving and closing, not
 additional training. Launch identity and initial counters follow in a separate
 run record.
+
+## Launched run
+
+- Frozen training/backend code: `cf20ef0` (clean at startup), on top of
+  `905afb9`; masked robot fix is the preceding `600d470`.
+- External BladeMaster source: `db06c1a`, branch
+  `codex/ur5e-intact-mesh` in `Ju6276/BladeMaster-Lab`.
+- Host: `cutting-gpu7`; Python PID **1019882**, watchdog PID **1019881**.
+- Start: 2026-11-14 06:17 server log time.
+- Run: `runs/blademaster_three_train_20261114/`.
+- Launcher and stdout: `runs/blademaster_three_train_20261114.launch.sh` and
+  `runs/blademaster_three_train_20261114.log`.
+- Initial live check: 9 vector steps, 27 physical transitions, all three worlds;
+  no policy updates yet (the required 500-update WM stage precedes joint updates).
+- Driver process memory at initialization: **1,748 MiB** from
+  `nvidia-smi --query-compute-apps`. This is not a promised peak for joint training.
+- Main-entry save/replay resume smoke passed separately: iterations 1 -> 2,
+  transitions 3 -> 6, final status completed in both runs, under
+  `runs/blademaster_multi_entry_20261114` and
+  `runs/blademaster_multi_entry_resume_20261114`.
+- Launch budget and command are exactly the approved command above, including
+  explicit critic microbatch 8192. There is no automatic continuation beyond
+  the first reached 5,000-vector-step or 24-hour limit.
+
+This is a launch record, not a training-success or convergence report.
