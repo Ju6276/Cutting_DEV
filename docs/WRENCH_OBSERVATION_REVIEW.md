@@ -49,8 +49,7 @@ identical legacy/new rewards and reward gradients, preserved time and pose
 outcomes, WM reconstruction, policy shape, metadata rejection and config
 forwarding. Source plus focused tests: 47 passed, 5 skipped (GPU/external-env
 checks not run in this CPU-only pass). Three additional replay audits pass.
-No material simulation or training was launched by these tests. Integration
-root/backend GPU regression remains required before commit.
+No material simulation or training was launched by these tests. Subsequent integration on GPU7 passed root425/skip5 and backend39;3072-world DiSECt and256-world BM full-learning probes also passed. See TRAINING_SCALE_20261114 for dated scope.
 
 ## Independent replay and collection review
 

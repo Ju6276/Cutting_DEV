@@ -22,26 +22,28 @@ long-training configurations. Both were stopped with SIGTERM and their last
 checkpoints/replay preserved. Neither had started policy updates. Their launch
 records are historical, not active jobs.
 
-Current work:
-1. Implemented opt-in sensor_wrench6_v1 actor observation (34 dimensions, retaining target
-   pose/velocity axes, reward and six-dimensional control actions). The old
-   SliceIt-derived selected-axis input stays available.
-2. Physical-transition cadence implemented: at least 10240-transition warmup (increased for enough consecutive vector steps at large world counts), then one
-   ten-minibatch WM round per 640 new transitions; unchanged source mode retained.
-   Preserve cadence/replay on restart, version metadata and collection-aligned LR.
-3. Capacity test >=256 worlds on each backend, including partial reset,
-   replay and actual WM+actor+critic updates. BladeMaster requires genuinely
-   batched material kernels, not simply 256 sequential solvers.
-4. Latest user decision: validate both backends on GPU7, then restart ONLY the DiSECt main run there. BladeMaster long training waits for the user's later arrangement. Fresh networks: seed0, real critic,
-   actor horizon8, BC.25, 500 WM-only rounds. Each run has a 24h or 1280000
-   physical-transition ceiling, whichever first. No automatic extensions.
-   Do not touch unrelated jobs or claim equivalent physics/data distributions.
+Completed for this restart:
+- Versioned34-dimensional full-wrench actor observation; same6 controls/task.
+- Physical-transition cadence, real critic32, actor8, BC.25.
+- Both backends validated on GPU7; integrated root425/skip5, backend39.
+- DiSECt3072 (1024/object) completed full learning/reset/restore preflight, with
+  3.449GiB free after full learning. BladeMaster256 completed its separate
+  full-learning probe; its long run remains deferred.
 
-A6000 GPU1 is unavailable: another user's openpi training occupies ~44GiB. Do not stop it. Its 768-world learning probe was intentionally interrupted during initialization; no learning failure is inferred. Earlier A6000 physical evidence: 384-world physical-step/reset probe passed (128 per object);
-768-world physical-step/reset probe also passed (~13.2s/step); full learning check next. Choose using measured throughput and full
-learning memory, not initialization alone. Do not change physics to fit memory.
-GPU7: BladeMaster 256-world physical/learning/restore validation passed. Its root suite passed 420 tests (5 skipped), backend 39. DiSECt 3072-world full learning, selected reset, geometry capture and save/restore passed; combined regression passed: root425/skip5, backend39.
-New training has NOT launched yet. GPU7 DiSECt selected scale is3072 (1024/object), with3.449GiB free after full learning. Launch after commit/synchronization, using warmup30720 and the bounded recipe in the restart record. Capture actual long-run geometry for the requested screenshot.
+Active DiSECt job: GPU7 PID1048242, frozen code02203b1, checkout
+/dataHDD/dong/Projects/Cutting_DEV_pose_long_20261114.
+Output:runs/pose_wrench6_3072_20261114/training.
+Fresh seed0,500 WM-only rounds, warmup30720 transitions,640 new transitions per
+WM round; microbatches512/8192. Ceiling1280000 new transitions or24h, whichever
+first. Named checkpoints every32 vector steps retain paired replay. Offline
+W&B and JSON logging; capture actual geometry at steps1/120.
+Runtime manifest and first physical steps are verified: critic real/32, actor8, gamma1, BC.25, observation34. The first-step screenshots show the initial collection phase (WM/policy updates0), not a learned cutting result.
+
+A6000's development checkout is synchronized to02203b1 but no job is launched
+there; another user's GPU workloads are untouched. The old192/3 runs remain
+stopped and frozen. No automatic budget extensions or BladeMaster launch.
+
+Actual training overview/detail images have been rendered from step1 and delivered. Next: retain per-object learning/episode metrics through the fixed budget; assess the saved checkpoints without changing task or budget mid-run.
 See [restart record](TRAINING_SCALE_20261114.md) and
 [force observation](WRENCH_OBSERVATION_REVIEW.md).
 

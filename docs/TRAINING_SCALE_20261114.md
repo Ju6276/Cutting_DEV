@@ -68,7 +68,7 @@ material models and randomization; this is not an algorithm comparison.
 
 ## Results
 
-Capacity and launch measurements will be appended after execution.
+Measured capacity and launch records follow.
 
 
 ### A6000 material capacity (real physics, before full learning allocation)
@@ -200,3 +200,32 @@ Combined committed-candidate regression on GPU7: root425 passed/5 skipped
 (239.39s), backend39 passed(5.49s). Logs in
 runs/disect_capacity_20261114/{root_tests,backend_tests}.log.
 The paused 192/3 runs remain archived; no weights or replay are reused.
+
+
+### Launch record
+
+GPU7 PID1048242 started from a clean frozen checkout at02203b1:
+/dataHDD/dong/Projects/Cutting_DEV_pose_long_20261114.
+Output:runs/pose_wrench6_3072_20261114/training; outer train.log and
+launch_verified.json contain the command, configuration/preflight SHA256 and
+test record. Initialization/settling starts before any policy update.
+
+GPU7 Cutting_DEV_board and A6000 Cutting_DEV_pose_scale_20261114 were both
+fast-forwarded to02203b1; historical run checkouts were not modified.
+GitHub branches codex/transition-schedule-20261114 and codex/board-cut-v4
+contain the validated code. A6000 is not running this job.
+
+Runtime manifest was independently checked after initialization: real critic,
+critic horizon32, actor8, task gamma1, BC.25, WM2048/policy4096 batches and the
+1280000/24h limits. First2 vector steps collected6144 transitions normally;
+updates remain0 during the30720-transition warmup. This is the first verified
+status, not a perpetual live counter.
+
+Actual first-step training capture:
+runs/pose_wrench6_3072_20261114/training/snapshot_00000001/report.json.
+Rendered training_all.png shows all3072 captured worlds; training_detail.png
+shows two actual worlds per object. Both state WM/policy updates0 and the
+world_model_only collection phase. All-world robots use a distant display LOD;
+grid offsets are display only. No extra crack overlay or second knife.
+User-requested PNG copies only were delivered to
+/Users/judong/Downloads/cutting_training_20261114/; source/data/weights stay remote.

@@ -1,8 +1,8 @@
-> 2026-11-14 status update: the initial 192-world DiSECt / 3-world BladeMaster
-> runs have been saved and stopped. User-authorized >=256-world capacity checks,
-> full-wrench observation and collection-scaled scheduling are in progress.
+> 2026-11-14: DiSECt main run launched on GPU7 with3072 worlds (1024/object),
+> full six-axis wrench observation and physical-transition update cadence.
+> Code02203b1; root425/skip5,backend39; complete learning/reset/restore preflight passed.
+> BladeMaster256 validation passed; its long training is deferred.
 > See [current plan](docs/PLAN.md) and [restart record](docs/TRAINING_SCALE_20261114.md).
-> Earlier launch records below describe the stopped runs.
 
 # Cutting DEV
 
@@ -25,7 +25,7 @@ gradients pass through the learned world model.
 
 The selected task direction is **target-pose completion with a board execution boundary**. Material separation and knife coverage are reported separately, not extra completion gates; existing release-progress reward shaping remains. The v3 free-cucumber policy has 543 updates; v4 was a frozen-policy coverage/board audit and is now a historical diagnostic, not a long-training recipe.
 
-The board stop is implemented and physically checked; it is not a compliant board-force simulator. The new task is implemented as `free_cut_pose_v1`, with the existing v3 running rewards retained and pose-based +100 settlement. The default pose-task potato is now the freely placed flat-bottom half, with 1 s per-material settling checked on 144 conditions. Development configurations and remaining work are listed in [PLAN](docs/PLAN.md). The earlier 192-world A6000 run and three-world BladeMaster run were stopped; neither reached policy updates. The full-wrench, transition-scaled DiSECt restart is being capacity-tested on GPU7. BladeMaster 256-world full learning and restore passed; its long training is deferred. Current status and launch evidence: [restart record](docs/TRAINING_SCALE_20261114.md). The [earlier launch record](docs/TRAINING_20261114.md) is historical. Current definition: [TASK_FREE_CUT](docs/TASK_FREE_CUT.md); dated evidence: [RESULTS](docs/RESULTS.md).
+The board stop is implemented and physically checked; it is not a compliant board-force simulator. The new task is implemented as `free_cut_pose_v1`, with the existing v3 running rewards retained and pose-based +100 settlement. The default pose-task potato is now the freely placed flat-bottom half, with 1 s per-material settling checked on 144 conditions. Development configurations and remaining work are listed in [PLAN](docs/PLAN.md). The earlier 192-world A6000 run and three-world BladeMaster run were stopped; neither reached policy updates. The full-wrench, transition-scaled3072-world DiSECt run is now launched on GPU7. BladeMaster 256-world full learning and restore passed; its long training is deferred. Current status and launch evidence: [restart record](docs/TRAINING_SCALE_20261114.md). The [earlier launch record](docs/TRAINING_20261114.md) is historical. Current definition: [TASK_FREE_CUT](docs/TASK_FREE_CUT.md); dated evidence: [RESULTS](docs/RESULTS.md).
 
 Historical source and v1-v3 code/checkpoints remain for reproduction. The default source command below lacks the new board boundary; do not mistake it for the next training launch. Material/friction values remain uncalibrated for the real robot.
 

@@ -1770,3 +1770,8 @@ replay; last.pt still uses replay.pt. Existing metadata/iteration rejection and
 legacy matching fallback remain. Mid-gradient emergency snapshots are resumable,
 not identical to uninterrupted execution. See TRAINING_SCALE_20261114 and
 BLADEMASTER_BATCHING_REVIEW for exact scope, code identity and paths.
+
+The bounded main DiSECt run has now launched on GPU7 PID1048242, frozen02203b1,
+3072 worlds. Runtime manifest agrees with the validated recipe. First-step
+training geometry is captured and rendered; initial collection is not a policy
+performance result. Exact paths and synchronization record:TRAINING_SCALE_20261114.
