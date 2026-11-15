@@ -1890,3 +1890,66 @@ policy updates 215, running. Its latest 1,000 completed training episodes were
 Earlier windows differed substantially; this is online completed-episode data,
 not a frozen success-rate evaluation. W&B run k48zc1lh remains offline with no
 cloud URL or sync marker.
+
+## 2026-11-15 — GPU9 BladeMaster online long-run deployment
+
+User authorized moving the BladeMaster run from occupied A6000 to idle GPU9
+(RTX4090), through tams61. No other user's workload was stopped.
+Shared training source931e2b5; native material sourcee2e5221.
+Source changes since GPU7's frozen02203b1 are documentation and the optional
+cache guard; the guard is enabled only for this new launch. Existing GPU7
+training was not restarted. Task/config/assets/robot reset/controller hashes
+are recorded in the run plan and matched the tested A6000 deployment.
+
+### Capacity and memory correction
+
+All 256-world cases used86 cucumbers,85 half potatoes and85 prisms. First
+40-step probe collected10240 real transitions, completed WM,actor,real critic,
+masked reset and checkpoint/replay restoration with finite updates. It left
+only1.90GiB free, below the3GiB pre-physics reserve. Expandable allocation
+left2.14GiB after restore; smaller storage chunks plus allocator GC also did
+not meet the reserve. These are headroom failures, not algorithm/physics
+failures. Reports are retained separately; none was labelled a complete pass.
+
+Measurement showed about2.4–2.6GiB of inactive Torch cache retained while Warp
+also needs memory. The optional --cuda-cache-reserve-gib3 releases unused
+Torch blocks before physics. Live tensors, replay, effective batches, schedules
+and reward are unchanged. Restore uses the original storage microbatch512.
+
+Final probe reused the recorded10240 transitions for learning, performed four
+new physical steps, masked reset with bitwise-unchanged unselected worlds,
+full-world reset plus four more physical steps, checkpoint/replay restore and
+another full update. These eight physical steps are additional validation, not
+a new10240-transition collection. Optimizer totals:20 WM,2 actor,40 critic.
+All finite; full-reset continuation passed. Cache release raised free memory
+from2.19 to4.32GiB before reset, and from2.12 to4.28GiB after restore.
+256 is the validated configuration, not an exact maximum-capacity claim.
+
+### Regression and launch
+
+New guard tests:7 passed. Full root suite onGPU9:430 passed,7 skipped;
+backend:39 passed. Initial suite failures were missing regression scene assets
+and unset DiSECt extension environment, fixed before the successful reruns.
+The optional MPPI dependencies are absent onGPU9; those tests stay skipped.
+No claim of full external BladeMaster differentiation-suite coverage.
+
+Frozen run checkout:/dataHDD/dong/Projects/Cutting_DEV_bm_long_20261115.
+Run:/dataHDD/dong/Experiments/Cutting_DEV/runs/bm_gpu9_20261115.
+Started training PID138581, seed0,fresh networks, online W&B required.
+Budget24hours/1280000 new transitions; actor8,real critic32,BC.25;
+500 WM-only rounds,10240-transition warmup,640 transitions/WM round,
+WM batch2048x10,actor4096,critic4096x32,microbatch512/8192.
+Nominal native BladeMaster materials, fixed clearance and target speed;
+this does not reproduce DiSECt's material randomization distribution.
+
+Run records include plan.json,launch_command.json,launch_status.json,
+preflight*/report.json,root_tests_ready.log,backend_tests_complete.log and
+training/{manifest,progress,wandb}.json. Full replay and weights stay onGPU9.
+Initialization and the first online records are checked separately below.
+
+Runtime manifest verified: real critic32,actor8,BC.25,gamma1,256 worlds,
+six-wrench interface,cache reserve3,online tracking and fixed budget all match
+the launch plan. The source tree was clean. First cloud read confirmed running,
+iteration4,1024 physical transitions,policy updates0 (initial collection).
+W&B run name:bm_gpu9_three_object_wrench6_256_20261115.
+URL: https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/aqoyihk2

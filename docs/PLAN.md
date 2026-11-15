@@ -28,7 +28,7 @@ Completed for this restart:
 - Both backends validated on GPU7; integrated root425/skip5, backend39.
 - DiSECt3072 (1024/object) completed full learning/reset/restore preflight, with
   3.449GiB free after full learning. BladeMaster256 completed its separate
-  full-learning probe; its long run remains deferred.
+  full-learning probe; the subsequently authorized GPU9 long run is below.
 
 Active DiSECt job: GPU7 PID1048242, frozen code02203b1, checkout
 /dataHDD/dong/Projects/Cutting_DEV_pose_long_20261114.
@@ -39,9 +39,10 @@ first. Named checkpoints every32 vector steps retain paired replay. Originally l
 without restarting (see tracking section below). Capture actual geometry at steps1/120.
 Runtime manifest and first physical steps are verified: critic real/32, actor8, gamma1, BC.25, observation34. The first-step screenshots show the initial collection phase (WM/policy updates0), not a learned cutting result.
 
-A6000's development checkout is synchronized to02203b1 but no job is launched
+A6000's development checkout has the shared training code931e2b5 but no job is launched
 there; another user's GPU workloads are untouched. The old192/3 runs remain
-stopped and frozen. No automatic budget extensions or BladeMaster launch.
+stopped and frozen. No automatic budget extensions; the later user-authorized
+BladeMaster GPU9 launch is recorded below.
 
 Actual training overview/detail images have been rendered from step1 and delivered. Next: retain per-object learning/episode metrics through the fixed budget; assess the saved checkpoints without changing task or budget mid-run.
 See [restart record](TRAINING_SCALE_20261114.md) and
@@ -101,7 +102,7 @@ GPU9. GPU9 is reachable through tams61 and its RTX4090 was idle at deployment.
 A6000's two cards are occupied by another user's openpi process; do not stop it.
 
 Frozen training checkout: /dataHDD/dong/Projects/Cutting_DEV_bm_long_20261115,
-commit a59c499. External material source: e2e5221, same revision used for the
+commit931e2b5 (includes the opt-in cache guard). External material source: e2e5221, same revision used for the
 GPU7/A6000 batching and learning checks. UR5e model, source reset, controller,
 task config and intact object assets were copied from the validated deployment
 and hashes compared. Existing GPU9 historical checkouts are untouched.
@@ -113,4 +114,13 @@ BladeMaster engineering run, not the DiSECt randomized-material distribution.
 Live records and exact command:
 /dataHDD/dong/Experiments/Cutting_DEV/runs/bm_gpu9_20261115/
 (plan.json,launch_command.json,preflight256/report.json,training/manifest.json).
-Deployment/preflight started; launch completion will be recorded separately.
+Full preflight passed with the optional cache release, leaving4.28GiB free
+after restored updates. Long training launched as PID138581 onGPU9, online
+W&B, from fresh networks. 256 worlds remain86/85/85; actor8,real critic32,
+BC.25,500 WM-only rounds,10240-transition warmup,640 transitions/update.
+Microbatch512/critic8192; effective WM2048 and actor4096 batches unchanged.
+Budget24hours or1280000 transitions, paired checkpoints every384 vector steps.
+This is an engineering training run, not evidence of trained policy performance.
+See RESULTS for the failed headroom candidates and final functional checks.
+Online W&B verified (first read:iteration4,1024 transitions,policy updates0):
+https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/aqoyihk2
