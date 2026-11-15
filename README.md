@@ -1,8 +1,7 @@
-> 2026-11-14: DiSECt main run launched on GPU7 with3072 worlds (1024/object),
-> full six-axis wrench observation and physical-transition update cadence.
-> Code02203b1; root425/skip5,backend39; complete learning/reset/restore preflight passed.
-> BladeMaster256 validation passed; its long training is deferred.
-> See [current plan](docs/PLAN.md) and [restart record](docs/TRAINING_SCALE_20261114.md).
+> 2026-11-15: two bounded engineering runs are active: GPU7 DiSECt (3072 worlds)
+> and GPU9 BladeMaster (256 worlds), both tracked online in W&B.
+> A6000 has no active cutting run. See [PLAN](docs/PLAN.md) for budgets and
+> [DATA](docs/DATA.md) for server paths and cleanup records.
 
 # Cutting DEV
 
@@ -21,11 +20,11 @@ gradients pass through the learned world model.
 [Documentation map](docs/README.md) · [Script entry points](scripts/README.md) ·
 [Data and checkpoint locations](docs/DATA.md)
 
-## Status — 2026-11-14
+## Status — 2026-11-15
 
 The selected task direction is **target-pose completion with a board execution boundary**. Material separation and knife coverage are reported separately, not extra completion gates; existing release-progress reward shaping remains. The v3 free-cucumber policy has 543 updates; v4 was a frozen-policy coverage/board audit and is now a historical diagnostic, not a long-training recipe.
 
-The board stop is implemented and physically checked; it is not a compliant board-force simulator. The new task is implemented as `free_cut_pose_v1`, with the existing v3 running rewards retained and pose-based +100 settlement. The default pose-task potato is now the freely placed flat-bottom half, with 1 s per-material settling checked on 144 conditions. Development configurations and remaining work are listed in [PLAN](docs/PLAN.md). The earlier 192-world A6000 run and three-world BladeMaster run were stopped; neither reached policy updates. The full-wrench, transition-scaled3072-world DiSECt run is now launched on GPU7. BladeMaster 256-world full learning and restore passed; its long training is deferred. Current status and launch evidence: [restart record](docs/TRAINING_SCALE_20261114.md). The [earlier launch record](docs/TRAINING_20261114.md) is historical. Current definition: [TASK_FREE_CUT](docs/TASK_FREE_CUT.md); dated evidence: [RESULTS](docs/RESULTS.md).
+The board stop is implemented and physically checked; it is not a compliant board-force simulator. The new task is implemented as `free_cut_pose_v1`, with the existing v3 running rewards retained and pose-based +100 settlement. The default pose-task potato is now the freely placed flat-bottom half, with 1 s per-material settling checked on 144 conditions. Development configurations and remaining work are listed in [PLAN](docs/PLAN.md). The earlier 192-world A6000 run and three-world BladeMaster run were stopped; neither reached policy updates. The full-wrench, transition-scaled3072-world DiSECt run is now launched on GPU7. BladeMaster 256-world learning/reset/restore validation passed and its bounded long run is now active on GPU9; its nominal-material distribution differs from the main DiSECt run. Current status and launch evidence: [restart record](docs/TRAINING_SCALE_20261114.md). The [earlier launch record](docs/archive/TRAINING_20261114.md) is historical. Current definition: [TASK_FREE_CUT](docs/TASK_FREE_CUT.md); dated evidence: [RESULTS](docs/RESULTS.md).
 
 Historical source and v1-v3 code/checkpoints remain for reproduction. The default source command below lacks the new board boundary; do not mistake it for the next training launch. Material/friction values remain uncalibrated for the real robot.
 
@@ -89,7 +88,7 @@ installing `requirements-mpc.txt`. Settings and the complete command are in
 `scripts/render_episode.py` produces a two-view video with measured force traces.
 [Recording commands](docs/RUNNING.md#record-and-render-a-physical-episode).
 
-W&B is enabled by default; `--wandb-mode offline` records locally. SIGUSR1
+All long runs must use `--wandb-mode online`; do not fall back to offline logging after an authentication/network failure. SIGUSR1
 requests an atomic checkpoint after the current iteration; normal completion and
 SIGTERM also save.
 
@@ -141,4 +140,4 @@ in [NOTICE](NOTICE.md). Data, credentials and environments stay outside Git.
 
 ## Additional material paths
 
-[BladeMaster-derived DiSECt assets](docs/BLADEMASTER_DISECT_ASSETS.md) retain prescribed cut planes and transfer only compatible elastic parameters. [BladeMaster UR5e backend](docs/BLADEMASTER_BACKEND_REVIEW.md) uses the external forward solver and a distinct depth-progress task; it does not reuse DiSECt spring labels or checkpoints. These are bounded engineering validations, not long-trained policies or calibrated real-food models.
+[BladeMaster-derived DiSECt assets](docs/BLADEMASTER_DISECT_ASSETS.md) retain prescribed cut planes and transfer only compatible elastic parameters. [BladeMaster UR5e backend](docs/BLADEMASTER_BACKEND_REVIEW.md) uses the external forward solver and a distinct depth-progress task; it does not reuse DiSECt spring labels or checkpoints. Asset conversions remain engineering candidates. The independent BladeMaster backend now has a bounded training run on GPU9; neither launch nor interface validation establishes policy performance or calibrated real-food behavior.

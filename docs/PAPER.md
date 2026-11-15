@@ -5,7 +5,7 @@ settled claim yet.** [PLAN](PLAN.md) is the task list, [RESULTS](RESULTS.md) the
 measurements, [literature search 2026-11-12](literature/force_adaptive_search_20261112.md)
 and [NOVELTY](NOVELTY.md) the prior-art evidence. The previous version of this file
 (problem: "the world model under-predicts the force spike at contact onset") is
-archived as [PAPER_20261111](archive/PAPER_20261111.md) and is **retired**.
+archived as [PAPER_20261111](https://github.com/Ju6276/Cutting_DEV/blob/188c9eb/docs/archive/PAPER_20261111.md) and is **retired**.
 
 ## 1. Why the previous problem statement was retired
 

@@ -1,3 +1,5 @@
+> Historical record retained for audit; not the current launch plan. See [PLAN](../PLAN.md).
+
 # Six-axis sensor-wrench observation and replay audit
 
 ## Interface

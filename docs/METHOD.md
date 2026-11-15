@@ -794,7 +794,7 @@ establish real-world physical calibration. Full provenance lives in FREE_CUT_REP
 
 ## 2026-11-13 — Opt-in board-path physical task
 
-The free_cut_v4 physical environment adds a finite-knife swept stop at the DiSECt ground plane and projected interface coverage. Physical separation is separately logged; path completion does not assert all material connections vanish. This is an execution interlock, not a board contact-force model. Source v1-v3 dynamics and task conditions remain the defaults. Full definition, tolerance provenance, frozen-policy transfer and training incompatibility are in [BOARD_CUT_REVIEW](BOARD_CUT_REVIEW.md).
+The free_cut_v4 physical environment adds a finite-knife swept stop at the DiSECt ground plane and projected interface coverage. Physical separation is separately logged; path completion does not assert all material connections vanish. This is an execution interlock, not a board contact-force model. Source v1-v3 dynamics and task conditions remain the defaults. Full definition, tolerance provenance, frozen-policy transfer and training incompatibility are in [BOARD_CUT_REVIEW](archive/BOARD_CUT_REVIEW.md).
 
 
 ## Recorded tool mounting and unused camera meshes (2026-11-14)
@@ -849,7 +849,7 @@ vector-step counter; its warmup, integer credit, LR clock and budget are specifi
 in [TRAINING_SCALE_20261114](TRAINING_SCALE_20261114.md).
 The opt-in sensor_wrench6_v1 observation adds all six sensor components while
 preserving pose/velocity axes, action mapping and reward. WM already predicted
-six-dimensional wrench. See [WRENCH_OBSERVATION_REVIEW](WRENCH_OBSERVATION_REVIEW.md)
+six-dimensional wrench. See [WRENCH_OBSERVATION_REVIEW](archive/WRENCH_OBSERVATION_REVIEW.md)
 for layout, normalization and checkpoint compatibility. These are explicit
 engineering variants, not claimed methodological contributions.
 

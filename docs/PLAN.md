@@ -1,4 +1,4 @@
-# Current plan — 2026-11-14
+# Current plan — 2026-11-15
 
 ## Active task and decisions
 
@@ -46,7 +46,7 @@ BladeMaster GPU9 launch is recorded below.
 
 Actual training overview/detail images have been rendered from step1 and delivered. Next: retain per-object learning/episode metrics through the fixed budget; assess the saved checkpoints without changing task or budget mid-run.
 See [restart record](TRAINING_SCALE_20261114.md) and
-[force observation](WRENCH_OBSERVATION_REVIEW.md).
+[force observation](archive/WRENCH_OBSERVATION_REVIEW.md).
 
 DiSECt tofu remains outside the main distribution. The former apparent 10mm
 overlap was a ghost-node diagnostic error; physical contact geometry is tracked
@@ -73,7 +73,7 @@ With openpi occupying 26,224 MiB of GPU0, the three-object full training
 preflight passed at 192 and 208 environments. At 256, updates passed but robot
 reset ran out of memory. 208 (70 cucumber / 69 half-potato / 69 prism) is the
 largest validated shared-device candidate, with 3.81 GiB free after restore;
-exclusive 48 GB capacity is still unmeasured. No BladeMaster long run started.
+exclusive 48 GB capacity is still unmeasured. No BladeMaster long run started on A6000; the later GPU9 launch is recorded below.
 See RESULTS: "A6000 shared-device BladeMaster training capacity" and
 runs/bm_a6000_capacity_20261114. The active GPU7 main run is unchanged.
 
@@ -107,8 +107,8 @@ GPU7/A6000 batching and learning checks. UR5e model, source reset, controller,
 task config and intact object assets were copied from the validated deployment
 and hashes compared. Existing GPU9 historical checkouts are untouched.
 
-Candidate:256 worlds (86 cucumber,85 half-potato,85 prism); complete local
-learning/reset/restore capacity check required before launch. Same approved
+Validated launch:256 worlds (86 cucumber,85 half-potato,85 prism); the local
+learning/reset/restore capacity check completed before launch. Same approved
 24-hour/1280000-transition budget; online W&B required. This is a nominal
 BladeMaster engineering run, not the DiSECt randomized-material distribution.
 Live records and exact command:
@@ -124,3 +124,13 @@ This is an engineering training run, not evidence of trained policy performance.
 See RESULTS for the failed headroom candidates and final functional checks.
 Online W&B verified (first read:iteration4,1024 transitions,policy updates0):
 https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/aqoyihk2
+
+## Repository and storage maintenance — 2026-11-15
+
+Completed: retired preflight tensors and hash-identical data copies removed;
+17 inactive worktrees removed after source/patch snapshots. Active run checkouts,
+paired checkpoints/replay, assets and Python dependencies are preserved.
+[DATA](DATA.md) is the current location and recovery index. Historical launch
+and completed-review notes are under archive; redundant old plan/paper drafts
+are accessible through immutable Git links in the document index.
+This maintenance changes no training code, task, budget or running process.

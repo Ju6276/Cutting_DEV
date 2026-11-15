@@ -497,7 +497,7 @@ and replacing the 4 ms per-spring equality check with single-step consistency pl
 longer position/damage-bound checks narrows coverage. No assertion, tolerance,
 material parameter, reward or task threshold was changed in this re-review.
 
-Review handoff: [CONTACT_FIX_REVIEW](CONTACT_FIX_REVIEW.md), including derivation,
+Review handoff: [CONTACT_FIX_REVIEW](archive/CONTACT_FIX_REVIEW.md), including derivation,
 evidence, scope boundaries and the test change requiring explicit review.
 No training restarted; Claude's untracked recording script was left untouched.
 
@@ -1228,7 +1228,7 @@ outputs for the same synthetic inputs. Tests and run logs are in
 
 ## 2026-11-13 — Board-stop v4 and paired frozen-policy audit
 
-User-authorized task change: effective finite knife-path coverage plus board arrival, no force/workspace failure or knife penetration. Complete material separation is retained as a separate outcome. No training or material/fracture modifications. Full implementation, approximation and reproduction command: [BOARD_CUT_REVIEW](BOARD_CUT_REVIEW.md).
+User-authorized task change: effective finite knife-path coverage plus board arrival, no force/workspace failure or knife penetration. Complete material separation is retained as a separate outcome. No training or material/fracture modifications. Full implementation, approximation and reproduction command: [BOARD_CUT_REVIEW](archive/BOARD_CUT_REVIEW.md).
 
 GPU7, latest `free_cut_joint_20261113/training/last.pt` (543 policy updates), same 64 seed-100 development conditions from `eval_cucumber.json`; all material/start/target-speed fields match the historical evaluation and the paired run. Frozen policy weights, force limits and 180-step horizon are unchanged. This is not a learning improvement experiment, and rewards are not compared across the different task definitions.
 
@@ -1699,13 +1699,13 @@ was below -1 mm. The earlier all-node numbers remain raw FEM observations but
 must not be interpreted as 10 mm physical penetration. Small genuine penalty
 contact overlap remains, and these samples do not bound every material
 substep. The 0.75 s historical reference is not exactly reproduced by this 3 s run.
-See [ground review](GROUND_CONTACT_REVIEW.md) for source tracing and tests.
+See [ground review](archive/GROUND_CONTACT_REVIEW.md) for source tracing and tests.
 
 The user authorized one A6000 three-object pose-task long run after preflight,
 plus separate tofu and conditional BladeMaster work. The planned main run is
 192 worlds (64 each), fresh networks, 500 WM-only updates then real critic+h8 + BC 0.25,
 with 5000 vector-step / 24 h limits. Preflight/actual launch status is in
-[TRAINING_20261114](TRAINING_20261114.md); authorization is not a claim that a
+[TRAINING_20261114](archive/TRAINING_20261114.md); authorization is not a claim that a
 long run has already started.
 
 The active board branch did not contain b1bcb92's schedule persistence change.
@@ -1720,7 +1720,7 @@ finite optimizer execution.189 unselected worlds unchanged during a three-world
 partial reset; actual reset cost26.92 s. Restore advanced 64 -> 70 with updates at 67/69,
 preserving replay and cadence. Final microbatches 128/8192 reduce cached WM update
 time from~29 to 14.56 s and policy/critic time from~9 to 4.68 s; reset costs remain.
-Full details and limits: [launch record](TRAINING_20261114.md).
+Full details and limits: [launch record](archive/TRAINING_20261114.md).
 
 Fresh main job launched 06:21+01:00 on 2026-11-14, source 905afb9,192 worlds,
 at most5000 iterations/24h. Separate GPU7 BladeMaster job uses cf20ef0 and
@@ -1953,3 +1953,23 @@ the launch plan. The source tree was clean. First cloud read confirmed running,
 iteration4,1024 physical transitions,policy updates0 (initial collection).
 W&B run name:bm_gpu9_three_object_wrench6_256_20261115.
 URL: https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/aqoyihk2
+
+## 2026-11-15 — Storage and document maintenance
+
+Removed 17 inactive worktrees only after preserving source snapshots, staged and
+unstaged patches and Git refs. Deleted 28 completed-preflight tensor files and
+one exact historical replay duplicate; replaced two identical GPU9 rolling
+diagnostic copies with relative links to retained numbered files.
+Tensor bytes reclaimed: GPU7 6,269,467,188; A6000 1,511,716,284; GPU9 2,295,040,722.
+Live training checkouts/checkpoints/replay, dependency environments, assets and
+unique research evidence were preserved. Exact paths, hashes and recovery
+instructions are in each server's operations/cleanup_20261115 ledger; see DATA.
+
+No source/config/physics/training changes. Six completed launch/review notes
+moved to archive; six superseded plan/paper drafts now use immutable Git links.
+Corrected stale README/DATA/machine status. All documentation relative links
+resolve and git diff --check passes.
+CPU-only regression on GPU7 (CUDA hidden to avoid the live training allocation):
+root 415 passed / 22 skipped; backend 27 passed / 12 skipped.
+This is not a new GPU physics validation. Active GPU7/GPU9 training advanced
+during cleanup; 2026-11-15 01:07 UTC snapshots were policy421 and WM20 respectively.

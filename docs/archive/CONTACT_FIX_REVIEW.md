@@ -1,9 +1,11 @@
+> Historical record retained for audit; not the current launch plan. See [PLAN](../PLAN.md).
+
 # Contact correction: review handoff — 2026-11-12
 
 Scope: re-review of commits `38b85a5` (net-wrench interface) and `4b229df`
 (contact coordinates), plus this documentation reconciliation. This is Codex's
 self-review for Claude to check, not an independent external review or a new
-training result. Current task decisions remain in [PLAN](PLAN.md).
+training result. Current task decisions remain in [PLAN](../PLAN.md).
 
 ## What was wrong, and why the correction follows
 
@@ -107,7 +109,7 @@ results.
 Fresh verification logs for this review:
 `runs/codex_contact_recheck_20261112/backend.log` and `root.log`.
 Fresh checks: backend **36 passed**; root **286 passed / 5 skipped**.
-The corresponding [RESULTS](RESULTS.md) entry records timing, skips and artifacts.
+The corresponding [RESULTS](../RESULTS.md) entry records timing, skips and artifacts.
 All eight prior physical-run source hashes still match. The documentation check
 repaired 31 relocated archive links; all 219 local file targets exist.
 No long training, reward changes, material retuning or new acceptance thresholds.

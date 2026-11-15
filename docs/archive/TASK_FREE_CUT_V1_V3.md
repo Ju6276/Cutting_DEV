@@ -8,7 +8,7 @@ speed preference). v2 is preserved for reproduction but its speed penalty was to
 The then-current review candidate is configs/free_cut/review_v3.json (gamma=1); section 9
 defines its reward and completion bound. All review configs have explicit provisional
 weights and are not approved long-training configurations.
-Review evidence and bounded validation: [FREE_CUT_REPAIR](../archive/FREE_CUT_REPAIR_20261113.md).
+Review evidence and bounded validation: [FREE_CUT_REPAIR](FREE_CUT_REPAIR_20261113.md).
 
 ## 1. Quantities
 
@@ -122,7 +122,7 @@ in ordering.
 - Historical checkpoints have incompatible task metadata and network shapes. Do not bypass
   compatibility checks or label them as trained on the new free-cut version.
 
-Review entry: [FREE_CUT_REVIEW](../archive/FREE_CUT_REVIEW_20261112.md). This statement predates the v3 short/joint runs; the 543-update checkpoint is recorded in RESULTS.
+Review entry: [FREE_CUT_REVIEW](FREE_CUT_REVIEW_20261112.md). This statement predates the v3 short/joint runs; the 543-update checkpoint is recorded in RESULTS.
 
 
 ## 8. v2 review corrections

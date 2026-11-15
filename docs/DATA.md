@@ -1,239 +1,144 @@
-# Server data and checkpoint index
+# Server data and checkpoint index — 2026-11-15
 
-Historical inventory reviewed 2026-11-10; current additions below are dated 2026-11-14. Source lives on GPU7 at
-`/dataHDD/dong/Projects/Cutting_DEV`. All paths below are server paths; no project
-data or source is stored on the Mac. This is a location/status index, not a run plan.
+This is the current location/recovery index, not an authorization to launch.
+All paths are on servers. No project source, weights or datasets were copied
+to the Mac during this cleanup. See [PLAN](PLAN.md) for active budgets.
 
+## Checkouts and active training
 
-## Current additions — 2026-11-14
+| Host | Checkout | Role / frozen code |
+|---|---|---|
+| GPU7 (tamsGPU7) | /dataHDD/dong/Projects/Cutting_DEV_board | Development, branch codex/board-cut-v4 |
+| GPU7 | /dataHDD/dong/Projects/Cutting_DEV_pose_long_20261114 | Active DiSECt main training, 02203b1 |
+| GPU9 (tamsGPU9) | /dataHDD/dong/Projects/Cutting_DEV_bm_long_20261115 | Active BladeMaster training, 931e2b5 |
+| A6000 (tamsGPU5) | /dataHDD/dong/Projects/Cutting_DEV_pose_scale_20261114 | Development mirror; no active cutting training |
 
-- Worktree: /dataHDD/dong/Projects/Cutting_DEV_board, branch codex/board-cut-v4.
-- Latest retained free-cucumber policy: runs/free_cut_joint_20261113/training/last.pt,
-  iteration 2691, 543 policy updates. This is a v3 separation-task checkpoint.
-- runs/board_cut_audit_20261113/: 64-case legacy/v4 comparison and raw evidence.
-- runs/board_review_20261114/: four-world-per-object boundary checks, initial rest
-  velocities, source manifests, unit/regression logs. Not a long-training dataset.
-- Current free scenes under backend runs/sweep/: free_cucumber_003, free_prism,
-  free_potato_stable_20261114_v3. The new potato uses a gravity-supported resting
-  pose and 8 s per-material settling. Three material pairs passed the production
-  reset check (<0.01 mm COM movement during the following 0.25 s).
-- Historical free_potato_003 retains its old principal-axis pose and unsettled
-  reset; it is preserved for reproducing old measurements, not the active potato
-  development configuration.
-- Current task configurations: configs/free_cut/pose_{cucumber,prism,potato}.json.
-  These are development inputs, not an approved multi-object long-training budget.
+GPU9 is reached through tams61. GPU7 and A6000 local SSH aliases are
+cutting-gpu7 and cutting-a6000. Server names do not imply exclusive GPU access.
+Active runs stay on their frozen checkouts; syncing development docs does not
+replace their loaded code.
 
-No checkpoints, assets or measured raw data were deleted in the 2026-11-14 cleanup.
-Old task instructions were archived; active document links were updated.
+Both active outputs are under /dataHDD/dong/Experiments/Cutting_DEV/runs:
 
-## Storage
+- GPU7: pose_wrench6_3072_20261114/training, 3072 worlds (1024/object).
+  Online history forwarding resumes the existing
+  [W&B run](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/k48zc1lh);
+  forward_cloud.py and cloud_sync.json are in the parent directory.
+- GPU9: bm_gpu9_20261115/training, 256 worlds (86/85/85).
+  Native online [W&B run](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/aqoyihk2).
+- Each is bounded by 24 hours or 1,280,000 new physical transitions.
+  All current checkpoints and paired replay files are protected.
+- Earlier A6000 192-world and GPU7 three-world runs are stopped historical
+  launches; their final recovery files are retained. They are not active jobs.
+
+## Shared dependencies and assets
 
 | Contents | GPU7 location |
 |---|---|
-| Experiment records | `/dataHDD/dong/Experiments/Cutting_DEV/runs` (repository `runs` symlink) |
-| Prepared robots/materials | `/dataHDD/dong/Assets/Cutting_DEV/prepared` (backend `runs` symlink) |
-| Earlier MPPI development | `/dataHDD/dong/Experiments/Cutting_DEV/mpc_development_20261108` |
-| Earlier metrics records | `/dataHDD/dong/Experiments/Cutting_DEV/legacy_metrics` |
-| GPU Python dependency | `/dataHDD/dong/Projects/CuttingGpuBackend/.venv` |
-| Planner / renderer environments | `/dataHDD/dong/Envs/cutting-mppi-20261108` / `render-20261108` |
-| Machine routes and cleanup manifests | `runs/operations/` |
+| Experiments (repository runs symlink) | /dataHDD/dong/Experiments/Cutting_DEV/runs |
+| Prepared robot/material data (backend runs symlink) | /dataHDD/dong/Assets/Cutting_DEV/prepared |
+| Main Python environment | /dataHDD/dong/Projects/CuttingGpuBackend/.venv |
+| MPPI / renderer environments | /dataHDD/dong/Envs/cutting-mppi-20261108 / render-20261108 |
+| Earlier MPPI development | /dataHDD/dong/Experiments/Cutting_DEV/mpc_development_20261108 |
+| Earlier metrics | /dataHDD/dong/Experiments/Cutting_DEV/legacy_metrics |
 
-The base environment, SliceIt/ROS sources and prepared assets are live
-dependencies, even though their directory names predate this repository.
+Base Cutting_DEV directories hold Git worktree metadata and/or runtime links.
+A6000 Cutting_DEV_pose_train_20261114 and Cutting_DEV_mppi_v3 also retain actual
+runtime assets/data; do not remove them merely because their jobs ended.
+SliceIt/ROS sources and shared environments remain dependencies.
 
-## Existing checkpoint identities
+Current DiSECt scenes under prepared/sweep are free_cucumber_003, free_prism
+and **free_potato_half_20261114**. The half potato uses 1 s of per-material
+settling; cucumber and prism use 0.75 s. Whole-potato exports
+free_potato_003 and free_potato_stable_20261114_v3 are historical preparation
+comparisons, not the active potato asset.
 
-Paths are relative to the repository. Identities below were read from checkpoint
-metadata, not inferred from filenames. SHA256/size records are in
-`runs/operations/checkpoint_index_20261110.json`.
+- Source scans: /dataHDD/dong/Research/food_meshes/omniobject3d/<object>/.
+  [OmniObject3D](https://omniobject3d.github.io/), CC BY 4.0, downloaded from
+  [HF mirror](https://huggingface.co/datasets/AlbertS666/OmniObject3D-objects).
+- Tetrahedral meshes and preparation metadata: food_meshes/tet/.
+  Half potato: potato_003_half_20261114.msh; config
+  configs/free_scenes/potato_003_half.json. This is our derived preparation,
+  not an official half-potato scan; original whole mesh is retained.
+- Appearance: food_meshes/omniobject3d_textured/ for cucumber_002,
+  cucumber_003 and potato_003. Texture/scan geometry is not material calibration.
+- Stability evidence: runs/potato_preparation_20261114 and
+  runs/half_potato_randomized_20261114 (144 production reset cases).
+- Reward evidence: runs/pose_reward_audit_20261114, including raw trajectories.
+- BladeMaster intact assets: /dataHDD/dong/Assets/Cutting_DEV/blademaster_intact_20261114.
+  Current external solver: /dataHDD/dong/Projects/BladeMaster-Warp-batched-20261114,
+  e2e52216c23b7f71af5bc46566818c48b975c398; copied with hashes to GPU9.
+- BladeMaster-derived DiSECt candidates: /dataHDD/dong/Assets/Cutting_DEV/blademaster_disect_20261114;
+  prepared/sweep/bm_{banana,cake,tofu,luncheon}_20261114.
+  Evidence: runs/bm_disect_assets_20261114 and runs/ground_contact_20261114.
+  These are not added to main training. See [asset provenance](BLADEMASTER_DISECT_ASSETS.md).
 
-| Path | Policy / WM updates | Meaning |
-|---|---:|---|
-| `runs/mpc_assets/policy62_wm562_original.pt` | 62 / 562 | Original source-chain checkpoint; imagined critic, H32 |
-| `runs/sm_ckpts/abl_a250_last.pt` | 390 / 890 | Selected working continuation; real critic, H8, critic prefit 100 |
-| `runs/mpc_assets/policy62_wm563_real_prefit100.pt` | 62 / 563 | Historical MPPI development model after real-critic prefit; not the WM562 pair |
+## Historical checkpoints and research evidence
 
-The misleading disk filename `policy62_wm562.pt` actually contained WM563.
-It was renamed to the explicit WM563 name; bytes and SHA256 are unchanged.
-The previous explicit WM563 symlink was replaced by that same physical file.
-Do not recreate the ambiguous filename. The empty historical
-`runs/critic_mask_validation_20261104/training` path was removed; use the original
-WM562 path above for the old resume command. Same-WM comparisons still require
-the evaluator's exact tensor pairing check.
+GPU7 paths below are relative to its shared experiment root. They are not
+initializations for either fresh active run.
 
-These checkpoints are historical/dev resources. Any new multi-condition learning
-(none is scheduled in PLAN) starts fresh; do not silently initialize it from these weights.
-
-## Retained data and their roles
-
-- Fixed-task references: `mpc_pair_repair_20261109`,
-  `mpc_baseline_pair_20261109`, SAC training/frozen evaluations and reference
-  reports. Preserve failures as well as successes.
-- Retired action-noise records: `eval_perturbed_main_20261109`,
-  `eval_fixed_p62_20261109/perturbed_policy62` and their paired summaries.
-  Retained for audit, excluded from the paper; see
-  [archived protocol](archive/ACTION_PERTURBATIONS.md).
-- `paper_evidence_20261110` is a historical folder name. Its perturbation figures
-  are excluded from the paper. The reproduction recipe and builder now live
-  under `configs/archive` and `scripts/legacy`.
-- `videos_20261108` retains measured geometry NPZs, reports and MP4s. Generated
-  PNG frame caches for three old videos were deleted; measured data/video
-  checksums were checked before and after.
-- Historical reliability training/calibration/used-test data recorded in RESULTS remain
-  in their existing server locations. This cleanup did not open or move them.
-
-## Multi-object task data (GPU7, 2026-11-11)
-
-| Path | Role |
+| Path | Identity |
 |---|---|
-| `/dataHDD/dong/Research/food_meshes/omniobject3d/<object>/` | OmniObject3D scans (CC BY 4.0, from the HF mirror `AlbertS666/OmniObject3D-objects`): `Object.usd`, converted `surface.obj` |
-| `/dataHDD/dong/Research/food_meshes/tet/` | Tetrahedral meshes (`prepare_food_mesh.py`) with their parameter JSON |
-| `configs/food_scenes/*.json`, `backends/mujoco/runs/sweep/food_*` | DiSECt scene configs and exported scenes (apple_002, potato_003, cucumber_003, cucumber_002) |
-| `runs/food_force_20261111` | Historical force-proxy measurements; interpret with later diagnosis |
-| `runs/route_b1_20261110` | B1: five ensemble WMs, quantile head, `frozen.json`, dev and held-out reports |
-| `runs/critic_abl_a250_20261106/training`, `runs/wm_reliability_supplement_20261108`, `runs/wm_frozen_fit_20261105` | Copies from the A6000 used by B1 (identical files; originals stay on the A6000) |
+| mpc_assets/policy62_wm562_original.pt | policy62 / WM562, imagined critic, H32 |
+| sm_ckpts/abl_a250_last.pt | policy390 / WM890, real critic, H8 |
+| mpc_assets/policy62_wm563_real_prefit100.pt | policy62 / WM563, real-critic prefit; not the WM562 pair |
+| free_cut_joint_20261113/training/last.pt | iteration2691 / policy543, old v3 separation task |
 
-Deleted 2026-11-11 (wrong object shapes or superseded): material-swapped sweep
-scenes and runs `material_sweep_20261110`, `material_sweep_long_20261110`, smoke runs
-`mc_smoke_*`, `multi_condition_check_20261110`, all their videos, and the copies on
-the Mac.
+The misleading policy62_wm562.pt filename was previously renamed to explicit
+WM563. Do not recreate it or bypass exact-tensor pairing checks.
+Older checkpoint hashes: runs/operations/checkpoint_index_20261110.json.
 
-## 2026-11-12 cleanup
+Preserved on A6000 under /dataHDD/dong/Projects/Cutting_DEV/runs:
+critic_abl_a250_20261106/training/replay.pt (canonical B1 fit replay),
+wm_reliability_supplement_20261108, wm_reliability_20261108,
+wm_route_compare_20261108, a_pair_base_20261108, a_pair_head_20261108,
+a_pair_reference_20261108 and a_pair_compare_20261109.
+The B1 "final" split was already used on 2026-11-10; it is not a fresh test set.
+GPU7 runs/route_b1_20261110 retains fitted models and reports.
 
-Kept: `runs/task_diagnosis_20261112/` (per-step traces of the deterministic base policy and the
-reference trajectory on `s0_eval_train`; RESULTS 2026-11-12).
+Fixed-task MPPI/SAC evidence, main_compare_20261109, retired perturbation
+reports and task_diagnosis_20261112 remain for audit. Perturbation results
+remain excluded from the paper. Videos retain raw geometry NPZ, reports and
+MP4; old regenerated frame caches were previously removed.
 
-Deleted (failed or trained on the defective task definition; conclusions are in RESULTS 2026-11-12):
-A6000 `runs/s3_base_20261111`, `runs/s3_risk_20261111`; GPU7 `runs/official_prism_20261111`
-(including its unsynced offline W&B logs), temporary diagnosis/curve/evaluation folders under
-`/dataHDD/dong/tmp`, and the hold-test scenes `backends/mujoco/runs/sweep/holdtest_*`.
-W&B online runs `0xvf8zj7`, `5r1geoka` and their resumed runs remain on the server side.
+GPU9 retains historical SliceIt/runs (Gazebo SAC, last recorded 57722 steps,
+ckpt-13) and CuttingWorldModel/runs (early 2026-11-02/03 experiments).
+GPU7 /dataHDD/dong/Archive/gpu9_20261110 retains earlier code bundles/patches.
+For dated historical locations/deletions, consult Git history and RESULTS;
+old folder names do not make their task definitions current.
 
-## Data on other servers
+## Cleanup completed 2026-11-15
 
-**A6000** (`/dataHDD/dong/Projects/Cutting_DEV/runs`, reachable from GPU7 with
-`ssh a6000`; not copied to GPU7):
+Each host has an exact operation ledger at:
+ /dataHDD/dong/Experiments/Cutting_DEV/operations/cleanup_20261115/
 
-| Path | Size | Role |
-|---|---:|---|
-| `critic_abl_a250_20261106/training/replay.pt` | 3.2 GB | Historical working-baseline replay; B1 fit data |
-| `wm_reliability_supplement_20261108` | 8 MB | Supplement episodes: `dev` = route B1 calibration, `final` = B1 held-out screen (opened and used on 2026-11-10; not a fresh test set) |
-| `wm_reliability_20261108`, `wm_route_compare_20261108` | 1 MB, 1.5 GB | WM reliability evaluations and the fixed-data original-vs-A fits |
-| `a_pair_base_20261108`, `a_pair_head_20261108` | 4.6, 4.2 GB | A control pair: checkpoints at updates 150/200/250/300/last, frozen and perturbed evaluations |
-| `a_pair_reference_20261108`, `a_pair_compare_20261109` | <1 MB | Perturbed evaluation of the reference run; case-paired comparisons (retired protocol) |
+- inventory_before.json and dependency_audit.json record the pre-cleanup
+  worktrees, local changes, runtime links and process references.
+- cleanup_result.json records removed files, byte counts, SHA256 and retained
+  duplicate locations.
+- worktrees/<name>/ contains source.tgz, staged.patch, unstaged.patch and metadata.
+  Restore instructions are in RESTORE.md. Git archive refs preserve old HEADs;
+  source-history.bundle on GPU7/A6000 preserves refs. Unmerged branches were not
+  deleted. No remaining unsaved code was discarded.
+- GPU7: removed 15 inactive worktrees, eight disposable preflight tensors and
+  one exact duplicate historical replay; 6,269,467,188 tensor bytes reclaimed.
+  The replay original remains on A6000 at the canonical B1 path above; hash
+  83fd556980159c5c694a27f2d80f4d9bcd451d73ab4969bf60de6f0296bc3bec.
+- A6000: removed two inactive worktrees and 12 disposable preflight tensors;
+  1,511,716,284 tensor bytes reclaimed.
+- GPU9: removed eight preflight tensors and replaced two byte-identical rolling
+  diagnostic copies by relative links to retained numbered checkpoints;
+  2,295,040,722 tensor bytes reclaimed.
 
-**GPU7 (additional):** `runs/main_compare_20261109` holds the case-paired
-comparisons of the retired action-noise protocol (working baseline vs policy62
-and SAC85k). `/dataHDD/dong/Archive/gpu9_20261110` holds GPU9-only code (git
-bundles with all branches, uncommitted patches and untracked files of
-Cutting_DEV_critic, Cutting_DEV_sac, DiSECt and DiSECt-Optimization; GPU9 tmp
-scripts including the 2026-11-04 video renderers), checksum-verified; all of
-that code is superseded by main.
+Removed test tensors came from completed capacity/smoke checks, not current
+training. Their reports, configurations, logs and checksum identities remain.
+CLEANUP_20261115.json beside affected outputs explains absent tensors. They
+are intentionally not backed up; rerun the documented preflight to recreate
+test tensors. Unique research data, active paired checkpoints/replay,
+live assets/environments and other users' jobs were preserved.
 
-**GPU9** is back online (2026-11-10) but no longer a run target for this project
-(planned for other work). Its original historical data stay there and were not
-copied: `SliceIt/runs` (1.7 GB; Gazebo SAC run 1, stopped at 57722 environment
-steps, final `ckpt-13`) and `CuttingWorldModel/runs` (11 GB; 2026-11-02/03 early
-experiments). GPU7 can reach it with `ssh gpu9`.
-
-## Cleanup and recoverability
-
-`runs/operations/cleanup_20261110.json` records moves, checkpoint hashes,
-removed frame caches and exact worktree recovery commits. Four clean archived
-worktrees were removed: fixedbottom, fixrealwm, p0 and wmgrad. Each exact commit
-is reachable from main and can be restored with the recorded `git worktree add`
-command. Dirty/unmerged archives (including bclin, mppi and wmterm) were retained.
-
-Current runtime scripts do not import the retired perturbation module. Its
-helper, CLI and old figure builder are in `scripts/legacy` with their regression
-checks retained. Dated RESULTS commands keep historical paths; use the
-[script map](../scripts/README.md) for today's entry points.
-
-A6000's canonical checkout was observed at `71be9ec`, clean; it was not synced
-or modified in this cleanup. No matching cutting training/evaluation process
-was found in the snapshot. One A6000 was busy, so existing dependencies and
-other jobs were left untouched. Machine notes are snapshots, not live status.
-GPU9: see "Data on other servers".
-
-
-## 2026-11-14 pose task and natural potato preparation
-
-- Code: GPU7 `/dataHDD/dong/Projects/Cutting_DEV_board`, branch `codex/board-cut-v4`.
-- Raw stable-orientation mesh: `/dataHDD/dong/Research/food_meshes/tet/potato_003_stable_20261114.msh`.
-- Original mesh is preserved. Preparation script rotates the existing uncut
-  tetrahedral mesh, then the exporter rebuilds its cutting interface.
-- Export: `/dataHDD/dong/Assets/Cutting_DEV/prepared/sweep/free_potato_stable_20261114_v3/scene.pt`.
-  The directory suffix denotes an export attempt, not the free_cut_v3 task.
-- Historical whole-potato preparation used 8 s per-material settling. The current
-  `configs/free_cut/pose_potato.json` selects the half-potato asset below with 1 s.
-- Checks/temporary engineering checkpoints: `runs/pose_task_20261114/` on GPU7.
-  They use task `free_cut_pose_v1`; none is a learned cutting-policy result.
-- Failed export-attempt logs and historical data are retained in run storage,
-  excluded from Git. No server weights or experimental evidence were deleted.
-
-## Flat-bottom half potato candidate — 2026-11-14
-
-Derived from the stable whole uncut tetrahedral mesh, retaining its upper half,
-capping horizontally, remeshing and placing the cap down. Not the official potato
-asset and not a fixed object. Mesh:
-`/dataHDD/dong/Research/food_meshes/tet/potato_003_half_20261114.msh`;
-scene: backend `runs/sweep/free_potato_half_20261114/scene.pt`;
-source configuration: `configs/free_scenes/potato_003_half.json`.
-Original whole geometry remains available. The active potato development config
-now selects this half with 1 s settling after the randomized reset check.
-Asset invariants, exact conditions, settling traces and reference results are in
-`runs/potato_preparation_20261114/`; interpretation is in RESULTS 2026-11-14.
-
-
-## Scan appearance assets — 2026-11-14
-
-Geometry provenance remains [OmniObject3D](https://omniobject3d.github.io/), downloaded
-from [the HF mirror](https://huggingface.co/datasets/AlbertS666/OmniObject3D-objects).
-Original geometry-only imports are under `food_meshes/omniobject3d/`; matching
-textured USDs and `textures/Scan.jpg` are now under
-`/dataHDD/dong/Research/food_meshes/omniobject3d_textured/`
-for cucumber_002, cucumber_003 and potato_003. These are appearance assets, not
-physical material calibration data. Prism remains the DiSECt benchmark geometry.
-The half potato is our derived preparation, not an additional official scan.
-
-Display mappings and stills remain in server runs, including
-`runs/multi_scene_preview_20261114/{cucumber,potato}/appearance.npz`.
-Mappings include the recording and texture checksums; applying one to a different
-recording is rejected. No weights, meshes or textures were added to Git.
-
-
-## Half-potato reset and reward audit — 2026-11-14
-
-- Active asset: `prepared/sweep/free_potato_half_20261114/scene.pt`.
-- Randomized production resets: `runs/half_potato_randomized_20261114/`.
-  128 draws from the configured E/density/cutting-spring distributions, randomized
-  clearance/speed, plus 16 E/density/spring/clearance endpoint combinations.
-  All 144 passed the unchanged stability window over a 0.5 s post-reset observation.
-- Reward audit output: `runs/pose_reward_audit_20261114/`; read completed
-  `report.json`/summary only. Per-step raw states, outcomes and reward components
-  are retained. Physical references are not inserted into policy replay.
-
-### BladeMaster paths added 2026-11-14
-
-DiSECt-compatible meshes: `/dataHDD/dong/Assets/Cutting_DEV/blademaster_disect_20261114/`; exported scenes: backend `runs/sweep/bm_{banana,cake,tofu,luncheon}_20261114/scene.pt`. Preparation/reference evidence: `runs/bm_disect_assets_20261114/`. Source geometry/parameter identities and exclusions are in [the asset note](BLADEMASTER_DISECT_ASSETS.md).
-
-Independent BM/UR5e physical interaction, real-action replay and optimizer/restart checks: `runs/blademaster_ur5e_20261114/`; general training-entry smoke run: `runs/blademaster_entry_20261114/`. External solver source is configurable and not bundled. No new source, weights or datasets were copied to Mac.
-
-## Active runs — 2026-11-14
-
-- A6000 (tamsGPU5), GPU1, frozen checkout
-  `/dataHDD/dong/Projects/Cutting_DEV_pose_train_20261114`, source 905afb9.
-  `runs/pose_three_object_long_20261114/training/`: current progress,
-  every 250-step checkpoints, final/interrupt `last.pt` and latest matching replay.
-  The sibling`runs/pose_longtrain_preflight_20261114/` is disposable validation
-  evidence, not an initialization checkpoint for the long run.
-- GPU7, `/dataHDD/dong/Projects/Cutting_DEV_bm_multi_20261114`, training source cf20ef0,
-  `runs/blademaster_three_train_20261114/`. Source patch and full settings are in
-  [the BM launch record](BLADEMASTER_MULTIOBJECT_TRAINING_20261114.md).
-- BM intact particle assets:
-  `/dataHDD/dong/Assets/Cutting_DEV/blademaster_intact_20261114/`.
-  External solver checkout `/dataHDD/dong/Projects/BladeMaster-Warp-ur5e-mesh-20261114`
-  is committed as db06c1a. It imports uncut reference points, not DiSECt cut springs.
-- Tofu correction evidence: shared GPU7 `runs/ground_contact_20261114/`.
-  Ghost coordinates and occupied contact geometry are reported separately.
-- No source, checkpoints or new experiment datasets were copied to the Mac.
+Completed review handoffs and stopped launch notes are in docs/archive.
+Six redundant plan/paper drafts were removed from the working tree; immutable
+Git links in [the index](README.md) retain their content. Measured results,
+failed experiments and unresolved limitations remain in RESULTS.

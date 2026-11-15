@@ -249,7 +249,7 @@ cut triangles. The board support is display geometry.
 ## Remote-only development and storage
 
 Open GPU7 in VS Code Remote SSH and use /dataHDD/dong/Projects/Cutting_DEV_board
-(branch codex/board-cut-v4). The isolated A6000 training checkout and launch status are in [TRAINING_20261114](TRAINING_20261114.md). The Mac holds no project checkout or experiment files.
+(branch codex/board-cut-v4). The isolated A6000 training checkout and launch status are in [TRAINING_20261114](archive/TRAINING_20261114.md). The Mac holds no project checkout or experiment files.
 GPU9 was reauthorized on2026-11-15 for BladeMaster; access it through tams61.
 Historical checkouts remain untouched; see PLAN for its isolated deployment.
 

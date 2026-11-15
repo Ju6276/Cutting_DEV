@@ -1,3 +1,5 @@
+> Historical record retained for audit; not the current launch plan. See [PLAN](../PLAN.md).
+
 # BladeMaster three-object engineering training — 2026-11-14
 
 ## Scope and approved budget

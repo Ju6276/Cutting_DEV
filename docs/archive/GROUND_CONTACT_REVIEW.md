@@ -1,3 +1,5 @@
+> Historical record retained for audit; not the current launch plan. See [PLAN](../PLAN.md).
+
 # DiSECt ground-contact diagnostic correction
 
 Scope: BladeMaster-derived DiSECt candidates, especially tofu. No physical
