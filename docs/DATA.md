@@ -4,13 +4,13 @@ This is the current location/recovery index, not an authorization to launch.
 All paths are on servers. No project source, weights or datasets were copied
 to the Mac during this cleanup. See [PLAN](PLAN.md) for active budgets.
 
-## Checkouts and active training
+## Checkouts and latest training runs
 
 | Host | Checkout | Role / frozen code |
 |---|---|---|
 | GPU7 (tamsGPU7) | /dataHDD/dong/Projects/Cutting_DEV_board | Development, branch codex/board-cut-v4 |
-| GPU7 | /dataHDD/dong/Projects/Cutting_DEV_pose_long_20261114 | Active DiSECt main training, 02203b1 |
-| GPU9 (tamsGPU9) | /dataHDD/dong/Projects/Cutting_DEV_bm_long_20261115 | Active BladeMaster training, 931e2b5 |
+| GPU7 | /dataHDD/dong/Projects/Cutting_DEV_pose_long_20261114 | Budget-complete DiSECt main run, 02203b1 |
+| GPU9 (tamsGPU9) | /dataHDD/dong/Projects/Cutting_DEV_bm_long_20261115 | SIGILL-interrupted BladeMaster run, 931e2b5 |
 | A6000 (tamsGPU5) | /dataHDD/dong/Projects/Cutting_DEV_pose_scale_20261114 | Development mirror; no active cutting training |
 
 GPU9 is reached through tams61. GPU7 and A6000 local SSH aliases are
@@ -18,7 +18,7 @@ cutting-gpu7 and cutting-a6000. Server names do not imply exclusive GPU access.
 Active runs stay on their frozen checkouts; syncing development docs does not
 replace their loaded code.
 
-Both active outputs are under /dataHDD/dong/Experiments/Cutting_DEV/runs:
+Both training outputs are under /dataHDD/dong/Experiments/Cutting_DEV/runs:
 
 - GPU7: pose_wrench6_3072_20261114/training, 3072 worlds (1024/object).
   Online history forwarding resumes the existing
@@ -142,3 +142,22 @@ Completed review handoffs and stopped launch notes are in docs/archive.
 Six redundant plan/paper drafts were removed from the working tree; immutable
 Git links in [the index](README.md) retain their content. Measured results,
 failed experiments and unresolved limitations remain in RESULTS.
+
+
+## Frozen evaluation and exit records — 2026-11-15
+
+GPU7 runs/frozen_pose_eval_20261115/disect_last evaluates final policy1109.
+GPU9 runs/frozen_pose_eval_20261115/blademaster_3456 evaluates the latest complete
+saved policy866, not the998 updates reached before process exit.
+A6000 runs/frozen_pose_eval_20261115/disect_192_ready evaluates earlier policy373
+under the same declared cases. The first A6000 attempt failed initialization
+because the runtime PATH lacked ninja; that failure is retained separately.
+Each completed folder retains manifest/config/checkpoint hashes, cases,
+episodes, raw trajectories and summary. A copied193 MB checkpoint on A6000 is
+evaluation input, not a new training run; its hash matches the GPU7 source.
+
+GPU9 runs/bm_gpu9_20261115/exit_investigation_20261115.json records the SIGILL.
+The original progress.json remains unchanged and stale; launch_status.json
+records exit_code=-4. Neither file may be read as evidence of ongoing training.
+
+Frozen evaluations are now complete: GPU7 disect_last (0/48, timeout), A6000 disect_192_ready (0/48, workspace), GPU9 blademaster_3456 (48/48 pose success). GPU7 comparison.json stores all three identities/results; see RESULTS for protocol and limitations. No long run restarted.

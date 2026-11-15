@@ -1973,3 +1973,96 @@ CPU-only regression on GPU7 (CUDA hidden to avoid the live training allocation):
 root 415 passed / 22 skipped; backend 27 passed / 12 skipped.
 This is not a new GPU physics validation. Active GPU7/GPU9 training advanced
 during cleanup; 2026-11-15 01:07 UTC snapshots were policy421 and WM20 respectively.
+
+## 2026-11-15 — Completed frozen policy evaluations and GPU9 SIGILL
+
+These are bounded development evaluations requested by the user, not new
+training or sealed tests. No long run was restarted.
+
+### Training exit status
+
+GPU7 completed its 24-hour budget: iteration346, 1,062,912 transitions,
+policy1109 / WM1609, elapsed86,414.9 seconds. The760 episodes completed after
+iteration192 were all timeouts (347 cucumber,124 half-potato,289 prism).
+An earlier success rate over completed episodes does not describe the final
+policy or imply that no episodes ended later.
+
+GPU9 stopped before budget completion: launcher exit -4 (SIGILL), last progress
+iteration3785 / 968,960 transitions / policy998 / WM1498. At2026-11-15
+21:34:18 Europe/Berlin, the kernel recorded pt_main_thread PID138581 trapping
+an invalid opcode inside libcuda.so.595.80. The launcher and training process
+are gone; progress.json's running state is stale. No Python traceback, usable
+core dump, or nearby visible Xid/OOM-kill record was found. The fault location
+does not prove a driver defect; the triggering cause remains unresolved.
+Torch2.4.1+cu121 uses driver595.80 on the RTX4090. Ten CUDA matmul/backward,
+synchronize and cache-release smoke iterations passed; the frozen evaluation
+below also completed. Neither establishes that the long-run crash is fixed.
+W&B reports finished, which must not be read as budget completion.
+
+### Protocol and results
+
+One deterministic first episode per world,16 worlds/object,48 total, seed20261115;
+unchanged task/reward/limits; every case runs to its own termination. Maximum
+one hour per evaluation, no learning. Exact task/interface/backend metadata are
+checked. Manifests record checkpoint/config/script hashes and source revisions.
+Raw transitions, goals, actions, rewards, termination and conditions are saved.
+
+| Frozen checkpoint | Pose success | Other outcomes | Mean return | Mean steps |
+|---|---:|---|---:|---:|
+| GPU7 last, policy1109 | 0/48 | 48 timeouts | -10.9737 | 180 |
+| GPU7 iteration192, policy373 (evaluated on A6000 GPU0) | 0/48 | 48 workspace failures | -99.8906 | 55 |
+| GPU9 iteration3456, policy866 | 48/48 | no force/workspace/timeout failures | 106.9391 | 34 |
+
+The saved GPU9 checkpoint is policy866, not policy998 at the crash. All three
+objects scored16/16 pose successes: cucumber mean return106.5494 /33 steps,
+half-potato107.2362 /35 steps, prism107.0317 /34 steps. Mean episode peak material
+forces were6.010,9.627,3.066 N respectively. Maximum sensor-limit utilization
+over the run was0.18353. Every final material component count was2; this is
+a diagnostic, not an independently validated intended-slice quality criterion.
+
+GPU7 final per-object mean returns were cucumber-9.9089, half-potato-15.0810,
+prism-7.9312; all48 timed out without full material separation. The earlier
+checkpoint also had no fully separated episodes. Both frozen checkpoints fail
+in different ways, so these data do not isolate degradation of the final
+checkpoint from a previously verified successful frozen policy. Historical
+training success has not been reproduced by these two deterministic evaluations.
+
+GPU7 conditions are randomized within the training material/clearance/speed
+distribution. GPU9 uses nominal replicas, not48 independent randomized-material
+generalization cases. Backends and distributions differ: do not rank algorithms
+from this table. Pose success remains distinct from material separation.
+The two DiSECt evaluations have exactly matching48 case records and matching
+scene/config hashes. They ran on different GPUs; identical physical floating
+point trajectories are not asserted.
+
+### Code, checks and artifacts
+
+Added scripts/evaluate_pose_policy.py with separate pose-success and separation
+metrics, first-episode accounting, finite-value checks, raw trajectory storage,
+explicit incomplete/error summaries and finally-based cleanup. The historical
+evaluate_multi.py now rejects pose-task versions rather than mislabeling pose
+success as separation. No training objective, reward, physics or action mapping
+was changed. Root tests:418 passed /22 skipped; backend:27 passed /12 skipped,
+CUDA hidden on GPU7 to avoid competing with the evaluations. These are CPU
+regressions, not GPU unit-test coverage; the three physical evaluations above
+are separate execution evidence. Both evaluation scripts compile.
+
+Remote artifact root on each host:
+/dataHDD/dong/Experiments/Cutting_DEV/runs/frozen_pose_eval_20261115/
+- GPU7: disect_last/, comparison.json, plan.json, root_tests_final.log,
+  backend_tests.log.
+- A6000: disect_192_ready/ (completed); disect_192/ retains the initial failed
+  environment attempt (Ninja missing from PATH), not counted as an evaluation.
+- GPU9: blademaster_3456/.
+- GPU9 exit evidence: runs/bm_gpu9_20261115/exit_investigation_20261115.json.
+
+All successful evaluations used script SHA256
+44d935e21825c3dd468bdcd4765879eeb4d8f898930be66053d14cffb412c449.
+Full checkpoint identities and hashes are in comparison.json and manifests.
+At final occupancy check, GPU7/GPU9 and A6000 GPU0 were idle; A6000 GPU1
+remained occupied by user tu's feeding training (~29 GB), which was untouched.
+No evidence connects that separate-host workload to the GPU9 exit.
+
+Next work is a targeted investigation of the saved main-policy failure traces
+and the GPU9 runtime fault before proposing another long run, not another
+automatic training restart.

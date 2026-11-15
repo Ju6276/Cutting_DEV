@@ -30,7 +30,7 @@ Completed for this restart:
   3.449GiB free after full learning. BladeMaster256 completed its separate
   full-learning probe; the subsequently authorized GPU9 long run is below.
 
-Active DiSECt job: GPU7 PID1048242, frozen code02203b1, checkout
+Completed DiSECt job: GPU7 PID1048242, frozen code02203b1, checkout
 /dataHDD/dong/Projects/Cutting_DEV_pose_long_20261114.
 Output:runs/pose_wrench6_3072_20261114/training.
 Fresh seed0,500 WM-only rounds, warmup30720 transitions,640 new transitions per
@@ -44,7 +44,7 @@ there; another user's GPU workloads are untouched. The old192/3 runs remain
 stopped and frozen. No automatic budget extensions; the later user-authorized
 BladeMaster GPU9 launch is recorded below.
 
-Actual training overview/detail images have been rendered from step1 and delivered. Next: retain per-object learning/episode metrics through the fixed budget; assess the saved checkpoints without changing task or budget mid-run.
+Actual training overview/detail images were rendered from step1. Training reached its budget: 346 vector steps, 1,062,912 transitions, 1109 policy updates. Frozen evaluation is the current step; do not silently extend training.
 See [restart record](TRAINING_SCALE_20261114.md) and
 [force observation](archive/WRENCH_OBSERVATION_REVIEW.md).
 
@@ -99,7 +99,7 @@ tracking directly. Server checkpoints/logs remain recovery copies.
 
 The user moved the requested BladeMaster long run from the occupied A6000 to
 GPU9. GPU9 is reachable through tams61 and its RTX4090 was idle at deployment.
-A6000's two cards are occupied by another user's openpi process; do not stop it.
+That occupancy was a launch-time snapshot. At the final evaluation check, GPU0 was idle and GPU1 hosted tu's feeding job; do not stop other users' work.
 
 Frozen training checkout: /dataHDD/dong/Projects/Cutting_DEV_bm_long_20261115,
 commit931e2b5 (includes the opt-in cache guard). External material source: e2e5221, same revision used for the
@@ -134,3 +134,29 @@ paired checkpoints/replay, assets and Python dependencies are preserved.
 and completed-review notes are under archive; redundant old plan/paper drafts
 are accessible through immutable Git links in the document index.
 This maintenance changes no training code, task, budget or running process.
+
+
+
+## Current follow-up — completed evaluations and unresolved GPU9 exit (2026-11-15)
+
+GPU7 completed24 hours (policy1109 /1,062,912 transitions). Frozen evaluation:
+0/48 pose successes,48 timeouts,mean return-10.97. Earlier policy373 on exactly
+the same48 randomized development conditions also failed:48 workspace exits
+at step55,mean return-99.89. Earlier completed-training success rates do not
+establish successful deterministic execution. Raw traces are saved for targeted
+investigation; no task, reward or training change has been made.
+
+GPU9 stopped early with SIGILL (-4), located by the kernel in libcuda.so.595.80.
+The triggering cause is unresolved; no nearby visible Xid/OOM record or usable
+core was found. CUDA smoke checks and physical evaluation passed, which does
+not establish that long training is repaired. Latest saved policy866:
+48/48 nominal-replica pose successes,mean return106.94,mean34 steps.
+The process reached policy998 before the crash; do not conflate it with the
+evaluated saved checkpoint. W&B's finished badge is not budget completion.
+
+See RESULTS's2026-11-15 frozen-evaluation entry and DATA for evidence/paths.
+DiSECt random conditions and BM nominal replicas are not a matched algorithm
+comparison. All three evaluations are completed, with no automatic restart.
+Next: investigate main-policy execution failures using the saved trajectories;
+preserve GPU9 exit evidence and diagnose its runtime fault before another long
+run. No new long-training budget has been selected here.
