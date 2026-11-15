@@ -871,10 +871,10 @@ another user occupies the card; complete local capacity checks remain required.
 
 ## Frozen-evaluation physical-tool rendering (2026-11-15)
 
-Use evaluate_pose_policy.py --record-geometry and render_pose_evaluation.py for
-the current main and BladeMaster frozen evaluations. This shares the original
-UR5e visual-mesh loader and material display colors; both use one actual physical
-blade and no additional crack highlighting. It replaces the old blade portion of the combined URDF knife/adapter appearance
+Use evaluate_pose_policy.py --record-geometry, export_evaluation_scene.py and
+render_episode_still.py --video for current frozen evaluations. The shared studio
+renderer preserves the original UR5e visual meshes, scan appearance and one
+actual physical blade, with no additional crack highlighting. It replaces the old blade portion of the combined URDF knife/adapter appearance
 mesh, which does not match the BladeMaster wedge, while retaining the original
 gripped handle (see the correction below).
 The initial whole-mesh omission was a visualization regression: it also removed
@@ -899,3 +899,27 @@ through the saved EE pose and MuJoCo base. Main videos use the recorded DiSECt
 contact blade vertices. Particle-derived BladeMaster display surfaces are
 cosmetic and never used for collision or task labels. Recording and rendering
 do not change task physics, parameters, rewards, or checkpoint weights.
+
+### Shared studio appearance
+
+The November 14 studio appearance is reused for frozen-evaluation video instead
+of maintaining a second VTK presentation style. Evaluation geometry is adapted
+by `export_evaluation_scene.py`; `render_episode_still.py` handles both stills
+and animated output. The previous `render_pose_evaluation.py` is removed.
+The canonical entry and commands are in RUNNING.
+
+Knife vertices, body poses and material coordinates are recorded physics data.
+The original handle remains visible; the historical mismatched visual blade is
+removed. BladeMaster's visible shank illustrates its fixed EE transform and is
+not a hardware design or additional simulated contact shape. The URDF cable
+envelope (30 x 30 x 55 mm) is hidden in studio views, without modifying physics.
+
+Cucumber FEM scan appearance is reused only after topology equality and rigid
+geometry correspondence checks. Half potato and particle surfaces can use
+explicitly approximate PCA-aligned scan-color transfer. Half-potato display
+triangles subdivide the existing FEM surface; smooth shading normals are updated
+from that surface each frame, without moving the surface. Particle colors follow
+particle identity; changing display topology is reconstructed from recorded
+points. None of these operations recover exact UV coordinates or validate
+separation. No artificial crack bands are drawn; actual geometric gaps are
+not filled. Board grain, lights and shading are decorative.

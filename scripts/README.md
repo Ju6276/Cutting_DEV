@@ -270,5 +270,21 @@ sidecar records all world IDs and the captured-state checksum.
 Named training checkpoints retain matching `<stem>.replay.pt` files.
 `last.pt` retains the legacy companion `replay.pt`.
 
-Current frozen-policy video entry for both backends: evaluate_pose_policy.py --record-geometry, followed by render_pose_evaluation.py. It shows actual physical blades, not the inherited appearance knife. Historical render_episode.py retains old-format support and shared visual helpers; render_training_snapshot.py is for static all-world layouts.
-\nVisual QA: use render_pose_evaluation.py --preview before encoding. Current mounted-tool output keeps the original handle, shows one physical blade and uses shared MATERIAL_STYLES; the BM fixed-joint shank is a display representation, not new simulated hardware. See RESULTS for the superseded floating-blade videos.\n
+Current frozen-policy visualization uses the established studio renderer:
+1. `evaluate_pose_policy.py --record-geometry` captures physical states.
+2. `export_evaluation_scene.py` adapts those states to the shared studio schema.
+3. `render_episode_still.py --video` renders with the same materials, wood board,
+   lighting and camera code as the existing stills. Use `--preview` first.
+
+The duplicate `render_pose_evaluation.py` entry is removed. It introduced another
+style, lost scan appearance and initially hid the handle. Do not revive it as a
+second supported renderer. `render_episode.py` remains the shared URDF/mesh
+utility and historical force-chart renderer; `render_training_snapshot.py`
+remains the actual all-world overview, not an alternate policy-video style.
+
+Display rules: original UR5e visual meshes; one metal physical blade; retain
+the gripper/handle; no blue overlay or artificial crack highlighting. Hide
+`b_bot_cam_cables_link` (the URDF cable-envelope box) in studio views only.
+BladeMaster's fixed-joint connector is illustrative, not simulated hardware.
+Barycentric scan appearance requires verified topology and geometry. Approximate
+color transfer for other representations is disclosed, never called recovered UV.

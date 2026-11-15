@@ -350,4 +350,23 @@ CUTTING_EVAL_ROOT can point to a frozen source checkout when running the audited
 evaluation script from an external experiment directory; the manifest records
 both the physical-source Git revision and evaluation-script SHA256.
 
-Frozen evaluation video: add --record-geometry to the above evaluation command; render selected groups with scripts/render_pose_evaluation.py --evaluation RUN --group 0 --backend BladeMaster (or DiSECt) --source-root /opt/ros/noetic/share --source-root /dataHDD/dong/Projects/SliceIt/catkin_ws/src --source-root /dataHDD/dong/Projects/SliceIt/underlay_ws/src --output VIDEO.mp4 using the render Python environment. Videos retain the original handle and show the actual backend blade; BM adds an explicitly display-only fixed-joint shank. Use --preview to inspect attachment, color and camera framing; see RESULTS for superseded previews. No training change is implied.
+Frozen evaluation videos use the same studio appearance as the November 14
+stills, with actual physical blade geometry:
+
+```bash
+/dataHDD/dong/Envs/render-20261108/bin/python scripts/export_evaluation_scene.py   --evaluation RUN --group 0 --backend DiSECt   --source-root /opt/ros/noetic/share   --source-root /dataHDD/dong/Projects/SliceIt/catkin_ws/src   --source-root /dataHDD/dong/Projects/SliceIt/underlay_ws/src   --output RUN/studio_scene.npz
+blender -b -t 12 --python-exit-code 1 -P scripts/render_episode_still.py --   --scene RUN/studio_scene.npz --output RUN/video.mp4 --video --preview --samples 16 --fps 10 --speed 1
+# Remove --preview to encode the complete clip; --view wide gives the robot view.
+```
+
+Use `--appearance-reference DIR` only for a verified identical FEM topology
+and matching reference geometry. Use `--color-reference DIR` for approximate
+scan color transfer to another representation; this changes no physical geometry.
+The reference directory contains episode.npz and its hash-verified appearance.npz.
+Both flags are optional: geometric blocks use the neutral material palette.
+BladeMaster uses `--backend BladeMaster` and recorded physical blade poses.
+Its connector depicts the fixed joint; it is not additional contact geometry.
+All outputs describe a frozen-policy rerun, not footage of the original training.
+
+The removed `render_pose_evaluation.py` is not a supported video entry. Preserve
+recordings and evaluation results; superseded visual previews can be deleted.

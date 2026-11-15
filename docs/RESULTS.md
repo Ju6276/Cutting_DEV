@@ -2172,3 +2172,52 @@ passed /12 skipped (CUDA hidden). All six MP4s encoded, with first/middle/last
 frames saved and reviewed. Both camera views include the original handle; the
 close view is fitted to the material, blade and mount over the full trajectory.
 Each BladeMaster render checks the mount rigidity before encoding.
+
+
+## 2026-11-15 — Restore the established studio visualization
+
+Historical reference: d74ad44/f9abb84 and
+runs/multi_scene_preview_20261114/cucumber/single_knife_close.png.
+The new frozen-evaluation renderer had bypassed the scan appearance and studio
+lighting, causing a visible regression even after knife/handle corrections.
+
+The duplicate render_pose_evaluation.py was removed. Its valid recorded-geometry
+adaptation is now export_evaluation_scene.py, feeding the existing
+render_episode_still.py, which supports stills and videos using one style.
+The retained historical VTK force-chart renderer is not the presentation default.
+
+Actual geometry is unchanged: one physical blade, original handle, no blue
+proxy or artificial crack band. BladeMaster's visible fixed-joint shank remains
+display-only; it is not proof that a hardware mount has been validated.
+The URDF camera-cable envelope box is hidden in studio output only.
+
+Cucumber FEM reuses the hash-verified reference appearance after topology and
+rigid correspondence checks. Other food surfaces use approximate scan-color
+transfer, disclosed in sidecars; they do not inherit the original scan UV.
+Blender 2.82's system BLAS crashed in a tiny camera normalization operation;
+elementwise arithmetic avoids that renderer-only compatibility issue.
+View-layer denoising is explicitly enabled (the older scene-only switch did
+not actually denoise these frames).
+
+Validation so far: root suite 418 passed / 22 skipped; backend suite 27 passed /
+12 skipped, with CUDA hidden during concurrent CPU rendering. Optional GPU
+paths were not rerun for this visualization-only change. Both suites must use
+their own working directories. Studio start/middle/final previews have been
+inspected for the two cucumber recordings. Full-clip QA follows below.
+
+
+Full-clip QA completed: six MP4s at 1100 x 780, 10 fps, 1x playback, plus a
+one-second final-state hold. Main clips are 10.0 s each; BladeMaster clips are
+2.7 / 2.8 / 2.7 s. All decode fully; frame counts match sidecars. Start, middle
+and final frames of every clip were visually inspected. The camera-cable box is
+absent, robot meshes and metal blades are retained, and food appearance no
+longer uses the superseded flat-color layout. Half-potato display subdivision
+and per-frame shading normals preserve the underlying FEM surface.
+
+Final code re-export reproduced 137 prism geometry arrays exactly. Root tests:
+418 passed / 22 skipped; backend: 27 passed / 12 skipped (CUDA hidden).
+Outputs: runs/frozen_pose_eval_20261115/studio/, with qa.json and contact sheet.
+The five obsolete videos* preview directories were deleted after validating
+replacement checksums; their JSON provenance is retained in
+studio/superseded_render_manifests.json. Raw evaluation recordings are retained.
+Only videos, preview images and small manifests are delivered to the Mac.
