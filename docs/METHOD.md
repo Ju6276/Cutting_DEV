@@ -852,3 +852,18 @@ preserving pose/velocity axes, action mapping and reward. WM already predicted
 six-dimensional wrench. See [WRENCH_OBSERVATION_REVIEW](WRENCH_OBSERVATION_REVIEW.md)
 for layout, normalization and checkpoint compatibility. These are explicit
 engineering variants, not claimed methodological contributions.
+
+### Optional Torch-cache release before physics (2026-11-15)
+
+The GPU trainer accepts --cuda-cache-reserve-gib (default0, disabled). Before
+each physical step, after producing the action, it checks CUDA free memory.
+Below the requested reserve, it releases only unoccupied PyTorch allocator
+cache using empty_cache; live model/replay/optimizer tensors remain allocated.
+The reserve is a release trigger, not an assertion that enough memory can
+always be recovered. Free memory before/after and release events are recorded.
+
+This addresses two independent allocators: Torch learning can retain idle blocks
+that the Warp physics allocator cannot use. It does not change source effective
+batch sizes, gradient accumulation, reward, task, or optimizer schedule.
+An environment may still run out of memory if actual live allocations grow or
+another user occupies the card; complete local capacity checks remain required.

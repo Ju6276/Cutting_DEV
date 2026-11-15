@@ -3,6 +3,7 @@
 import argparse
 from dataclasses import asdict
 import json
+import math
 import os
 from pathlib import Path
 import signal
@@ -12,6 +13,7 @@ import time
 import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from cutting_world_model.cuda_memory import release_physics_cache
 from cutting_world_model.online_replay import BatchedOnlineReplay
 from cutting_world_model.online_schedule import OnlineSchedule, TransitionSchedule
 from cutting_world_model.episode_log import ended_metrics, episode_row
@@ -85,6 +87,8 @@ def main():
                         help='Additional physical transitions budget; stops at a vector boundary')
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--microbatch', type=int, default=64)
+    parser.add_argument('--cuda-cache-reserve-gib', type=float, default=0.,
+                        help='Release unused Torch cache before physics when free GPU memory is below this reserve; 0 disables')
     parser.add_argument('--wm-only-updates', type=int, default=500,
                         help='Completed world-model rounds before policy/critic updates')
     parser.add_argument('--max-hours', type=float, default=6.)
@@ -146,6 +150,8 @@ def main():
     parser.add_argument('--force-penalty-scale', type=float,
                         help='Force (N) at which the linear penalty reaches -1 (required for linear)')
     args = parser.parse_args()
+    if not math.isfinite(args.cuda_cache_reserve_gib) or args.cuda_cache_reserve_gib < 0:
+        parser.error('--cuda-cache-reserve-gib must be finite and nonnegative')
     if args.change_wm_terminal_gradient and not args.resume:
         parser.error('--change-wm-terminal-gradient requires --resume')
     if args.actor_objective == 'bc' and args.actor_bc_alpha is None:
@@ -374,6 +380,9 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
                 goal = task_goal(frame)
                 clean = policy(history, goal)
                 executed = spec.execute(clean + .1 * torch.randn_like(clean))
+            cache_info = release_physics_cache(getattr(args, 'cuda_cache_reserve_gib', 0.))
+            if cache_info is not None:
+                status['cuda_cache'] = cache_info
             progress(phase='physics', iteration=schedule.iteration, updates=learner.updates)
             tick = time.monotonic()
             frame, reward, terminated, truncated, info = env.step(executed)
@@ -391,6 +400,9 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
             risk_window[0] += int((ended & info['collision']).sum())
             risk_window[1] += int(ended.sum())
             metrics = {'iteration': schedule.iteration + 1, 'physics/reward_mean': float(reward.mean())}
+            if cache_info is not None:
+                metrics.update({'gpu/free_before_physics_gib': cache_info['free_after_gib'],
+                                'gpu/cache_released': int(cache_info['released'])})
             metrics.update(ended_metrics(ended, returns, lengths, info, truncated, peak_material, peak_ratio,
                                          getattr(env, 'groups', None),
                                          getattr(env, 'group_index', None)))

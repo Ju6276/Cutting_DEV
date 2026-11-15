@@ -250,7 +250,8 @@ cut triangles. The board support is display geometry.
 
 Open GPU7 in VS Code Remote SSH and use /dataHDD/dong/Projects/Cutting_DEV_board
 (branch codex/board-cut-v4). The isolated A6000 training checkout and launch status are in [TRAINING_20261114](TRAINING_20261114.md). The Mac holds no project checkout or experiment files.
-GPU9 is no longer a run target.
+GPU9 was reauthorized on2026-11-15 for BladeMaster; access it through tams61.
+Historical checkouts remain untouched; see PLAN for its isolated deployment.
 
 GPU7 storage:
 
@@ -318,3 +319,10 @@ failure before training; local-only logging is not an acceptable fallback.
 Local server checkpoints and logs remain recovery copies. Historical commands
 with --wandb-mode offline describe previous runs and must not be copied into a
 new long-training launch.
+
+
+For mixed Torch/Warp workloads, --cuda-cache-reserve-gib 3 can release unused
+Torch cache before physics when less than3GiB is free. It is opt-in and is
+recorded in the training manifest. It does not reduce the number of worlds or
+effective learning batches. Confirm its free-memory and physics/reset behavior
+in a full local preflight before relying on it.
