@@ -269,3 +269,5 @@ sidecar records all world IDs and the captured-state checksum.
 
 Named training checkpoints retain matching `<stem>.replay.pt` files.
 `last.pt` retains the legacy companion `replay.pt`.
+
+Current frozen-policy video entry for both backends: evaluate_pose_policy.py --record-geometry, followed by render_pose_evaluation.py. It shows actual physical blades, not the inherited appearance knife. Historical render_episode.py retains old-format support and shared visual helpers; render_training_snapshot.py is for static all-world layouts.

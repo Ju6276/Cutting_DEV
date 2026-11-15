@@ -2066,3 +2066,72 @@ No evidence connects that separate-host workload to the GPU9 exit.
 Next work is a targeted investigation of the saved main-policy failure traces
 and the GPU9 runtime fault before proposing another long run, not another
 automatic training restart.
+
+## 2026-11-15 — Video evidence, inference audit and tool appearance correction
+
+At the user's request, repeated the48-case frozen evaluations with physical
+geometry recording (at most one hour each; no training). Selected case0,16,32
+before execution: the first cucumber, half-potato and prism world. Main run
+again had0/48 successes and48 timeouts, mean return-11.0201. BladeMaster again
+had48/48 pose successes, mean return106.9389. Numerical force values differ
+slightly across executions; these clips are labelled reruns, not footage from
+the original training.
+
+Main saved trajectories show selected cases ending about69.5–73.7 mm sideways
+from the target and1.46–2.96 mm above its target height. None records board
+contact. Thus this is actual failure to meet the pose condition, not just a
+missing success label. It does not identify why the learner chose those actions.
+Reconstructing policy histories from recorded observations for steps1,10,50,180
+on CPU reproduces recorded GPU actions within2.87e-6; train/eval modes agree
+exactly. The environment/policy/physics source did not change between frozen
+training02203b1 and evaluation6ddda87; the intervening training-code change was
+an optional cache guard. This excludes neither learning bugs nor batch-size
+effects and is not a full correctness proof.
+
+The first BladeMaster video previews incorrectly displayed the inherited URDF
+knife_and_adapter appearance as if it were the physical BladeMaster blade.
+This is a visualization error; those previews are superseded. BladeMaster
+training uses its configured wedge (half-size0.0005,0.06,0.04 m; bevel0.005 m).
+The adapter keeps the original knife-center position at initialization but
+sets a different initial blade orientation, then drives it by a fixed EE
+transform. It does not simulate frictional gripping. Do not describe the URDF
+appearance blade as its material-contact geometry or its mount appearance as
+validated hardware. No training physics was changed to match the picture.
+
+The common current frozen-evaluation renderer now displays one actual backend
+collision blade, omitting the mismatched combined URDF appearance knife/adapter.
+Robot visuals share the existing visual-mesh loader; material colors are display
+colors. BladeMaster's display surface is reconstructed from measured particles,
+never used for contact or success. No artificial crack overlay is added.
+The visible lack of corresponding mounting hardware is labelled rather than
+concealed by a fabricated adapter. This is a geometry/behavior diagnostic, not
+a claim of finished real-robot fixture design.
+
+BladeMaster displayed vertices are transformed from recorded EE poses and the
+same vertices_in_ee used by board checks, through the MuJoCo base frame.
+Selected final physical knife gaps above the board are0.00650,0.00522,0.00693 mm.
+They must not be inferred from the old URDF visual knife. The DiSECt-backed main
+video uses its recorded material knife vertices directly.
+
+Current commands: evaluate_pose_policy.py --record-geometry, then
+render_pose_evaluation.py for either backend. Historical record_episode.py /
+render_episode.py remain for their old recording formats and shared visual
+helpers; render_training_snapshot.py serves the all-environment static view.
+They are not interchangeable entry points. The method is the user's WM+BPTT;
+SliceIt supplies the adapted robot/controller/task conventions, while DiSECt
+and BladeMaster name material backends, not different policy algorithms.
+
+Artifacts under runs/frozen_pose_eval_20261115:
+disect_video/, blademaster_video_ready/, videos_physics/ (current six videos).
+videos/, videos_checked/, videos_verified/ are superseded previews.
+Main policy_execution_audit.json and selected_case_motion.json are under
+disect_last/. BladeMaster blade_render_alignment.json and physical_blades.npz
+are under blademaster_video_ready/. The exact recorder used by these reruns is
+archived as evaluate_pose_policy_geometry_used.py; later recorder revision also
+stores EE poses directly in snapshot metadata for self-contained rendering.
+The user-requested videos and preview frames alone were copied to the Mac,
+not checkpoints or project source.
+
+Regression:418 root passed /22 skipped;27 backend passed /12 skipped, CUDA
+hidden. Both physical recording reruns completed. This validates recording
+execution, not a repair of main-policy learning or GPU9's earlier SIGILL.

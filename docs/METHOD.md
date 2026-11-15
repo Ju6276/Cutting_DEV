@@ -538,7 +538,7 @@ export contains 608 virtual vertices and 1338 cut triangles.
 | Source component | Video implementation |
 |---|---|
 | MuJoCo physics import discards URDF visuals and keeps collision meshes | Offline video loads the original URDF visual meshes, local origins, scales and COLLADA material colors onto recorded body poses. `--robot-geometry collision` selects the physics meshes for inspection. |
-| Robot `knife_and_adapter` includes blade, handle and mounting adapter; DiSECt uses a separate rectangular contact blade | Render the complete gray URDF tool and blue DiSECt contact blade at their recorded poses. Frame the close-up to include the mount. |
+| Robot `knife_and_adapter` includes blade, handle and mounting adapter; DiSECt uses a separate rectangular contact blade | Historical source-format renderer supports the URDF appearance with an explicit debug contact-proxy overlay. Current frozen-evaluation videos use only the actual backend blade; see the 2026-11-15 correction below. |
 | DiSECt particle and virtual-vertex surface | Same surface topology and edge interpolation, with smooth normals and optional triangle edges. |
 | Material contact plane | Add a board thickness and support below the plane for display. |
 
@@ -819,7 +819,7 @@ render provenance. Thus removing the pale band does not assert that a material
 is intact or separated.
 
 
-The visible knife defaults to the mounted URDF knife/adapter only. The blue
+In the historical source-format render_episode.py path, the visible knife defaults to the mounted URDF knife/adapter only. The blue
 DiSECt contact proxy remains active in physics but appears only with
 `--show-contact-blade`. This corrects the confusing double outline, not any
 geometric mismatch between the two representations. Still renders support
@@ -836,7 +836,7 @@ initialization previews, not screenshots of an ongoing training run.
 
 The [BladeMaster-derived DiSECt candidates](BLADEMASTER_DISECT_ASSETS.md) keep the current prescribed-interface pose task. Only geometry and compatible elastic quantities (E, nu, rho) transfer; cutting-spring and contact values remain explicitly inherited from the DiSECt template. They are reproduction shapes, not scanned foods or real-food calibrations.
 
-The [BladeMaster UR5e adapter](BLADEMASTER_BACKEND_REVIEW.md) instead runs the external forward material solver with the existing robot, six-action FDCC interface and 500 Hz sensor-wrench feedback. It has the independent `blademaster_pose_v1` identity and analytical board-normal depth progress, no DiSECt cut-spring input or separation label. Real mapped actions feed the normal replay/WM/BPTT update path. Material reaction reaches the robot through controller feedback, not an additional full two-way MuJoCo contact solve. The current batch implementation has serial independent material solvers and is not a 256-world throughput claim.
+The [BladeMaster UR5e adapter](BLADEMASTER_BACKEND_REVIEW.md) instead runs the external forward material solver with the existing robot, six-action FDCC interface and 500 Hz sensor-wrench feedback. It has the independent `blademaster_pose_v1` identity and analytical board-normal depth progress, no DiSECt cut-spring input or separation label. Real mapped actions feed the normal replay/WM/BPTT update path. Material reaction reaches the robot through controller feedback, not an additional full two-way MuJoCo contact solve. The initial adapter used serial independent material solvers. The later batched implementation was validated at256 worlds and used for the GPU9 engineering run; see RESULTS for its scope and subsequent SIGILL, rather than treating the initial serial limitation as current.
 
 Per-object settling settings now belong to `group_reset_settings` when object groups differ. Shared reward, force limits and robot/task fields must still match. Homogeneous groups retain the former metadata shape for compatibility.
 
@@ -867,3 +867,26 @@ that the Warp physics allocator cannot use. It does not change source effective
 batch sizes, gradient accumulation, reward, task, or optimizer schedule.
 An environment may still run out of memory if actual live allocations grow or
 another user occupies the card; complete local capacity checks remain required.
+
+
+## Frozen-evaluation physical-tool rendering (2026-11-15)
+
+Use evaluate_pose_policy.py --record-geometry and render_pose_evaluation.py for
+the current main and BladeMaster frozen evaluations. This shares the original
+UR5e visual-mesh loader and material display colors; both use one actual physical
+blade and no additional crack highlighting. It deliberately omits the combined
+URDF knife/adapter appearance mesh, which does not match the BladeMaster wedge.
+The missing corresponding mounting hardware is labelled, not invented.
+
+BladeMaster's configured wedge is120 mm along the edge,80 mm high,1 mm thick,
+with5 mm bevel. Its adapter retains the initial source knife-center position
+but sets the blade's initial quaternion to identity in robot-base coordinates.
+The resulting fixed EE transform drives the material tool and wrench mapping.
+This is a kinematic coupling, not a frictional gripper grasp, and the existing
+URDF appearance must not be used as proof of physical blade placement.
+
+BladeMaster videos transform the same vertices_in_ee used by board checks
+through the saved EE pose and MuJoCo base. Main videos use the recorded DiSECt
+contact blade vertices. Particle-derived BladeMaster display surfaces are
+cosmetic and never used for collision or task labels. Recording and rendering
+do not change task physics, parameters, rewards, or checkpoint weights.

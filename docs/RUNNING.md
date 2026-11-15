@@ -349,3 +349,5 @@ replicas rather than distinct randomized material/geometry cases.
 CUTTING_EVAL_ROOT can point to a frozen source checkout when running the audited
 evaluation script from an external experiment directory; the manifest records
 both the physical-source Git revision and evaluation-script SHA256.
+
+Frozen evaluation video: add --record-geometry to the above evaluation command; render selected groups with scripts/render_pose_evaluation.py --evaluation RUN --group 0 --backend BladeMaster (or DiSECt) --source-root /opt/ros/noetic/share --source-root /dataHDD/dong/Projects/SliceIt/catkin_ws/src --source-root /dataHDD/dong/Projects/SliceIt/underlay_ws/src --output VIDEO.mp4 using the render Python environment. Videos use the actual backend blade and label the omitted appearance mount; see RESULTS for the superseded previews. No training change is implied.

@@ -69,6 +69,7 @@ def main():
     p.add_argument("--seed", type=int, default=20261115)
     p.add_argument("--max-hours", type=float, default=1)
     p.add_argument("--output", type=Path, required=True)
+    p.add_argument("--record-geometry", action="store_true", help="Capture physical states for video; no change to policy or task")
     args = p.parse_args()
     if args.worlds_per_object < 1 or args.max_hours <= 0:
         p.error("Positive world count and wall budget required")
@@ -137,6 +138,15 @@ def main():
         finished = torch.zeros(n, dtype=torch.bool, device=device)
         acc = {k: torch.zeros(n, device=device) for k in ("return", "steps", "force", "ratio", "impulse", "speed")}
         horizon = int(config["task"]["horizon_steps"])
+        def capture(step):
+            if args.record_geometry:
+                from cutting_world_model.training_snapshot import capture_training_environment
+                capture_training_environment(env, ROOT / "backends/mujoco",
+                    args.output / "geometry" / ("%04d" % step),
+                    {"iteration": step, "training_stage": "frozen_evaluation",
+                     "policy_updates": identity.get("updates"), "seed": args.seed,
+                     "ee_pose_base": frame["ee_pose"].detach().cpu().tolist()})
+        capture(0)
         with (args.output / "episodes.jsonl").open("w") as log, torch.no_grad():
             for step in range(1, horizon + 2):
                 if time.monotonic() - started > args.max_hours * 3600:
@@ -152,6 +162,7 @@ def main():
                 frame, reward, terminated, truncated, info = env.step(action)
                 if not bool(torch.isfinite(frame["observation"]).all() & torch.isfinite(reward).all()):
                     raise FloatingPointError("Nonfinite physics observation/reward")
+                capture(step)
                 acc["return"] += torch.where(active, reward, 0)
                 acc["steps"] += active
                 acc["force"] = torch.maximum(acc["force"], torch.where(active, info["peak_force"], 0))
