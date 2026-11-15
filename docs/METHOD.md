@@ -874,9 +874,18 @@ another user occupies the card; complete local capacity checks remain required.
 Use evaluate_pose_policy.py --record-geometry and render_pose_evaluation.py for
 the current main and BladeMaster frozen evaluations. This shares the original
 UR5e visual-mesh loader and material display colors; both use one actual physical
-blade and no additional crack highlighting. It deliberately omits the combined
-URDF knife/adapter appearance mesh, which does not match the BladeMaster wedge.
-The missing corresponding mounting hardware is labelled, not invented.
+blade and no additional crack highlighting. It replaces the old blade portion of the combined URDF knife/adapter appearance
+mesh, which does not match the BladeMaster wedge, while retaining the original
+gripped handle (see the correction below).
+The initial whole-mesh omission was a visualization regression: it also removed
+the original handle. The current renderer clips only the old blade beyond the
+mesh shoulder (source x=-0.04786805 m), retaining the gripped handle/adapter.
+For BladeMaster, a metal shank and collar display the existing fixed transform
+from that handle to the differently oriented blade spine. This shank is explicitly
+display-only, not a fabricated collision body or a validated manufactured mount.
+A full-trajectory rigidity check rejects this display if relative blade motion
+exceeds10 micrometres. Main proxy/handle relative variation was measured at
+0.488 mm in the selected cucumber recording and is not rewritten.
 
 BladeMaster's configured wedge is120 mm along the edge,80 mm high,1 mm thick,
 with5 mm bevel. Its adapter retains the initial source knife-center position

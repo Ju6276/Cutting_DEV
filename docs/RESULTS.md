@@ -2135,3 +2135,40 @@ not checkpoints or project source.
 Regression:418 root passed /22 skipped;27 backend passed /12 skipped, CUDA
 hidden. Both physical recording reruns completed. This validates recording
 execution, not a repair of main-policy learning or GPU9's earlier SIGILL.
+
+
+### 2026-11-15 — Correct the missing handle and restore requested appearance
+
+User review correctly rejected the previous videos_physics render: removing the
+entire knife_and_adapter.stl also removed the handle and mount, leaving the
+physical blade visually floating. The caption was not a substitute for the
+requested mounted tool view. Those videos are superseded by videos_mounted/.
+
+Retained the original URDF grip/handle and clipped only the old blade beyond
+its shoulder. The physical blade geometry and trajectory remain unchanged.
+BladeMaster's differently oriented wedge uses a clearly labelled display-only
+shank/collar to represent its already implemented fixed kinematic connection;
+it adds no physics, inertia, contacts or reward changes and does not claim
+validated mounting hardware. Relative physical blade motion in its recorded
+gripper frame is below1e-12 m; the renderer rejects nonrigid motion above1e-5 m.
+The selected main proxy varies by0.488 mm relative to the gripper across the
+recording; that recorded variation is preserved.
+
+Restored a single silver-gray knife, the original UR5e visual meshes, shared
+green cucumber/tan potato/muted prism display colors, no blue proxy overlay and
+no artificial crack marking. Colors now come from render_episode.MATERIAL_STYLES
+for both current backends and the historical renderer. BladeMaster particle
+display surfaces use summed Gaussian density and surface smoothing to reduce
+white rims and voxel-like appearance; they never determine physical connectivity.
+The whole-arm camera was widened, and --preview now permits start/middle/end
+inspection before encoding.
+
+No policy execution or physical re-evaluation was repeated: these are rerenders
+of the same saved trajectories and their results are unchanged. The previous
+videos_physics/ and related Mac previews are not the current deliverable.
+
+Validation for this display correction: root418 passed /22 skipped; backend27
+passed /12 skipped (CUDA hidden). All six MP4s encoded, with first/middle/last
+frames saved and reviewed. Both camera views include the original handle; the
+close view is fitted to the material, blade and mount over the full trajectory.
+Each BladeMaster render checks the mount rigidity before encoding.

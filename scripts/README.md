@@ -271,3 +271,4 @@ Named training checkpoints retain matching `<stem>.replay.pt` files.
 `last.pt` retains the legacy companion `replay.pt`.
 
 Current frozen-policy video entry for both backends: evaluate_pose_policy.py --record-geometry, followed by render_pose_evaluation.py. It shows actual physical blades, not the inherited appearance knife. Historical render_episode.py retains old-format support and shared visual helpers; render_training_snapshot.py is for static all-world layouts.
+\nVisual QA: use render_pose_evaluation.py --preview before encoding. Current mounted-tool output keeps the original handle, shows one physical blade and uses shared MATERIAL_STYLES; the BM fixed-joint shank is a display representation, not new simulated hardware. See RESULTS for the superseded floating-blade videos.\n

@@ -26,9 +26,9 @@ AMBER = (205, 123, 42)
 # Display materials, not recovered scan textures or physical parameters.
 MATERIAL_STYLES = {
     'generic': ((.48, .53, .58), (.69, .73, .76)),
-    'prism': ((.49, .61, .66), (.68, .77, .79)),
-    'potato': ((.43, .29, .15), (.87, .80, .56)),
-    'cucumber': ((.10, .25, .075), (.69, .79, .48)),
+    'prism': ((.57, .65, .69), (.68, .77, .79)),
+    'potato': ((.66, .47, .25), (.87, .80, .56)),
+    'cucumber': ((.20, .38, .09), (.69, .79, .48)),
 }
 
 
