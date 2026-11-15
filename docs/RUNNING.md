@@ -326,3 +326,26 @@ Torch cache before physics when less than3GiB is free. It is opt-in and is
 recorded in the training manifest. It does not reduce the number of worlds or
 effective learning batches. Confirm its free-memory and physics/reset behavior
 in a full local preflight before relying on it.
+
+## Frozen multi-object pose evaluation (2026-11-15)
+
+Use scripts/evaluate_pose_policy.py for free_cut_pose_v1 and blademaster_pose_v1.
+It executes one predeclared first episode per world without exploration or learning,
+writes cases, checkpoint/config hashes, raw per-step trajectories and per-object
+summaries, and closes the environment on success/error. Wall-budget/incomplete
+runs are not complete evaluations. Configured task, limits and observation interface
+must match the checkpoint. Native BM component count is not labeled intended-slice
+separation. The historical evaluate_multi.py rejects these pose tasks.
+
+Example (development conditions, not a sealed final test set):
+
+```bash
+.venv/bin/python scripts/evaluate_pose_policy.py   --checkpoint RUN/training/last.pt   --conditions configs/free_cut/pose_three_object_wrench6_3072.json   --worlds-per-object 16 --seed 20261115 --max-hours 1 --output RUN/evaluation
+```
+
+For BM use --blademaster-config configs/blademaster/three_intact_batched256.json
+instead of --conditions. This config is nominal, so repeated worlds are
+replicas rather than distinct randomized material/geometry cases.
+CUTTING_EVAL_ROOT can point to a frozen source checkout when running the audited
+evaluation script from an external experiment directory; the manifest records
+both the physical-source Git revision and evaluation-script SHA256.

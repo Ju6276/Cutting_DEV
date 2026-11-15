@@ -1,3 +1,5 @@
+> Current pose tasks: use `evaluate_pose_policy.py` for frozen DiSECt or BladeMaster policies. It preserves task/force/observation interfaces, scores every predeclared first episode, and reports pose completion separately from material diagnostics. Historical `evaluate_multi.py` rejects pose tasks.
+
 # Script entry points
 
 Run commands from the repository root; installation is in [RUNNING](../docs/RUNNING.md).
