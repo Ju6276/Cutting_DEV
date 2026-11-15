@@ -54,7 +54,8 @@
 
 - Development uses Remote SSH on GPU7. Keep project source, weights, datasets,
   caches and videos on the servers; do not download project copies to the Mac
-  unless explicitly requested. GPU9 is retired from the working plan.
+  unless explicitly requested. GPU9 was reauthorized on 2026-11-15 for the
+  BladeMaster three-object preflight and bounded long run; use tams61 as its SSH jump host.
 
 
 - Authorized physical correction (2026-11-12): contact search, interpolation and

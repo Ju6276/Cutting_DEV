@@ -35,8 +35,8 @@ Active DiSECt job: GPU7 PID1048242, frozen code02203b1, checkout
 Output:runs/pose_wrench6_3072_20261114/training.
 Fresh seed0,500 WM-only rounds, warmup30720 transitions,640 new transitions per
 WM round; microbatches512/8192. Ceiling1280000 new transitions or24h, whichever
-first. Named checkpoints every32 vector steps retain paired replay. Offline
-W&B and JSON logging; capture actual geometry at steps1/120.
+first. Named checkpoints every32 vector steps retain paired replay. Originally launched with offline W&B; recovered to online history forwarding
+without restarting (see tracking section below). Capture actual geometry at steps1/120.
 Runtime manifest and first physical steps are verified: critic real/32, actor8, gamma1, BC.25, observation34. The first-step screenshots show the initial collection phase (WM/policy updates0), not a learned cutting result.
 
 A6000's development checkout is synchronized to02203b1 but no job is launched
@@ -93,3 +93,24 @@ Run: https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munic
 Watcher and status: runs/pose_wrench6_3072_20261114/forward_cloud.py and cloud_sync.json.
 This is recovery for the existing offline launch; future launches use online
 tracking directly. Server checkpoints/logs remain recovery copies.
+
+### BladeMaster GPU9 deployment — authorized 2026-11-15
+
+The user moved the requested BladeMaster long run from the occupied A6000 to
+GPU9. GPU9 is reachable through tams61 and its RTX4090 was idle at deployment.
+A6000's two cards are occupied by another user's openpi process; do not stop it.
+
+Frozen training checkout: /dataHDD/dong/Projects/Cutting_DEV_bm_long_20261115,
+commit a59c499. External material source: e2e5221, same revision used for the
+GPU7/A6000 batching and learning checks. UR5e model, source reset, controller,
+task config and intact object assets were copied from the validated deployment
+and hashes compared. Existing GPU9 historical checkouts are untouched.
+
+Candidate:256 worlds (86 cucumber,85 half-potato,85 prism); complete local
+learning/reset/restore capacity check required before launch. Same approved
+24-hour/1280000-transition budget; online W&B required. This is a nominal
+BladeMaster engineering run, not the DiSECt randomized-material distribution.
+Live records and exact command:
+/dataHDD/dong/Experiments/Cutting_DEV/runs/bm_gpu9_20261115/
+(plan.json,launch_command.json,preflight256/report.json,training/manifest.json).
+Deployment/preflight started; launch completion will be recorded separately.
