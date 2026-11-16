@@ -2744,3 +2744,67 @@ and particle-backend surfaces use disclosed approximate color transfer, not reco
 original UV. Overviews use illustrative colors/LOD. These are validation snapshots,
 not evidence that a new long training run has started. Native material laws, reward,
 policy/WM training code and formal long-training resource settings were unchanged.
+
+
+## 2026-11-16 — Current shared-scene long-training readiness and live GPU status
+
+Question: is the current unified task ready for a bounded engineering long run,
+and are the historical GPU7/GPU9 runs still active? No long run was started.
+No learning, reward, material or renderer code was changed by this audit.
+
+Current-code capacity check on GPU7, code `7db74f2`:
+- Three objects x 1024 worlds = 3072, serial object-group execution as generated
+  by the shared preparation. Same `pose_depth_v2`, final-only position mode,
+  disabled pitch, per-episode material/speed sampling and per-world 5–30 mm gap.
+- 40 actual vector steps / 122880 physical transitions; mean step 27.472 s.
+  Initialization including per-material settling took 434.925 s.
+- Real critic window32, actor horizon8, BC .25, observation34. Effective batches
+  WM2048 / actor4096, memory chunks512 / critic8192. No shortened critic window.
+- WM20, actor2 and critic40 optimizer steps across initial/restored updates;
+  metrics and parameters finite. Non-reset worlds unchanged exactly; episode
+  sampler and checkpoint/replay restoration passed, followed by another update.
+- Free GPU memory: 5.268 GiB after learning, 6.135 GiB after restored learning;
+  peak Torch allocation 17420.37 MiB. Selected-reset test took 27.696 s.
+- Final status `passed`, 1758.954 s total (29.32 minutes). The random-policy
+  40-step capture ended no episodes; this is not a success-rate evaluation.
+
+The first probe had an undersized 1500-second allowance. Once measured timing
+showed initialization plus 40 collection steps alone needed about 1534 seconds,
+we interrupted it explicitly after 993.654 seconds (KeyboardInterrupt), then
+repeated the unchanged probe/config with a 2400-second ceiling. It was not an
+OOM or numerical failure. The aborted run is separate evidence, not counted as
+passing. No process timer or simulation settings were altered during either run.
+
+Evidence: runs/long_readiness_20261116/{contract.json,prepared/,
+disect3072/report.json,disect3072_complete/report.json,capacity_complete.log,
+status.json,proposed_launch.json}. The launch draft is not executed: fresh
+networks, 24h or 1280000 new transitions (first bound), 500 WM-only rounds,
+30720-transition warmup, 640 transitions/update, online W&B and paired replay
+checkpoints every32 vector steps. The current main configuration is eligible for
+bounded engineering training; passing this check does not guarantee convergence.
+
+Live check at 18:48:35 CET: GPU7 RTX4090 40 MiB, GPU9 RTX4090 39 MiB,
+A6000 GPU0 43 MiB and GPU1 17 MiB; all at 0% utilization and no compute processes.
+Availability is a snapshot, not a reservation. A6000's development checkout is
+still 2b73009 and needs an isolated current-code/assets deployment before use.
+GPU9 driver remains595.80; its historical SIGILL cause remains unresolved.
+
+Historical job status reverified from local logs and cloud API:
+- GPU7: budget_complete, 24h, 1062912 transitions, policy1109. Saved frozen
+  evaluation remains 0/48 prescribed-pose successes, all timeouts, return−10.97.
+- GPU9: native SIGILL(-4), last logged policy998 / 968960 transitions (~19.74h).
+  Saved policy866 evaluation remains48/48 nominal-replica pose successes,
+  return106.94. This is not an evaluation of the unsaved policy998.
+- Both old W&B runs are remotely readable and show finished. GPU9's cloud badge
+  does not establish normal exit or completed budget. These two old evaluations
+  differ in material distribution, tool/task settings and are not a matched
+  algorithm or backend comparison. Pose success is not a separation guarantee.
+
+BladeMaster's current nine-world learner/reset/restore check remains valid, but
+this audit did not certify its new randomized/shared-tool configuration at large
+scale on A6000/GPU9. Prefer a current isolated A6000 deployment for that next
+capacity check rather than treating the old GPU9 launch as already repaired.
+Regression remains the unchanged-code result at7db74f2: root549 passed/5 skipped,
+bundled backend41 passed. Only docs changed after this probe; no redundant suite
+rerun. Updated PLAN and server-local MACHINES distinguish completed old jobs
+from the current readiness check.

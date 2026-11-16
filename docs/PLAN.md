@@ -2,6 +2,22 @@
 
 ## Current audit and launch status
 
+2026-11-16 live resource check: GPU7 and GPU9 each exposed one idle RTX4090;
+A6000 (tamsGPU5) exposed two idle A6000 cards. At 18:48 CET all four cards
+were idle after GPU7 completed the bounded 3072-world current-contract probe.
+No new long training was launched.
+The old GPU7 run is budget-complete; the old GPU9 run exited with SIGILL.
+The A6000 deployment is still 2b73009 and is not the current shared-scene code.
+Resource availability is a snapshot, not a reservation. The capacity evidence
+and unexecuted 24-hour / 1,280,000-transition launch draft are under
+runs/long_readiness_20261116. The 3072-world DiSECt learner/reset/restore probe
+passed on code 7db74f2: 122880 transitions, 5.27 GiB free after learning and
+6.13 GiB after restoration. This certifies bounded execution at that scale, not
+policy quality or indefinite stability. The proposed fresh-run budget remains
+unexecuted. BladeMaster has its current small-scale functional checks, but no
+new large-scale A6000/GPU9 deployment check; GPU9's native fault remains unresolved.
+
+
 [FRAMEWORK_AUDIT_20261116](FRAMEWORK_AUDIT_20261116.md) records local design choices,
 material-preset provenance, the removed fabricated display connector and current
 preflight scope. No new long training has been launched. Historical resource
