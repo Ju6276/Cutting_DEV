@@ -19,7 +19,7 @@ commands, verification and online run links.
   whichever comes first. No automatic extension or old-task checkpoint reuse.
 - Every long run requires online W&B and a remotely verified first history.
   Checkpoints/replay and physical snapshots remain on the server.
-- GPU9 is authorized for bounded SAC/WM-MPPI/nonlearned-MPC adaptation tests, not a new long run. Its historical BladeMaster SIGILL in libcuda is not declared resolved.
+- GPU9: user authorized current-task multi-environment SAC on 2026-11-16 after baseline validation. Capacity preflight precedes the bounded launch; see TRAINING_SAC_20261116. Its historical BladeMaster SIGILL in libcuda is not declared resolved.
 
 ## Fixed task and algorithm
 
