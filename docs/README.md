@@ -12,6 +12,7 @@ locations. A dated experiment or archived launch is not a new training instructi
 | [TRAINING_SCALE_20261114](TRAINING_SCALE_20261114.md) | Full-wrench observation, transition cadence and 3072-world main launch |
 | [RUNNING](RUNNING.md) | Installation, tests and online W&B requirement |
 | [DATA](DATA.md) | Current server paths, checkpoints, preserved evidence and cleanup ledger |
+| [Current baselines](CURRENT_BASELINES.md) | SAC source search, current vector SAC and two model-based planners |
 | [METHOD](METHOD.md) | Implemented learning methods and physical interfaces |
 | [RESULTS](RESULTS.md) | Dated measurements and limitations, including failed runs |
 | [PAPER](PAPER.md) | Research scope and claims still requiring evidence |

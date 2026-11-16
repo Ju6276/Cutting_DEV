@@ -19,7 +19,7 @@ commands, verification and online run links.
   whichever comes first. No automatic extension or old-task checkpoint reuse.
 - Every long run requires online W&B and a remotely verified first history.
   Checkpoints/replay and physical snapshots remain on the server.
-- GPU9 is not a launch target. Its historical SIGILL in libcuda is unresolved.
+- GPU9 is authorized for bounded SAC/WM-MPPI/nonlearned-MPC adaptation tests, not a new long run. Its historical BladeMaster SIGILL in libcuda is not declared resolved.
 
 ## Fixed task and algorithm
 
@@ -61,15 +61,17 @@ The support plane is infinite; visible board edges are not physical edges.
 Native material parameters are uncalibrated. A measured adapter mesh is absent;
 do not invent display hardware. Tilted contact remains unverified and disabled.
 
-WM+MPPI is the retained frozen-model planning baseline, using the upstream
-pytorch-mppi optimizer. Historical fixed-task/v3 experiments are separate from
-the current shared pose_depth_v2 multi-object task. The optional Python
-environment/import tests do not certify a new-task physical MPPI rollout.
-The current pose-policy evaluator does not offer MPPI. The retained SAC runner
-is historical single-world training and is not a current shared-task multi-object
-baseline. A nonlearned-model MPC controller has not been integrated. A current-task planning
-comparison needs a compatible checkpoint, runner/metadata adapter and matched
-physical evaluation; do not label it complete.
+Current-task baseline implementation and source search are recorded in
+[CURRENT_BASELINES](CURRENT_BASELINES.md). The original TensorFlow SAC runner is
+historical single-world training; the inspected parallel SAC commit is batched
+evaluation. No reusable cutting-connected PyTorch parallel trainer was found.
+The user authorized SB3 as fallback. Its new vector bridge and learner use
+physical-transition update credits, terminal replay, current observations and
+task metadata. Frozen WM+MPPI and an explicitly approximate nonlearned FDCC+MPPI
+model share the current pose-task evaluation/recording entry point.
+GPU9 bounded three-object DiSECt-material validation completed; measured results
+and remaining backend coverage are in CURRENT_BASELINES/RESULTS. Do not claim a formal trained comparator, a calibrated
+analytic force model or a reproduction of a published cutting MPC.
 
 ## Historical evidence
 

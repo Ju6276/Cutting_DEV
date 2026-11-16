@@ -101,7 +101,7 @@ class ModelRollout:
         if self.critic is not None and bool(active.any()):
             state = augmented[active, :-3]
             goal = self.goal.expand(len(state), -1)
-            error = pose_error(goal, self.spec.field(state, 'previous_ee_pose'))
+            error = pose_error(goal[..., :7], self.spec.field(state, 'previous_ee_pose'))
             value[active] = self.critic(self.spec.canonical(state), goal, error)
         cost = -(self.discount ** steps) * survival * value
         if not bool(torch.isfinite(cost).all()):

@@ -2942,3 +2942,32 @@ physical geometry entry point; grid offsets are display only. Correct VTK and
 ROS asset-root invocation is now documented. Final documentation audit corrected
 historical/current status labels and ten relative links in the moved plan archive;
 all scanned local Markdown targets now exist. No active training code was edited.
+
+## 2026-11-16 — Current-task SAC and two MPC adapters
+
+See [CURRENT_BASELINES](CURRENT_BASELINES.md) for the SAC source search, explicit
+SB3 fallback, commands and limitations. GPU9 completed identical three-object
+first-episode cases: smoke-trained SAC1/3 pose success, frozen early WM+MPPI3/3,
+nonlearned FDCC+MPPI2/3; all other outcomes were timeout, and all9 episodes
+retained material connections. These are interface checks, not a ranking of
+algorithms or proof of material separation. Root outputs remain on GPU9 at
+`Cutting_DEV_baselines_20261116/runs/baseline_validation_20261116/`.
+
+SAC resumed264total physical transitions/240updates including its restored
+replay. Terminal observations precede masked reset, timeout does not bootstrap,
+and update credits count transitions instead of vector steps. Periodic saves
+were moved out of SB3's pre-insertion callback to an update boundary. The new
+8D-goal MPPI test found and fixed a pose/goal slicing error in optional terminal
+critic evaluation; old7D goals retain behavior. Running long jobs were untouched.
+
+A wall-budget regression also fixed the new SAC runner's stop boundary: changing
+SB3's schedule horizon alone did not end its local loop. The corrected check
+runs before the next rollout; physical expired-budget restore retained the
+exact240transitions/216updates/replay240 without a dropped transition.
+
+Final verification: root577passed/3optional original-TF checks skipped;
+bundled backend41passed on GPU9. New SAC and planner tests ran, not skipped.
+
+Checkpoint payload hashes now reject mixed model/replay generations after an
+interrupted save; temporary payload writes precede the final metadata update.
+The mixed-generation rejection test is included. This does not promise rollback.

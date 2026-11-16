@@ -335,10 +335,19 @@ studio robot/handle filtering and omit the obsolete URDF blade. Old snapshots
 without this field must be recaptured; they are not silently substituted with
 a different knife. Overview material colors/LOD remain explicitly illustrative.
 
-Current shared pose_depth_v2 MPPI physical evaluation is not yet validated.
-Optional MPPI package tests validate its existing adapter, not a current-task
-checkpoint or multi-object planning experiment. See PLAN.
+Current shared pose_depth_v2 SAC and both MPC adapters have bounded three-object
+DiSECt-material physical validation. This does not certify trained performance
+or BladeMaster execution. See [CURRENT_BASELINES](../docs/CURRENT_BASELINES.md).
 
 Sensor charts: compose_wrench_video.py appends force[N] and torque[N m] below
 the shared studio video using its original evaluation trace and frame timing.
 See RUNNING; no scene replacement or inferred500 Hz peaks.
+
+### Current pose-task baselines
+
+- `train_sac_multi.py`: pinned SB3 PyTorch SAC on the batched current task;
+  separate from original TensorFlow `train_sac_gpu.py`.
+- `evaluate_pose_policy.py --method wm_policy|sac|wm_mppi|analytic_mpc`: common
+  frozen evaluator, cases, traces and optional shared geometry recording.
+- See [current baseline protocol](../docs/CURRENT_BASELINES.md) for limits and
+  commands; a smoke-trained SAC is not a performance baseline.

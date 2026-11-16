@@ -1,0 +1,4 @@
+# Optional isolated baseline environment; keep active training environments untouched.
+stable-baselines3==2.7.0
+gymnasium==1.2.0
+-r requirements-mpc.txt

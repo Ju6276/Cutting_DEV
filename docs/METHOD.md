@@ -1032,3 +1032,11 @@ The actual runner tests exercise milestone checkpoint/replay restoration with
 CPU doubles for physics/learning, plus shutdown failure reporting. They test
 control flow, not new policy performance. Physical learner/capacity evidence
 remains separately recorded in RESULTS.
+
+## Current-task baseline adapters (2026-11-16)
+
+See [CURRENT_BASELINES](CURRENT_BASELINES.md) for source provenance, input and
+update semantics, the SB3 fallback decision, and model approximations. These
+entry points share pose_depth_v2 physics/reward/recording; the main WM+BPTT
+algorithm and running long-training checkouts are unchanged. Native backend
+physics remain distinct. Physical test coverage is explicitly recorded there.

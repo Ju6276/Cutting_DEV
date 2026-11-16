@@ -2,7 +2,7 @@
 """Frozen, noise-free first-episode evaluation for either multi-object pose backend.
 
 One scored episode per world, fixed before execution. Other worlds may reset while
-unfinished cases continue; their later episodes are excluded. No optimization.
+unfinished cases continue; their later episodes are excluded. No parameter updates.
 """
 import argparse
 import copy
@@ -102,7 +102,13 @@ def evaluation_config(source, worlds_per_object, seed, blademaster=False):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--checkpoint", type=Path, required=True)
+    p.add_argument("--checkpoint", type=Path)
+    p.add_argument("--method", choices=("wm_policy","sac","wm_mppi","analytic_mpc"), default="wm_policy")
+    p.add_argument("--planner-horizon", type=int, default=8)
+    p.add_argument("--planner-samples", type=int, default=512)
+    p.add_argument("--planner-refinements", type=int, default=1)
+    p.add_argument("--terminal-value", choices=("none","critic"), default="none")
+    p.add_argument("--analytic-substeps", type=int, default=5)
     c = p.add_mutually_exclusive_group(required=True)
     c.add_argument("--conditions", type=Path)
     c.add_argument("--blademaster-config", type=Path)
@@ -114,6 +120,10 @@ def main():
     args = p.parse_args()
     if args.worlds_per_object < 1 or args.max_hours <= 0 or args.seed < 0:
         p.error("Positive world count and wall budget required")
+    if args.method != "analytic_mpc" and args.checkpoint is None:
+        p.error("Selected learned method requires --checkpoint")
+    if args.method == "analytic_mpc" and args.checkpoint is not None:
+        p.error("Analytic MPC must not load learned weights")
     args.output.mkdir(parents=True, exist_ok=False)
     started = time.monotonic()
     status = {"state": "initializing", "pid": os.getpid(), "cases_done": 0}
@@ -126,15 +136,27 @@ def main():
         status.update(values, wall_seconds=time.monotonic() - started)
         write("progress.json", status)
     progress()
-    env = None
+    env = planner = sac = None
+    policy_history = 10
     rows, traces = [], []
     expected = 0
     group_names = []
     try:
         torch.set_num_threads(2)
         torch.manual_seed(args.seed)
-        saved = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
-        metadata = saved["metadata"]
+        saved = None
+        metadata = None
+        if args.method in ("wm_policy", "wm_mppi"):
+            saved = torch.load(args.checkpoint, map_location="cpu", weights_only=False)
+            metadata = saved["metadata"]
+        elif args.method == "sac":
+            from cutting_world_model.sac_vector import TransitionSAC, observation as sac_observation
+            from cutting_world_model.baseline_checkpoint import read_sac_metadata
+            sac_meta = read_sac_metadata(args.checkpoint.parent)
+            metadata = sac_meta["metadata"]
+            policy_history = int(sac_meta["history"])
+            sac = TransitionSAC.load(args.checkpoint, device="cuda")
+            sac_before = {k: v.cpu().clone() for k, v in sac.policy.state_dict().items()}
         config_path = args.conditions or args.blademaster_config
         config = json.loads(config_path.read_text())
         source_config = copy.deepcopy(config)
@@ -143,20 +165,26 @@ def main():
         groups = config["groups"]
         expected = sum(g["worlds"] for g in groups)
         group_names = [g["name"] for g in groups for _ in range(g["worlds"])]
-        policy = SliceItPolicy(int(metadata["goal_dim"]), int(metadata["state_shapes"]["observation"][0])).cuda().eval()
-        policy.load_state_dict(saved["learner"]["policy"])
-        learner = saved["learner"]
-        identity = {k: learner[k] for k in ("updates", "wm_updates", "policy_updates", "training_stage") if k in learner}
+        identity = {}
+        if args.method == "wm_policy":
+            policy = SliceItPolicy(int(metadata["goal_dim"]), int(metadata["state_shapes"]["observation"][0])).cuda().eval()
+            policy.load_state_dict(saved["learner"]["policy"])
+            policy.requires_grad_(False)
+            policy_history = policy.history
+        if saved is not None:
+            identity = {k: saved["learner"][k] for k in ("updates", "wm_updates", "policy_updates", "training_stage") if k in saved["learner"]}
+        elif sac is not None:
+            identity = {"transitions": sac.num_timesteps, "updates": sac._n_updates}
         manifest = {"git": git_revision(ROOT), "script_sha256": file_hash(__file__),
-                    "checkpoint": str(args.checkpoint), "checkpoint_sha256": file_hash(args.checkpoint),
+                    "checkpoint": str(args.checkpoint), "checkpoint_sha256": file_hash(args.checkpoint) if args.checkpoint else None,
                     "checkpoint_identity": identity, "config_source": str(config_path),
                     "config_source_sha256": file_hash(config_path), "source_config": source_config,
                     "config": config, "seed": args.seed, "expected_cases": expected,
-                    "policy": "frozen, no exploration noise, one scored episode per world",
+                    "method": args.method, "policy": "frozen controller, one scored episode per world",
                     "scope": "development snapshot; task and physics identity recorded explicitly",
                     "command": sys.argv}
         write("manifest.json", manifest)
-        del saved, learner
+        del saved
         progress(phase="environment_initialization")
         if args.blademaster_config:
             from cutting_world_model.blademaster_backend import BladeMasterEnvironment
@@ -167,11 +195,27 @@ def main():
         from cutting_world_model.control_state import ControlStateSpec
         frame = env.current
         actual = ControlStateSpec.metadata_from_frame(env.metadata, {k: v[0].cpu().numpy() for k, v in frame.items()})
-        validate_interfaces(metadata, actual, config)
+        if metadata is not None:
+            validate_interfaces(metadata, actual, config)
+            from cutting_world_model.shared_baselines import validate_current_interface
+            if config["task"]["version"] == "pose_depth_v2":
+                validate_current_interface(metadata, actual)
+        if args.method in ("wm_mppi", "analytic_mpc"):
+            from cutting_world_model.mpc import MPPIConfig
+            from cutting_world_model.shared_baselines import SharedMPPIPolicy
+            planner_config = MPPIConfig(horizon=args.planner_horizon, samples=args.planner_samples,
+                refinements=args.planner_refinements, discount=config["task"]["gamma"],
+                terminal_value=args.terminal_value)
+            controller_parameters = json.loads((ROOT / "backends/mujoco/runs/controller_source/controller_params.json").read_text())
+            planner = SharedMPPIPolicy(env, planner_config, args.checkpoint,
+                controller_parameters, args.analytic_substeps)
+            manifest["planner"] = planner.manifest
+        manifest["actual_metadata"] = actual
+        write("manifest.json", manifest)
         conditions = env.conditions(range(env.worlds)) if hasattr(env, "conditions") else [
             {"object": name} for name in group_names]
         write("cases.json", [{"case": w, "group": group_names[w], "condition": c} for w, c in enumerate(conditions)])
-        history = frame["observation"].float()[None].repeat(policy.history, 1, 1)
+        history = frame["observation"].float()[None].repeat(policy_history, 1, 1)
         n, device = env.worlds, env.device
         finished = torch.zeros(n, dtype=torch.bool, device=device)
         acc = {k: torch.zeros(n, device=device) for k in ("return", "steps", "force", "ratio", "impulse", "speed")}
@@ -191,13 +235,21 @@ def main():
                     raise TimeoutError("Evaluation wall budget reached")
                 active = ~finished
                 goal = env.goal(frame)
-                clean = policy(history, goal)
+                if planner is not None:
+                    clean = planner.act(frame, active)
+                elif sac is not None:
+                    predicted, _ = sac.predict(sac_observation(history, goal), deterministic=True)
+                    clean = torch.as_tensor(predicted, device=device)
+                else:
+                    clean = policy(history, goal)
                 action = clean.clamp(-1, 1)
                 if not bool(torch.isfinite(action).all()):
                     raise FloatingPointError("Nonfinite policy action")
                 before = {k: frame[k].detach().cpu().clone() for k in (
                     "observation", "joint_q", "ee_pose", "step_count", "cut_progress", "peak_wrench")}
                 frame, reward, terminated, truncated, info = env.step(action)
+                if planner is not None:
+                    planner.observe(frame)
                 if not bool(torch.isfinite(frame["observation"]).all() & torch.isfinite(reward).all()):
                     raise FloatingPointError("Nonfinite physics observation/reward")
                 capture(step)
@@ -234,8 +286,14 @@ def main():
                 if bool(ended.any()):
                     frame = env.reset(ended)
                     history[:, ended] = frame["observation"][ended].float()[None]
+                    if planner is not None:
+                        planner.reset(frame, ended)
             if not bool(finished.all()):
                 raise RuntimeError("Task did not terminate all first episodes within its horizon")
+        if planner is not None and not planner.unchanged():
+            raise RuntimeError("Frozen world model changed during planning")
+        if sac is not None and any(not torch.equal(v.cpu(), sac_before[k]) for k,v in sac.policy.state_dict().items()):
+            raise RuntimeError("Frozen SAC changed during evaluation")
         progress(state="completed")
     except BaseException as error:
         progress(state="failed", error=repr(error))
@@ -243,6 +301,8 @@ def main():
     finally:
         try:
             torch.save(traces, args.output / "trajectories.pt")
+            if planner is not None:
+                write("plans.json", planner.plans)
             summary = {"state": status["state"], "overall": summarize(rows, expected),
                        "groups": {g: summarize([r for r in rows if r["group"] == g], group_names.count(g))
                                   for g in sorted(set(group_names))}}

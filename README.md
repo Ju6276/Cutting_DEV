@@ -105,7 +105,8 @@ Frozen evaluation of either checkpoint (definitions in [BENCHMARK](docs/BENCHMAR
 Historical fixed-task WM + MPPI uses the same evaluation entry with `--method wm-mppi` after
 installing `requirements-mpc.txt`. Settings and the complete command are in
 [BENCHMARK](docs/BENCHMARK.md#world-model-mppi). This does not certify the current
-shared pose_depth_v2 multi-object MPPI runner; see PLAN for its remaining adapter work.
+shared pose_depth_v2 multi-object results. The current SAC/WM-MPPI/nonlearned-MPC
+adapters and measured coverage are in [CURRENT_BASELINES](docs/CURRENT_BASELINES.md).
 
 `scripts/record_episode.py` records the same physical benchmark;
 `scripts/render_episode.py` produces a two-view video with measured force traces.
