@@ -2914,3 +2914,31 @@ times are not exclusive-device throughput measurements. Only offline rendering
 code and docs changed after the frozen launch. Native solver/learner code did
 not change. Current launch state/URLs and A6000 capacity result are maintained in
 TRAINING_SHARED_20261116 and the server runtime records.
+
+
+## 2026-11-16 — Shared long runs launched and cloud verified
+
+A6000 GPU1's510-world full capacity probe passed in2044.1s. It collected
+20400 physical transitions, used critic32/actor8 and effective batches2048/4096,
+then exercised WM/policy/critic updates, masked reset, physical snapshot and
+replay restoration.20 WM,2 actor and40 critic optimizer steps were executed
+including restored updates. All results finite; untouched worlds exact;
+snapshot state unchanged; sampler restored. Memory headroom7.912GiB after
+learning and7.904GiB after restore. This40-step probe ended no episodes and
+does not itself validate physical task success.
+
+The guarded launcher then started the510-world BladeMaster long run on A6000
+GPU1. GPU7's3072-world DiSECt-backed run is also active. Both use clean5ec9f85,
+same algorithm/shared-task distribution, online W&B and independently bounded
+24h/1280000-transition budgets. W&B API verification at20:12 CET returned
+running state and nonempty physical-transition history for scr1v5np (GPU7)
+and pvord4sx (A6000). Exact URLs/PIDs/paths are in TRAINING_SHARED_20261116.
+A6000's first510 transitions were recorded after about563s; GPU7 was past80k
+transitions in WM pretraining. Neither policy had updated at this launch check.
+No training-performance conclusion is made.
+
+GPU7's actual3072-world first-step snapshot was rendered using the common
+physical geometry entry point; grid offsets are display only. Correct VTK and
+ROS asset-root invocation is now documented. Final documentation audit corrected
+historical/current status labels and ten relative links in the moved plan archive;
+all scanned local Markdown targets now exist. No active training code was edited.

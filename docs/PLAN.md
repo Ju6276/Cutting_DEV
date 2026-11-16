@@ -1,8 +1,9 @@
 # Current plan — 2026-11-16
 
-## Authorized next runs
+## Active authorized runs
 
-The user authorized long training on GPU7 and A6000 after documentation,
+Both long runs are launched and online history is verified. The user authorized
+long training on GPU7 and A6000 after documentation,
 visualization, deployment and capacity checks. The previous no-launch status is
 superseded by this instruction; it is preserved in the archived plan below.
 See [shared training record](TRAINING_SHARED_20261116.md) for the launch state,
@@ -10,10 +11,10 @@ commands, verification and online run links.
 
 - GPU7: current DiSECt material backend, 3072 worlds (1024/object). Full
   learner/reset/replay-restore capacity passed; follow-up runner fixes passed
-  root562/skip5 and bundled backend41.
-- A6000 GPU1: current BladeMaster material backend. First test510 worlds
-  (170/object) with the actual learner, reset and replay restore; use a verified
-  smaller count only if capacity requires it. GPU0 is occupied and untouched.
+  root569/skip5 and bundled backend41 (including the new offline wrench panel).
+- A6000 GPU1: current BladeMaster material backend. 510 worlds
+  (170/object) passed actual learner, masked reset, snapshot and replay restore
+  checks with 7.90 GiB minimum measured free memory after updates. GPU0 is occupied and untouched.
 - Both start fresh. Each ends at24 hours or1,280,000 new physical transitions,
   whichever comes first. No automatic extension or old-task checkpoint reuse.
 - Every long run requires online W&B and a remotely verified first history.
@@ -64,7 +65,9 @@ WM+MPPI is the retained frozen-model planning baseline, using the upstream
 pytorch-mppi optimizer. Historical fixed-task/v3 experiments are separate from
 the current shared pose_depth_v2 multi-object task. The optional Python
 environment/import tests do not certify a new-task physical MPPI rollout.
-The current pose-policy evaluator does not offer MPPI. A current-task planning
+The current pose-policy evaluator does not offer MPPI. The retained SAC runner
+is historical single-world training and is not a current shared-task multi-object
+baseline. A nonlearned-model MPC controller has not been integrated. A current-task planning
 comparison needs a compatible checkpoint, runner/metadata adapter and matched
 physical evaluation; do not label it complete.
 

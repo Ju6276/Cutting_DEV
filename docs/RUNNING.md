@@ -1,7 +1,8 @@
 # Running Cutting DEV
 
-Commands below are historical reproduction entries, not instructions to restart
-S3. The versioned opt-in free-cut contract is in [TASK_FREE_CUT](TASK_FREE_CUT.md); follow [PLAN](PLAN.md).
+Historical fixed-prism/source commands below are reproduction entries, not
+instructions to restart S3. Current long-run settings and frozen launch records
+are in [TRAINING_SHARED_20261116](TRAINING_SHARED_20261116.md). The versioned opt-in free-cut contract is in [TASK_FREE_CUT](TASK_FREE_CUT.md); follow [PLAN](PLAN.md).
 Commands run from the repository root. The GPU backend is bundled at
 `backends/mujoco`; `--backend-root` can select a separate prepared checkout.
 
@@ -88,7 +89,7 @@ They remain outside Git.
 
 ## Unified GPU training and evaluation
 
-The commands for the current working baseline (resumed from policy62/WM562 with
+The commands for the historical working baseline (resumed from policy62/WM562 with
 critic reset and 100 pre-fit rounds) and for the `source` configuration (script
 defaults, from scratch) are in
 [README](../README.md#run-the-existing-fixed-prism-task); the two must not be confused. Without variant flags, `train_gpu.py` runs `source`: imagined critic
@@ -494,3 +495,22 @@ or the material reaction-force norm. Plots have separate units and a moving time
 cursor. Force-limit event rates must still come from the physical evaluation.
 The first end-to-end composition used a historical frozen-policy movie only;
 it does not validate a newly trained policy or replace that movie's old physics.
+
+
+## Actual all-world training snapshot
+
+Use the dedicated VTK environment and resolve both SliceIt and ROS mesh packages.
+This reads the geometry recorded by the active trainer; display grid offsets do
+not change the physical environment.
+
+~~~bash
+PYTHONPATH=.:backends/mujoco /dataHDD/dong/Envs/render-20261108/bin/python scripts/render_training_snapshot.py \
+  --recording /dataHDD/dong/Projects/Cutting_DEV_shared_long_20261116/runs/shared_long_20261116/disect_training/snapshot_00000001 \
+  --source-root /dataHDD/dong/Projects/SliceIt \
+  --source-root /opt/ros/noetic/share \
+  --output runs/shared_long_20261116/actual_disect_3072.png
+~~~
+
+The 3072-world first-step output is an initialization/recording check, not an
+example of learned cutting. The optional MPPI Python lacks VTK and should not
+be substituted for this command.

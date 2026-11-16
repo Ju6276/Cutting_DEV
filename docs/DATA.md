@@ -16,7 +16,9 @@ do not infer a launched run merely from the checkout's existence.
 
 Run files under each checkout: runs/shared_long_20261116.
 GPU7:disect_training, launch_plan.json, supervisor.json, training.log.
-A6000:bm510_preflight and bm510_preflight.log before long training.
+A6000:bm510_preflight/report.json (passed), launch_gate.json,
+blademaster_training, supervisor.json and training.log. The gate launched the
+long run only after the complete learning/reset/restore probe passed.
 All runs use online W&B; physical snapshots and recovery data stay on servers.
 
 ## Historical checkouts and training runs

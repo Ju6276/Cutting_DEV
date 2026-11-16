@@ -24,7 +24,7 @@ unexecuted. BladeMaster has its current small-scale functional checks, but no
 new large-scale A6000/GPU9 deployment check; GPU9's native fault remains unresolved.
 
 
-[FRAMEWORK_AUDIT_20261116](FRAMEWORK_AUDIT_20261116.md) records local design choices,
+[FRAMEWORK_AUDIT_20261116](../FRAMEWORK_AUDIT_20261116.md) records local design choices,
 material-preset provenance, the removed fabricated display connector and current
 preflight scope. No new long training has been launched. Historical resource
 settings below are not the new shared-scene launch configuration. The subsequent
@@ -53,7 +53,7 @@ See TASK_FREE_CUT for equations, state migration and verification status.
 The initial particle-RMS motion implementation is retained for historical
 reproduction only. It has been replaced in the shared contract by the two
 robot-position modes above. Current checks and numeric results are in RESULTS.
-Current scene/reset source is [SHARED_SCENE](SHARED_SCENE.md) and
+Current scene/reset source is [SHARED_SCENE](../SHARED_SCENE.md) and
 configs/shared/scene_v1.json: paired per-world 5–30 mm gaps above each
 settled object's top; no separate fixed-5-mm check configuration.
 Per-world/per-episode material sampling is now implemented in both backends:
@@ -104,8 +104,8 @@ stopped and frozen. No automatic budget extensions; the later user-authorized
 BladeMaster GPU9 launch is recorded below.
 
 Actual training overview/detail images were rendered from step1. Training reached its budget: 346 vector steps, 1,062,912 transitions, 1109 policy updates. Frozen evaluation is the current step; do not silently extend training.
-See [restart record](TRAINING_SCALE_20261114.md) and
-[force observation](archive/WRENCH_OBSERVATION_REVIEW.md).
+See [restart record](../TRAINING_SCALE_20261114.md) and
+[force observation](../archive/WRENCH_OBSERVATION_REVIEW.md).
 
 DiSECt tofu remains outside the main distribution. The former apparent 10mm
 overlap was a ghost-node diagnostic error; physical contact geometry is tracked
@@ -120,8 +120,8 @@ no physical force-limit failure occurred in that set.
 BladeMaster banana and four native preset probes are interface/trajectory tests,
 not learned policies. Banana/tofu/luncheon split into two components in the
 latest probe; cake remained connected.
-See [RESULTS](RESULTS.md), [task](TASK_FREE_CUT.md),
-[assets](BLADEMASTER_DISECT_ASSETS.md) and [backend](BLADEMASTER_BACKEND_REVIEW.md).
+See [RESULTS](../RESULTS.md), [task](../TASK_FREE_CUT.md),
+[assets](../BLADEMASTER_DISECT_ASSETS.md) and [backend](../BLADEMASTER_BACKEND_REVIEW.md).
 Do not wait to explain every residual cutting spring before progressing with
 the selected pose task. Keep all assets/checkpoints on servers.
 
@@ -189,7 +189,7 @@ https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sli
 Completed: retired preflight tensors and hash-identical data copies removed;
 17 inactive worktrees removed after source/patch snapshots. Active run checkouts,
 paired checkpoints/replay, assets and Python dependencies are preserved.
-[DATA](DATA.md) is the current location and recovery index. Historical launch
+[DATA](../DATA.md) is the current location and recovery index. Historical launch
 and completed-review notes are under archive; redundant old plan/paper drafts
 are accessible through immutable Git links in the document index.
 This maintenance changes no training code, task, budget or running process.
@@ -238,7 +238,7 @@ Budget: CPU analysis of existing 96 episodes; bounded tool probes up to 20 minut
 each, sequential on GPU7, plus regression tests. No policy updates.
 
 Frozen-policy plots and the limits of their interpretation are in
-[POLICY_MECHANICS_20261116](POLICY_MECHANICS_20261116.md). Force-history changes
+[POLICY_MECHANICS_20261116](../POLICY_MECHANICS_20261116.md). Force-history changes
 affect raw outputs; clipping suppresses most executed-action changes in the main
 policy. Existing clusters do not establish material identification. No new
 training was launched.

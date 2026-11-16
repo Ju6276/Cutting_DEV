@@ -34,7 +34,19 @@ constraints through task.tool_motion.enabled. Both require final XY distance
 <40 mm; optional path control uses 25 mm free /60 mm failure. Natural fragment
 opening has no penalty. See [task definition](docs/TASK_FREE_CUT.md#current-robot-position-modes--2026-11-16).
 
-The board stop is implemented and physically checked; it is not a compliant board-force simulator. The completed training task was free_cut_pose_v1, retaining v3 running costs and pose-based +100 settlement. The shared pose_depth_v2 scene/reset protocol has passed bounded physical checks on both backends; the newly authorized deployments are tracked in TRAINING_SHARED_20261116. The default pose-task potato is now the freely placed flat-bottom half, with 1 s per-material settling checked on 144 conditions. Development configurations and remaining work are listed in [PLAN](docs/PLAN.md). The earlier 192-world A6000 run and three-world BladeMaster run were stopped; neither reached policy updates. The full-wrench, transition-scaled 3072-world DiSECt run completed its 24-hour budget on GPU7. BladeMaster 256-world learning/reset/restore validation passed; its GPU9 long run later exited with SIGILL inside libcuda, with root cause unresolved. Its nominal-material distribution differs from the main DiSECt run. Current status and launch evidence: [restart record](docs/TRAINING_SCALE_20261114.md). The [earlier launch record](docs/archive/TRAINING_20261114.md) is historical. Current definition: [TASK_FREE_CUT](docs/TASK_FREE_CUT.md); dated evidence: [RESULTS](docs/RESULTS.md).
+The board stop is implemented and physically checked; it is not a compliant
+board-force simulator. The current pose_depth_v2 deployments use the shared
+scene/reset protocol, six-axis wrench observations and freely placed half potato,
+cucumber and prism. Launches, capacities, budgets and online tracking are recorded
+in [current training](docs/TRAINING_SHARED_20261116.md).
+
+Historical runs are not current-task results: the earlier GPU7 pose-v1 run
+completed its 24-hour budget; the GPU9 BladeMaster run exited with SIGILL inside
+libcuda, whose root cause is unresolved. Their task, tool and material distributions
+differed. See [historical scale record](docs/TRAINING_SCALE_20261114.md).
+The stopped 192-world and three-world pilots never reached policy updates.
+Current task definitions are in [TASK_FREE_CUT](docs/TASK_FREE_CUT.md), dated
+evidence in [RESULTS](docs/RESULTS.md), and outstanding work in [PLAN](docs/PLAN.md).
 
 Historical source and v1-v3 code/checkpoints remain for reproduction. The default source command below lacks the new board boundary; do not mistake it for the next training launch. Material/friction values remain uncalibrated for the real robot.
 
