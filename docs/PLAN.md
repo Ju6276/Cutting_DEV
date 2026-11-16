@@ -11,11 +11,24 @@ the finite-blade board boundary. Material separation stays independent.
 are retained in verification configs, not calibrated Mini45 hardware limits.
 The completed runs below used pose-v1, not this version. No new long run launched.
 See TASK_FREE_CUT for equations, state migration and verification status.
+The user additionally selected free small motion / excess-motion cost / larger
+failure boundary. The opt-in shared_motion_check configurations implement
+25 mm free / 60 mm failure using horizontal mass-weighted RMS material motion.
+Both three-object 16-step physical/WM-equation and partial-reset probes passed;
+root regression 463 passed / 5 skipped, backend 39 passed. Large-motion failure
+has constructed-state coverage; the short physical probes stayed inside the free
+zone. A learned policy's response to the new penalty has not been evaluated.
+This includes deformation/separation, not only translation. The WM now predicts
+this extra scalar; policy observations stay unchanged. Old task configs/runs are
+preserved. No new long training is authorized by this implementation.
+Reset clearance, target-speed/material distributions and settling between
+backends remain unmatched; shared tool/reward does not imply matched scenes.
 The shared physical tool revision is implemented and has passed three-object
 reference probes; see SHARED_KNIFE. Regression completion is recorded in RESULTS.
 The existing two backend runs retain their original tools and are not an equal-knife comparison.
 
-Half potato uses 1 s per-material settling; cucumber/prism use 0.75 s.
+For the DiSECt distribution, half potato uses 1 s per-material settling;
+cucumber/prism use 0.75 s.
 Each episode samples E and cut-spring stiffness scales 0.5–2 and density
 0.8–1.25; target speed is 1–5 cm/s. Initial clearance 0.5–3 cm is sampled
 once per world. No new geometry or material calibration is claimed.

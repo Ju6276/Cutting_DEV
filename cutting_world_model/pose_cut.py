@@ -69,12 +69,14 @@ class PoseCutStateSpec(FreeCutStateSpec):
         force=(peak.abs()>self.force_limits).any(-1)
         _,reached,_,counter=self.heads.termination(obs,self.field(old,'success_counter'),force)
         outside=self.free_task.workspace(obs,self.fk(fields['joint_q']))
-        success=reached & ~outside & ~force
+        distance = fields['object_slip'][...,0] if 'object_slip' in self.free_task.config else None
+        slipped = self.free_task.slip_failure(distance, force)
+        success=reached & ~outside & ~force & ~slipped
         fields.update(observation=obs,success_counter=counter,step_count=count)
         next_state=self.assemble(fields)
         reward=self.free_task.step_reward(self.field(old,'cut_progress')[...,0],
-                    fields['cut_progress'][...,0],obs,peak,speed)
-        reward=reward+self.free_task.weights['success']*success-self.free_task.weights['failure']*(force|outside)
+                    fields['cut_progress'][...,0],obs,peak,speed,distance)
+        reward=reward+self.free_task.weights['success']*success-self.free_task.weights['failure']*(force|outside|slipped)
         return next_state,reward,self.hard_termination(next_state)
 
     def pose_success(self,state):

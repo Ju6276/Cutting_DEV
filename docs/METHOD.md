@@ -932,3 +932,15 @@ and canonical rigid EE mount in both backends. See [SHARED_KNIFE](SHARED_KNIFE.m
 for geometry, coupling differences and verification commands. Historical policies
 retain their recorded tools. [Frozen policy analysis](POLICY_MECHANICS_20261116.md)
 separates measured force/history sensitivity from unproven material identification.
+
+## Optional material-motion envelope — 2026-11-16
+
+Implementation: `object_slip.py` reads settled-reference planar particle RMS;
+`free_cut.py` shares soft cost and failure semantics; `pose_depth.py` adds the
+supervised WM field and hard imagined termination. `pose_cut.py` excludes this
+failure from analytical +100 settlement. Both environment adapters emit
+`object_slip_m` and `object_slip_failure`; episode logs report object_motion.
+Group concatenation excludes full reference clouds from learner state.
+Policy input is unchanged. WM/critic/replay layouts and task metadata change.
+See TASK_FREE_CUT for equations, limits and reproduction commands. This is our
+task integration, not a claimed original BladeMaster reward or fracture model.

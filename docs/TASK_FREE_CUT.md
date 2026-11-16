@@ -143,7 +143,9 @@ controls, not six independent Cartesian position/rotation commands. Pitch can
 still respond mechanically through the compliant controller.
 
 The x mapper accumulates up to 2 mm of target offset per 50 ms control step.
-There is no separate accumulated-offset clamp or object-sliding penalty.
+There is no separate accumulated-offset clamp. Historical/default configurations
+have no object-motion penalty; the opt-in constraint below adds one without
+changing those checkpoints.
 Failure checks constrain the robot-base EE position and six-axis wrench.
 Verification boxes use x=[0.038,0.238], y=[0.405,0.605],
 z=[0.096,0.269] m. Pose completion uses the source x/z/pitch-error tolerances
@@ -159,3 +161,66 @@ The shared-knife checks are not matched training distributions: DiSECt samples
 material/start/speed, while the BladeMaster check uses nominal materials,
 5 mm clearance and 30 mm/s command. Settling durations and material integration
 also differ. Use explicit paired case definitions before a controlled comparison.
+
+## Optional object-motion constraint — 2026-11-16
+
+User choice: small movement is free, excess movement has a soft cost, larger
+movement terminates unsuccessfully. This is `task.object_slip` on pose_depth_v2,
+revision `planar_mass_rms_v1`. Absence retains the prior task exactly.
+
+The metric is mass-weighted RMS horizontal material-point displacement from
+the **settled reset state of this episode**:
+
+`d = sqrt(sum_i (m_i / sum_j m_j) * ||P_horizontal(x_i - x_i_reset)||^2)`.
+
+DiSECt uses its particle masses and horizontal x/z; BladeMaster's equal-mass
+particles use horizontal x/y. Opposite fragment motions do not cancel.
+Rotation, deformation and fragment opening also contribute: this is a material
+motion envelope, not a pure rigid-body translation estimate. Partial reset
+replaces only reset worlds' reference clouds. DiSECt physical-frame restoration
+requires the saved reference cloud. BladeMaster full-state restore remains
+unsupported; it must not invent a reference from a mid-episode frame.
+
+Development settings, common to both backends:
+- d <= 25 mm: no extra cost.
+- 25 < d <= 60 mm: subtract
+  `(20 / horizon_steps) * clamp((d - .025) / (.060 - .025), 0, 1)^2` each step.
+- d > 60 mm: `object_motion` failure; no success bonus, failure -100 once even
+  with another simultaneous failure. Exactly 60 mm is still inside.
+- Total additional running cost is bounded by 20 for any accepted finite
+  episode; task validation includes it in the existing settlement bound.
+- Measurement is at 50 ms control endpoints, not a continuous safety interlock.
+  It is not a finite-board edge test or a lifting constraint.
+
+25/60 mm are configurable engineering choices informed by the existing recordings,
+not measured tolerances, optimized hyperparameters or Mini45 hardware limits.
+Old-policy cases used different tools/material distributions and are not a fair
+backend comparison. New matched experiments must freeze the chosen thresholds.
+
+Physical execution and WM imagination share the penalty and hard-event formula.
+The compact WM adds one supervised residual output/state, `object_slip` in
+metres, normalized by failure_m (output delta scale failure_m/5), nonnegative.
+Its ten-frame history and critic receive that field; policy observation remains
+34 values / ten frames and receives no particle ground truth. Hard failure stops
+imagined survival/bootstrap. Pose success is masked by the same failure.
+This is privileged simulation supervision; a scalar is not a complete description
+of fragment geometry. Learned motion accuracy and real-robot observability are
+not established by the interface checks. No new camera pipeline is claimed.
+
+WM/critic state layouts change; old task checkpoints/replay cannot silently
+resume. Policy architecture stays the same, but old policies were not trained
+with this cost. New development configurations:
+`configs/free_cut/shared_motion_check.json` and
+`configs/blademaster/shared_motion_check.json`.
+They are three-object checks, not long-training launches. Neither friction nor
+material laws nor prior configuration files are changed.
+
+After `source runs/sac_env.sh`, run on GPU7:
+
+```bash
+PYTHONPATH=.:backends/mujoco /dataHDD/dong/Envs/cutting-mppi-20261108/bin/python scripts/check_pose_depth.py --backend disect --config configs/free_cut/shared_motion_check.json --output runs/NEW_MOTION_CHECK/disect.json --seconds 600
+PYTHONPATH=.:backends/mujoco /dataHDD/dong/Envs/cutting-mppi-20261108/bin/python scripts/check_pose_depth.py --backend blademaster --config configs/blademaster/shared_motion_check.json --output runs/NEW_MOTION_CHECK/blademaster.json --seconds 600
+```
+These compare measured next-state task reward/termination with the analytic WM
+task calculation, and verify partial resets. They do not test a trained WM's
+motion predictions or demonstrate reduced sliding after learning.

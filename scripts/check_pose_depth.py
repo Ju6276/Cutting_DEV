@@ -52,7 +52,9 @@ def main():
             assert torch.isfinite(frame['peak_wrench']).all()
             assert bool((frame['cut_progress']>=old['cut_progress']-1e-10).all())
             rows.append(dict(step=step+1,depth=frame['cut_progress'].flatten().tolist(),
-                reward=reward.tolist(),done=done.tolist(),material_separation=info.get('separated',torch.tensor([])).tolist()))
+                reward=reward.tolist(),done=done.tolist(),material_separation=info.get('separated',torch.tensor([])).tolist(),
+                object_slip_m=info.get('object_slip_m',torch.tensor([])).tolist(),
+                object_slip_failure=info.get('object_slip_failure',torch.tensor([])).tolist()))
             state=sp.pack_batch_transition(frame,state).double()
             reset=done.clone()
             if step==7:reset[0]=True
@@ -61,6 +63,8 @@ def main():
                 frame=env.reset(reset)
                 for k,v in retained.items():torch.testing.assert_close(frame[k][~reset],v,atol=0,rtol=0)
                 assert frame['cut_progress'][reset].abs().max()<1e-8
+                if 'object_slip' in frame:
+                    assert frame['object_slip'][reset].abs().max()<1e-8
                 state=sp.reset_batch_history(frame,state,reset)
             print(a.backend,'step',step+1,'depth',rows[-1]['depth'],flush=True)
         report.update(status='passed',steps=rows,wm_reward_error_max=maximum_error,

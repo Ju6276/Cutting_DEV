@@ -54,7 +54,7 @@ def knife_clearance(backend_root, scene):
 
 
 # Per-object arrays stay inside their group; only fixed-size fields are concatenated.
-PER_OBJECT_KEYS = ('particle_q', 'particle_qd', 'cut_spring_ke', 'spring_reference_ke')
+PER_OBJECT_KEYS = ('particle_q', 'particle_qd', 'cut_spring_ke', 'spring_reference_ke', 'object_reference_q')
 
 
 def _fixed(frame):

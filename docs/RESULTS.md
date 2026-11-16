@@ -2366,3 +2366,73 @@ Validation after the capture/export repair: root GPU suite 446 passed / 5 skippe
 (239.70 s); backend 39 passed (6.22 s). The six exported scenes and eight
 rendered images completed; camera identity and snapshot provenance checks passed.
 No physics, reward, action parameters or policy weights were changed in this audit.
+
+
+## 2026-11-16 — Optional material-motion envelope (shared task)
+
+User selected small free motion, an excess-motion soft cost and a larger failure
+boundary. Added opt-in task.object_slip, revision planar_mass_rms_v1, in both
+shared_motion_check configurations. Physics, friction, original configs and old
+checkpoints are unchanged. No new long training.
+
+Existing first-episode geometry traces (16 cases/object/backend) were summarized
+using mass-weighted RMS horizontal particle displacement from episode start.
+This measure includes deformation and fragment opening; it avoids cancellation
+between oppositely moving halves. Different tools, materials, starts and episode
+durations make these old traces descriptive only.
+
+| Backend / object | Min / median / max peak RMS (mm) |
+|---|---|
+| DiSECt cucumber | 33.51 / 50.32 / 59.87 |
+| DiSECt half potato | 29.62 / 44.28 / 76.50 |
+| DiSECt prism | 2.21 / 36.02 / 62.94 |
+| BladeMaster cucumber | 20.23 / 20.28 / 20.33 |
+| BladeMaster half potato | 19.94 / 19.95 / 19.95 |
+| BladeMaster prism | 18.00 / 18.09 / 18.21 |
+
+Source: runs/object_slip_20261116/old_policy_motion.json, derived from
+runs/frozen_pose_eval_20261115/{disect_video,blademaster_video_ready}.
+Development values: 25 mm free, >60 mm failure; capped quadratic excess cost
+20/horizon per step. They are not calibrated physical limits or benchmark gains.
+This is not a retrospective change of the recorded successes/failures.
+
+Checked actual ground-friction settings: DiSECt contact_mu=0.2 for all three
+scenes; BladeMaster paper-banana-based object configs load static=dynamic=0.2,
+board_half_extent=(0,0). Equal coefficients do not imply equal contact dynamics.
+No friction values were changed.
+
+Implementation checks include partial reference reset, opposing fragment motion,
+free-zone and soft-cost gradients, analytical WM/physical task equivalence,
+simultaneous failure precedence, checkpoint layout rejection and one finite WM
+optimizer update. Policy input dimension is unchanged; WM/critic gain one
+supervised displacement scalar and require new task/state metadata.
+
+Three-object physical checks used 16 reference control steps per backend, with
+one world's reset forced at step 8. Other worlds' frames remained bitwise equal
+through that partial reset. In each transition, the *measured next physical state*
+was passed into the analytic WM task calculation. This tests task equations, not
+learned dynamics accuracy. Short traces did not reach the displacement failure
+boundary; that boundary and its gradients/settlement are covered by constructed
+state tests, not a natural large-slip episode in this probe.
+
+- disect: 169.3 s, maximum absolute task-reward difference 1.46e-08; reward/termination and masked reset checks passed.
+
+- blademaster: 44.5 s, maximum absolute task-reward difference 1.43e-08; reward/termination and masked reset checks passed.
+
+
+Artifacts: runs/object_slip_20261116/{disect_physical,blademaster_physical}.json
+and the corresponding logs. No claim that these changes already reduce sliding
+in learned policies; no new trained policy was produced.
+
+Regression after the changes: root **463 passed / 5 skipped**, with
+CUTTING_BACKEND_ROOT set and the MPPI Python environment; backend **39 passed**.
+Logs: runs/object_slip_20261116/{root_tests,backend_tests}.log.
+The DiSECt scene-friction read succeeded in the base Python environment; the
+first BladeMaster config read lacked SciPy there and was rerun successfully in
+the documented MPPI environment. Both physical probes passed.
+
+Reporting correction: describing the old runs as merely two physics backends
+was incomplete. Their actual physical blades and mounting/coupling differed,
+as did task shaping and condition distributions. Shared-tool revision
+ffede36 and scene audit ba347e9 address the new configurations, not the provenance
+of old policies. See SHARED_KNIFE for remaining reset and 2 ms coupling differences.

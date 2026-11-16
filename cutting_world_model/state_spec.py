@@ -87,6 +87,9 @@ class CuttingStateSpec(nn.Module):
             'peak_wrench': (force,) * 3,
             'cut_progress': (1., 1., 1.),
         }
+        if 'object_slip' in self.physical_fields:
+            scale = metadata['free_cut_task']['object_slip']['failure_m']
+            source['object_slip'] = (scale, scale, scale / 5)
         for name in ('controller_q', 'controller_previous_position_command', 'controller_measured_q'):
             source[name] = source['joint_q']
         source['controller_velocity'] = source['joint_qd']

@@ -530,7 +530,8 @@ class BladeMasterEnvironment(GPUEnvironment):
         frame=self._observe(frame,action)
         physical_progress = None if self.free_task.config['version']=='pose_depth_v2' else frame['cut_progress'][:,0]
         events=self.free_task.events(frame['observation'],frame['peak_wrench'],physical_progress,
-            self.step_count,collision,pose=frame['ee_pose'],board=frame,success_counter=self.success_counter)
+            self.step_count,collision,pose=frame['ee_pose'],board=frame,success_counter=self.success_counter,
+            object_slip=(frame['object_slip'][:,0] if 'object_slip' in frame else None))
         reward=self.free_task.reward(self.current['cut_progress'][:,0],frame['cut_progress'][:,0],
                                     frame['observation'],frame['peak_wrench'],self.target_speed,events)
         self.success_counter=events['counter']
@@ -541,6 +542,8 @@ class BladeMasterEnvironment(GPUEnvironment):
         self.needs_reset=events['terminated']
         self.current=frame
         info={k:events[k] for k in ('success','collision','outside','timeout','board_contact')}
+        if 'object_slip_failure' in events:
+            info.update({k:events[k] for k in ('object_slip_failure','object_slip_m')})
         info.update(peak_force=force,depth_progress=frame['cut_progress'][:,0],**self.physics.step_metrics)
         # Native fracture is diagnostic only: do not relabel pose success as separation.
         if bool(events['terminated'].any()):

@@ -93,8 +93,14 @@ def main():
             ended = terminated | truncated
             for w in ended.nonzero().flatten().tolist():
                 if int(done_count[w]) < args.episodes:
-                    ending = (('separated' if metadata.get('free_cut_task') else 'goal') if info['success'][w] else 'force_limit' if info['collision'][w]
-                              else 'workspace' if info['outside'][w] else 'time_limit')
+                    from cutting_world_model.episode_log import ending as ending_label
+                    ending = ending_label(bool(info['success'][w]),bool(info['collision'][w]),
+                        bool(info['outside'][w]),bool(truncated[w]),bool(info.get('timeout',truncated)[w]),
+                        bool(info['object_slip_failure'][w]) if 'object_slip_failure' in info else False)
+                    if ending == 'success':
+                        version = metadata.get('free_cut_task', {}).get('version')
+                        ending = ('separated' if version in ('free_cut_v1','free_cut_v2','free_cut_v3')
+                                  else 'goal')
                     row = {'world': w, 'episode': int(done_count[w]), **conditions[w], 'ending': ending,
                            'return_undiscounted': float(acc['return'][w]),
                            'steps': int(acc['steps'][w]), 'seconds': float(acc['steps'][w]) * dt,
@@ -108,6 +114,9 @@ def main():
                     if metadata.get('free_cut_task'):
                         row.update(separated=bool(info['separated'][w]), success=bool(info['success'][w]),
                                    timeout=bool(info['timeout'][w]), truncated=bool(truncated[w]))
+                    if 'object_slip_failure' in info:
+                        row.update(object_slip_failure=bool(info['object_slip_failure'][w]),
+                                   object_slip_m=float(info['object_slip_m'][w]))
                     rows.append(row)
                     log.write(json.dumps(row) + '\n')
                     log.flush()
@@ -125,7 +134,9 @@ def main():
         count = len(members)
         summary[group] = {'episodes': count,
                           **{f'{e}_rate': sum(r['ending'] == e for r in members) / count
-                             for e in (('separated' if metadata.get('free_cut_task') else 'goal'), 'force_limit', 'workspace', 'time_limit')},
+                             for e in (('separated' if metadata.get('free_cut_task',{}).get('version') in
+                                        ('free_cut_v1','free_cut_v2','free_cut_v3') else 'goal'),
+                                       'force_limit', 'workspace', 'object_motion', 'time_limit')},
                           'mean_seconds': sum(r['seconds'] for r in members) / count,
                           'mean_peak_material_force_n': sum(r['peak_material_force_n'] for r in members) / count,
                           'mean_peak_limit_ratio': sum(r['peak_limit_ratio'] for r in members) / count}

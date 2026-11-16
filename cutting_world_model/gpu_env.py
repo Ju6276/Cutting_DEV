@@ -142,6 +142,8 @@ class GPUEnvironment:
             if self.free_task.config['version'] == 'free_cut_v4':
                 frame['separation_progress'] = frame['cut_progress'].clone()
                 frame['cut_progress'] = frame['knife_path_progress'].to(pose.dtype)
+        from .object_slip import observe
+        observe(self, frame)
         return frame
 
     @torch.no_grad()
@@ -174,6 +176,10 @@ class GPUEnvironment:
 
     @torch.no_grad()
     def restore_frame(self, frame):
+        if 'object_slip' in self.metadata.get('free_cut_task', {}):
+            if 'object_reference_q' not in frame:
+                raise ValueError('Restoring object motion requires the settled reference particles')
+            self._object_reference = frame['object_reference_q'].clone().to(self.device)
         self.physics.restore_frame(frame)
         self.previous_pose = frame['previous_ee_pose'].clone()
         self.previous_velocity = frame['previous_velocity'].clone()
@@ -218,7 +224,8 @@ class GPUEnvironment:
                                            (frame['separation_progress'] if self.free_task.config['version'] in ('free_cut_v4', 'pose_depth_v2')
                                             else frame['cut_progress'])[:, 0], self.step_count, collision, pose=frame['ee_pose'],
                                            board=frame if self.free_task.config['version'] in ('free_cut_v4', 'free_cut_pose_v1', 'pose_depth_v2') else None,
-                                           success_counter=self.success_counter)
+                                           success_counter=self.success_counter,
+                                           object_slip=(frame['object_slip'][:,0] if 'object_slip' in frame else None))
             reward = self.free_task.reward(self.current['cut_progress'][:, 0],
                                           frame['cut_progress'][:, 0], frame['observation'],
                                           frame['peak_wrench'], self.target_speed, events)
@@ -227,6 +234,8 @@ class GPUEnvironment:
             counter = events.get('counter', self.success_counter)
             truncated = torch.zeros_like(terminated)
             task_info = {k: events[k] for k in ('separated', 'timeout')}
+            if 'object_slip_failure' in events:
+                task_info.update({k: events[k] for k in ('object_slip_failure', 'object_slip_m')})
             task_info['cut_progress'] = frame['cut_progress'][:, 0]
             if self.free_task.config['version'] == 'pose_depth_v2':
                 task_info['depth_progress'] = frame['cut_progress'][:, 0]

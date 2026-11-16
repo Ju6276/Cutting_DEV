@@ -22,7 +22,10 @@ class PoseDepthStateSpec(ControlStateSpec):
 
     @classmethod
     def fields_for(cls, metadata):
-        return cls.physical_fields, CuttingStateSpec.history_fields + (
+        physical = cls.physical_fields
+        if 'object_slip' in metadata.get('free_cut_task', {}):
+            physical = physical + ('object_slip',)
+        return physical, CuttingStateSpec.history_fields + (
             'step_count', 'cut_progress', 'depth_span')
 
     def __init__(self, metadata):
@@ -33,10 +36,14 @@ class PoseDepthStateSpec(ControlStateSpec):
         super().__init__(metadata)
         self.free_task = FreeCutTask(metadata['free_cut_task'], self.heads)
         self.board_geometry = metadata['board_pose_geometry']
+        if 'object_slip' in self.free_task.config:
+            self.terminal_feature_dim += 1
 
     @torch.compiler.disable
     def integrate_physical(self, state, delta):
         fields = project_board(self, state, super().integrate_physical(state, delta))
+        if 'object_slip' in fields:
+            fields['object_slip'] = fields['object_slip'].clamp_min(0)
         fields['depth_span'] = self.field(state, 'depth_span')
         fields['cut_progress'] = depth_progress(self.fk(fields['joint_q']),
             self.board_geometry, fields['depth_span'], self.field(state, 'cut_progress'))
@@ -44,7 +51,18 @@ class PoseDepthStateSpec(ControlStateSpec):
 
     derive = PoseCutStateSpec.derive
     pose_success = PoseCutStateSpec.pose_success
-    hard_events = FreeCutStateSpec.hard_events
+    def hard_events(self, state):
+        failure, timeout = FreeCutStateSpec.hard_events(self, state)
+        if 'object_slip' in self.free_task.config:
+            failure = failure | self.free_task.slip_failure(
+                self.field(state, 'object_slip')[..., 0], failure)
+        return failure, timeout
+
     hard_termination = PoseCutStateSpec.hard_termination
     completion_reward = PoseCutStateSpec.completion_reward
-    terminal_features = PoseCutStateSpec.terminal_features
+    def terminal_features(self, state, goal=None):
+        features = PoseCutStateSpec.terminal_features(self, state, goal)
+        if 'object_slip' in self.free_task.config:
+            margin = self.field(state, 'object_slip') / self.free_task.config['object_slip']['failure_m'] - 1
+            features = torch.cat((features, margin), -1)
+        return features
