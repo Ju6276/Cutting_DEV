@@ -6,10 +6,47 @@ from cutting_world_model.control_state import ControlStateSpec
 from cutting_world_model.world_model import CuttingWorldModel
 from cutting_world_model.pose_depth import depth_progress
 
+def audit_loaded_scenes(env, backend):
+    if env.metadata.get('free_cut_task',{}).get('scene_alignment'):
+        from cutting_world_model.scene_alignment import material_top
+        from cutting_world_model.pose_cut import gap_from_pose
+        from cutting_gpu_backend.controller.fdcc import quat_apply
+        loaded=[]
+        groups=([m.env for m in env.members] if hasattr(env,'members') else [env])
+        for group_env in groups:
+            ph=group_env.physics;f=group_env.current
+            top=material_top(group_env,f).double()
+            ee=group_env.fk(f['joint_q'].double())
+            gap=gap_from_pose(ee,group_env.metadata['board_pose_geometry'])
+            if backend=='disect':
+                knife=ph.board.transformed(ph.material.position,ph.material.rotation,ph.board.vertices.to(ph.material.position))
+                physical_gap=knife[:,:,1].amin(-1).double()
+                mu=dict(ground=float(ph.material.model.contact_mu),
+                        knife=sorted(ph.material.model.sdf_mu.cpu().unique().tolist()))
+            else:
+                pose=ph.tool_pose()
+                knife=quat_apply(pose[:,None,3:].expand(-1,len(ph.vertices),-1),
+                    ph.vertices[None].expand(group_env.worlds,-1,-1))+pose[:,None,:3]
+                physical_gap=knife[:,:,2].amin(-1)
+                mu=[dict(ground=c.friction_dynamic,knife=c.friction_dynamic) for c in ph.material_configs]
+            loaded.append(dict(
+                top_m=top.tolist(),clearance_m=(physical_gap-top).tolist(),
+                requested_clearance_m=group_env.start_clearance_m.tolist(),
+                robot_proxy_clearance_m=(gap-top).tolist(),
+                ee_pose_base=ee.tolist(),target_pose_base=f['target_pose'].tolist(),
+                observation_width=f['observation'].shape[-1],
+                motion_command=f['motion_command'].tolist(),friction=mu,
+                pitch_control=ph.mapper.pitch_control))
+            assert bool(((physical_gap-top)-group_env.start_clearance_m).abs().lt(3e-6).all())
+        return loaded
+    return []
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--backend',choices=['disect','blademaster'],required=True)
-    p.add_argument('--config',type=Path,required=True)
+    p.add_argument('--config',type=Path)
+    p.add_argument('--shared-contract',type=Path)
+    p.add_argument('--prepared',type=Path)
     p.add_argument('--output',type=Path,required=True)
     p.add_argument('--seconds',type=int,default=600)
     a=p.parse_args()
@@ -18,7 +55,15 @@ def main():
     def expire(*_):raise TimeoutError('Depth-task verification wall budget')
     signal.signal(signal.SIGALRM,expire);signal.alarm(a.seconds)
     torch.set_num_threads(2);torch.manual_seed(0)
-    config=json.loads(a.config.read_text());env=None
+    if a.shared_contract:
+        if a.config or not a.prepared:p.error('Use --shared-contract with --prepared, without --config')
+        from cutting_world_model.shared_scene import load_configs
+        dc,bc=load_configs(a.shared_contract,a.prepared)
+        config=dc if a.backend=='disect' else bc
+    else:
+        if not a.config or a.prepared:p.error('Specify --config or --shared-contract/--prepared')
+        config=json.loads(a.config.read_text())
+    env=None
     report=dict(backend=a.backend,config=config,status='running')
     started=time.monotonic()
     try:
@@ -34,6 +79,9 @@ def main():
         sp=model.spec;state=sp.pack_batch(frame).double()
         assert frame['cut_progress'].abs().max()<1e-8
         report['initial_depth_span_m']=frame['depth_span'].flatten().tolist()
+        report['loaded_scenes']=audit_loaded_scenes(env,a.backend)
+        report['reset_audits']=[]
+
         rows=[];maximum_error=0.
         for step in range(16):
             old=frame
@@ -65,6 +113,12 @@ def main():
                 assert frame['cut_progress'][reset].abs().max()<1e-8
                 if 'object_slip' in frame:
                     assert frame['object_slip'][reset].abs().max()<1e-8
+                # Audit only reset worlds; other worlds are already cutting.
+                report['reset_audits'].append(dict(step=step+1,worlds=reset.nonzero().flatten().tolist()))
+                # Actual reset clearance is checked inside align_reset; requested cases stay identical.
+                if 'start_clearance_m' in frame:
+                    torch.testing.assert_close(frame['start_clearance_m'], old['start_clearance_m'],
+                                               atol=0, rtol=0)
                 state=sp.reset_batch_history(frame,state,reset)
             print(a.backend,'step',step+1,'depth',rows[-1]['depth'],flush=True)
         report.update(status='passed',steps=rows,wm_reward_error_max=maximum_error,

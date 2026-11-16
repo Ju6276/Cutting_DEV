@@ -944,3 +944,23 @@ Group concatenation excludes full reference clouds from learner state.
 Policy input is unchanged. WM/critic/replay layouts and task metadata change.
 See TASK_FREE_CUT for equations, limits and reproduction commands. This is our
 task integration, not a claimed original BladeMaster reward or fracture model.
+
+## Shared scene/reset implementation — 2026-11-16
+
+shared_scene.py generates both configurations and paired initial-clearance cases
+from configs/shared/scene_v1.json; scene_alignment.py measures settled particle
+height, solves the robot start pose, updates the physical rigid tool and validates
+the resulting gap. The once-per-world clearance is exposed in frame/condition
+records but is not an extra actor feature. Actual realized heights may differ
+across material models.
+
+The shared DiSECt reference path now explicitly follows the goal's target speed
+when this scene protocol is selected; historical exports retain their original
+reference trajectory. The new scene preparer changes knife friction from .5 to
+.2 to match the nominal BladeMaster coefficient; old assets are untouched. These
+are new-configuration choices, not calibration or old-run-equivalence claims.
+
+A packed DiSECt loader now rejects CPU-resident scene tensors before CUDA kernel
+launch. No native damage law was changed in this work. Optional bounded pitch
+has matching physical-action and WM equations (default off). See SHARED_SCENE for
+the implementation boundary and remaining randomization work.

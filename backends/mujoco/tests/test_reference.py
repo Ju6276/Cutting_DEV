@@ -63,3 +63,20 @@ def test_displacement_rotates_disect_velocity_into_the_robot_base():
     torch.testing.assert_close(down[0], torch.tensor([0., 0., -1.], dtype=torch.float64), atol=1e-12, rtol=0)
     # Translation of the fixed transform does not enter a displacement.
     assert math.isclose(float(down.norm()), 1., rel_tol=1e-12)
+
+
+def test_shared_reference_uses_commanded_speed_and_holds_board_goal():
+    from cutting_gpu_backend.environment import CuttingBatch
+    batch=CuttingBatch.__new__(CuttingBatch)
+    batch.reference_start=torch.tensor([[0.,0.,.10,0.,0.,0.,1.],
+                                        [0.,0.,.08,0.,0.,0.,1.]],dtype=torch.double)
+    batch.target=batch.reference_start.clone()
+    batch.target[:,2]=.02
+    batch.rigid_tool_geometry={"board_normal_base":[0.,0.,1.]}
+    batch.shared_reference_speed=torch.tensor([.01,.03],dtype=torch.double)
+    result=batch.reference_target(torch.tensor([1.,1.],dtype=torch.double))
+    torch.testing.assert_close(result[:,2],torch.tensor([.09,.05],dtype=torch.double))
+    final=batch.reference_target(torch.tensor([100.,100.],dtype=torch.double))
+    torch.testing.assert_close(final,batch.target)
+    # Sampling a reference must not mutate the per-world reset pose.
+    torch.testing.assert_close(batch.reference_start[:,2],torch.tensor([.10,.08],dtype=torch.double))

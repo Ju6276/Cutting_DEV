@@ -169,6 +169,12 @@ class CuttingBatch:
     def reference_target(self, time):
         """Controller target after ``time`` seconds of the DiSECt-frame knife trajectory."""
         target = self.reference_start.clone()
+        if hasattr(self,'shared_reference_speed'):
+            normal=target.new_tensor(self.rigid_tool_geometry['board_normal_base'])
+            distance=((target[:,:3]-self.target[:,:3])*normal).sum(-1).clamp_min(0)
+            travel=torch.minimum(time*self.shared_reference_speed,distance)
+            target[:,:3]-=travel[:,None]*normal
+            return target
         if self.reference_time_limit is not None:
             time = torch.minimum(time, self.reference_time_limit.to(time))
         target[:, :3] += self.reference_trajectory.displacement(time, self.coupling.base_from_disect[3:])

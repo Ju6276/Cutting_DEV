@@ -98,6 +98,10 @@ def load_material(config):
         if not hasattr(cfg,'blade_edge_half_width'):
             raise ValueError('Shared knife needs the explicit-profile BladeMaster solver')
         cfg=replace(cfg,blade_half_size=HALF,blade_bevel_height=BEVEL,blade_edge_half_width=NECK)
+    if 'contact_friction_mu' in config:
+        mu=float(config['contact_friction_mu'])
+        if not math.isfinite(mu) or mu<0:raise ValueError('Invalid contact friction')
+        cfg=replace(cfg,friction_static=mu,friction_dynamic=mu)
     cfg = replace(cfg, external_tool=True, tool_substep='hold', grid_storage='compact')
     if abs(round(.002/cfg.dt)*cfg.dt-.002) > 1e-12:
         raise ValueError('BladeMaster material dt must divide the 2 ms coupling interval')
@@ -220,7 +224,9 @@ class BladeMasterBatch(CuttingBatch):
         wanted[:,2] += board[2]+self.depth_span+self.material_config.blade_half_size[2]-mounted[:,2]
         self.robot.set_joint_positions(self.solve_pose(self.robot.q.double(),wanted))
         self.controller = FDCCController(self.chain,self.config)
-        self.mapper = SlicingActionMapper(max_twist=t['controller']['max_twist'])
+        self.mapper = SlicingActionMapper(max_twist=t['controller']['max_twist'],
+            pitch_control=config['task'].get('pitch_control'),
+            agent_control_dt=t['environment']['agent_control_dt'])
         self.mapper.reset(self.worlds,self.device,self.dtype)
         self.filter = SourceWrenchFilter()
         raw = -self.robot.sensor_wrench(self.config.sensor_ref_link).double()
@@ -509,8 +515,16 @@ class BladeMasterEnvironment(GPUEnvironment):
         self.needs_reset=torch.zeros(self.worlds,device=self.device,dtype=torch.bool)
         self.current=None
         self.depth_span=self.physics.reward_depth_span.clone()
+        from .scene_alignment import initial_clearances
+        self.start_clearance_m=initial_clearances(config['task'], config.get('start_clearance_m'),
+                                                self.worlds, self.device)
         # Physics initialization has already produced settled reset states.
-        self.current=self._observe(self.physics.frame(),torch.zeros((self.worlds,6),device=self.device))
+        frame=self.physics.frame()
+        from .scene_alignment import align_reset
+        frame=align_reset(self,frame,torch.ones(self.worlds,device=self.device,dtype=torch.bool))
+        self.previous_pose=self.fk(frame['joint_q'].double())
+        self.depth_span=self.physics.reward_depth_span.clone()
+        self.current=self._observe(frame,torch.zeros((self.worlds,6),device=self.device))
 
     def _observe(self, frame, action):
         saved=self.free_task

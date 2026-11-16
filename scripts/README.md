@@ -312,3 +312,9 @@ color transfer for other representations is disclosed, never called recovered UV
   stored camera pose and orthographic scale. Render JSON now records the camera.
   BladeMaster snapshots explicitly save the robot-base world transform, even
   when its base link has no visible mesh.
+
+Shared scene preparation: prepare_shared_scenes.py; paired-case physical/WM
+checks: check_pose_depth.py --shared-contract ... --prepared ....
+See [SHARED_SCENE](../docs/SHARED_SCENE.md) for exact commands. These use the
+same start-rule generator as the generated environment configs, not a second
+fixed-gap task.

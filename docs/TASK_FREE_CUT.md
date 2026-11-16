@@ -224,3 +224,20 @@ PYTHONPATH=.:backends/mujoco /dataHDD/dong/Envs/cutting-mppi-20261108/bin/python
 These compare measured next-state task reward/termination with the analytic WM
 task calculation, and verify partial resets. They do not test a trained WM's
 motion predictions or demonstrate reduced sliding after learning.
+
+## Shared scene initialization and optional pitch — 2026-11-16
+
+Current scene pairing is defined in [SHARED_SCENE](SHARED_SCENE.md). The
+earlier shared_motion_check configurations above remain motion-only historical
+checks; they are not the current initialization scheme.
+
+Scene initialization uses settled_surface_gap_v2, explicit paired per-world
+clearances and a 5–30 mm range. It aligns the finite physical blade and the
+robot tool together after settling, including masked resets, and recomputes
+geometric progress span from the actual start. See SHARED_SCENE for the full table.
+
+bounded_pitch_v1 is optional and disabled by default. When enabled, pitch target
+updates use the 50 ms agent period, a configured degrees/s rate and total-angle
+bound. The WM uses the same differentiable mapping; disabled mode preserves the
+existing five effective channels. This option alone does not establish validity
+of tilted contact. The pose goal and blade/board boundary remain unchanged.

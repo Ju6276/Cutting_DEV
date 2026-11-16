@@ -48,3 +48,5 @@ Their original content remains at these immutable Git references:
 - [PLAN_20261111.md](https://github.com/Ju6276/Cutting_DEV/blob/188c9eb/docs/archive/PLAN_20261111.md)
 - [PLAN_20261112_before_free_task.md](https://github.com/Ju6276/Cutting_DEV/blob/188c9eb/docs/archive/PLAN_20261112_before_free_task.md)
 - [PLAN_20261112_pre_review.md](https://github.com/Ju6276/Cutting_DEV/blob/188c9eb/docs/archive/PLAN_20261112_pre_review.md)
+
+Current scene/reset source and complete backend differences: [Shared scene](SHARED_SCENE.md).

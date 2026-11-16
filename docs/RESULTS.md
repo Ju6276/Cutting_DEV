@@ -2436,3 +2436,48 @@ was incomplete. Their actual physical blades and mounting/coupling differed,
 as did task shaping and condition distributions. Shared-tool revision
 ffede36 and scene audit ba347e9 address the new configurations, not the provenance
 of old policies. See SHARED_KNIFE for remaining reset and 2 ms coupling differences.
+
+## 2026-11-16 — Shared per-object start cases and optional bounded pitch
+
+User decision: prepare simulation starts like the intended real-robot sequence,
+using each placed object's height and variable clearance. No separate fixed
+5 mm debug task. Implemented source: configs/shared/scene_v1.json; full
+settings, remaining mismatches and commands are in SHARED_SCENE.
+
+Each object has 3 worlds in this resource-bounded probe. The 9 sampled gaps (mm)
+are cucumber [24.448, 10.463, 13.140], half potato [19.864, 26.958, 9.601],
+prism [17.545, 13.648, 24.904], identical between backends. Actual heights are
+measured after settling; identical clearance does not imply identical absolute
+knife height or material shape. The camera/local-height estimator is not implemented.
+
+| Measurement | DiSECt | BladeMaster |
+|---|---:|---:|
+| Physical steps / worlds | 16 / 9 | 16 / 9 |
+| Maximum actual gap error | 1.171e-07 m | 1.936e-07 m |
+| Maximum physical/WM reward-equation difference | 1.485e-08 | 1.473e-08 |
+| Partial reset: non-reset frame fields identical | yes | yes |
+| Wall time (includes setup/settling) | 184.8 s | 55.7 s |
+
+Reports: runs/shared_scene_20261116/disect.json and blademaster.json.
+Both preserve requested per-world gaps on partial reset. The reward check supplies
+actual next-state fields to the WM task equations; it is not a learned-model
+prediction accuracy result. Short reference probes do not measure trained success,
+active-pitch contact, randomized-material throughput or real-robot performance.
+
+During implementation, the first new-scene export serialized CPU tensors, which
+the packed CUDA path could not consume. Export now preserves CUDA tensors and a
+loader guard rejects a mismatched device before kernel launch. A partial BM reset
+also exposed an empty-group tool-array assignment shape error in the new alignment
+helper; it now skips empty masks and indexes the singleton tool dimension explicitly.
+The successful reports above were generated after both fixes.
+
+Optional pitch defaults off. Enabled mode has angle/rate clamps and matching
+differentiable physical-action/WM mappings; physical tilted-contact validation is
+still pending. Shared reference controls now use the same target speed. Nominal
+knife friction is explicitly .2 on both newly prepared backends, with old assets
+unchanged. Per-episode BladeMaster material randomization remains outstanding.
+
+Regression on GPU7: root 487 passed / 5 skipped (241.52 s), backend 41 passed
+(5.61 s). Root used the MPPI-capable environment and CUTTING_BACKEND_ROOT,
+so available GPU tests were enabled. Changed-document relative links and git
+diff whitespace checks passed. No long training started.

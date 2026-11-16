@@ -81,6 +81,10 @@ class BatchedDiSECt(DiSECt):
         if worlds < 1:
             raise ValueError('worlds must be positive')
         super().__init__(scene_path, sim_dt=sim_dt)
+        if (self.position.device.type != 'cuda' or
+                self.state.particle_q.device != self.position.device or
+                self.model.particle_mass.device != self.position.device):
+            raise ValueError('Packed GPU scenes require CUDA-resident model/state/motion tensors; re-export the scene on CUDA')
         self._scene_path = scene_path
         self._friction_velocity = friction_velocity
         self._settle_batches = {}

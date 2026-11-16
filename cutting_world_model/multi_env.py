@@ -7,10 +7,11 @@ one learner sees one batch with the training loop's existing interface (``curren
 per-object arrays (particles, springs) stay inside their group.
 
 Conditions:
-- object: fixed per group; every object shares one force limit (the hardware limit), so
+- object: fixed per group; every object shares one force limit (a shared simulation limit), so
   the learner has to infer how hard an object is from its own force feedback;
 - start clearance (knife edge above the object top): fixed per world, set at construction
   by inverse kinematics (``CuttingBatch.initial_lift``);
+- optional paired start_clearance_m: re-align to settled top after every reset;
 - material scales (Young's modulus, density, cut-spring stiffness): log-uniform per
   episode, applied at reset;
 - target cutting speed: uniform per episode, carried in the frame for the task reward.
@@ -39,6 +40,7 @@ class ObjectGroup:
     force_model: str = 'scalar'     # 'scalar' (source proxy) or 'net' (contact wrench at the sensor)
     friction_velocity: float = None  # knife friction transition velocity (m/s); None keeps the scene's
     settle_seconds: float = 0.      # material time advanced before the reset state is saved (free objects)
+    start_clearance_m: list = None  # explicit paired cases, fixed per world
 
 
 def knife_clearance(backend_root, scene):
@@ -65,14 +67,14 @@ class LocalGroup:
     """One object group simulated in this process."""
 
     def __init__(self, backend_root, scene, worlds, lift, reward, force_limits, sim_dt=None,
-                 force_model='scalar', friction_velocity=None, settle_seconds=0., task=None, force_observation=None):
+                 force_model='scalar', friction_velocity=None, settle_seconds=0., task=None, force_observation=None, start_clearance_m=None):
         if not math.isfinite(settle_seconds) or settle_seconds < 0:
             raise ValueError('settle_seconds must be finite and nonnegative')
         self.settle_seconds = settle_seconds
         self.env = GPUEnvironment(backend_root, worlds, reward=reward, scene=scene,
                                   initial_lift=lift, force_limits=force_limits, sim_dt=sim_dt,
                                   force_model=force_model, friction_velocity=friction_velocity,
-                                  settle_seconds=0., **({'task': task} if task is not None else {}),
+                                  settle_seconds=0., start_clearance_m=start_clearance_m, **({'task': task} if task is not None else {}),
                                   **({'force_observation': force_observation} if force_observation is not None else {}))
         self.env.target_speed = torch.zeros(worlds, device=self.env.device)
         if settle_seconds > 0:
@@ -154,13 +156,13 @@ class ProcessGroup:
     concurrently; tensors cross the process boundary on the CPU."""
 
     def __init__(self, backend_root, scene, worlds, lift, reward, force_limits, sim_dt=None,
-                 force_model='scalar', friction_velocity=None, settle_seconds=0., task=None, force_observation=None):
+                 force_model='scalar', friction_velocity=None, settle_seconds=0., task=None, force_observation=None, start_clearance_m=None):
         import torch.multiprocessing as mp
         context = mp.get_context('spawn')
         self.connection, child = context.Pipe()
         self.process = context.Process(target=_group_worker, daemon=True, args=(
             child, (str(backend_root), scene, worlds, lift.cpu(), reward, force_limits, sim_dt,
-                    force_model, friction_velocity, settle_seconds, task, force_observation)))
+                    force_model, friction_velocity, settle_seconds, task, force_observation, start_clearance_m)))
         self._closed = False
         try:
             self.process.start()
@@ -246,11 +248,16 @@ class MultiConditionEnvironment:
                 for key, (low, high) in group.material.items():
                     if key not in MATERIAL_KEYS or not 0 < low <= high:
                         raise ValueError(f'{group.name}: bad material range {key}={low, high}')
-                lift = self._uniform(group.clearance, group.worlds) - knife_clearance(backend_root, group.scene)
+                clearances = (self._uniform(group.clearance, group.worlds)
+                              if group.start_clearance_m is None
+                              else torch.as_tensor(group.start_clearance_m, dtype=torch.float64))
+                if clearances.shape != (group.worlds,):
+                    raise ValueError('One explicit clearance per world required')
+                lift = clearances - knife_clearance(backend_root, group.scene)
                 maker = ProcessGroup if parallel else LocalGroup
                 self.members.append(maker(backend_root, group.scene, group.worlds, lift, reward, force_limits,
                                           group.sim_dt, group.force_model, group.friction_velocity,
-                                          group.settle_seconds, **({'task': task} if task is not None else {}),
+                                          group.settle_seconds, **({'start_clearance_m': group.start_clearance_m} if group.start_clearance_m is not None else {}), **({'task': task} if task is not None else {}),
                                           **({'force_observation': force_observation} if force_observation is not None else {})))
                 self.lift.append(lift)
                 self.slices.append(slice(start, start + group.worlds))
@@ -333,6 +340,7 @@ class MultiConditionEnvironment:
     def from_config(cls, backend_root, config, reward=None):
         groups = [ObjectGroup(name=g['name'], scene=g['scene'], worlds=int(g['worlds']),
                               clearance=tuple(g.get('clearance', (.005, .03))),
+                              start_clearance_m=g.get('start_clearance_m'),
                               material={k: tuple(v) for k, v in g.get('material', {}).items()},
                               target_speed=tuple(g.get('target_speed', (.035, .065))),
                               sim_dt=None if g.get('sim_dt') is None else float(g['sim_dt']),
@@ -393,6 +401,8 @@ class MultiConditionEnvironment:
             part = self.slices[g]
             rows.append({'group': self.groups[g].name, 'scene': self.groups[g].scene,
                          'start_lift_m': float(self.lift[g][w - part.start]),
+                         **({'start_clearance_m': float(self.current['start_clearance_m'][w, 0])}
+                            if 'start_clearance_m' in self.current else {}),
                          'target_speed_mps': float(self.target_speed[w]),
                          **{k: float(self.material_scales[k][w]) for k in MATERIAL_KEYS}})
         return rows

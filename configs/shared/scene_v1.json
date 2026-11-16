@@ -1,0 +1,111 @@
+{
+  "revision": "paired_scene_v1",
+  "scope": "Shared reset/scene protocol for deployment-oriented preparation; fixed nominal materials until per-episode BladeMaster adaptation is implemented. Not a long-training launch configuration.",
+  "common": {
+    "worlds_per_object": 3,
+    "target_speed_m_s": 0.03,
+    "settle_seconds": 1.0,
+    "force_limits": [
+      50.0,
+      50.0,
+      50.0,
+      5.0,
+      5.0,
+      5.0
+    ],
+    "force_observation": "sensor_wrench6_v1",
+    "ground_friction_mu": 0.2,
+    "knife_friction_mu": 0.2,
+    "task": {
+      "version": "pose_depth_v2",
+      "horizon_steps": 180,
+      "weights": {
+        "progress": 10,
+        "speed": 20,
+        "load": 1,
+        "jerk": 0.1,
+        "success": 100,
+        "failure": 100
+      },
+      "gamma": 1.0,
+      "workspace": {
+        "frame": "robot_base",
+        "point": "ee",
+        "lower": [
+          0.038,
+          0.405,
+          0.096
+        ],
+        "upper": [
+          0.238,
+          0.605,
+          0.269
+        ]
+      },
+      "board": {
+        "height_m": 0.0,
+        "stop_gap_m": 1e-06
+      },
+      "tool_revision": "disect_knife_rigid_mount_v1",
+      "object_slip": {
+        "revision": "planar_mass_rms_v1",
+        "free_m": 0.025,
+        "failure_m": 0.06,
+        "weight": 20.0
+      },
+      "pitch_control": {
+        "revision": "bounded_pitch_v1",
+        "enabled": false,
+        "max_angle_deg": 5.0,
+        "max_rate_deg_s": 5.0
+      },
+      "scene_alignment": {
+        "revision": "settled_surface_gap_v2",
+        "clearance_range_m": [
+          0.005,
+          0.03
+        ]
+      }
+    }
+  },
+  "blademaster_source_root": "/dataHDD/dong/Projects/BladeMaster-Warp-shared-knife-20261116",
+  "objects": [
+    {
+      "name": "cucumber_003",
+      "disect_source_scene": "runs/sweep/free_cucumber_003/scene.pt",
+      "blademaster_geometry_asset": "/dataHDD/dong/Assets/Cutting_DEV/blademaster_intact_20261114/cucumber_003.npz",
+      "elastic": {
+        "young_modulus": 2600000,
+        "poisson_ratio": 0.37,
+        "density": 950
+      },
+      "disect_sim_dt": 1e-05,
+      "blademaster_material": "paper-banana"
+    },
+    {
+      "name": "potato_half",
+      "disect_source_scene": "runs/sweep/free_potato_half_20261114/scene.pt",
+      "blademaster_geometry_asset": "/dataHDD/dong/Assets/Cutting_DEV/blademaster_intact_20261114/potato_half.npz",
+      "elastic": {
+        "young_modulus": 2000000,
+        "poisson_ratio": 0.45,
+        "density": 1101
+      },
+      "disect_sim_dt": 8e-06,
+      "blademaster_material": "paper-banana"
+    },
+    {
+      "name": "prism",
+      "disect_source_scene": "runs/sweep/free_prism/scene.pt",
+      "blademaster_geometry_asset": "/dataHDD/dong/Assets/Cutting_DEV/blademaster_intact_20261114/prism.npz",
+      "elastic": {
+        "young_modulus": 40000,
+        "poisson_ratio": 0.45,
+        "density": 830
+      },
+      "disect_sim_dt": 1e-05,
+      "blademaster_material": "paper-banana"
+    }
+  ],
+  "case_seed": 0
+}

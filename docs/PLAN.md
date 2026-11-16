@@ -21,8 +21,14 @@ zone. A learned policy's response to the new penalty has not been evaluated.
 This includes deformation/separation, not only translation. The WM now predicts
 this extra scalar; policy observations stay unchanged. Old task configs/runs are
 preserved. No new long training is authorized by this implementation.
-Reset clearance, target-speed/material distributions and settling between
-backends remain unmatched; shared tool/reward does not imply matched scenes.
+Current scene/reset source is [SHARED_SCENE](SHARED_SCENE.md) and
+configs/shared/scene_v1.json: paired per-world 5–30 mm gaps above each
+settled object's top; no separate fixed-5-mm check configuration.
+Nominal coefficients, 1 s settling and 3 cm/s reference speed are shared.
+Formal per-episode material/speed distributions are not yet matched:
+BladeMaster heterogeneous material resets remain to implement before a matched
+randomized long run. Paired 9-world/16-step physical checks passed on both
+backends; root 487 passed / 5 skipped, backend 41 passed. No new training is launched.
 The shared physical tool revision is implemented and has passed three-object
 reference probes; see SHARED_KNIFE. Regression completion is recorded in RESULTS.
 The existing two backend runs retain their original tools and are not an equal-knife comparison.

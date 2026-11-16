@@ -272,10 +272,19 @@ class FDCCController:
 
 class SlicingActionMapper:
     def __init__(self, max_twist=(1., 0.), robot_control_dt=0.002,
-                 min_scale_error=1.5, max_scale_error=2.5, simulator_scale=0.01):
+                 min_scale_error=1.5, max_scale_error=2.5, simulator_scale=0.01,
+                 pitch_control=None, agent_control_dt=0.05):
         self.max_twist, self.robot_control_dt = max_twist, robot_control_dt
+        self.configure_pitch_control(pitch_control, agent_control_dt)
         self.min_scale_error, self.max_scale_error = min_scale_error, max_scale_error
         self.simulator_scale = simulator_scale
+
+    def configure_pitch_control(self, config, agent_control_dt):
+        from .pitch import validate_pitch_control
+        if not math.isfinite(agent_control_dt) or agent_control_dt <= 0:
+            raise ValueError('Agent control interval must be positive')
+        self.pitch_control = None if config is None else validate_pitch_control(config)
+        self.agent_control_dt = agent_control_dt
 
     def reset(self, batch, device='cpu', dtype=torch.float64):
         self.added_motion_command = torch.zeros((batch, 6), device=device, dtype=dtype)
@@ -291,7 +300,13 @@ class SlicingActionMapper:
         gains[:, 4] = torch.round((0.1+1.4*normalized[:, 3])*100)/100
         gains *= 2
         self.added_motion_command[:, 0] += actions[:, 4].clamp(-1,1)*self.max_twist[0]*self.robot_control_dt
-        self.added_motion_command[:, 4] -= actions[:, 5].clamp(-1,1)*self.max_twist[1]*self.robot_control_dt
+        if self.pitch_control is None:
+            self.added_motion_command[:, 4] -= actions[:, 5].clamp(-1,1)*self.max_twist[1]*self.robot_control_dt
+        else:
+            from .pitch import advance_pitch
+            self.added_motion_command[:, 4] = advance_pitch(
+                self.added_motion_command[:, 4], actions[:, 5],
+                self.pitch_control, self.agent_control_dt)
         pose = target_pose.clone()
         pose[:, :3] += self.added_motion_command[:, :3]
         pose[:, 3:] = quat_mul(quat_exp(self.added_motion_command[:, 3:]), pose[:, 3:])

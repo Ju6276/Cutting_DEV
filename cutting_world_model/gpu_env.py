@@ -9,7 +9,7 @@ from .task_heads import REWARD_KEYS, SliceItHeads, pose_error, TASK_INTERFACE_RE
 class GPUEnvironment:
     def __init__(self, backend_root, worlds=1, reference_trajectory=None, reward=None, scene=None,
                  initial_lift=None, force_limits=None, sim_dt=None, force_model='scalar',
-                 friction_velocity=None, settle_seconds=0., task=None, force_observation=None):
+                 friction_velocity=None, settle_seconds=0., task=None, force_observation=None, start_clearance_m=None):
         """``reward`` optionally selects the force penalty, e.g. {'force_penalty': 'linear',
         'force_penalty_scale': 50.}; None keeps the source SliceIt reward and metadata.
         ``scene`` is an exported DiSECt scene relative to ``backend_root``; None keeps the
@@ -72,6 +72,8 @@ class GPUEnvironment:
                 raise ValueError('Free pose task requires an unheld object')
             elif self.physics.material.state_field('cut_spring_ke').shape[-1] == 0:
                 raise ValueError('Progress shaping needs nonempty cutting springs')
+            self.physics.mapper.configure_pitch_control(
+                task.get('pitch_control'), self.environment['agent_control_dt'])
             self.metadata['free_cut_task'] = task
             self.metadata['task_interface_revision'] = task['version']
             self.metadata['goal_dim'] = 8
@@ -112,6 +114,8 @@ class GPUEnvironment:
         if task is not None and task['version'] == 'pose_depth_v2':
             from .pose_depth import PROGRESS_SEMANTICS
             self.metadata['progress_semantics'] = PROGRESS_SEMANTICS
+        from .scene_alignment import initial_clearances
+        self.start_clearance_m = initial_clearances(task, start_clearance_m, worlds, self.device)
         self.reset()
 
     def _observe(self, frame, action):
@@ -142,6 +146,8 @@ class GPUEnvironment:
             if self.free_task.config['version'] == 'free_cut_v4':
                 frame['separation_progress'] = frame['cut_progress'].clone()
                 frame['cut_progress'] = frame['knife_path_progress'].to(pose.dtype)
+        if getattr(self, 'start_clearance_m', None) is not None:
+            frame['start_clearance_m'] = self.start_clearance_m[:, None].clone()
         from .object_slip import observe
         observe(self, frame)
         return frame
@@ -152,6 +158,8 @@ class GPUEnvironment:
             mask = torch.ones(self.worlds, dtype=torch.bool, device=self.device)
         mask = mask.to(device=self.device, dtype=torch.bool)
         physical = self.physics.reset(mask)
+        from .scene_alignment import align_reset
+        physical = align_reset(self, physical, mask)
         pose = self.fk(physical['joint_q'].double())
         if self.free_task is not None and self.free_task.config['version'] == 'pose_depth_v2':
             from .pose_cut import gap_from_pose
@@ -215,6 +223,8 @@ class GPUEnvironment:
         low, high = action.new_tensor(self.metadata['action_bounds'])
         action = torch.maximum(torch.minimum(action, high), low)
         diagnostics = {} if sample_callback is None else {'sample_callback': sample_callback}
+        if self.metadata.get('free_cut_task',{}).get('scene_alignment'):
+            self.physics.shared_reference_speed=self.target_speed
         frame, collision, peak_force = self.physics.step(action, reference=reference, **diagnostics)
         self.step_count += 1
         frame = self._observe(frame, action)

@@ -16,6 +16,18 @@ def validate_task(config):
     if not isinstance(config, dict) or config.get('version') not in SUPPORTED_REVISIONS:
         raise ValueError('Unsupported free-cut task version')
     required = {'version', 'horizon_steps', 'weights'}
+    if 'scene_alignment' in config:
+        from .scene_alignment import validate_alignment
+        validate_alignment(config['scene_alignment'])
+        if config['version']!='pose_depth_v2' or config.get('tool_revision')!='disect_knife_rigid_mount_v1':
+            raise ValueError('Aligned reset requires the shared rigid knife task')
+        required.add('scene_alignment')
+    if 'pitch_control' in config:
+        from cutting_gpu_backend.controller.pitch import validate_pitch_control
+        validate_pitch_control(config['pitch_control'])
+        if config['version'] != 'pose_depth_v2':
+            raise ValueError('Bounded pitch requires pose_depth_v2')
+        required.add('pitch_control')
     if 'object_slip' in config:
         from .object_slip import validate
         validate(config['object_slip'])

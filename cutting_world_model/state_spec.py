@@ -239,6 +239,13 @@ class CuttingStateSpec(nn.Module):
         dt_robot = self.metadata['environment']['robot_control_dt']
         motion = self.field(old, 'motion_command') + dt_robot * (
             limits[0] * action[..., 4:5] * direction + limits[1] * action[..., 5:6] * rotation_direction)
+        pitch = self.metadata.get('free_cut_task', {}).get('pitch_control')
+        if pitch is not None:
+            from cutting_gpu_backend.controller.pitch import advance_pitch
+            updated_pitch = advance_pitch(self.field(old, 'motion_command')[..., 4],
+                                          action[..., 5], pitch, self.dt)
+            # Avoid mutating old state or an autograd view.
+            motion = torch.cat((motion[..., :4], updated_pitch[..., None], motion[..., 5:]), -1)
         fields.update(motion_command=motion, previous_ee_pose=pose, previous_velocity=velocity,
                       previous_acceleration=acceleration, observation=obs)
         return fields, target_speed
