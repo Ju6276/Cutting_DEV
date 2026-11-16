@@ -56,7 +56,12 @@ def main():
   states=dict(np.load(root/'world_states.npz',allow_pickle=False))
   if len(states['world_id'])!=g['worlds']:raise ValueError('Missing captured worlds')
   task=json.loads((root/'task.json').read_text())
-  actors,src=r.visual_actors(d,task,a.source_root);sources.extend(src)
+  if 'knife_world' not in states or 'knife_tri' not in states:
+   raise ValueError('Snapshot lacks per-world physical blades; recapture instead of displaying the old URDF knife')
+  if len(states['knife_world'])!=g['worlds']:
+   raise ValueError('Missing per-world physical blades')
+  actors,src,_=r.physical_robot_actors(d,task,a.source_root);sources.extend(src)
+  d['ground']=r.presentation_ground(d,task)
   hashes[g['name']]=hashlib.sha256((root/'world_states.npz').read_bytes()).hexdigest()
   ids=range(min(2,g['worlds'])) if a.detail else range(g['worlds'])
   color=(.19,.36,.075) if 'cucumber' in g['name'] else ((.72,.58,.35) if 'potato' in g['name'] else (.72,.44,.20))
@@ -75,13 +80,16 @@ def main():
    transform=np.eye(4);transform[:3,:3]=states['body_mat'][i,k].reshape(3,3)
    transform[:3,3]=states['body_pos'][i,k]+offset;transform=transform@local
    inst.SetUserMatrix(r.matrix(transform[:3,3],transform[:3,:3]));ren.AddActor(inst)
+  ren.AddActor(r.actor(r.polydata(states['knife_world'][i]+offset,states['knife_tri']),(.61,.63,.65),specular=.5))
   points=states['particles'][i]
   if g.get('representation')=='material_points':
    poly=vtk.vtkPolyData();pts=vtk.vtkPoints()
    from vtk.util.numpy_support import numpy_to_vtk
    pts.SetData(numpy_to_vtk(points+offset,deep=True));poly.SetPoints(pts)
-   mapper=vtk.vtkPointGaussianMapper();mapper.SetInputData(poly)
-   mapper.SetScaleFactor(float(g['particle_radius_m']));mapper.EmissiveOff()
+   sphere=vtk.vtkSphereSource();sphere.SetRadius(float(g['particle_radius_m']))
+   sphere.SetThetaResolution(6 if count<=32 else 4);sphere.SetPhiResolution(4)
+   mapper=vtk.vtkGlyph3DMapper();mapper.SetInputData(poly);mapper.SetSourceConnection(sphere.GetOutputPort())
+   mapper.ScalingOff();mapper.ScalarVisibilityOff()
    obj=vtk.vtkActor();obj.SetMapper(mapper);obj.GetProperty().SetColor(*color);ren.AddActor(obj)
   else:
    edges=d['cut_edge_indices'];weights=d['cut_edge_coords'].reshape(-1,1)
@@ -104,5 +112,5 @@ def main():
   draw.text((40,108),'Cucumber / half potato / prism. Grid is display-only; material colors are display colors. No added crack overlay.',font=r.font(23),fill=r.MUTED)
   a.output.parent.mkdir(parents=True,exist_ok=True);canvas.save(a.output)
  finally:win.Finalize()
- a.output.with_suffix('.json').write_text(json.dumps(dict(report,shown_world_ids=[g['first_world']+i for g,d,s,acts,i,c in records],capture_sha256=hashes,visual_sources=sorted(set(sources)),render_only_offsets=offsets.tolist(),robot_mesh_lod=('distant_decimated_instances' if count>32 else 'original_visual_meshes')),indent=2))
+ a.output.with_suffix('.json').write_text(json.dumps(dict(report,shown_world_ids=[g['first_world']+i for g,d,s,acts,i,c in records],capture_sha256=hashes,visual_sources=sorted(set(sources)),render_only_offsets=offsets.tolist(),physical_blade_per_world=True,schematic_connector=False,material_display=("recorded centres/radii, low-resolution sphere glyphs" if any(g.get("representation")=="material_points" for g in report["groups"]) else "recorded FEM surface"),robot_mesh_lod=('distant_decimated_instances' if count>32 else 'original_visual_meshes')),indent=2))
 if __name__=='__main__':main()

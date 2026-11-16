@@ -53,19 +53,7 @@ def main():
  root=gdir/'0000'/group['path']
  d=dict(np.load(root/'episode.npz'))
  task=json.loads((root/'task.json').read_text())
- robot,sources=r.visual_actors(d,task,a.source_root)
- robot=[entry for entry in robot if str(d['geom_body'][entry[0]])!='b_bot_cam_cables_link']
- # The combined URDF knife/adapter is only an appearance mesh. Display the
- # backend's actual collision blade once, not the differently sized URDF blade.
- tool_entries=[entry for entry in robot if str(d['geom_body'][entry[0]])=='b_bot_right_inner_knuckle']
- robot=[entry for entry in robot if str(d['geom_body'][entry[0]])!='b_bot_right_inner_knuckle']
- # Keep the original grip/handle; remove only the old blade beyond its shoulder.
- for k,old,local in tool_entries:
-  old.GetMapper().Update()
-  plane=vtk.vtkPlane();plane.SetOrigin(-.04786805,0,0);plane.SetNormal(1,0,0)
-  clip=vtk.vtkClipPolyData();clip.SetInputData(old.GetMapper().GetInput());clip.SetClipFunction(plane);clip.Update()
-  handle=r.actor(clip,(.61,.63,.65),specular=.5)
-  robot.append((k,handle,local))
+ robot,sources,tool_entries=r.physical_robot_actors(d,task,a.source_root)
  states=[]
  for t in range(last+1):
   snap=dict(np.load(gdir/('%04d'%t)/group['path']/'world_states.npz'))
@@ -132,7 +120,7 @@ def main():
   smooth=vtk.vtkWindowedSincPolyDataFilter();smooth.SetInputConnection(contour.GetOutputPort());smooth.SetNumberOfIterations(80);smooth.SetPassBand(.01);smooth.NormalizeCoordinatesOn()
   normals=vtk.vtkPolyDataNormals();normals.SetInputConnection(smooth.GetOutputPort());normals.SplittingOff()
  # Static triangle data and animated coordinates share the historical studio schema.
- out=dict(ground=d['ground'],center=(points.min(0)+points.max(0))/2,
+ out=dict(ground=r.presentation_ground(d,task),recorded_ground=d['ground'],center=(points.min(0)+points.max(0))/2,
           knife=blade_points,knife_tri=blade_faces,
           sim_time=np.arange(last+1)*float(task['environment']['agent_control_dt']))
  app=None
@@ -235,6 +223,8 @@ def main():
    recording=str(a.evaluation),frame=0,sim_time=0,robot_meshes=len(robot),sources=sources,
    backend=a.backend,material=style,appearance=appearance_note,
    physical_blade=True,mount_rigidity_residual_m=mount_residual,
+   board_display=('Shared main-run 24x16 cm exterior; infinite physical support; not a collision boundary'
+     if task.get('tool_revision')=='disect_knife_rigid_mount_v1' else 'Recorded display corners; not a collision boundary'),
    mount='Original handle and physical blade; no fabricated connector; measured adapter mesh unavailable',
    schematic_connector=False,tool_revision=task.get('tool_revision'),
    case=w,episode=row,policy_updates=initial['training']['policy_updates'],

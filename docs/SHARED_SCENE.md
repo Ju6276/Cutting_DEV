@@ -151,3 +151,8 @@ with either revised final-position mode.
 Reward-equation audit: append --tool-reward-audit to either check_pose_depth.py
 command above. It evaluates both switches using measured transitions and
 counterfactual goal offsets; it does not assert learned motion improvement.
+
+Shared-tool studio and overview renderers now use the existing main-run
+24 x 16 cm board exterior for both backends. Original recorded display corners
+are preserved in studio exports. This is a visual footprint, not a finite
+support boundary; physics remains an infinite support plane.

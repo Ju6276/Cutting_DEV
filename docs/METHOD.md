@@ -1004,3 +1004,16 @@ in state/history for critic and goal-free termination queries; the WM does not
 predict its delta. Actor observation/action dimensions are unchanged. The physical
 and imagined arrival counter includes the same final-position mask. Historical
 particle-RMS checkpoints retain their old state specification and task metadata.
+
+
+## Per-world physical-blade overview correction (2026-11-16)
+
+The studio movie exporter already displayed the physical blade, but the separate
+all-world overview still displayed the full old URDF knife. Corrected by recording
+each world's authoritative physical tool vertices in world coordinates and
+sharing the same robot/handle clipping with the studio exporter. No fake mount
+is added. Old snapshots lacking these data fail explicitly. DiSECt episode files
+now also include the base/world transform that BladeMaster already recorded.
+This is a recording/rendering correction; task physics and learning are unchanged.
+The overview retains explicitly illustrative material colors and distant mesh LOD;
+it is not a scan-textured studio movie. Actual geometry validation is in RESULTS.

@@ -36,3 +36,27 @@ def test_worker_error_cannot_produce_complete_report(tmp_path):
  with pytest.raises(RuntimeError,match='failed'):
   snapshot.capture_training_environment(env,'backend',tmp_path/'capture',{})
  assert not (tmp_path/'capture/report.json').exists()
+
+
+def test_physical_blades_preserve_distinct_world_poses_and_world_frame():
+ import numpy as np
+ import torch
+ vertices=torch.tensor([[0.,0.,0.],[1.,0.,0.]],dtype=torch.float64)
+ # World1 has an independent 90-degree rotation and translation.
+ c=2**-.5
+ poses=torch.tensor([[0.,0.,0.,0.,0.,0.,1.],[2.,3.,0.,0.,0.,c,c]],dtype=torch.float64)
+ old=poses.clone()
+ base_rotation=np.array([[0.,-1.,0.],[1.,0.,0.],[0.,0.,1.]])
+ def to_world(x):return x.cpu().numpy()@base_rotation.T+np.array([10.,20.,30.])
+ result=snapshot.blade_world_vertices(poses,vertices,to_world)
+ np.testing.assert_allclose(result,[[[10,20,30],[10,21,30]],[[7,22,30],[6,22,30]]],atol=1e-14)
+ assert torch.equal(poses,old)
+
+
+def test_physical_blade_snapshot_rejects_invalid_input():
+ import torch
+ with pytest.raises(ValueError,match='batched tool poses'):
+  snapshot.blade_world_vertices(torch.zeros(7),torch.zeros(2,3),lambda x:x.numpy())
+ poses=torch.tensor([[float('nan'),0,0,0,0,0,1.]])
+ with pytest.raises(ValueError,match='Nonfinite'):
+  snapshot.blade_world_vertices(poses,torch.zeros(2,3),lambda x:x.numpy())

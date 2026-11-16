@@ -5,7 +5,10 @@
 [FRAMEWORK_AUDIT_20261116](FRAMEWORK_AUDIT_20261116.md) records local design choices,
 material-preset provenance, the removed fabricated display connector and current
 preflight scope. No new long training has been launched. Historical resource
-settings below are not the new shared-scene launch configuration.
+settings below are not the new shared-scene launch configuration. The subsequent
+controller/recording recheck fixed the all-world obsolete-knife rendering path;
+RESULTS records fresh shared scenes, matching physical blade frames, studio and
+overview images. UR10e is a potential port, not implemented or deployed.
 
 ## Active task and decisions
 

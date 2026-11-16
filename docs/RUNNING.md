@@ -408,3 +408,40 @@ with render_episode_still.py --video --fps 10 --speed .5, then call
 compose_tool_motion_demo.py --recording NEW_RUN/recording --render NEW_RUN/studio.mp4
 --output NEW_RUN/tool_position_modes.mp4. The latter uses the rendered frame
 directory and actual task JSON for thresholds; no physical coordinates change.
+
+
+## Current controller and a future UR10e port (2026-11-16)
+
+The active simulation uses `FDCCController` in
+`backends/mujoco/cutting_gpu_backend/controller/fdcc.py`: a ROS-free tensor port
+of the SliceIt FZI position controller, pinned to the cambel fork at
+`f4359b966bb3b8d8a07d829df463da814c2bee33`. Its input combines pose error,
+sensor wrench and configured compliance/gains; it returns joint-position
+commands, followed by source-style position/velocity saturation. The robot
+substep is 1 ms, material/force exchange is 2 ms and policy action interval is
+50 ms. Its virtual solver integration step is a separate algorithm parameter.
+This is not UR's internal torque controller or an untouched ROS2 node.
+
+Open-source upstream:
+[FZI Cartesian Controllers](https://github.com/fzi-forschungszentrum-informatik/cartesian_controllers)
+and its [FDCC compliance controller](https://github.com/fzi-forschungszentrum-informatik/cartesian_controllers/blob/ros2/cartesian_compliance_controller/README.md).
+The upstream describes an admittance-based combination of motion and force
+tracking and includes UR10e applications. Real UR integration can use the
+[official UR ROS2 driver](https://github.com/UniversalRobots/Universal_Robots_ROS2_Driver),
+but installing a driver does not complete this project's port.
+
+The current project is still UR5e-specific: the compiled MuJoCo robot,
+source task/initial-joint/controller snapshots, `b_bot_knife_sim` chain,
+canonical shared-knife mount, workspace/goal reachability and some visual
+mesh/link selectors depend on that asset. There is no verified `ur_type=ur10e`
+launch switch. A UR10e port must regenerate these assets and transforms and
+validate joint ordering, limits, force-frame/payload compensation and control
+response. Same six joint dimensions do not make the UR5e-trained WM or policy
+robot-independent; use new UR10e data and validate/retrain before transfer claims.
+No UR10e deployment or hardware test was performed in this audit.
+
+Current overview recordings include `knife_world` for every world plus physical
+triangles and explicit robot-base/world transforms. The overview and studio
+export share `physical_robot_actors`; neither draws the obsolete full URDF knife
+or a fabricated connector. Old snapshots without per-world blade data are
+rejected by the overview renderer rather than silently substituted.

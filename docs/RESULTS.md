@@ -2694,3 +2694,53 @@ the two current learner probes. Native BladeMaster source was unchanged;
 its prior full regression is recorded at the same revision in SOURCES.
 Logs: `runs/framework_audit_20261116/{root_tests,backend_tests}.log`.
 Edited Markdown links resolve and `git diff --check` passes.
+
+
+## 2026-11-16 — Controller/scene/recording interface recheck
+
+Controller source and UR10e-port limits are now explicit in RUNNING. Current
+simulation uses the SliceIt/FZI ROS-free FDCC position-controller port (pinned
+cambel source f4359b9), not a running unmodified ROS2 controller. UR10e remains
+an unimplemented robot-asset/frames/control/data port; no hardware test occurred.
+
+Found and corrected a remaining visualization mismatch: the all-world overview
+still drew the obsolete full URDF knife even though studio movies displayed the
+physical blade. Snapshots now record every world's physical blade vertices and
+triangles. Overview and studio share robot/handle clipping, hide the cable-envelope
+box and add no connector. Old snapshots without per-world blade data are rejected.
+DiSECt episode files now explicitly save base/world transforms, as BladeMaster
+already did. The existing main-run 24x16 cm display board is shared by both new
+rendering paths; original studio recording corners are retained. This changes no
+physical support boundary (still an infinite plane).
+
+Actual image inspection also found white particle clouds in the Gaussian overview
+path despite the requested palette. The overview now displays low-resolution
+sphere instances at recorded material-particle centres/radii with explicit display
+colors; studio surfaces/scan appearance are unchanged. This is a display correction,
+not a material-law change or new learned result.
+
+Fresh scenes: three objects x three worlds per backend. All 18 physical blades
+match recorded EE kinematics: maximum set-distance 3.163e-9 m. Requested and actual
+per-world starting clearances differ by less than 1.88e-7 m. Task, force limits,
+force-observation revision and episode-condition configurations match between the
+two prepared backend inputs. These numbers check software coordinates, not real
+hardware accuracy or equality of the two material models.
+
+Evidence under `runs/interface_recheck_20261116/`:
+- `final_scenes/`: actual settled snapshots and condition manifests;
+- `geometry_check.json`: per-object/world physical blade and start-clearance checks;
+- `final_renders/`: six studio stills, two nine-world overviews, `visual_review.jpg`
+  and `render_audit.json`; shared display dimensions and no fabricated connector;
+- `video_export_check.json`: all 59 frames from the prior demo re-export correctly;
+  original blade/material/robot arrays unchanged, board corners numerically equal.
+- `root_tests.log`: 549 passed / 5 skipped (242.14 s); `backend_tests.log`: 41 passed
+  (5.57 s). The skips remain legacy SAC environment checks. Two new tests cover
+  distinct physical tool poses, base/world rotation, no state mutation and invalid
+  inputs. Additional final renderer checks executed on actual saved geometry.
+
+The whole-potato appearance map was correctly rejected for the half-potato mesh
+(topology mismatch); its failed attempt is retained in `renders/`. Final half-potato
+and particle-backend surfaces use disclosed approximate color transfer, not recovered
+original UV. Overviews use illustrative colors/LOD. These are validation snapshots,
+not evidence that a new long training run has started. Native material laws, reward,
+policy/WM training code and formal long-training resource settings were unchanged.

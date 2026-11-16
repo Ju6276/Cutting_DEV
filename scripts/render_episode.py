@@ -262,6 +262,42 @@ def display_vertices(d, index, appearance=None):
     return np.concatenate((exterior, points))
 
 
+def presentation_ground(d, task):
+    """Use the existing main-run 24x16 cm board exterior for shared-tool views.
+
+    The support plane remains infinite; these corners are presentation only.
+    Preserve recorded centre/orientation and keep historical tools unchanged.
+    """
+    ground = np.asarray(d['ground'])
+    if task.get('tool_revision') != 'disect_knife_rigid_mount_v1':
+        return ground
+    along = ground[1]-ground[0]
+    across = ground[3]-ground[0]
+    along = along/np.linalg.norm(along)*.12
+    across = across/np.linalg.norm(across)*.08
+    centre = ground.mean(0)
+    return centre+np.array([-along-across,along-across,along+across,-along+across])
+
+
+def physical_robot_actors(d, task, roots):
+    """Shared visual robot/handle; the caller draws recorded physical blades."""
+    entries, sources = visual_actors(d, task, roots)
+    tools = [e for e in entries if str(d['geom_body'][e[0]]) == 'b_bot_right_inner_knuckle']
+    result = [e for e in entries if str(d['geom_body'][e[0]]) not in
+              ('b_bot_right_inner_knuckle', 'b_bot_cam_cables_link')]
+    for k, original, local in tools:
+        original.GetMapper().Update()
+        plane = vtk.vtkPlane()
+        plane.SetOrigin(-.04786805, 0, 0)
+        plane.SetNormal(1, 0, 0)
+        clip = vtk.vtkClipPolyData()
+        clip.SetInputData(original.GetMapper().GetInput())
+        clip.SetClipFunction(plane)
+        clip.Update()
+        result.append((k, actor(clip, (.61, .63, .65), specular=.5), local))
+    return result, sources, tools
+
+
 def load_appearance(path, recording):
     appearance = dict(np.load(path, allow_pickle=False))
     metadata = json.loads(str(appearance['metadata']))

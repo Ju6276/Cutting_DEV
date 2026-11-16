@@ -117,3 +117,20 @@ the two current learner probes. Native BladeMaster source was unchanged;
 its prior full regression is recorded at the same revision in SOURCES.
 Logs: `runs/framework_audit_20261116/{root_tests,backend_tests}.log`.
 Edited Markdown links resolve and `git diff --check` passes.
+
+
+## Follow-up: overview and controller portability
+
+The follow-up recheck found that the all-world overview still used the old URDF
+blade. It is now corrected with per-world physical blade capture and shared
+studio handle logic; DiSECt base/world transforms are explicitly recorded.
+Both shared-tool renderers use the existing main-run 24x16 cm board exterior;
+this is display geometry only. The white Gaussian point-cloud overview path was
+replaced with recorded-centre/radius sphere instances using explicit display
+colors. No invented adapter or altered physical blade is involved.
+Fresh 18-world coordinate checks, eight actual renders, the 59-frame video export
+comparison and 549/5-skip + 41 regression results are recorded in RESULTS under
+"Controller/scene/recording interface recheck". UR10e portability requirements
+and official FDCC/UR-driver references are in RUNNING. The current scene is
+verified at this functional scale; no real mounting CAD, material calibration or
+new formal-scale long training is claimed.

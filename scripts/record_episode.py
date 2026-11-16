@@ -119,6 +119,7 @@ class GeometryRecorder:
             cut_edge_indices=model.cut_edge_indices.cpu().numpy().reshape(-1, 2),
             cut_edge_coords=model.cut_edge_coords.cpu().numpy(),
             knife_tri=model.knife_tri_indices.cpu().numpy().reshape(-1, 3), ground=ground,
+            base_position_world=self.base_pos,base_rotation_world=self.base_mat,
             geoms=np.array(geoms), geom_type=mj.geom_type[geoms], geom_size=mj.geom_size[geoms],
             geom_rgba=mj.geom_rgba[geoms], geom_pos=np.stack(positions), geom_mat=np.stack(rotations),
             body_pos=np.stack(body_positions), body_mat=np.stack(body_rotations),

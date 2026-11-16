@@ -1,8 +1,22 @@
-"""Read-only geometry snapshots taken by a running DiSECt training loop."""
+"""Read-only physical geometry snapshots for both training backends."""
 import json
 from pathlib import Path
 import numpy as np
 import torch
+
+@torch.no_grad()
+def blade_world_vertices(poses, vertices, to_world):
+    """Preserve each world's authoritative tool pose before changing frames."""
+    from cutting_gpu_backend.controller.fdcc import quat_apply
+    if poses.ndim != 2 or poses.shape[-1] != 7 or vertices.ndim != 2 or vertices.shape[-1] != 3:
+        raise ValueError('Expected batched tool poses and local blade vertices')
+    vertices = vertices.to(poses)
+    points = quat_apply(poses[:, None, 3:].expand(-1, len(vertices), -1),
+                        vertices[None].expand(len(poses), -1, -1)) + poses[:, None, :3]
+    result = np.asarray(to_world(points.reshape(-1, 3))).reshape(len(poses), len(vertices), 3)
+    if not np.isfinite(result).all():
+        raise ValueError('Nonfinite physical blade snapshot')
+    return result
 
 @torch.no_grad()
 def capture_group(env, backend_root, output):
@@ -20,7 +34,10 @@ def capture_group(env, backend_root, output):
         if len(template[key]) % count:
             raise ValueError('Unequal per-world topology blocks')
         template[key]=template[key][:len(template[key])//count]
-    arrays={'joint_q':frame['joint_q'].detach().cpu().numpy(),
+    blades=blade_world_vertices(frame['knife_pose'].double(),
+        recorder.material.model.knife_tri_vertices.reshape(-1,3),recorder.to_world)
+    arrays={'knife_world':blades,'knife_tri':template['knife_tri'],
+            'joint_q':frame['joint_q'].detach().cpu().numpy(),
             'particles':recorder.to_world(frame['particle_q'].reshape(-1,3)).reshape(count,-1,3),
             'world_id':np.arange(count)}
     if template['cut_edge_indices'].max()>=arrays['particles'].shape[1]:
@@ -89,6 +106,14 @@ def capture_blademaster_environment(env, backend_root, output, status):
     bodies=mj.geom_bodyid[geoms]
     qindices=[mj.jnt_qposadr[mj.joint(n).id] for n in env.metadata['joint_names']]
     ground=world(np.array([[-.15,-.15,0],[.15,-.15,0],[.15,.15,0],[-.15,.15,0]]))
+    blades=blade_world_vertices(physics.tool_pose().double(),physics.vertices,world)
+    if blades.shape[1] != 10:
+        raise ValueError('Unsupported physical blade topology; do not substitute a visual tool')
+    faces=[]
+    for k in range(1,4):faces.extend([(0,k+1,k),(5,5+k,5+k+1)])
+    for k in range(5):
+        j=(k+1)%5;faces.extend([(k,j,j+5),(k,j+5,k+5)])
+    faces=np.asarray(faces,dtype=np.int64)
     groups=[]
     for index,(sl,solver) in enumerate(physics.batch_groups):
         root=output/('group_%02d'%index);root.mkdir()
@@ -98,7 +123,7 @@ def capture_blademaster_environment(env, backend_root, output, status):
         for row in q:
             data.qpos[qindices]=row;mujoco.mj_forward(mj,data)
             positions.append(data.xpos[bodies].copy());rotations.append(data.xmat[bodies].copy())
-        arrays=dict(joint_q=q,particles=particles,world_id=np.arange(len(q)),
+        arrays=dict(knife_world=blades[sl],knife_tri=faces,joint_q=q,particles=particles,world_id=np.arange(len(q)),
                     body_pos=np.stack(positions),body_mat=np.stack(rotations))
         if not all(np.isfinite(a).all() for a in arrays.values()):raise ValueError('Nonfinite BM snapshot')
         np.savez_compressed(root/'world_states.npz',**arrays)

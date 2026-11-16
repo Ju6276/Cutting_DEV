@@ -19,7 +19,8 @@ force-risk constraint is `--risk-constraint`.
 | Unified-environment SAC | `train_sac_gpu.py`; `sac_gpu_worker.py` is its process bridge |
 | Frozen policy, SAC, MPPI and reference evaluation | `evaluate_benchmark.py` |
 | Reference cuts / world scaling | `benchmark_gpu_env.py` |
-| Record a nominal physical episode | `record_episode.py` |
+| Record a historical fixed-prism benchmark episode | `record_episode.py` |
+| Record a current multi-object pose-policy evaluation | `evaluate_pose_policy.py --record-geometry` |
 | Render saved geometry | `render_episode.py` |
 
 The separately adapted official implementation is `train_official_supermimic.py`;
@@ -285,7 +286,8 @@ remains the actual all-world overview, not an alternate policy-video style.
 Display rules: original UR5e visual meshes; one metal physical blade; retain
 the gripper/handle; no blue overlay or artificial crack highlighting. Hide
 `b_bot_cam_cables_link` (the URDF cable-envelope box) in studio views only.
-BladeMaster's fixed-joint connector is illustrative, not simulated hardware.
+Invented connector/shank geometry is removed. A measured adapter mesh is still
+unavailable; no replacement connector or visual tool displacement is introduced.
 Barycentric scan appearance requires verified topology and geometry. Approximate
 color transfer for other representations is disclosed, never called recovered UV.
 
@@ -326,3 +328,8 @@ their respective terminal events. It does not train or evaluate a learned policy
 Use export_evaluation_scene.py and render_episode_still.py for the shared studio
 frames, then compose_tool_motion_demo.py for the two-panel distance/reward display.
 The right panel holds the terminal frame; this is not hardware braking simulation.
+
+Training overviews now require recorded per-world physical blades, reuse the
+studio robot/handle filtering and omit the obsolete URDF blade. Old snapshots
+without this field must be recaptured; they are not silently substituted with
+a different knife. Overview material colors/LOD remain explicitly illustrative.
