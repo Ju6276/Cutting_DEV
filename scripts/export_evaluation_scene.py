@@ -32,6 +32,7 @@ def main():
  p=argparse.ArgumentParser(description=__doc__)
  p.add_argument('--evaluation',type=Path,required=True)
  p.add_argument('--group',type=int,required=True)
+ p.add_argument('--snapshot',action='store_true',help='Export settled initial geometry without an episode or policy')
  p.add_argument('--source-root',type=Path,action='append',required=True)
  p.add_argument('--output',type=Path,required=True)
  p.add_argument('--backend',choices=('DiSECt','BladeMaster'),required=True)
@@ -43,8 +44,12 @@ def main():
  group=initial['groups'][a.group]; w=group['first_world']
  if (group.get('representation')=='material_points') != (a.backend=='BladeMaster'):
   raise ValueError('Backend argument contradicts recorded representation')
- rows=[json.loads(x) for x in (a.evaluation/'episodes.jsonl').read_text().splitlines()]
- row=next(x for x in rows if x['case']==w); last=int(row['steps'])
+ if a.snapshot:
+  row=dict(case=w,steps=0,scope='Settled initial geometry; no policy or control steps')
+ else:
+  rows=[json.loads(x) for x in (a.evaluation/'episodes.jsonl').read_text().splitlines()]
+  row=next(x for x in rows if x['case']==w)
+ last=int(row['steps'])
  root=gdir/'0000'/group['path']
  d=dict(np.load(root/'episode.npz'))
  task=json.loads((root/'task.json').read_text())
@@ -67,7 +72,14 @@ def main():
   states.append({k:snap[k][0] for k in ('particles','body_pos','body_mat')})
  if a.backend=='BladeMaster':
   if 'ee_pose_base' in initial['training']:
-   base_idx=list(d['geom_body']).index(task['robot_base'])
+   if 'base_position_world' in d and 'base_rotation_world' in d:
+    base_position=d['base_position_world'];base_rotation=d['base_rotation_world'].reshape(3,3)
+   elif task['robot_base'] in list(d['geom_body']):
+    base_idx=list(d['geom_body']).index(task['robot_base'])
+    base_position=states[0]['body_pos'][base_idx]
+    base_rotation=states[0]['body_mat'][base_idx].reshape(3,3)
+   else:
+    raise ValueError('Recording lacks robot-base world transform; recapture with the current snapshot writer')
    vertices=np.array(task['board_pose_geometry']['vertices_in_ee'])
    blade_points=[]
    for t in range(last+1):
@@ -75,7 +87,7 @@ def main():
     xyz=pose[3:6];qw=pose[6]
     basepoints=vertices+2*np.cross(xyz,np.cross(xyz,vertices)+qw*vertices)+pose[:3]
     st=states[t]
-    blade_points.append(basepoints@st['body_mat'][base_idx].reshape(3,3).T+st['body_pos'][base_idx])
+    blade_points.append(basepoints@base_rotation.T+base_position)
    blade_points=np.array(blade_points)
    faces=[]
    for k in range(1,4):faces.extend([(0,k+1,k),(5,5+k,5+k+1)])
@@ -95,7 +107,7 @@ def main():
  # with a display-only metal shank from the retained handle to the blade spine.
  # The blade, robot, material, contact solver and force lever arms are unchanged.
  mount_residual=0.
- if a.backend=='BladeMaster':
+ if a.backend=='BladeMaster' or task.get('tool_revision')=='disect_knife_rigid_mount_v1':
   k=tool_entries[0][0]; local=tool_entries[0][2]
   # Check the mount against every recorded body pose (not a fitted moving link).
   all_local=np.stack([(bp-st['body_pos'][k])@st['body_mat'][k].reshape(3,3) for bp,st in zip(blade_points,states)])
@@ -232,9 +244,9 @@ def main():
    recording=str(a.evaluation),frame=0,sim_time=0,robot_meshes=len(robot),sources=sources,
    backend=a.backend,material=style,appearance=appearance_note,
    physical_blade=True,mount_rigidity_residual_m=mount_residual,
-   mount='Original handle; BladeMaster fixed-joint connector is display-only',
+   mount='Original handle; fixed-joint connector is display-only',tool_revision=task.get('tool_revision'),
    case=w,episode=row,policy_updates=initial['training']['policy_updates'],
-   scope='Frozen policy rerun; first world per object; no physics edits')))
+   scope=('Settled initial geometry; no policy or control steps' if a.snapshot else 'Frozen policy rerun; first world per object; no physics edits'))))
  a.output.parent.mkdir(parents=True,exist_ok=True)
  np.savez_compressed(a.output,**out)
  print(a.output,flush=True)

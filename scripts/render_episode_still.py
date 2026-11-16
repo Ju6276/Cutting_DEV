@@ -27,6 +27,7 @@ def arguments():
     p.add_argument('--fps',type=int,default=20)
     p.add_argument('--scene',type=Path,required=True)
     p.add_argument('--output',type=Path)
+    p.add_argument('--camera-from',type=Path,help='Reuse exact camera from another render JSON')
     return p.parse_args(args)
 
 def export(a):
@@ -215,6 +216,13 @@ def render(a):
         delta=fit-target
         # Blender ortho_scale is horizontal image width.
         camera.data.ortho_scale=2.12*max(abs(np.sum(delta*right,axis=1)).max()+margin,(abs(np.sum(delta*up,axis=1)).max()+margin)*1100/780)
+    if a.camera_from:
+        camera_data=json.loads(a.camera_from.read_text())['camera']
+        camera.location=camera_data['location']
+        camera.rotation_euler=camera_data['rotation_euler']
+        camera.data.ortho_scale=camera_data['ortho_scale']
+    meta['camera']=dict(location=list(camera.location),rotation_euler=list(camera.rotation_euler),
+                        ortho_scale=camera.data.ortho_scale,type=camera.data.type)
     scene.camera=camera
     scene.render.resolution_x=1100;scene.render.resolution_y=780;scene.render.resolution_percentage=100
     scene.view_settings.view_transform='Filmic';scene.view_settings.look='None'

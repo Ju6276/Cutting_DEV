@@ -103,6 +103,7 @@ def capture_blademaster_environment(env, backend_root, output, status):
         if not all(np.isfinite(a).all() for a in arrays.values()):raise ValueError('Nonfinite BM snapshot')
         np.savez_compressed(root/'world_states.npz',**arrays)
         np.savez_compressed(root/'episode.npz',ground=ground,
+                           base_position_world=base_pos,base_rotation_world=base_mat,
                            geom_body=np.array([mj.body(b).name for b in bodies]))
         (root/'task.json').write_text(json.dumps(env.metadata))
         (root/'report.json').write_text(json.dumps(dict(worlds=len(q),scope='running_training_snapshot')))

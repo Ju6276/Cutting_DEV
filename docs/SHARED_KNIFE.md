@@ -76,3 +76,36 @@ Numerical results are recorded in RESULTS (2026-11-16). Both three-object
 reference probes completed; material separation is recorded independently.
 
 Material mechanisms and arrival-counter semantics: [CUTTING_MECHANISMS](CUTTING_MECHANISMS.md).
+
+
+## Scene alignment audit and current stills
+
+2026-11-16: captures use nominal materials, one world/object and the same
+requested 5 mm clearance/lift setting and 30 mm/s feed command. No policy is
+loaded and no control step is taken. Source configurations remain unchanged.
+
+Actual lowest blade height above the topmost material sample after settling:
+
+| Object | DiSECt (mm) | BladeMaster (mm) |
+|---|---:|---:|
+| Cucumber | 5.52 | 17.45 |
+| Half potato | 4.47 | 29.45 |
+| Prism | 4.71 | 5.59 |
+
+BladeMaster currently computes the initial height from the maximum object
+height across its groups; DiSECt uses each group's scene/start lift. This is
+a remaining physical reset-condition difference. Snapshot images preserve it.
+Material particle centres and FEM nodes also represent surfaces differently.
+
+The studio board rectangles are 160 x 240 mm and 300 x 300 mm respectively.
+These are display footprints; the material support is a plane, and the
+robot-base EE workspace is a separate explicit box. Changing the image
+footprint would not create physical board-edge collision.
+
+Outputs: runs/shared_scene_views_20261116/{disect,blademaster}/
+contains cucumber/potato/prism close views and cucumber_wide.png, along with
+recorded geometry, nominal config and camera metadata. Each corresponding
+backend pair uses exactly the same camera; render_audit.json checks all four.
+The two backends retain different material laws, integration and sampling
+distributions. A matched comparison still needs matched actual reset states,
+command/material case definitions and budgets in addition to the shared knife.

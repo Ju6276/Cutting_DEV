@@ -17,9 +17,13 @@ recorded at episode reset. Define
 Reset rho is zero.
 
 - Progress reward is 10 times the increase in rho.
-- Both parts of the speed penalty remain: 20 times relative speed error squared
-  times (positive delta-rho + 1/horizon). Its progress factor is now **depth**,
-  never released springs. Load and jerk terms retain their previous coefficients.
+- Both parts of the speed penalty remain. With positive commanded feed v*,
+  m = ((v-v*)/(abs(v)+v*))^2, the penalty is
+  20*m*(positive delta-rho + 1/horizon). Its progress factor is now **depth**,
+  never released springs.
+- At the 50 ms control period, load/jerk cost is
+  0.05*(min(u,1)+0.1*min(j,1)), where u is the maximum absolute normalized
+  six-axis sensor wrench and j is the existing normalized jerk measure.
 - Success remains +100 for prescribed pose arrival without force/workspace
   failure, with the existing arrival counter and board boundary. It does not
   require rho = 1; reaching the depth alone does not imply success.
@@ -46,11 +50,13 @@ long training is started by the verification configurations:
 configs/free_cut/depth_three_object_check.json and
 configs/blademaster/depth_three_object_check.json.
 
-This reward change does **not** unify physical knife geometry or repair residual
-material connections. In DiSECt the geometry above remains a rigid proxy for
-the separately integrated material knife, as noted below. Knife geometry/mounting
-unification is a separate unfinished change; neither existing backend checkpoint
-is an equal-knife comparison.
+The optional tool revision `disect_knife_rigid_mount_v1` now unifies physical
+blade geometry and the rigid UR5e mount; see [SHARED_KNIFE](SHARED_KNIFE.md).
+In that revision the DiSECt physical knife follows robot FK through substep
+interpolation, and the two backends share the finite-tool board interlock.
+Material laws, settling and sampling distributions remain separate. Existing
+checkpoints retain their original tools and rewards. Residual material
+connections remain a separately recorded outcome.
 
 ## Historical pose-v1 definition (previous completed runs)
 
@@ -126,3 +132,30 @@ remain usable under their own version.
 completion. The complete-spring-release criterion was our later task choice.
 The new software board stop is our integration safeguard, not a claim to
 reproduce SliceIt's compliant board-contact dynamics.
+
+
+## Current action and scene boundaries (2026-11-16)
+
+The six outputs are x stiffness, pitch stiffness, vertical P gain, pitch P gain,
+x target increment and pitch target increment. With inherited max_twist=[1,0],
+the final channel does not change the target. This is five effective mapped
+controls, not six independent Cartesian position/rotation commands. Pitch can
+still respond mechanically through the compliant controller.
+
+The x mapper accumulates up to 2 mm of target offset per 50 ms control step.
+There is no separate accumulated-offset clamp or object-sliding penalty.
+Failure checks constrain the robot-base EE position and six-axis wrench.
+Verification boxes use x=[0.038,0.238], y=[0.405,0.605],
+z=[0.096,0.269] m. Pose completion uses the source x/z/pitch-error tolerances
+and arrival counter. Material displacement, lifting and separation are recorded
+independently; reaching depth alone does not complete the task.
+
+Both backends support the material on a plane; the wood rectangle in the studio
+image is display geometry. Its drawn edge is not an object-fall detector or the
+EE workspace boundary. The finite-blade board interlock prevents downward and
+rotational penetration and is separate from a compliant physical board-force law.
+
+The shared-knife checks are not matched training distributions: DiSECt samples
+material/start/speed, while the BladeMaster check uses nominal materials,
+5 mm clearance and 30 mm/s command. Settling durations and material integration
+also differ. Use explicit paired case definitions before a controlled comparison.

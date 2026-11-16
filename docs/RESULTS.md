@@ -2341,3 +2341,28 @@ passed**, 2124.99 s, using the isolated pinned-requirement environment.
 Recorded separation-event audit: the main-policy trajectories contain zero
 complete-separation events; BM traces have final component counts but no
 per-step separation timestamp. Figures preserve this distinction.
+
+
+## 2026-11-16 — Shared-knife scene and reward audit
+
+Captured one settled nominal world for cucumber/half potato/prism per backend;
+no policy, control steps or optimizer updates. Shared pose_depth_v2 reward,
+physical blade and rigid mount; actual start clearance remains unmatched:
+DiSECt 5.52/4.47/4.71 mm, BM 17.45/29.45/5.59 mm above highest material sample.
+BM currently starts all groups using the maximum object height. The scene
+comparison preserves this difference.
+
+Eight studio PNGs (six close views, two wide views) use the existing studio
+renderer. Four corresponding camera transforms/scales compare exactly equal.
+The robot-base transform is now recorded explicitly for BM: the old export
+assumed the base link had visible geometry and raised ValueError otherwise.
+The shared optional knife uses the same display connector for both backends.
+Report: runs/shared_scene_views_20261116/{scene_geometry_audit,render_audit}.json.
+The wood-board rectangle is a display footprint, not the support-plane extent
+or robot EE workspace. TASK_FREE_CUT now states the exact speed-penalty formula,
+six action meanings and distinction between EE limits and object sliding.
+
+Validation after the capture/export repair: root GPU suite 446 passed / 5 skipped
+(239.70 s); backend 39 passed (6.22 s). The six exported scenes and eight
+rendered images completed; camera identity and snapshot provenance checks passed.
+No physics, reward, action parameters or policy weights were changed in this audit.

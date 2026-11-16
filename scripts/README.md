@@ -298,3 +298,17 @@ color transfer for other representations is disclosed, never called recovered UV
   recorded policy actions, decoder features and force-history interventions.
 - plot_policy_mechanics.py: exports force/action, mapped-controller, PCA and
   input-sensitivity figures as PNG and PDF. See docs/POLICY_MECHANICS_20261116.md.
+
+
+### Shared-tool scene stills
+
+- `capture_shared_scenes.py --output runs/NEW_SCENES [--backend both|disect|blademaster]`
+  captures one settled world per object with nominal material, 5 mm clearance
+  setting and 30 mm/s command. It loads no policy and takes no control steps;
+  each capture retains its actual config and metadata.
+- `export_evaluation_scene.py --snapshot` exports these initial states through
+  the same studio adapter as policy videos. No episode log is fabricated.
+- `render_episode_still.py --camera-from REFERENCE.json` reuses exactly the
+  stored camera pose and orthographic scale. Render JSON now records the camera.
+  BladeMaster snapshots explicitly save the robot-base world transform, even
+  when its base link has no visible mesh.
