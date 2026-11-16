@@ -1,4 +1,4 @@
-"""Adapt frozen evaluation recordings to the shared studio renderer. No rendering or physics changes."""
+"""Export recorded physical geometry into the shared studio rendering schema."""
 import argparse,json
 from pathlib import Path
 import numpy as np
@@ -103,25 +103,16 @@ def main():
  else:
   blade_points=np.stack([np.load(gdir/('%04d'%t)/group['path']/'episode.npz')['knife'][0] for t in range(last+1)])
   blade_faces=d['knife_tri']
- # BM's blade is at another fixed orientation. Represent its fixed connection
- # with a display-only metal shank from the retained handle to the blade spine.
- # The blade, robot, material, contact solver and force lever arms are unchanged.
+ # Validate the recorded rigid mount without inventing connector geometry.
+ # The original handle and physical blade remain at their recorded transforms.
+ # A measured adapter mesh is unavailable; a visible gap must not be disguised.
  mount_residual=0.
  if a.backend=='BladeMaster' or task.get('tool_revision')=='disect_knife_rigid_mount_v1':
-  k=tool_entries[0][0]; local=tool_entries[0][2]
+  k=tool_entries[0][0]
   # Check the mount against every recorded body pose (not a fitted moving link).
   all_local=np.stack([(bp-st['body_pos'][k])@st['body_mat'][k].reshape(3,3) for bp,st in zip(blade_points,states)])
   mount_residual=float(np.linalg.norm(all_local-all_local[0],axis=-1).max())
   if mount_residual>1e-5:raise ValueError('Blade is not rigid relative to the gripper; refuse a fabricated fixed mount')
-  upper=np.argsort(blade_points[0,:,2])[-4:]
-  end=all_local[0,upper].mean(0)
-  start=local[:3,:3]@np.array([-.044,.028,-.015])+local[:3,3]
-  line=vtk.vtkLineSource();line.SetPoint1(*start);line.SetPoint2(*end)
-  tube=vtk.vtkTubeFilter();tube.SetInputConnection(line.GetOutputPort());tube.SetRadius(.006);tube.SetNumberOfSides(32);tube.CappingOn()
-  robot.append((k,r.actor(tube,(.61,.63,.65),specular=.5),np.eye(4)))
-  # Collar overlaps the spine rather than ending at an unconnected floating point.
-  collar=vtk.vtkSphereSource();collar.SetCenter(*end);collar.SetRadius(.007);collar.SetThetaResolution(24);collar.SetPhiResolution(16)
-  robot.append((k,r.actor(collar,(.61,.63,.65),specular=.5),np.eye(4)))
  name=group['name']; style='cucumber' if 'cucumber' in name else 'potato' if 'potato' in name else 'prism'
  color=r.MATERIAL_STYLES[style][0]
  points=states[0]['particles']
@@ -244,7 +235,8 @@ def main():
    recording=str(a.evaluation),frame=0,sim_time=0,robot_meshes=len(robot),sources=sources,
    backend=a.backend,material=style,appearance=appearance_note,
    physical_blade=True,mount_rigidity_residual_m=mount_residual,
-   mount='Original handle; fixed-joint connector is display-only',tool_revision=task.get('tool_revision'),
+   mount='Original handle and physical blade; no fabricated connector; measured adapter mesh unavailable',
+   schematic_connector=False,tool_revision=task.get('tool_revision'),
    case=w,episode=row,policy_updates=initial['training']['policy_updates'],
    scope=('Settled initial geometry; no policy or control steps' if a.snapshot else row.get('scope','Frozen policy rerun; first world per object; no physics edits')))))
  a.output.parent.mkdir(parents=True,exist_ok=True)

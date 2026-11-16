@@ -1,4 +1,11 @@
-# BladeMaster forward integration patches
+# Historical BladeMaster forward integration patches
+
+These two patches document the first integration only. They do not reproduce
+the current shared-knife, per-world-material backend. Current native revision:
+`c51ef733364aa9cbbbceb6ba5b422cabf67ddefc`, branch
+`codex/shared-disect-knife`; see [SOURCES](../../docs/SOURCES.md) and
+[SHARED_SCENE](../../docs/SHARED_SCENE.md) for the current contract and differences.
+
 
 External repository: `git@github.com:Ju6276/BladeMaster-Lab.git`.
 Base: `4b2d983`. Apply `0001-intact-reference-cloud.patch`, then

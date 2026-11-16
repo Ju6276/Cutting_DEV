@@ -47,40 +47,32 @@ results. This change neither retrains them nor converts their old results into
 a controlled backend comparison. New training must use an explicit shared-tool
 configuration and new run identity.
 
-The retained render adapter draws recorded physical blade vertices; its shank
-is display geometry. It does not implement contact or alter the mounting.
-No second blue blade is needed for normal presentation.
+The renderer draws recorded physical blade vertices and the retained original
+URDF handle. The previously invented cylindrical shank and collar have been
+removed: neither had measured CAD provenance or user authorization. No
+replacement connector or visual blade displacement is introduced. A measured
+adapter mesh remains unavailable; rigid-transform checks do not validate real
+hardware mounting. No second blue blade is displayed.
 
-## Commands
+## Current commands
 
-From GPU7 `/dataHDD/dong/Projects/Cutting_DEV_board`, after
-`source runs/sac_env.sh`, use the MPPI Python environment (SciPy is required
-by the BladeMaster mesh pipeline):
-
-```bash
-PYTHONPATH=.:backends/mujoco /dataHDD/dong/Envs/cutting-mppi-20261108/bin/python \
-  scripts/check_shared_knife.py --backend disect \
-  --config configs/free_cut/shared_knife_check.json \
-  --output runs/NEW_DIRECTORY/disect.json
-PYTHONPATH=.:backends/mujoco /dataHDD/dong/Envs/cutting-mppi-20261108/bin/python \
-  scripts/check_shared_knife.py --backend blademaster \
-  --config configs/blademaster/shared_knife_check.json \
-  --output runs/NEW_DIRECTORY/blademaster.json
-```
-
-The probe measures physical tool vertices relative to robot FK, finite
-clearance above the board, finite wrench values and reference task termination.
-It has an explicit wall budget, closes environments on failure, and does not
-replace successful material separation with pose completion.
-Numerical results are recorded in RESULTS (2026-11-16). Both three-object
-reference probes completed; material separation is recorded independently.
+Use the shared contract preparation and replay commands in
+[SHARED_SCENE](SHARED_SCENE.md#preparation-and-replay). They generate both backend
+inputs from `configs/shared/scene_v1.json` and verify their manifest hashes.
+The former `shared_knife_check.json` inputs now live in
+`configs/archive/scene_checks_20261116/`; they describe historical probes, not
+current launch instructions. Numeric probe results remain in RESULTS.
 
 Material mechanisms and arrival-counter semantics: [CUTTING_MECHANISMS](CUTTING_MECHANISMS.md).
 
 
-## Scene alignment audit and current stills
+## Historical scene alignment audit (superseded reset settings)
 
-2026-11-16: captures use nominal materials, one world/object and the same
+These are the earlier 2026-11-16 captures, before the shared reset contract.
+They are retained as evidence of the mismatch, not current settings. See
+SHARED_SCENE for per-object settled height + sampled clearance in both backends.
+
+The historical captures use nominal materials, one world/object and the same
 requested 5 mm clearance/lift setting and 30 mm/s feed command. No policy is
 loaded and no control step is taken. Source configurations remain unchanged.
 
@@ -92,9 +84,10 @@ Actual lowest blade height above the topmost material sample after settling:
 | Half potato | 4.47 | 29.45 |
 | Prism | 4.71 | 5.59 |
 
-BladeMaster currently computes the initial height from the maximum object
-height across its groups; DiSECt uses each group's scene/start lift. This is
-a remaining physical reset-condition difference. Snapshot images preserve it.
+The historical BladeMaster implementation computed the initial height from the maximum object
+height across its groups; DiSECt used each group's scene/start lift. This is
+the physical reset-condition difference recorded in these snapshots; the shared
+reset contract supersedes it.
 Material particle centres and FEM nodes also represent surfaces differently.
 
 The studio board rectangles are 160 x 240 mm and 300 x 300 mm respectively.

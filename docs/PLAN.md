@@ -1,5 +1,12 @@
 # Current plan — 2026-11-16
 
+## Current audit and launch status
+
+[FRAMEWORK_AUDIT_20261116](FRAMEWORK_AUDIT_20261116.md) records local design choices,
+material-preset provenance, the removed fabricated display connector and current
+preflight scope. No new long training has been launched. Historical resource
+settings below are not the new shared-scene launch configuration.
+
 ## Active task and decisions
 
 User-selected position modes: final only (default) or path plus final, selected by

@@ -2662,3 +2662,35 @@ Remaining limits: path checks use 50 ms control endpoints, not a continuous
 physical stop; post-training effectiveness is untested. The previously recorded
 GPU9 SIGILL inside libcuda remains unresolved (PLAN); this recording does not
 establish long-runtime reliability on that host.
+
+
+## 2026-11-16 — Framework provenance audit and latest-task learner preflight
+
+See [FRAMEWORK_AUDIT_20261116](FRAMEWORK_AUDIT_20261116.md) for upstream/local
+choices and remaining training-readiness limits. Removed the invented renderer
+shank and collar; corrected stale shared-knife/reset and integration-patch docs.
+No learner, reward, material parameter or physical mount change in this audit.
+Re-exporting 59 saved frames preserves physical blade/material geometry exactly
+and removes exactly two display meshes; rigidity residual 5.674e-9 m. Historical
+videos have not been overwritten or claimed to show this correction.
+
+Both current shared-contract backends passed real-data learning/restore probes:
+three objects x three worlds; 40 collection steps, 360 transitions; real critic 32,
+actor 8, BC .25, 34-dimensional observations. Each ran 20 WM, 2 actor and 40 critic
+optimizer steps, with finite metrics/parameters. Masked reset left other worlds
+exactly unchanged; replay and episode-sampler restoration passed. Total times:
+DiSECt 624.57 s, BladeMaster 323.51 s, including first-update compilation.
+Neither 40-step random-policy capture completed an episode; these are not
+performance/success measurements or full-scale long-run capacity tests.
+
+Evidence: `runs/framework_audit_20261116/` on GPU7. Learner source: a327260;
+native BladeMaster: c51ef733364aa9cbbbceb6ba5b422cabf67ddefc. Reports store config
+and script hashes, phases, losses and source status. No new long training started.
+
+Regression after the renderer/documentation correction: root **547 passed,
+5 skipped** (242.25 s); bundled robot/DiSECt backend **41 passed** (5.66 s).
+Root skips belong to the legacy SAC Gym/TensorFlow/explicit bridge paths, not
+the two current learner probes. Native BladeMaster source was unchanged;
+its prior full regression is recorded at the same revision in SOURCES.
+Logs: `runs/framework_audit_20261116/{root_tests,backend_tests}.log`.
+Edited Markdown links resolve and `git diff --check` passes.

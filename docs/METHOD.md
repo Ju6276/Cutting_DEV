@@ -870,7 +870,11 @@ An environment may still run out of memory if actual live allocations grow or
 another user occupies the card; complete local capacity checks remain required.
 
 
-## Frozen-evaluation physical-tool rendering (2026-11-15)
+## Frozen-evaluation physical-tool rendering (2026-11-15; historical geometry)
+
+Current shared geometry/reset is defined in SHARED_KNIFE and SHARED_SCENE. The
+120 mm wedge and proxy variation below describe the old frozen runs, not the
+new 150 mm shared knife. The studio entry points remain supported.
 
 Use evaluate_pose_policy.py --record-geometry, export_evaluation_scene.py and
 render_episode_still.py --video for current frozen evaluations. The shared studio
@@ -881,11 +885,12 @@ gripped handle (see the correction below).
 The initial whole-mesh omission was a visualization regression: it also removed
 the original handle. The current renderer clips only the old blade beyond the
 mesh shoulder (source x=-0.04786805 m), retaining the gripped handle/adapter.
-For BladeMaster, a metal shank and collar display the existing fixed transform
-from that handle to the differently oriented blade spine. This shank is explicitly
-display-only, not a fabricated collision body or a validated manufactured mount.
-A full-trajectory rigidity check rejects this display if relative blade motion
-exceeds10 micrometres. Main proxy/handle relative variation was measured at
+The original export added a metal shank and collar to bridge the handle and
+blade visually. These were invented display geometry without CAD provenance or
+user authorization and are now removed (FRAMEWORK_AUDIT_20261116). The original
+handle and physical blade are retained without visual repositioning. A
+full-trajectory rigidity check remains and rejects relative blade motion over
+10 micrometres; it does not establish a real manufactured mounting. Main proxy/handle relative variation was measured at
 0.488 mm in the selected cucumber recording and is not rewritten.
 
 BladeMaster's configured wedge is120 mm along the edge,80 mm high,1 mm thick,

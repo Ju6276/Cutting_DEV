@@ -5,6 +5,7 @@ locations. A dated experiment or archived launch is not a new training instructi
 
 | Document | Role |
 |---|---|
+| [Framework audit](FRAMEWORK_AUDIT_20261116.md) | Source/local choices, rendering correction and current training-readiness limits |
 | [PLAN](PLAN.md) | Current decisions, GPU7/GPU9 jobs, fixed budgets and next work |
 | [TASK_FREE_CUT](TASK_FREE_CUT.md) | Pose completion, board boundary, running rewards and diagnostic labels |
 | [TRAINING_SCALE_20261114](TRAINING_SCALE_20261114.md) | Full-wrench observation, transition cadence and 3072-world main launch |

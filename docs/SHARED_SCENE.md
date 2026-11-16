@@ -73,6 +73,11 @@ moving object or from the rendered board edge. Both modes retain force/workspace
 
 ## Explicit differences and remaining work
 
+- Native BladeMaster preset provenance: all three geometries start from
+  `paper-banana`; geometry, E, Poisson ratio and density are overridden, but the
+  nominal yield stress (30000 Pa) and cutting energy (700 J/m²) remain preset
+  values. These are not calibrated fracture properties for these three objects.
+  See [framework audit](FRAMEWORK_AUDIT_20261116.md).
 - Material physics: FEM / pre-inserted cutting springs versus MPM / native damage.
   Equal E, density or friction coefficients do not imply equal resulting forces.
 - Geometry discretization: each backend samples the same intended object with its
