@@ -51,7 +51,7 @@ def material_timelines(d, cases, groups, out):
         (
             "Sensor Fz (N)",
             "Vertical P gain",
-            "Feed speed (mm/s) / dashed command",
+            "Feed speed (mm/s)",
             "X target increment (mm/step)",
         )
     ):

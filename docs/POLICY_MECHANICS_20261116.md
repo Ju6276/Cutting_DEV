@@ -110,6 +110,11 @@ BladeMaster, mean changes are about 48.8 N/m in x stiffness, 0.472 N m/rad in
 pitch stiffness, 0.000431 in vertical P gain, and 9.64 micrometres in x increment.
 Pitch P gain and the disabled pitch target increment do not change.
 
+The original BladeMaster blade-edge axis differs from robot-base X. Its recorded
+x-target increments are therefore not labeled along-edge sawing. The new shared
+knife revision aligns the blade edge with the common source X-motion axis; these
+old-policy traces retain their original geometry.
+
 ## Supported paper statement
 
 > The frozen policies exhibit object-dependent force and motion traces. Their decoder
