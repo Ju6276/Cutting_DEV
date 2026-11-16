@@ -351,3 +351,11 @@ See RUNNING; no scene replacement or inferred500 Hz peaks.
   frozen evaluator, cases, traces and optional shared geometry recording.
 - See [current baseline protocol](../docs/CURRENT_BASELINES.md) for limits and
   commands; a smoke-trained SAC is not a performance baseline.
+
+### Pre-cut vision route 1
+
+- `capture_visual_cut_camera.py`: shared-scene RGB/metric-depth sensor preview;
+  no new robot/knife display hardware.
+- `plan_visual_cut.py`: calibrated depth to prescribed starting pose / policy goal,
+  optional frozen-checkpoint interface validation. Does not execute the robot.
+- [Vision route 1](../docs/VISION_ROUTE1.md) contains commands and current limits.

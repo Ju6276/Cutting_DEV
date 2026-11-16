@@ -1040,3 +1040,12 @@ update semantics, the SB3 fallback decision, and model approximations. These
 entry points share pose_depth_v2 physics/reward/recording; the main WM+BPTT
 algorithm and running long-training checkouts are unchanged. Native backend
 physics remain distinct. Physical test coverage is explicitly recorded there.
+
+## Pre-cut geometric vision (2026-11-17)
+
+Route 1 is a nonlearned depth-to-goal preprocessing module. It preserves the
+prescribed cut plane, uses calibrated board/tool geometry, estimates the visible
+top and supplies base-frame EE pose plus commanded speed. It does not change
+the policy observation or learning algorithm. Recorded-frame validation is
+complete; visually initialized closed-loop control is not yet tested.
+See [VISION_ROUTE1](VISION_ROUTE1.md).

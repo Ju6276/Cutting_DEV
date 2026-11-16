@@ -2984,3 +2984,23 @@ three-object distribution and1,280,000-transition/24h cap as documented in
 and its first3072-transition history row was independently read through the API.
 Local6144 transitions and zero updates are expected during30720 warmup.
 GPU7/A6000 running checkouts were not changed. No new SAC success-rate claim.
+
+## 2026-11-17 — Prescribed-cut depth perception prototype
+
+User requested route 1 first, retaining the current prescribed cut. Added a
+calibrated depth-to-start/goal module and shared-scene camera capture. Camera:
+front above board, offset [0, 0.32, 0.55] m in base coordinates, looking down
+approximately 30 degrees from vertical; 640x480, focal length700 px.
+
+Recorded settled cucumber / half-potato / prism surfaces gave visible-top errors
+approximately0.34 /0.14 /0.03 mm. These are ideal-depth, single-frame measurements,
+not real-camera accuracy. Known robot projections mask self-occlusion; no food
+mesh or material labels enter the estimator. All three produced an 8D base-frame
+goal compatible with frozen checkpoint128 and its actual mounted blade.
+
+No policy inference or physical cutting episode was executed from these plans.
+No RL retraining, changed reward, new cut plane or modified running job.
+The end-to-end physical handoff remains unverified. See
+[VISION_ROUTE1](VISION_ROUTE1.md) for inputs, commands and limitations.
+Evidence is on GPU7 under runs/vision_route1_20261117; no Mac project copy.
+GPU9 regression: root589 passed/3 skipped; bundled backend41 passed.

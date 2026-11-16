@@ -73,6 +73,15 @@ GPU9 bounded three-object DiSECt-material validation completed; measured results
 and remaining backend coverage are in CURRENT_BASELINES/RESULTS. Do not claim a formal trained comparator, a calibrated
 analytic force model or a reproduction of a published cutting MPC.
 
+## Vision route 1 (2026-11-17)
+
+User authorized pre-cut geometric perception for the existing prescribed cut.
+Implemented calibrated depth to starting pose and eight-dimensional base-frame
+policy goal; three recorded scenes and frozen checkpoint interface checked.
+No visual network training, arbitrary cut selection or changes to running jobs.
+Physical execution initialized by the visual plan is not yet verified.
+See [VISION_ROUTE1](VISION_ROUTE1.md) for commands, measurements and limits.
+
 ## Historical evidence
 
 Old GPU7 pose-v1 training completed its24h budget:policy1109,1,062,912
