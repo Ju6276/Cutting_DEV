@@ -37,3 +37,23 @@ Existing GPU7/A6000 training checkouts remain untouched.
   SAC updates at the actual requested count; small-world reset/resume was already tested.
 - No performance threshold changes the task or extends this run. Report the
   final frozen performance and any numerical/runtime failure as measured.
+
+## Launch evidence
+The3072-world preflight completed:3072 transitions,3072 SAC gradient updates,
+3072 replay transitions, zero residual update credit, finite parameters and saved
+checkpoint. Total475.37s, of which439.94s was construction/initialization.
+This was one vector-step capacity/update check, not a long-run learning result;
+masked terminal reset and resume were previously checked with6 worlds.
+
+Formal run launched from frozen checkout5be7d90:
+- GPU9 /dataHDD/dong/Projects/Cutting_DEV_sac_long_20261116
+- supervisor167613, trainer167614
+- output runs/sac_long_20261116
+- log runs/sac_long_20261116.log
+- supervisor status runs/sac_long_exit.json (written only after trainer exit)
+Online W&B authenticated and remotely read back: run i00yr0fg was running,
+with the3072-transition history row visible through the API. Local progress
+had reached6144 transitions; updates0 during the prescribed30720-transition
+warmup. This is startup evidence, not learned performance.
+
+[Online run](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/i00yr0fg)

@@ -2971,3 +2971,16 @@ bundled backend41passed on GPU9. New SAC and planner tests ran, not skipped.
 Checkpoint payload hashes now reject mixed model/replay generations after an
 interrupted save; temporary payload writes precede the final metadata update.
 The mixed-generation rejection test is included. This does not promise rollback.
+
+
+## 2026-11-16 — GPU9 current-task SAC capacity and launch
+The3072-world SAC capacity/update preflight completed3072 physical transitions,
+3072 optimizer updates and checkpoint/replay saving, with finite parameters and
+normal cleanup. Total475.37s including439.94s initialization; this is not a
+measurement of complete-episode or sustained training throughput.
+The authorized fresh SAC run then started from5be7d90 on GPU9, same current
+three-object distribution and1,280,000-transition/24h cap as documented in
+[TRAINING_SAC_20261116](TRAINING_SAC_20261116.md). Online W&B i00yr0fg authenticated
+and its first3072-transition history row was independently read through the API.
+Local6144 transitions and zero updates are expected during30720 warmup.
+GPU7/A6000 running checkouts were not changed. No new SAC success-rate claim.
