@@ -1,4 +1,4 @@
-# Current plan — 2026-11-15
+# Current plan — 2026-11-16
 
 ## Active task and decisions
 
@@ -11,8 +11,9 @@ the finite-blade board boundary. Material separation stays independent.
 are retained in verification configs, not calibrated Mini45 hardware limits.
 The completed runs below used pose-v1, not this version. No new long run launched.
 See TASK_FREE_CUT for equations, state migration and verification status.
-Physical knife/mount unification using the main DiSECt blade remains separate work;
-the existing two backend runs must not be presented as an equal-knife comparison.
+The shared physical tool revision is implemented and has passed three-object
+reference probes; see SHARED_KNIFE. Regression completion is recorded in RESULTS.
+The existing two backend runs retain their original tools and are not an equal-knife comparison.
 
 Half potato uses 1 s per-material settling; cucumber/prism use 0.75 s.
 Each episode samples E and cut-spring stiffness scales 0.5–2 and density
@@ -165,3 +166,26 @@ comparison. All three evaluations are completed, with no automatic restart.
 Next: investigate main-policy execution failures using the saved trajectories;
 preserve GPU9 exit evidence and diagnose its runtime fault before another long
 run. No new long-training budget has been selected here.
+
+## 2026-11-16 — Authorized shared knife and frozen-policy interpretation
+
+Use the main DiSECt physical knife as the common geometric/mounting reference.
+Keep original run checkouts and checkpoints frozen. Validate geometry, rigid
+transform, force/torque transformation, board clearance and three-object contact
+before treating the replacement as usable. No new long training in this task.
+
+Use the two existing policies' saved first episodes for force/action/motion plots
+and decoder-feature PCA. Reconstruct all ten history frames, verify reconstructed
+actions against the capture, label object/material/initial-condition confounds.
+A separate input-history ablation measures open-loop action sensitivity.
+Do not infer stiffness identification or safety from clusters alone.
+Initial analysis uses validated cucumber, half potato and prism assets;
+tofu/carrot are not silently substituted into these policies' training conditions.
+Budget: CPU analysis of existing 96 episodes; bounded tool probes up to 20 minutes
+each, sequential on GPU7, plus regression tests. No policy updates.
+
+Frozen-policy plots and the limits of their interpretation are in
+[POLICY_MECHANICS_20261116](POLICY_MECHANICS_20261116.md). Force-history changes
+affect raw outputs; clipping suppresses most executed-action changes in the main
+policy. Existing clusters do not establish material identification. No new
+training was launched.

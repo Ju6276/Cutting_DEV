@@ -924,3 +924,11 @@ particle identity; changing display topology is reconstructed from recorded
 points. None of these operations recover exact UV coordinates or validate
 separation. No artificial crack bands are drawn; actual geometric gaps are
 not filled. Board grain, lights and shading are decorative.
+
+## Shared physical knife (2026-11-16)
+
+The new opt-in `disect_knife_rigid_mount_v1` uses the same finite physical blade
+and canonical rigid EE mount in both backends. See [SHARED_KNIFE](SHARED_KNIFE.md)
+for geometry, coupling differences and verification commands. Historical policies
+retain their recorded tools. [Frozen policy analysis](POLICY_MECHANICS_20261116.md)
+separates measured force/history sensitivity from unproven material identification.

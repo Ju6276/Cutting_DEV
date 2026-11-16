@@ -354,7 +354,13 @@ class CuttingBatch:
             twist[~self.motion_initialized] = 0
             self.motion_initialized[active] = True
             if self.board is not None:
-                fraction, board_hit = self.board.fraction(twist, .002, active)
+                if hasattr(self,'rigid_tool_mount'):
+                    from .tool_mount import swept_joint_fraction
+                    reach=self.rigid_tool_reach_bound
+                    fk=lambda q:self.chain(q.to(self.dtype),mass_matrix=False)[0][self.chain.tip]
+                    fraction,board_hit=swept_joint_fraction(old_q,self.robot.q,fk,self.rigid_tool_geometry,reach,active)
+                else:
+                    fraction, board_hit = self.board.fraction(twist, .002, active)
                 twist = twist * fraction[:, None]
                 if bool(board_hit.any()):
                     # The motion interlock terminates this cut; it is not a contact-force model.
@@ -368,8 +374,24 @@ class CuttingBatch:
                     self.frames = self.chain(self.robot.q.to(self.dtype), mass_matrix=False)[0]
                     knife = self.knife_chain(self.robot.q.to(self.dtype), mass_matrix=False)[0]['b_bot_knife_sim']
                     self.coupling.previous_pose_base[board_hit] = knife[board_hit]
+            if hasattr(self,'rigid_tool_mount'):
+                from .coupling import compose_pose
+                from .controller.fdcc import quat_mul,quat_inverse
+                desired=compose_pose(self.coupling.disect_from_base,
+                    compose_pose(self.frames[self.chain.tip],self.rigid_tool_mount.expand(self.worlds,-1)))
+                # Shortest rotation vector in the material frame; integrate from the
+                # previous synchronized tool pose to the current rigid FK pose.
+                delta=quat_mul(desired[:,3:],quat_inverse(self.material.rotation.to(desired)))
+                delta=torch.where(delta[:,3:]<0,-delta,delta)
+                n=delta[:,:3].norm(dim=-1,keepdim=True)
+                angle=2*torch.atan2(n,delta[:,3:].clamp_min(0))
+                omega=delta[:,:3]*torch.where(n>1e-12,angle/n.clamp_min(1e-12),torch.full_like(n,2.))/.002
+                twist=torch.cat(((desired[:,:3]-self.material.position.to(desired))/.002,omega),-1)
             self.material.set_motion(twist.float(), active=active)
             self.material.advance(.002, active=active)
+            if hasattr(self,'rigid_tool_mount'):
+                # Eliminate float32 integration accumulation; not a second motion.
+                self.material.set_motion(twist.float(),desired.float(),active=active)
             if self.board is not None:
                 self.board.observe(old_pos, old_rot, active)
                 self.board.register_stop(board_hit)

@@ -288,3 +288,13 @@ the gripper/handle; no blue overlay or artificial crack highlighting. Hide
 BladeMaster's fixed-joint connector is illustrative, not simulated hardware.
 Barycentric scan appearance requires verified topology and geometry. Approximate
 color transfer for other representations is disclosed, never called recovered UV.
+
+
+## Physical tool and frozen-policy analysis
+
+- check_shared_knife.py: bounded three-object reference execution; records physical
+  blade-to-robot alignment, board clearance, wrench and task/separation outcomes.
+- analyze_policy_mechanics.py: validates checkpoint identity and reconstructs
+  recorded policy actions, decoder features and force-history interventions.
+- plot_policy_mechanics.py: exports force/action, mapped-controller, PCA and
+  input-sensitivity figures as PNG and PDF. See docs/POLICY_MECHANICS_20261116.md.

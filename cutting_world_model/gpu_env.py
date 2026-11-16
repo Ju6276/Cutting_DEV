@@ -86,6 +86,20 @@ class GPUEnvironment:
             from .pose_cut import align_board_goal
             geometry = align_board_goal(self.physics, backend_root)
             self.metadata['board_pose_geometry'] = geometry
+            if task.get('tool_revision'):
+                from .shared_knife import canonical_mount,vertices_disect,REVISION
+                mount,_,_=canonical_mount(backend_root,self.physics.chain,self.physics.knife_chain,self.physics.task)
+                actual=self.physics.board.vertices.double().cpu().numpy()
+                import numpy as np
+                expected=vertices_disect()
+                if actual.shape!=expected.shape or np.max(np.min(np.linalg.norm(actual[:,None]-expected[None,:],axis=-1),axis=1))>1e-9:
+                    raise ValueError('Scene knife differs from shared physical geometry')
+                self.physics.rigid_tool_mount=mount
+                self.physics.rigid_tool_geometry=geometry
+                self.physics.rigid_tool_reach_bound=float(self.physics.chain.origin_position.norm(dim=-1).sum()+mount.new_tensor(geometry['vertices_in_ee']).norm(dim=-1).max())
+                geometry['model']='Rigid EE mounting; substep material interpolation; swept joint board stop'
+                self.metadata['tool_revision']=REVISION
+
             self.metadata['goal_alignment_revision'] = 'finite_blade_board_pose_v1'
 
         self.previous_velocity = torch.zeros((worlds, 6), device=self.device, dtype=torch.float64)

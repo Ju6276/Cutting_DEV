@@ -46,3 +46,13 @@ distribution (METHOD, `edge_coordinate_consistent_v2`). This changes the bundled
 physical solver, not the separately pinned Gazebo/SliceIt checkout patches.
 The old bundled behavior is retained in Git at `38b85a5`. Attribution and licenses
 are unchanged; this is our correction, not a claim of an upstream release.
+
+
+2026-11-16 shared physical knife: optional BladeMaster reproduction source
+[BladeMaster-Lab](https://github.com/Ju6276/BladeMaster-Lab),
+commit `0106c14e85dc738d372981d87abb0cede4ba6b72`,
+branch `codex/shared-disect-knife`. GPU7 checkout:
+`/dataHDD/dong/Projects/BladeMaster-Warp-shared-knife-20261116`.
+This supplies the two-slope finite blade contact/constraint kernels; Cutting_DEV
+supplies the common UR5e rigid mount. The task identity is
+`disect_knife_rigid_mount_v1`; see SHARED_KNIFE for geometry and commands.

@@ -36,9 +36,10 @@ from .gpu_env import GPUEnvironment
 from .pose_cut import gap_from_pose
 
 
-def blade_vertices(half, bevel):
+def blade_vertices(half, bevel, neck=None):
     x, y, z = half
-    section = [(0., -z), (x, -z+bevel), (x, z), (-x, z), (-x, -z+bevel)]
+    neck = x if neck is None else neck
+    section = [(0., -z), (neck, -z+bevel), (x, z), (-x, z), (-neck, -z+bevel)]
     return np.array([[a, side, b] for side in (-y, y) for a, b in section])
 
 
@@ -48,31 +49,7 @@ def geometric_progress(pose, geometry, depth_span_m, previous):
     return torch.maximum(previous, depth[..., None])
 
 
-@torch.no_grad()
-def swept_joint_fraction(old_q, new_q, fk, geometry, reach_bound, active):
-    """Conservative finite-blade clearance along a revolute joint interpolation.
-
-    Every link-offset vector rotates with angular speed bounded by sum(abs(dq)).
-    Thus ||p''(alpha)|| <= reach_bound * sum(abs(dq))**2. A curve deviates
-    from its endpoint chord by at most max||p''||/8. The serial-chain reach
-    includes every fixed translation and the most distant blade vertex.
-    """
-    start = gap_from_pose(fk(old_q), geometry)
-    delta = new_q-old_q
-    curvature = reach_bound*delta.abs().sum(-1).square()/8
-    stop = geometry['stop_gap_m']
-    def bound(f):
-        end = gap_from_pose(fk(old_q+f[:,None]*delta), geometry)
-        return torch.minimum(start,end)-curvature*f.square()
-    full = torch.ones_like(start)
-    hit = active & (bound(full) <= stop)
-    lo,hi = torch.zeros_like(start),full.clone()
-    if bool(hit.any()):
-        for _ in range(30):
-            mid=(lo+hi)/2
-            safe=bound(mid)>stop
-            lo=torch.where(safe,mid,lo);hi=torch.where(safe,hi,mid)
-    return torch.where(hit,lo,full),hit
+from cutting_gpu_backend.tool_mount import swept_joint_fraction
 
 
 def reaction_at_sensor(force, moment_at_material_origin, base_from_material, sensor_pose):
@@ -108,10 +85,19 @@ def load_material(config):
             cfg=replace(cfg,size=tuple(data['size'].tolist()),grid_spacing=float(data['grid_spacing']),shape='intact_mesh')
         allowed={'young_modulus','poisson_ratio','density','blade_half_size'}
         overrides=dict(config.get('material_overrides',{}))
+        if config.get('task',{}).get('tool_revision') and 'blade_half_size' in overrides:
+            raise ValueError('Shared tool geometry cannot be overridden by a material group')
         if set(overrides)-allowed:raise ValueError('Only explicit elastic/density/blade overrides are supported')
         if 'blade_half_size' in overrides:overrides['blade_half_size']=tuple(overrides['blade_half_size'])
         cfg=replace(cfg,**overrides)
         cfg=replace(cfg,dt=banana_dt(cfg,cfg.grid_spacing,.002))
+    if config.get('task',{}).get('tool_revision'):
+        from .shared_knife import HALF,BEVEL,NECK,REVISION
+        if config['task']['tool_revision'] != REVISION:
+            raise ValueError('Unsupported shared tool')
+        if not hasattr(cfg,'blade_edge_half_width'):
+            raise ValueError('Shared knife needs the explicit-profile BladeMaster solver')
+        cfg=replace(cfg,blade_half_size=HALF,blade_bevel_height=BEVEL,blade_edge_half_width=NECK)
     cfg = replace(cfg, external_tool=True, tool_substep='hold', grid_storage='compact')
     if abs(round(.002/cfg.dt)*cfg.dt-.002) > 1e-12:
         raise ValueError('BladeMaster material dt must divide the 2 ms coupling interval')
@@ -190,6 +176,8 @@ class BladeMasterBatch(CuttingBatch):
              self.material_config.blade_bevel_height) for c in self.material_configs):
             raise ValueError('Shared UR5e batch must use one fixed blade mounting and geometry')
         self.material_metadata=dict(source_root=config['source_root'],groups=material_groups)
+        if config['task'].get('tool_revision'):
+            self.material_metadata['tool_revision']=config['task']['tool_revision']
         self.clearance = float(config['clearance_m'])
         self.settle_seconds = float(config['settle_seconds'])
         if not all(math.isfinite(x) for x in (self.clearance,self.settle_seconds)) or self.clearance <= 0 or self.settle_seconds < 0:
@@ -208,14 +196,24 @@ class BladeMasterBatch(CuttingBatch):
         mounted = source_tool.clone()
         mounted[:,3:] = mounted.new_tensor([0.,0.,0.,1.])
         self.ee_from_blade = compose_pose(inverse_pose(frames[self.chain.tip]),mounted)[0].clone()
+        shared=config['task'].get('tool_revision')
+        if shared:
+            from .shared_knife import canonical_mount,disect_from_blade
+            _,self.ee_from_blade,base_d=canonical_mount(root,self.chain,self.knife_chain,t)
+            mounted=compose_pose(frames[self.chain.tip],self.ee_from_blade.expand(self.worlds,-1))
+
         board = fixed_pose_from_urdf(t['robot_xml'],t['robot_base'],'cutting_board_disect',
                                     device=self.device,dtype=self.dtype)
         self.base_from_material = mounted[0].clone()
         self.base_from_material[2] = board[2]
         self.base_from_material[3:] = mounted.new_tensor([0.,0.,0.,1.])
+        if shared:
+            self.base_from_material[3:]=compose_pose(base_d,disect_from_blade(base_d))[3:]
+
         self.material_from_base = inverse_pose(self.base_from_material)
         self.vertices = torch.tensor(blade_vertices(self.material_config.blade_half_size,
-                                  self.material_config.blade_bevel_height),device=self.device,dtype=self.dtype)
+                                  self.material_config.blade_bevel_height,
+                                  getattr(self.material_config,'blade_edge_half_width',None)),device=self.device,dtype=self.dtype)
         self.stop_gap = float(config['task']['board']['stop_gap_m'])
         self.depth_span = float(max(c.size[2] for c in self.material_configs)+self.clearance)
         wanted = frames[self.chain.tip].clone()
@@ -494,6 +492,8 @@ class BladeMasterEnvironment(GPUEnvironment):
             from .pose_depth import PROGRESS_SEMANTICS
             self.metadata['progress_semantics'] = PROGRESS_SEMANTICS
             self.metadata.pop('depth_span_m')
+        if config['task'].get('tool_revision'):
+            self.metadata['tool_revision']=config['task']['tool_revision']
         self.metadata=configure_force_observation(self.metadata,config.get('force_observation'))
         self.environment=self.metadata['environment'];self.controller=self.metadata['controller']
         self.heads=SliceItHeads(self.environment,self.controller)

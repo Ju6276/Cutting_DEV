@@ -2280,3 +2280,64 @@ long training or performance claim. Physical knife geometry/mounting still
 differs between existing backends and remains a separate unification task.
 
 Final CPU regression on GPU7: root 426 passed / 22 skipped; backend 27 passed / 12 skipped. GPU execution was checked separately by the two three-object probes above; these counts do not mean every optional GPU test ran.
+
+
+## 2026-11-16 — Shared physical knife and frozen-policy mechanics
+
+Implementation parent: fe36fe8; new revision disect_knife_rigid_mount_v1,
+paired with pose_depth_v2. External forward source parent e2e5221, worktree
+BladeMaster-Warp-shared-knife-20261116.
+
+The physical blade has the DiSECt ten-vertex geometry (150.000006 x 59.040001 mm,
+3.500000 mm spine thickness, 0.080 mm shoulder). Both backends use a canonical
+rigid EE mount. BladeMaster uses two-slope contact/constraint kernels; DiSECt
+synchronizes the tool to rigid FK through substep interpolation. Material laws
+and backend-specific integration remain separate.
+
+Three-object reference probe, GPU7:
+- DiSECt: cucumber/half potato/prism pose success at 41/33/40 steps; maximum
+  physical-tool/FK vertex discrepancy 1.02e-8 m; minimum board clearance
+  1.004e-6 m. All three still had material connections.
+- BladeMaster: pose success at 50/50/50 steps; discrepancy 6.43e-9 m;
+  minimum clearance 1.108e-5 m. Each native material graph had two components.
+- Sixteen-step reward and partial-reset checks passed on both backends; maximum
+  physical/WM reward discrepancy 1.47e-8 (BM), 1.46e-8 (DiSECt).
+Reports: runs/tool_analysis_20261116/disect_full_tool_probe.json,
+bm_full_physical_tool_probe.json, shared_disect_check_v2.json and
+shared_bm_check_final.json (final configuration). The earlier BM FK-only probe is superseded by the
+physical-solver-pose probe.
+
+Existing-policy analysis uses the recorded original physics: main 1109 updates
+(48 first episodes, all pose timeouts), BM 866 updates (48 first episodes,
+all pose completions). Old tools, task rewards and conditions differ.
+Checkpoint identities and reconstructed actions match (max 6.68e-6/1.67e-6).
+Re-executing the analysis from raw traces produces identical output arrays.
+
+- Sensor force/moment, policy outputs, mapped FDCC gains/increments, feed,
+  target errors and board clearance are plotted against time.
+- Both checkpoints disable pitch target increments with max_twist=[1,0].
+- PCA includes reset, pre-contact-proxy, contact+3/+5 and goal-only controls.
+  BM reset features overlap and later separate by object; other motion/history
+  factors vary at the same time. A material-identification claim is unresolved.
+- Replacing older force history by current force leaves the main mapped gains
+  unchanged and changes its x-target increment by 6.45 micrometres/step on
+  average; BM changes stiffness and x increments. Main action clipping is
+  about 84%, masking some raw-network sensitivity.
+
+Figures, arrays and reproduction check:
+runs/tool_analysis_20261116/{main,blademaster}/ and analysis_reproduction.json.
+Detailed interpretation: POLICY_MECHANICS_20261116.md. No new policy training.
+
+
+Final root/backend GPU regression on GPU7: **446 passed, 5 skipped** at root,
+**39 passed** in backends/mujoco. The GPU runs include the actual material/tape
+and packed-world tests; DeprecationWarnings come from the upstream dflex AST
+compiler. Shared-profile external tests use the external repository's pinned
+requirements in an isolated dependency directory.
+
+
+External BladeMaster full regression: **2163 passed, 8 skipped, 18 subtests
+passed**, 2124.99 s, using the isolated pinned-requirement environment.
+Recorded separation-event audit: the main-policy trajectories contain zero
+complete-separation events; BM traces have final component counts but no
+per-step separation timestamp. Figures preserve this distinction.

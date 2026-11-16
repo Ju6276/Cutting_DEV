@@ -16,6 +16,10 @@ def validate_task(config):
     if not isinstance(config, dict) or config.get('version') not in SUPPORTED_REVISIONS:
         raise ValueError('Unsupported free-cut task version')
     required = {'version', 'horizon_steps', 'weights'}
+    if 'tool_revision' in config:
+        if config['tool_revision'] != 'disect_knife_rigid_mount_v1' or config['version'] != 'pose_depth_v2':
+            raise ValueError('Shared knife requires pose_depth_v2')
+        required.add('tool_revision')
     if config['version'] != 'free_cut_v1':
         required |= {'gamma', 'workspace'}
         if config['version'] != 'pose_depth_v2':

@@ -141,3 +141,6 @@ in [NOTICE](NOTICE.md). Data, credentials and environments stay outside Git.
 ## Additional material paths
 
 [BladeMaster-derived DiSECt assets](docs/BLADEMASTER_DISECT_ASSETS.md) retain prescribed cut planes and transfer only compatible elastic parameters. [BladeMaster UR5e backend](docs/BLADEMASTER_BACKEND_REVIEW.md) uses the external forward solver and a distinct depth-progress task; it does not reuse DiSECt spring labels or checkpoints. Asset conversions remain engineering candidates. The independent BladeMaster backend now has a bounded training run on GPU9; neither launch nor interface validation establishes policy performance or calibrated real-food behavior.
+
+Physical tool unification: [shared knife](docs/SHARED_KNIFE.md).
+Frozen force/action and representation figures: [analysis](docs/POLICY_MECHANICS_20261116.md).
