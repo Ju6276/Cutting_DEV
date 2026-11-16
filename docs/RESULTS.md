@@ -2808,3 +2808,63 @@ Regression remains the unchanged-code result at7db74f2: root549 passed/5 skipped
 bundled backend41 passed. Only docs changed after this probe; no redundant suite
 rerun. Updated PLAN and server-local MACHINES distinguish completed old jobs
 from the current readiness check.
+
+
+## 2026-11-16 — Long-run entry audit: pending updates and shutdown status
+
+Follow-up to the current-scene capacity check, at parent a102afe. Scope: active
+`train_gpu.py` launch/config path, physical-task/WM regression, checkpoint/replay
+resume and shutdown status. No new long training or task/network/reward change.
+
+Two confirmed control-flow defects were corrected:
+
+1. A vector step can earn multiple learning rounds, but the checkpoint saved
+   only collection credits, not the remaining unstarted rounds. For example,
+   3072 transitions with a640-transition cadence earn four rounds plus residual
+   credit; a milestone after the first round lost the other three on resume.
+   `UpdateQueue` now checkpoints that tail and its LR clocks; the active GPU
+   runner drains it before collecting further physical data. Completed-round
+   milestone callbacks run after acknowledgement. Budget checks before beginning
+   a round preserve all pending work if no round can start.
+2. Environment shutdown previously happened in the outer guard after tracker
+   finalization. A close error could therefore accompany a completed progress
+   record/cloud finish. Shutdown is now attempted before tracker finalization;
+   errors enter failed status, and the setup guard prevents a duplicate attempt.
+   This addresses Python cleanup reporting, not GPU9's native SIGILL.
+
+Limits are explicit: an interrupted round may already contain optimizer steps.
+Those saved parameters/optimizer states are retained; its unfinished remainder
+is recorded and the whole round is not silently replayed. Only unstarted rounds
+are recovered. Old checkpoints without the queue cannot reconstruct omitted
+work and warn; intentional empty-replay resume records discarded queued work
+and follows the existing refill warmup. Physical episodes still restart at
+resume. This is not a claim of exact arbitrary-mid-minibatch continuation.
+
+Verification:
+- Targeted tests:35 passed, including actual runner control flow with CPU doubles
+  for physics/learners. A saved WM milestone with two pending rounds resumes
+  both before any new physical step; its completed update counts match the
+  uninterrupted runner. A forced close failure reaches progress and tracker.
+- Full root regression, including GPU asset paths and optional MPPI environment:
+  **562 passed,5 skipped**,242.10 s. The five skips are legacy SAC dependency /
+  explicit bridge/checkpoint opt-ins, not current-task failures.
+- Bundled robot/DiSECt backend: **41 passed**,5.57 s. Native BladeMaster source
+  was unchanged; this is not a rerun of its standalone native suite.
+- The first full-root invocation stopped during collection: the MPPI Python did
+  not have the bundled backend on its import path. Root conftest now supplies
+  that path independently of test collection order; RUNNING shows the explicit
+  PYTHONPATH too. Isolated pitch-test collection with PYTHONPATH=. then collected
+  all9 cases. The initial collection error is preserved, not counted as passing.
+
+Evidence: runs/runner_audit_20261116/{root_tests.log,
+root_tests_with_backend_path.log,backend_tests.log,isolated_collection.log}.
+Tests added in test_update_queue.py and test_gpu_runner_resume.py cover queued
+round recovery, partial-round disclosure, budget-before-start, empty replay,
+legacy/invalid queue records and actual runner lifecycle. No physical simulation
+or learner equation changed, so the preceding3072-world capacity result remains
+separate evidence; it was not silently rerun or relabeled as this test.
+
+No other new blocking issue was found on the reviewed main launch path. GPU9's
+native fault and the pending large-scale current-config BladeMaster deployment
+remain open; neither is declared fixed by these changes. Main fresh-run proposal
+and online-W&B requirement remain unchanged.

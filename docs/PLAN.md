@@ -2,6 +2,12 @@
 
 ## Current audit and launch status
 
+The follow-up runner audit found and corrected pending learning rounds lost at
+mid-vector checkpoints and environment-close failures reported after W&B finish.
+The current runner stores/replays only unstarted rounds and records incomplete
+rounds explicitly; no task or model change. Final regression evidence is recorded
+in RESULTS. GPU9's SIGILL remains separate and unresolved. No new long run.
+
 2026-11-16 live resource check: GPU7 and GPU9 each exposed one idle RTX4090;
 A6000 (tamsGPU5) exposed two idle A6000 cards. At 18:48 CET all four cards
 were idle after GPU7 completed the bounded 3072-world current-contract probe.

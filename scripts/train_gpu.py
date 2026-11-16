@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from cutting_world_model.cuda_memory import release_physics_cache
 from cutting_world_model.online_replay import BatchedOnlineReplay
 from cutting_world_model.online_schedule import OnlineSchedule, TransitionSchedule
+from cutting_world_model.update_queue import UpdateQueue, drain_updates
 from cutting_world_model.episode_log import ended_metrics, episode_row
 from cutting_world_model.policy import SliceItPolicy, SliceItCritic
 from cutting_world_model.provenance import git_revision
@@ -29,12 +30,12 @@ from third_party.supermimic.schedule import cosine_lr
 from train_coupled import write_json, append_json, learning_status
 
 
-def finalize_gpu_run(checkpoint, progress, tracker, output, status, iteration, updates):
+def finalize_gpu_run(checkpoint, progress, tracker, output, status, iteration, updates, close=None):
     return finalize_training(
         save=lambda: checkpoint('last.pt'),
         record=lambda: progress(iteration=iteration, updates=updates),
         finish=lambda: tracker.finish(output / 'last.pt', status),
-        close=lambda: None,
+        close=close or (lambda: None),
         state=status)
 
 
@@ -220,14 +221,24 @@ def run(args, output, status, started):
     else:
         env = GPUEnvironment(args.backend_root, args.worlds, reward=reward)
         task_goal = lambda f: f['target_pose'].float()  # noqa: E731
+    closed = False
+
+    def close_once():
+        nonlocal closed
+        if not closed:
+            closed = True
+            if hasattr(env, 'close'):
+                env.close()
+
     try:
-        return run_with_environment(args, output, status, started, env, conditions, task_goal)
+        return run_with_environment(args, output, status, started, env, conditions,
+                                    task_goal, close_environment=close_once)
     finally:
-        if hasattr(env, 'close'):
-            env.close()
+        close_once()
 
 
-def run_with_environment(args, output, status, started, env, conditions, task_goal):
+def run_with_environment(args, output, status, started, env, conditions, task_goal,
+                         close_environment=None):
     if args.snapshot_at and not (hasattr(env, 'members') or
                                 getattr(getattr(env, 'physics', None), 'batch_groups', None)):
         raise ValueError('--snapshot-at requires DiSECt groups or batched BladeMaster')
@@ -264,6 +275,7 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
     schedule = (TransitionSchedule(worlds=args.worlds, warmup_transitions=args.warmup_transitions,
                                    transitions_per_update=args.transitions_per_update)
                 if args.schedule == 'transitions' else OnlineSchedule(worlds=args.worlds))
+    update_queue = UpdateQueue()
     if args.resume:
         saved = torch.load(args.resume, map_location=device, weights_only=False)
         compare = without_substeps if args.allow_substep_change else (lambda m: m)
@@ -285,6 +297,8 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
                 schedule.warmup_transitions != args.warmup_transitions
                 or schedule.transitions_per_update != args.transitions_per_update):
             raise ValueError('Resume cadence options differ from saved transition schedule')
+        update_queue = UpdateQueue.resume(saved.get('update_queue'),
+                                          replay_restored=not args.resume_without_replay)
         torch.set_rng_state(saved['torch_rng'].cpu())
         torch.cuda.set_rng_state(saved['cuda_rng'].cpu())
         from cutting_world_model.episode_conditions import resume_environment
@@ -307,6 +321,7 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
         'arguments': {k: str(v) if isinstance(v, Path) else v for k, v in vars(args).items()},
         'world_model': asdict(learner.wcfg), 'policy': asdict(learner.pcfg),
         'schedule': asdict(schedule.config), 'collection_schedule': schedule.state_dict(), 'training_stage': learning_status(learner),
+        'update_queue_at_start': update_queue.state_dict(),
         'endpoint': 'wall budget or iteration budget',
         'timeout': 'SIGTERM saves last.pt and progress.json',
         'state_dim': spec.state_dim, 'delta_dim': spec.delta_dim,
@@ -339,6 +354,8 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
 
     def progress(**values):
         status.update(values, **learning_status(learner), transitions=schedule.transitions,
+                      pending_learning_rounds=len(update_queue.pending),
+                      active_learning_round=update_queue.active,
                       wall_seconds=time.monotonic() - started)
         write_json(output / 'progress.json', status)
 
@@ -355,6 +372,7 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
         temp = output / (name + '.tmp')
         torch.save({'learner': learner.checkpoint(), 'metadata': metadata,
                     'iteration': schedule.iteration, 'schedule': schedule.state_dict(),
+                    'update_queue': update_queue.state_dict(),
                     'torch_rng': torch.get_rng_state(),
                     'cuda_rng': torch.cuda.get_rng_state(), 'git': revisions,
                     'episode_conditions': (env.condition_sampler.state_dict()
@@ -370,8 +388,60 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
     timing = {'physics': 0., 'reset': 0., 'world_model': 0., 'policy': 0.}
     transition_limit = (None if args.max_transitions is None else
                         schedule.transitions + args.max_transitions)
+    def update_round(update_step):
+        nonlocal risk_window
+        lr = cosine_lr(update_step, schedule.config.total_iterations,
+                       learner.wcfg.lr, schedule.config.lr_final_ratio, schedule.config.lr_decay_fraction)
+        learner.set_lr(lr)
+        tick = time.monotonic()
+        wm_metrics = learner.fit_world_model(replay.buffer)
+        if learner.risk_head is not None:
+            wm_metrics.update(learner.fit_risk_head(replay.buffer))
+            learner.update_risk_lambda(*risk_window)
+            risk_window = [0, 0]
+        timing['world_model'] += time.monotonic() - tick
+        policy_metrics = {}
+        if learner.should_update_policy and learner.critic_prefit_pending:
+            tick = time.monotonic()
+            for index, row in enumerate(learner.prefit_critic(replay.buffer,
+                                                              args.critic_prefit_rounds)):
+                append_json(output / 'critic_prefit.jsonl', {'round': index + 1, **row})
+                tracker.log({'critic_prefit/' + k: v for k, v in row.items()})
+            timing['critic_prefit'] = time.monotonic() - tick
+            checkpoint('critic_prefit_complete.pt')
+        if learner.should_update_policy:
+            tick = time.monotonic()
+            policy_metrics = learner.improve_policy(replay.buffer)
+            timing['policy'] += time.monotonic() - tick
+        return wm_metrics, policy_metrics, lr
+
+    def run_pending(metrics):
+        def completed(update_step, result):
+            wm_metrics, policy_metrics, lr = result
+            metrics.update({'wm/' + k: v for k, v in wm_metrics.items()})
+            metrics.update({'policy/' + k: v for k, v in policy_metrics.items()})
+            metrics['lr'] = lr
+            append_json(output / 'updates.jsonl', {
+                'iteration': schedule.iteration, 'update_iteration': update_step,
+                'transitions': schedule.transitions, 'update': learner.updates, 'lr': lr,
+                **learning_status(learner),
+                'world_model': wm_metrics, 'policy': policy_metrics, 'timing': dict(timing),
+                'peak_gpu_mib': torch.cuda.max_memory_allocated() / 2**20,
+            })
+            if learner.wm_only_updates and learner.wm_updates == learner.wm_only_updates:
+                checkpoint('wm_only_complete.pt')
+            elif learner.wm_only_updates and learner.updates == 1:
+                checkpoint('first_joint_update.pt')
+        drain_updates(update_queue, update_round, completed,
+                      before_update=lambda: learner_progress(phase='before_learning_round'))
+
     error = None
     try:
+        if update_queue.pending:
+            resumed_metrics = {'iteration': schedule.iteration}
+            run_pending(resumed_metrics)
+            progress(iteration=schedule.iteration, updates=learner.updates, timing=dict(timing))
+            tracker.log(resumed_metrics)
         while not schedule.finished:
             if ((physical_limit is not None and schedule.iteration >= physical_limit)
                     or (transition_limit is not None and schedule.transitions >= transition_limit)):
@@ -416,6 +486,7 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
                     peak_material, peak_ratio, env.conditions([e])[0] if hasattr(env,'conditions') else
                     ({'object': env.object_names[e]} if hasattr(env, 'object_names') else None)))
             schedule.after_environment_step()
+            update_queue.enqueue(schedule.update_iterations)
             if ended.any():
                 tick = time.monotonic()
                 frame = env.reset(ended)
@@ -429,44 +500,7 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
                 episodes[ended] += 1
             progress(iteration=schedule.iteration,
                      episodes=int(episodes.sum()), replay_rows=replay.buffer.size)
-            for update_step in schedule.update_iterations:
-                lr = cosine_lr(update_step, schedule.config.total_iterations,
-                               learner.wcfg.lr, schedule.config.lr_final_ratio, schedule.config.lr_decay_fraction)
-                learner.set_lr(lr)
-                tick = time.monotonic()
-                wm_metrics = learner.fit_world_model(replay.buffer)
-                if learner.risk_head is not None:
-                    wm_metrics.update(learner.fit_risk_head(replay.buffer))
-                    learner.update_risk_lambda(*risk_window)
-                    risk_window = [0, 0]
-                timing['world_model'] += time.monotonic() - tick
-                policy_metrics = {}
-                if learner.should_update_policy and learner.critic_prefit_pending:
-                    tick = time.monotonic()
-                    for index, row in enumerate(learner.prefit_critic(replay.buffer,
-                                                                      args.critic_prefit_rounds)):
-                        append_json(output / 'critic_prefit.jsonl', {'round': index + 1, **row})
-                        tracker.log({'critic_prefit/' + k: v for k, v in row.items()})
-                    timing['critic_prefit'] = time.monotonic() - tick
-                    checkpoint('critic_prefit_complete.pt')
-                if learner.should_update_policy:
-                    tick = time.monotonic()
-                    policy_metrics = learner.improve_policy(replay.buffer)
-                    timing['policy'] += time.monotonic() - tick
-                metrics.update({'wm/' + k: v for k, v in wm_metrics.items()})
-                metrics.update({'policy/' + k: v for k, v in policy_metrics.items()})
-                metrics['lr'] = lr
-                append_json(output / 'updates.jsonl', {
-                    'iteration': schedule.iteration, 'update_iteration': update_step,
-                    'transitions': schedule.transitions, 'update': learner.updates, 'lr': lr,
-                    **learning_status(learner),
-                    'world_model': wm_metrics, 'policy': policy_metrics, 'timing': dict(timing),
-                    'peak_gpu_mib': torch.cuda.max_memory_allocated() / 2**20,
-                })
-                if learner.wm_only_updates and learner.wm_updates == learner.wm_only_updates:
-                    checkpoint('wm_only_complete.pt')
-                elif learner.wm_only_updates and learner.updates == 1:
-                    checkpoint('first_joint_update.pt')
+            run_pending(metrics)
             progress(iteration=schedule.iteration, updates=learner.updates,
                      episodes=int(episodes.sum()),
                      replay_rows=replay.buffer.size, timing=dict(timing))
@@ -505,7 +539,8 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
         raise
     finally:
         errors = finalize_gpu_run(checkpoint, progress, tracker, output, status,
-                                  schedule.iteration, learner.updates)
+                                  schedule.iteration, learner.updates,
+                                  close=close_environment or getattr(env, 'close', lambda: None))
         if errors and error is None:
             raise RuntimeError('Training finalization failed: ' + repr(errors))
 

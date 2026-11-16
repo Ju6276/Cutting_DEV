@@ -190,7 +190,7 @@ For full optional-MPPI coverage on GPU7, use
 the backend suite uses the base environment as below.
 
 ```bash
-CUTTING_BACKEND_ROOT="$PWD/backends/mujoco" PYTHONPATH=. \
+CUTTING_BACKEND_ROOT="$PWD/backends/mujoco" PYTHONPATH=.:backends/mujoco \
   .venv/bin/python -m pytest tests -q
 (cd backends/mujoco && PYTHONPATH=. ../../.venv/bin/python -m pytest tests -q)
 ```
@@ -445,3 +445,27 @@ triangles and explicit robot-base/world transforms. The overview and studio
 export share `physical_robot_actors`; neither draws the obsolete full URDF knife
 or a fabricated connector. Old snapshots without per-world blade data are
 rejected by the overview renderer rather than silently substituted.
+
+
+### Pending learning rounds and shutdown status (2026-11-16)
+
+`train_gpu.py` checkpoints include `update_queue` in addition to collection
+credits. A vector step can earn several learning rounds; completed-round
+milestones save the remaining unstarted rounds. Resume with replay drains those
+rounds before collecting another physical step, retaining their LR clocks.
+Intentionally resuming without replay discards them with a recorded reason and
+uses the existing warmup/refill rule. Legacy files without the queue warn that
+unrecorded pending work cannot be reconstructed.
+
+If interruption occurred inside an optimizer round, its saved parameter and
+optimizer steps are kept; the whole round is not silently replayed. Its unfinished
+remainder is recorded as discarded, with a warning. This recovers unstarted
+rounds, not exact mid-minibatch execution or physical simulation state.
+Environment shutdown is attempted before W&B finalization, including failure
+status if shutdown raises; the outer setup guard avoids a duplicate close attempt.
+Native SIGILL can still bypass Python cleanup and must be judged by the external
+process exit status. This change does not fix GPU9's unresolved native fault.
+
+Root test setup adds the bundled backend import path independently of collection
+order. The explicit PYTHONPATH above also works with the optional MPPI Python
+without depending on an editable backend install.

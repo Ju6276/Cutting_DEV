@@ -1017,3 +1017,18 @@ now also include the base/world transform that BladeMaster already recorded.
 This is a recording/rendering correction; task physics and learning are unchanged.
 The overview retains explicitly illustrative material colors and distant mesh LOD;
 it is not a scan-textured studio movie. Actual geometry validation is in RESULTS.
+
+
+### GPU training lifecycle correction (2026-11-16)
+
+The active GPU runner persists unstarted learning rounds separately from the
+collection schedule's fractional credits. This fixes lost work when a checkpoint
+is written between rounds earned by the same vector step. Restored pending rounds
+run before further collection. No reward, actor/critic objective, network, batch
+size or uninterrupted update cadence changes. Saved optimizer state from an
+interrupted round is retained but the round is not replayed wholesale; this
+limitation and legacy checkpoints lacking a queue are explicit in RUNNING.
+The actual runner tests exercise milestone checkpoint/replay restoration with
+CPU doubles for physics/learning, plus shutdown failure reporting. They test
+control flow, not new policy performance. Physical learner/capacity evidence
+remains separately recorded in RESULTS.
