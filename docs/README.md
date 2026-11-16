@@ -6,7 +6,8 @@ locations. A dated experiment or archived launch is not a new training instructi
 | Document | Role |
 |---|---|
 | [Framework audit](FRAMEWORK_AUDIT_20261116.md) | Source/local choices, rendering correction and current training-readiness limits |
-| [PLAN](PLAN.md) | Current decisions, GPU7/GPU9 jobs, fixed budgets and next work |
+| [PLAN](PLAN.md) | Current decisions, GPU7/A6000 deployments, fixed budgets and next work |
+| [Shared training](TRAINING_SHARED_20261116.md) | Current task launch protocol, verification and online run records |
 | [TASK_FREE_CUT](TASK_FREE_CUT.md) | Pose completion, board boundary, running rewards and diagnostic labels |
 | [TRAINING_SCALE_20261114](TRAINING_SCALE_20261114.md) | Full-wrench observation, transition cadence and 3072-world main launch |
 | [RUNNING](RUNNING.md) | Installation, tests and online W&B requirement |
@@ -16,7 +17,7 @@ locations. A dated experiment or archived launch is not a new training instructi
 | [PAPER](PAPER.md) | Research scope and claims still requiring evidence |
 | [BENCHMARK](BENCHMARK.md) | Historical fixed-prism contract, not the active multi-object task |
 | [OFFICIAL_SUPERMIMIC](OFFICIAL_SUPERMIMIC.md) | Official implementation adaptation and deviations |
-| [BladeMaster backend](BLADEMASTER_BACKEND_REVIEW.md) | Native-cutting backend and its distinct task semantics |
+| [BladeMaster backend](BLADEMASTER_BACKEND_REVIEW.md) | Native-cutting backend, historical semantics and shared-task updates |
 | [BladeMaster assets](BLADEMASTER_DISECT_ASSETS.md) | Candidate objects converted to prescribed-interface DiSECt |
 | [NOVELTY](NOVELTY.md), [READING_LIST](READING_LIST.md) | Literature evidence and entry points |
 | [Literature search](literature/force_adaptive_search_20261112.md) | Candidate topic search and evidence levels |

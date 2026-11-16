@@ -1,7 +1,5 @@
-> 2026-11-15: GPU7 main training reached its 24-hour budget; GPU9 BladeMaster
-> training exited with SIGILL before budget completion. Frozen checkpoint
-> evaluations are recorded in [RESULTS](docs/RESULTS.md); both run histories
-> remain online. See [PLAN](docs/PLAN.md) and [DATA](docs/DATA.md).
+> Current launch and verification: [shared-task training](docs/TRAINING_SHARED_20261116.md).
+> Historical runs keep their original tasks and outcomes.
 
 # Cutting DEV
 
@@ -36,7 +34,7 @@ constraints through task.tool_motion.enabled. Both require final XY distance
 <40 mm; optional path control uses 25 mm free /60 mm failure. Natural fragment
 opening has no penalty. See [task definition](docs/TASK_FREE_CUT.md#current-robot-position-modes--2026-11-16).
 
-The board stop is implemented and physically checked; it is not a compliant board-force simulator. The completed training task was free_cut_pose_v1, retaining v3 running costs and pose-based +100 settlement. The shared pose_depth_v2 scene/reset protocol has passed bounded physical checks on both backends; no new training has been launched. The default pose-task potato is now the freely placed flat-bottom half, with 1 s per-material settling checked on 144 conditions. Development configurations and remaining work are listed in [PLAN](docs/PLAN.md). The earlier 192-world A6000 run and three-world BladeMaster run were stopped; neither reached policy updates. The full-wrench, transition-scaled 3072-world DiSECt run completed its 24-hour budget on GPU7. BladeMaster 256-world learning/reset/restore validation passed; its GPU9 long run later exited with SIGILL inside libcuda, with root cause unresolved. Its nominal-material distribution differs from the main DiSECt run. Current status and launch evidence: [restart record](docs/TRAINING_SCALE_20261114.md). The [earlier launch record](docs/archive/TRAINING_20261114.md) is historical. Current definition: [TASK_FREE_CUT](docs/TASK_FREE_CUT.md); dated evidence: [RESULTS](docs/RESULTS.md).
+The board stop is implemented and physically checked; it is not a compliant board-force simulator. The completed training task was free_cut_pose_v1, retaining v3 running costs and pose-based +100 settlement. The shared pose_depth_v2 scene/reset protocol has passed bounded physical checks on both backends; the newly authorized deployments are tracked in TRAINING_SHARED_20261116. The default pose-task potato is now the freely placed flat-bottom half, with 1 s per-material settling checked on 144 conditions. Development configurations and remaining work are listed in [PLAN](docs/PLAN.md). The earlier 192-world A6000 run and three-world BladeMaster run were stopped; neither reached policy updates. The full-wrench, transition-scaled 3072-world DiSECt run completed its 24-hour budget on GPU7. BladeMaster 256-world learning/reset/restore validation passed; its GPU9 long run later exited with SIGILL inside libcuda, with root cause unresolved. Its nominal-material distribution differs from the main DiSECt run. Current status and launch evidence: [restart record](docs/TRAINING_SCALE_20261114.md). The [earlier launch record](docs/archive/TRAINING_20261114.md) is historical. Current definition: [TASK_FREE_CUT](docs/TASK_FREE_CUT.md); dated evidence: [RESULTS](docs/RESULTS.md).
 
 Historical source and v1-v3 code/checkpoints remain for reproduction. The default source command below lacks the new board boundary; do not mistake it for the next training launch. Material/friction values remain uncalibrated for the real robot.
 
@@ -92,9 +90,10 @@ Frozen evaluation of either checkpoint (definitions in [BENCHMARK](docs/BENCHMAR
   --checkpoint RUN/training/last.pt --output RUN/evaluation
 ```
 
-Frozen WM + MPPI uses the same evaluation entry with `--method wm-mppi` after
+Historical fixed-task WM + MPPI uses the same evaluation entry with `--method wm-mppi` after
 installing `requirements-mpc.txt`. Settings and the complete command are in
-[BENCHMARK](docs/BENCHMARK.md#world-model-mppi).
+[BENCHMARK](docs/BENCHMARK.md#world-model-mppi). This does not certify the current
+shared pose_depth_v2 multi-object MPPI runner; see PLAN for its remaining adapter work.
 
 `scripts/record_episode.py` records the same physical benchmark;
 `scripts/render_episode.py` produces a two-view video with measured force traces.
@@ -152,7 +151,7 @@ in [NOTICE](NOTICE.md). Data, credentials and environments stay outside Git.
 
 ## Additional material paths
 
-[BladeMaster-derived DiSECt assets](docs/BLADEMASTER_DISECT_ASSETS.md) retain prescribed cut planes and transfer only compatible elastic parameters. [BladeMaster UR5e backend](docs/BLADEMASTER_BACKEND_REVIEW.md) uses the external forward solver and a distinct depth-progress task; it does not reuse DiSECt spring labels or checkpoints. Asset conversions remain engineering candidates. The independent BladeMaster backend now has a bounded training run on GPU9; neither launch nor interface validation establishes policy performance or calibrated real-food behavior.
+[BladeMaster-derived DiSECt assets](docs/BLADEMASTER_DISECT_ASSETS.md) retain prescribed cut planes and transfer only compatible elastic parameters. [BladeMaster UR5e backend](docs/BLADEMASTER_BACKEND_REVIEW.md) uses the external forward solver. Current pose_depth_v2 depth shaping is shared with the main backend; historical BladeMaster task versions remain distinct. It does not reuse DiSECt spring labels. Asset conversions remain engineering candidates. The historical GPU9 run ended with SIGILL; current shared-task training targets A6000 after deployment verification. Neither interface validation nor launch establishes calibrated real-food behavior.
 
 Physical tool unification: [shared knife](docs/SHARED_KNIFE.md).
 Frozen force/action and representation figures: [analysis](docs/POLICY_MECHANICS_20261116.md).
