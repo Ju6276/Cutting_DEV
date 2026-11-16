@@ -2221,3 +2221,62 @@ The five obsolete videos* preview directories were deleted after validating
 replacement checksums; their JSON provenance is retained in
 studio/superseded_render_manifests.json. Raw evaluation recordings are retained.
 Only videos, preview images and small manifests are delivered to the Mac.
+
+## 2026-11-16 — Shared geometric depth reward (pose_depth_v2)
+
+User request: remove dependence on DiSECt spring release in progress reward and
+use BladeMaster-style downward depth. Implemented as a new opt-in task for both
+backends. Pose +100, failure precedence, the arrival counter, board interlock,
+force limits and action interface are unchanged. The speed penalty's progress
+factor was changed as well; setting only the positive progress weight would
+have left spring-dependent reward in place.
+
+Per-world progress uses maximum depth from the actual reset blade-proxy gap to
+the positive board stopping clearance. The new span is stored in replay/state
+history, reset per world, and preserved on exact physical-frame restoration.
+The shared WM computes this progress from predicted joint state analytically.
+It has no learned release-progress output and no spring-progress dynamics input.
+Old WM/replay/critic shapes and task metadata are incompatible; no old checkpoint
+is silently resumed or its published rewards reinterpreted.
+
+Verification on GPU7: three objects, one world each per backend, 16 reference
+steps (48 transitions each), with a masked reset of world 0 after step 8.
+This is interface verification, not a complete-episode or trained-policy test.
+
+| Backend | Maximum physical/WM equation reward difference | Wall time |
+|---|---:|---:|
+| DiSECt | 1.46e-08 | 157.5 s |
+| BladeMaster | 1.43e-08 | 45.2 s |
+
+Unselected worlds' frame tensors were exactly unchanged by reset for both.
+Progress was monotone within each episode and zero after reset. All measured
+wrenches remained finite. Physical and model termination flags agreed on these
+short segments. Unit tests additionally cover pose settlement, force/workspace
+precedence (retained tests), bounded/re-entry progress, independent separation
+labels, equal equations across backend identities, finite BPTT gradients,
+a finite WM fitting backward pass, and rejection of old model tensor shapes.
+
+Raw reports: runs/depth_reward_20261116/disect_env.json and blademaster_env.json.
+Commands: source runs/sac_env.sh, then use scripts/check_pose_depth.py with
+configs/free_cut/depth_three_object_check.json (base .venv) or
+configs/blademaster/depth_three_object_check.json (cutting-mppi-20261108 Python,
+which includes SciPy). Use PYTHONPATH=.:backends/mujoco.
+The first invocations omitted the DiSECt cache environment / used a BM Python
+without SciPy; they failed before collecting transitions and remain recorded
+separately. Successful checks used the documented environments.
+
+Physics interpretation: eval_cut_springs lowers stiffness only when the spring's
+knife contact is nonzero and its extension is positive. Its update is
+max(0, ke - incontact * max(length-rest,0) * softness).
+There is no unconditional severing when a blade passes a geometric height.
+Thus arrival with residual connections is allowed by the implemented mechanism;
+this does not identify the cause of any particular residual spring or exclude
+contact/geometry bugs. No damage rule or residual spring was changed here.
+
+Limitations: depth reward is motion shaping, including free-space descent; it
+does not establish material separation. The 10-reference full-horizon preference
+audit was adapted to the new task but not rerun in this bounded check. No new
+long training or performance claim. Physical knife geometry/mounting still
+differs between existing backends and remains a separate unification task.
+
+Final CPU regression on GPU7: root 426 passed / 22 skipped; backend 27 passed / 12 skipped. GPU execution was checked separately by the two three-object probes above; these counts do not mean every optional GPU test ran.

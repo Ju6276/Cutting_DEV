@@ -66,7 +66,7 @@ class GPUEnvironment:
         self.heads = SliceItHeads(self.environment, self.controller)
         self.free_task = None
         if task is not None:
-            if task['version'] != 'free_cut_pose_v1':
+            if task['version'] not in ('free_cut_pose_v1', 'pose_depth_v2'):
                 validate_topology(self.physics.material)
             elif bool((self.physics.material.model.particle_inv_mass == 0).any()):
                 raise ValueError('Free pose task requires an unheld object')
@@ -76,13 +76,13 @@ class GPUEnvironment:
             self.metadata['task_interface_revision'] = task['version']
             self.metadata['goal_dim'] = 8
             self.free_task = FreeCutTask(task, self.heads)
-            if task['version'] in ('free_cut_v4', 'free_cut_pose_v1'):
+            if task['version'] in ('free_cut_v4', 'free_cut_pose_v1', 'pose_depth_v2'):
                 self.physics.enable_board(task['board'])
                 self.metadata['knife_board_revision'] = 'swept_stop_path_v2'
         m = self.metadata
         self.fk = SerialKinematics(m['robot_xml'], m['robot_base'], m['robot_tip'], m['joint_names']).to(self.device)
         self.previous_pose = self.fk(self.physics.robot.q.double())
-        if task is not None and task['version'] == 'free_cut_pose_v1':
+        if task is not None and task['version'] in ('free_cut_pose_v1', 'pose_depth_v2'):
             from .pose_cut import align_board_goal
             geometry = align_board_goal(self.physics, backend_root)
             self.metadata['board_pose_geometry'] = geometry
@@ -94,6 +94,10 @@ class GPUEnvironment:
         self.step_count = torch.zeros(worlds, device=self.device, dtype=torch.long)
         self.needs_reset = torch.zeros(worlds, device=self.device, dtype=torch.bool)
         self.current = None
+        self.depth_span = torch.ones((worlds, 1), device=self.device, dtype=torch.float64)
+        if task is not None and task['version'] == 'pose_depth_v2':
+            from .pose_depth import PROGRESS_SEMANTICS
+            self.metadata['progress_semantics'] = PROGRESS_SEMANTICS
         self.reset()
 
     def _observe(self, frame, action):
@@ -112,6 +116,15 @@ class GPUEnvironment:
                      step_count=self.step_count[:, None].clone())
         if self.free_task is not None:
             frame['cut_progress'] = (frame['cut_spring_ke'] == 0).to(pose.dtype).mean(-1, keepdim=True)
+            if self.free_task.config['version'] == 'pose_depth_v2':
+                from .pose_depth import depth_progress
+                frame['separation_progress'] = frame['cut_progress'].clone()
+                old = (torch.zeros_like(frame['cut_progress']) if self.current is None
+                       else self.current['cut_progress'])
+                old = torch.where((self.step_count == 0)[:, None], 0., old)
+                frame['depth_span'] = self.depth_span.clone()
+                frame['cut_progress'] = depth_progress(pose, self.metadata['board_pose_geometry'],
+                                                       self.depth_span, old)
             if self.free_task.config['version'] == 'free_cut_v4':
                 frame['separation_progress'] = frame['cut_progress'].clone()
                 frame['cut_progress'] = frame['knife_path_progress'].to(pose.dtype)
@@ -124,6 +137,13 @@ class GPUEnvironment:
         mask = mask.to(device=self.device, dtype=torch.bool)
         physical = self.physics.reset(mask)
         pose = self.fk(physical['joint_q'].double())
+        if self.free_task is not None and self.free_task.config['version'] == 'pose_depth_v2':
+            from .pose_cut import gap_from_pose
+            geo = self.metadata['board_pose_geometry']
+            span = gap_from_pose(pose[mask], geo) - geo['stop_gap_m']
+            if not bool((torch.isfinite(span) & (span > 0)).all()):
+                raise ValueError('Reset blade must start above its board stopping height')
+            self.depth_span[mask] = span[:, None]
         self.previous_pose[mask] = pose[mask]
         self.previous_velocity[mask] = 0
         self.previous_acceleration[mask] = 0
@@ -147,6 +167,8 @@ class GPUEnvironment:
         self.success_counter = frame['success_counter'][:, 0].clone()
         self.step_count = frame['step_count'][:, 0].long().clone()
         self.needs_reset.zero_()
+        if self.free_task is not None and self.free_task.config['version'] == 'pose_depth_v2':
+            self.depth_span = frame['depth_span'].clone()
         self.current = {k: v.clone() for k, v in frame.items()}
 
     @torch.no_grad()
@@ -179,9 +201,9 @@ class GPUEnvironment:
         task_info = {}
         if self.free_task is not None:
             events = self.free_task.events(frame['observation'], frame['peak_wrench'],
-                                           (frame['separation_progress'] if self.free_task.config['version'] == 'free_cut_v4'
+                                           (frame['separation_progress'] if self.free_task.config['version'] in ('free_cut_v4', 'pose_depth_v2')
                                             else frame['cut_progress'])[:, 0], self.step_count, collision, pose=frame['ee_pose'],
-                                           board=frame if self.free_task.config['version'] in ('free_cut_v4', 'free_cut_pose_v1') else None,
+                                           board=frame if self.free_task.config['version'] in ('free_cut_v4', 'free_cut_pose_v1', 'pose_depth_v2') else None,
                                            success_counter=self.success_counter)
             reward = self.free_task.reward(self.current['cut_progress'][:, 0],
                                           frame['cut_progress'][:, 0], frame['observation'],
@@ -192,7 +214,10 @@ class GPUEnvironment:
             truncated = torch.zeros_like(terminated)
             task_info = {k: events[k] for k in ('separated', 'timeout')}
             task_info['cut_progress'] = frame['cut_progress'][:, 0]
-            if self.free_task.config['version'] == 'free_cut_pose_v1':
+            if self.free_task.config['version'] == 'pose_depth_v2':
+                task_info['depth_progress'] = frame['cut_progress'][:, 0]
+                task_info['separation_progress'] = frame['separation_progress'][:, 0]
+            if self.free_task.config['version'] in ('free_cut_pose_v1', 'pose_depth_v2'):
                 task_info['board_contact'] = events['board_contact']
             if self.free_task.config['version'] == 'free_cut_v4':
                 task_info.update({k: events[k] for k in ('board_contact', 'board_incomplete', 'board_penetration')})

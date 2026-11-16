@@ -16,6 +16,9 @@ class ControlStateSpec(CuttingStateSpec):
     @classmethod
     def metadata_from_frame(cls, task, frame):
         if task.get('free_cut_task') and cls is ControlStateSpec:
+            if task['free_cut_task']['version'] == 'pose_depth_v2':
+                from .pose_depth import PoseDepthStateSpec
+                return PoseDepthStateSpec.metadata_from_frame(task, frame)
             if task['free_cut_task']['version'] == 'blademaster_pose_v1':
                 from .blademaster_state import BladeMasterStateSpec
                 return BladeMasterStateSpec.metadata_from_frame(task, frame)

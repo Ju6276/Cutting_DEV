@@ -370,3 +370,15 @@ All outputs describe a frozen-policy rerun, not footage of the original training
 
 The removed `render_pose_evaluation.py` is not a supported video entry. Preserve
 recordings and evaluation results; superseded visual previews can be deleted.
+
+### Geometric-depth task verification — 2026-11-16
+
+These are short engineering checks, not long-training commands. Use fresh report
+paths. Old pose-v1 checkpoints cannot be resumed as pose_depth_v2.
+
+    source runs/sac_env.sh
+    PYTHONPATH=.:backends/mujoco .venv/bin/python scripts/check_pose_depth.py --backend disect --config configs/free_cut/depth_three_object_check.json --output runs/NEW_DEPTH_CHECK/disect.json --seconds 600
+    PYTHONPATH=.:backends/mujoco /dataHDD/dong/Envs/cutting-mppi-20261108/bin/python scripts/check_pose_depth.py --backend blademaster --config configs/blademaster/depth_three_object_check.json --output runs/NEW_DEPTH_CHECK/blademaster.json --seconds 600
+
+The BladeMaster Python must include SciPy. Only one physical check runs on the
+GPU at a time. Both close their environment on exceptions or budget expiry.

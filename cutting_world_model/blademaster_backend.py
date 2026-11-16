@@ -243,6 +243,10 @@ class BladeMasterBatch(CuttingBatch):
             stop_gap_m=self.stop_gap,model='Rigid fixed mounted BladeMaster wedge; held 2 ms exchange',
             execution_boundary='1ms revolute joint swept curvature bound',reach_bound_m=self.reach_bound)
         self.initial_pose = self.frames[self.chain.tip].clone()
+        self.reward_depth_span = (gap_from_pose(self.initial_pose,self.board_geometry)-self.stop_gap)[:,None]
+        self.depth_task = config['task']['version'] == 'pose_depth_v2'
+        if not bool((torch.isfinite(self.reward_depth_span) & (self.reward_depth_span > 0)).all()):
+            raise ValueError('Reset blade must start above its board stopping height')
         self.target = self.initial_pose.clone()
         self.target[:,2] -= gap_from_pose(self.target,self.board_geometry)-self.stop_gap
         self.force_limits = torch.tensor(config['force_limits'],device=self.device,dtype=self.dtype)[None].repeat(self.worlds,1)
@@ -375,7 +379,7 @@ class BladeMasterBatch(CuttingBatch):
             target_pose=self.target.clone(),ee_pose=pose.clone(),
             wrench_history=self.wrench_queue[:,:self.task['environment']['wrench_hist_size']].clone(),
             peak_wrench=self.peak.clone(),motion_command=self.mapper.added_motion_command.clone(),
-            cut_progress=self.progress.clone(),knife_board_gap=gap[:,None],
+            cut_progress=self.progress.clone(),depth_span=self.reward_depth_span.clone(),knife_board_gap=gap[:,None],
             knife_min_board_gap=gap[:,None],knife_board_contact=self.contacted[:,None].clone(),
             sim_time=self.sim_time[:,None].clone())
 
@@ -446,11 +450,16 @@ class BladeMasterBatch(CuttingBatch):
             self.metrics.accumulate(force,linear,active,.002,net_wrench=self.net,
                                     knife_position=tool_pose[:,:3],angular_velocity_disect=angular)
             self.sim_time+=active*.002
-            self.progress=geometric_progress(self.frames[self.chain.tip],self.board_geometry,
-                                             self.depth_span,self.progress)
+            if not self.depth_task:
+                self.progress=geometric_progress(self.frames[self.chain.tip],self.board_geometry,
+                                                 self.depth_span,self.progress)
             if sample_callback is not None:sample_callback(self,active)
         if bool((gap_from_pose(self.frames[self.chain.tip],self.board_geometry)<-2e-6).any()):
             raise FloatingPointError('BladeMaster knife penetrated the board')
+        if self.depth_task:
+            from .pose_depth import depth_progress
+            self.progress=depth_progress(self.frames[self.chain.tip],self.board_geometry,
+                                         self.reward_depth_span,self.progress)
         self.step_metrics=self.metrics.as_dict()
         return self.frame(),collision,peak_force
 
@@ -461,7 +470,7 @@ class BladeMasterBatch(CuttingBatch):
 class BladeMasterEnvironment(GPUEnvironment):
     @torch.no_grad()
     def __init__(self, backend_root, config):
-        if config['task']['version']!='blademaster_pose_v1':
+        if config['task']['version'] not in ('blademaster_pose_v1', 'pose_depth_v2'):
             raise ValueError('BladeMaster needs its own task identity')
         validate_task(config['task'])
         self.physics=BladeMasterBatch(backend_root,config)
@@ -473,7 +482,7 @@ class BladeMasterEnvironment(GPUEnvironment):
         self.object_names=list(self.physics.group_names)
         self.metadata=copy.deepcopy(self.physics.task)
         self.metadata.update(physical_backend='mujoco_warp_blademaster',
-            task_interface_revision='blademaster_pose_v1',state_layout='coupled_recurrent_v1',
+            task_interface_revision=config['task']['version'],state_layout='coupled_recurrent_v1',
             material_feedback='blademaster_net_sensor_v1',reset_observation='post_reset',
             free_cut_task=validate_task(config['task']),goal_dim=8,
             board_pose_geometry=self.physics.board_geometry,
@@ -481,6 +490,10 @@ class BladeMasterEnvironment(GPUEnvironment):
             depth_span_m=self.physics.depth_span,
             blademaster=self.physics.material_metadata,
             backend_config=copy.deepcopy(config))
+        if config['task']['version'] == 'pose_depth_v2':
+            from .pose_depth import PROGRESS_SEMANTICS
+            self.metadata['progress_semantics'] = PROGRESS_SEMANTICS
+            self.metadata.pop('depth_span_m')
         self.metadata=configure_force_observation(self.metadata,config.get('force_observation'))
         self.environment=self.metadata['environment'];self.controller=self.metadata['controller']
         self.heads=SliceItHeads(self.environment,self.controller)
@@ -495,6 +508,7 @@ class BladeMasterEnvironment(GPUEnvironment):
         self.step_count=torch.zeros(self.worlds,device=self.device,dtype=torch.long)
         self.needs_reset=torch.zeros(self.worlds,device=self.device,dtype=torch.bool)
         self.current=None
+        self.depth_span=self.physics.reward_depth_span.clone()
         # Physics initialization has already produced settled reset states.
         self.current=self._observe(self.physics.frame(),torch.zeros((self.worlds,6),device=self.device))
 
@@ -514,7 +528,8 @@ class BladeMasterEnvironment(GPUEnvironment):
         frame,collision,force=self.physics.step(action,reference,sample_callback)
         self.step_count+=1
         frame=self._observe(frame,action)
-        events=self.free_task.events(frame['observation'],frame['peak_wrench'],frame['cut_progress'][:,0],
+        physical_progress = None if self.free_task.config['version']=='pose_depth_v2' else frame['cut_progress'][:,0]
+        events=self.free_task.events(frame['observation'],frame['peak_wrench'],physical_progress,
             self.step_count,collision,pose=frame['ee_pose'],board=frame,success_counter=self.success_counter)
         reward=self.free_task.reward(self.current['cut_progress'][:,0],frame['cut_progress'][:,0],
                                     frame['observation'],frame['peak_wrench'],self.target_speed,events)

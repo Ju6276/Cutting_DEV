@@ -3,11 +3,16 @@
 ## Active task and decisions
 
 One cut of freely placed cucumber, flat-bottom half potato and prism.
-The active task is `free_cut_pose_v1`: +100 for prescribed pose completion
-without force/workspace failure; the finite blade stops at the cutting board.
-Material separation is recorded independently. Retain v3 running rewards,
-180 control steps (9 s), gamma 1, and simulation wrench limits
-[50,50,50,5,5,5]. These are not calibrated Mini45 hardware limits.
+The next task version is pose_depth_v2: shared maximum downward-depth progress
+for both backends, with no spring-release reward or spring-weighted speed cost.
++100 remains prescribed pose completion without force/workspace failure and with
+the finite-blade board boundary. Material separation stays independent.
+180 control steps (9 s), gamma 1 and simulation wrench limits [50,50,50,5,5,5]
+are retained in verification configs, not calibrated Mini45 hardware limits.
+The completed runs below used pose-v1, not this version. No new long run launched.
+See TASK_FREE_CUT for equations, state migration and verification status.
+Physical knife/mount unification using the main DiSECt blade remains separate work;
+the existing two backend runs must not be presented as an equal-knife comparison.
 
 Half potato uses 1 s per-material settling; cucumber/prism use 0.75 s.
 Each episode samples E and cut-spring stiffness scales 0.5–2 and density

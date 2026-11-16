@@ -36,6 +36,9 @@ class CuttingWorldModel(nn.Module):
         if metadata.get('free_cut_task', {}).get('version') == 'blademaster_pose_v1':
             from .blademaster_state import BladeMasterStateSpec
             spec_class = BladeMasterStateSpec
+        if metadata.get('free_cut_task', {}).get('version') == 'pose_depth_v2':
+            from .pose_depth import PoseDepthStateSpec
+            spec_class = PoseDepthStateSpec
         self.spec = spec_class(metadata)
         self.dynamics = DynamicsMLP(self.spec.dynamics_dim, 6, 7, hidden, self.spec.delta_dim)
         if metadata.get('free_cut_task', {}).get('version') in ('free_cut_v2', 'free_cut_v3', 'free_cut_pose_v1'):
@@ -132,7 +135,7 @@ class CuttingWorldModel(nn.Module):
 
     def completion_labels(self, states, done):
         # Physical separation, independent of force failures and finite task deadlines.
-        if self.spec.metadata.get('free_cut_task', {}).get('version') in ('free_cut_pose_v1', 'blademaster_pose_v1'):
+        if self.spec.metadata.get('free_cut_task', {}).get('version') in ('free_cut_pose_v1', 'blademaster_pose_v1', 'pose_depth_v2'):
             return done  # source-style task termination, not physical separation
         if hasattr(self.spec, 'free_task'):
             return (self.spec.field(states[1:], 'cut_progress')[..., 0] >= 1).to(done.dtype)

@@ -1,4 +1,5 @@
-> Current task update (2026-11-14): `free_cut_pose_v1` changes completion to board-aligned pose arrival without failure; v3 running costs remain. See [TASK_FREE_CUT](TASK_FREE_CUT.md). Historical separation/coverage task sections below describe retained checkpoints, not the selected task.
+> Current task update (2026-11-16): pose_depth_v2 uses the same analytic maximum blade-depth progress in both backends and the WM. No spring-release shaping or learned release-progress head; pose +100 and failure precedence remain. See [TASK_FREE_CUT](TASK_FREE_CUT.md). All earlier pose-v1/v3 results retain their recorded definitions.
+
 
 
 # Source mapping
