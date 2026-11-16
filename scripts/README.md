@@ -3,21 +3,22 @@
 # Script entry points
 
 Run commands from the repository root; installation is in [RUNNING](../docs/RUNNING.md).
-The current task is in [PLAN](../docs/PLAN.md). Training entries remain for
-historical reproduction; their availability does not schedule a new run. `train_gpu.py` runs the fixed
+The current task is in [PLAN](../docs/PLAN.md). Historical tasks remain runnable; current GPU7/A6000 launch settings are in
+[TRAINING_SHARED_20261116](../docs/TRAINING_SHARED_20261116.md). Script availability
+alone does not schedule a new run. `train_gpu.py` runs the fixed
 prism by default and the multi-object task with `--conditions <json>`; the
 force-risk constraint is `--risk-constraint`.
 
-## Retained execution entries (historical task definitions)
+## Execution entries (task scope stated explicitly)
 
 | Purpose | Entry |
 |---|---|
 | WM and policy training (fixed prism or `--conditions`, optional `--risk-constraint`) | `train_gpu.py` |
 | Multi-object environment check with reference control | `check_multi_condition.py` |
 | Parallel vs sequential object groups | `check_parallel_groups.py` |
-| Frozen multi-object evaluation (WM-method checkpoints) | `evaluate_multi.py` |
+| Historical free-cut multi-object evaluation (rejects current pose tasks) | `evaluate_multi.py` |
 | Unified-environment SAC | `train_sac_gpu.py`; `sac_gpu_worker.py` is its process bridge |
-| Frozen policy, SAC, MPPI and reference evaluation | `evaluate_benchmark.py` |
+| Historical fixed-prism policy, SAC, MPPI and reference evaluation | `evaluate_benchmark.py` |
 | Reference cuts / world scaling | `benchmark_gpu_env.py` |
 | Record a historical fixed-prism benchmark episode | `record_episode.py` |
 | Record a current multi-object pose-policy evaluation | `evaluate_pose_policy.py --record-geometry` |
@@ -333,3 +334,11 @@ Training overviews now require recorded per-world physical blades, reuse the
 studio robot/handle filtering and omit the obsolete URDF blade. Old snapshots
 without this field must be recaptured; they are not silently substituted with
 a different knife. Overview material colors/LOD remain explicitly illustrative.
+
+Current shared pose_depth_v2 MPPI physical evaluation is not yet validated.
+Optional MPPI package tests validate its existing adapter, not a current-task
+checkpoint or multi-object planning experiment. See PLAN.
+
+Sensor charts: compose_wrench_video.py appends force[N] and torque[N m] below
+the shared studio video using its original evaluation trace and frame timing.
+See RUNNING; no scene replacement or inferred500 Hz peaks.

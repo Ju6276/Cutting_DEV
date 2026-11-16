@@ -20,6 +20,8 @@ interaction. This is engineering training, not an algorithm superiority claim.
 -30720 warmup transitions;640 transitions/update;500 WM-only rounds.
 - Microbatch512, critic microbatch8192; effective batches2048/4096 unchanged.
 - Each run:24h or1,280,000 new transitions, first bound; no extension.
+  The transition stop is checked on vector-step boundaries, with at most one
+  vector batch of granularity; compare the recorded actual counts.
 - Paired checkpoints about every98k transitions; actual cadence depends on
   vector size and is recorded. Snapshots at vector steps1 and120.
 - Online W&B mandatory; server recovery files do not substitute for cloud history.
@@ -61,3 +63,8 @@ Deployment and A6000 capacity verification in progress. No launch is claimed
 until its PID, manifest, online W&B URL and first remote history are checked.
 GPU0 on A6000 is occupied; use GPU1 only. GPU9's historical native fault remains
 unresolved and is not part of this launch.
+
+GPU7 initialization completed in436.3s and online run scr1v5np has remotely
+readable training history. Its source is frozen at5ec9f85. The later offline
+wrench-chart helper changes no training source, reward or physics. A6000 still
+awaits completion of its full capacity probe before long launch.

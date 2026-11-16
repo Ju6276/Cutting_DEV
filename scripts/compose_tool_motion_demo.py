@@ -53,7 +53,7 @@ def main():
    i=int(index);right=min(i,stop)
    im=Image.new('RGB',(W,H),(245,247,249));d=ImageDraw.Draw(im)
    d.text((28,12),'刀具横向约束：同一段实际仿真刀路，比较两种规则',font=fonts[32],fill=ink)
-   d.text((28,58),f'脚本刀路（非训练效果）· 黄瓜 · {speed:g} 倍速 · 距离相对目标末端位置；刀背圆杆仅为显示件。',font=fonts[22],fill=muted)
+   d.text((28,58),f'脚本刀路（非训练效果）· 黄瓜 · {speed:g} 倍速 · 距离相对目标末端位置；使用共用场景的实际录制几何。',font=fonts[22],fill=muted)
    for x,mode,idx,color,title in [(10,'final_only',i,blue,'仅限制最终到位'),(910,'path_and_final',right,orange,'过程 + 最终到位')]:
     im.paste(frame(idx),(x,134))
     d.text((x+18,96),title,font=fonts[28],fill=color)

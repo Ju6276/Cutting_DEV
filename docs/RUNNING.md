@@ -469,3 +469,28 @@ process exit status. This change does not fix GPU9's unresolved native fault.
 Root test setup adds the bundled backend import path independently of collection
 order. The explicit PYTHONPATH above also works with the optional MPPI Python
 without depending on an editable backend install.
+
+
+## Sensor force/torque panel below studio video
+
+Keep the shared studio scene unchanged, then append synchronized charts:
+
+~~~bash
+PYTHONPATH=. /dataHDD/dong/Envs/cutting-mppi-20261108/bin/python scripts/compose_wrench_video.py   --render RUN/studio/cucumber.mp4 --output RUN/studio/cucumber_wrench.mp4
+~~~
+
+Requires the video's JSON sidecar and original evaluate_pose_policy recording,
+including trajectories.pt and geometry metadata. This offline Python has Torch,
+Pillow and Matplotlib; the lean training environment need not install graphics
+packages. The source video is never overwritten or rerendered. The compositor
+verifies case/episode identity, continuous first-episode observations, simulation
+time, sidecar and encoded frame counts. It uses the same playback sampling and
+final-frame hold as the studio renderer.
+
+Signals are signed filtered sensor-frame Fx/Fy/Fz in N and Mx/My/Mz in N m,
+recovered from the versioned full-wrench observation with its recorded limits.
+These are20 Hz control-step endpoint samples, not the500 Hz force-limit peaks
+or the material reaction-force norm. Plots have separate units and a moving time
+cursor. Force-limit event rates must still come from the physical evaluation.
+The first end-to-end composition used a historical frozen-policy movie only;
+it does not validate a newly trained policy or replace that movie's old physics.

@@ -2868,3 +2868,49 @@ No other new blocking issue was found on the reviewed main launch path. GPU9's
 native fault and the pending large-scale current-config BladeMaster deployment
 remain open; neither is declared fixed by these changes. Main fresh-run proposal
 and online-W&B requirement remain unchanged.
+
+
+## 2026-11-16 — Shared-task deployment and offline wrench panels
+
+User authorization: inspect docs/visualization, synchronize code, then launch
+GPU7 main and A6000 BladeMaster training after checks. The old no-launch plan was
+archived; PLAN and TRAINING_SHARED_20261116 now separate current task/budgets
+from historical GPU7/GPU9 runs. DATA's stale0.75s current-settling and old native
+source entries were corrected. SAC remains the historical single-world bridge;
+current shared multi-object SAC and MPPI physical evaluation are not completed.
+MPPI package/import test success is not a new-task rollout result.
+
+The two isolated training deployments are at5ec9f85, with native BladeMaster
+c51ef73. Robot MJB, source task/reset, FDCC parameters and all three intact assets
+match SHA256 on both hosts. Task/reward, six-axis observation, force limits and
+episode distributions match; first170 worlds per object have identical sampled
+clearances. Different vector counts/hardware and native fracture laws remain
+explicit, so this is not a claim of identical execution or matched compute.
+Evidence:runs/shared_long_20261116/deployment_audit.json on GPU7 development.
+
+A stale video-caption sentence still described the removed display rod. It was
+removed without changing geometry. The new compose_wrench_video helper appends
+two unit-separated sensor panels below an existing shared-studio movie. It checks
+case/episode identity, observation continuity, reset counters, timing and encoded
+frame counts. Signals are signed filtered sensor-frame values reconstructed
+from full-wrench normalized observations and recorded per-axis limits.
+They are20Hz endpoints, not500Hz peaks or material resultants. Source video is
+preserved in the top panel, with ordinary H264 reencoding differences.
+
+Validation used historical GPU7/GPU9 cucumber movies only, not new training
+results:100/27 encoded frames preserved; upper-panel first-frame pixel MAE
+1.197/1.225 on a0–255 scale. Time/unit/invalid-trace tests pass. The initial
+composition invocation used the lean training Python and failed because Pillow
+was absent; rerunning in the existing optional MPPI/render Python passed for
+both recordings. No packages were added to the live training environment.
+Panel source/data/provenance:runs/wrench_panel_validation_20261116.
+The historical full movies are retained as validation artifacts, not presented
+as current shared-knife training videos.
+
+Full root regression after the visualization changes:569 passed,5 skipped,
+294.78s; bundled backend41 passed,6.23s. Tests ran on GPU7 while the already
+validated frozen-code training collected/fitted data; those overlapping wall
+times are not exclusive-device throughput measurements. Only offline rendering
+code and docs changed after the frozen launch. Native solver/learner code did
+not change. Current launch state/URLs and A6000 capacity result are maintained in
+TRAINING_SHARED_20261116 and the server runtime records.

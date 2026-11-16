@@ -2,3 +2,6 @@ numpy==2.5.4
 vtk==9.7.2
 Pillow==13.0.0
 pycollada==0.9.3
+
+# Offline force/torque panels (Torch comes from the learning environment).
+matplotlib==3.11.2

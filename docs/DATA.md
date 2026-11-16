@@ -1,10 +1,25 @@
-# Server data and checkpoint index — 2026-11-15
+# Server data and checkpoint index — 2026-11-16
 
 This is the current location/recovery index, not an authorization to launch.
 All paths are on servers. No project source, weights or datasets were copied
 to the Mac during this cleanup. See [PLAN](PLAN.md) for active budgets.
 
-## Checkouts and latest training runs
+## Current shared-task deployments
+
+GPU7 and A6000 each use an isolated checkout at
+/dataHDD/dong/Projects/Cutting_DEV_shared_long_20261116.
+Their checked source is5ec9f85; native material source is
+/dataHDD/dong/Projects/BladeMaster-Warp-shared-knife-20261116 atc51ef73.
+Robot model, source task/reset, FDCC parameters and three intact geometry assets
+match byte-for-byte. Authoritative status/URLs are in TRAINING_SHARED_20261116;
+do not infer a launched run merely from the checkout's existence.
+
+Run files under each checkout: runs/shared_long_20261116.
+GPU7:disect_training, launch_plan.json, supervisor.json, training.log.
+A6000:bm510_preflight and bm510_preflight.log before long training.
+All runs use online W&B; physical snapshots and recovery data stay on servers.
+
+## Historical checkouts and training runs
 
 | Host | Checkout | Role / frozen code |
 |---|---|---|
@@ -48,8 +63,9 @@ runtime assets/data; do not remove them merely because their jobs ended.
 SliceIt/ROS sources and shared environments remain dependencies.
 
 Current DiSECt scenes under prepared/sweep are free_cucumber_003, free_prism
-and **free_potato_half_20261114**. The half potato uses 1 s of per-material
-settling; cucumber and prism use 0.75 s. Whole-potato exports
+and **free_potato_half_20261114**. The completed pose-v1 run used 1 s of per-material
+settling for half potato and 0.75 s for cucumber/prism. The current shared task
+uses 1 s for all three. Whole-potato exports
 free_potato_003 and free_potato_stable_20261114_v3 are historical preparation
 comparisons, not the active potato asset.
 
@@ -66,7 +82,7 @@ comparisons, not the active potato asset.
   runs/half_potato_randomized_20261114 (144 production reset cases).
 - Reward evidence: runs/pose_reward_audit_20261114, including raw trajectories.
 - BladeMaster intact assets: /dataHDD/dong/Assets/Cutting_DEV/blademaster_intact_20261114.
-  Current external solver: /dataHDD/dong/Projects/BladeMaster-Warp-batched-20261114,
+  Historical external solver: /dataHDD/dong/Projects/BladeMaster-Warp-batched-20261114,
   e2e52216c23b7f71af5bc46566818c48b975c398; copied with hashes to GPU9.
 - BladeMaster-derived DiSECt candidates: /dataHDD/dong/Assets/Cutting_DEV/blademaster_disect_20261114;
   prepared/sweep/bm_{banana,cake,tofu,luncheon}_20261114.
@@ -76,7 +92,7 @@ comparisons, not the active potato asset.
 ## Historical checkpoints and research evidence
 
 GPU7 paths below are relative to its shared experiment root. They are not
-initializations for either fresh active run.
+initializations for the fresh shared-task runs.
 
 | Path | Identity |
 |---|---|
