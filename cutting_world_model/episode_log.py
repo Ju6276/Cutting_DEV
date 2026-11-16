@@ -1,9 +1,9 @@
 """Per-episode records and aggregate episode metrics of the online training loop."""
 
 
-def ending(success, collision, outside, truncated, timeout=False, object_slip_failure=False):
+def ending(success, collision, outside, truncated, timeout=False, object_slip_failure=False, tool_motion_failure=False):
     return ('success' if success else 'force_limit' if collision else 'workspace' if outside
-            else 'object_motion' if object_slip_failure else 'time_limit' if truncated or timeout else 'other')
+            else 'tool_motion' if tool_motion_failure else 'object_motion' if object_slip_failure else 'time_limit' if truncated or timeout else 'other')
 
 
 def episode_metrics(prefix, mask, returns, lengths, info, truncated, peak_material, peak_ratio):
@@ -22,6 +22,9 @@ def episode_metrics(prefix, mask, returns, lengths, info, truncated, peak_materi
             **({prefix + 'object_slip_failure_rate': float(info['object_slip_failure'][mask].float().mean()),
                 prefix + 'terminal_object_slip_m_mean': float(info['object_slip_m'][mask].float().mean())}
                if 'object_slip_failure' in info else {}),
+            **({prefix + 'tool_motion_failure_rate': float(info['tool_motion_failure'][mask].float().mean()),
+                prefix + 'completion_xy_error_m_mean': float(info['completion_xy_error_m'][mask].float().mean())}
+               if 'tool_motion_failure' in info else {}),
             prefix + 'peak_material_force_mean': float(peak_material[mask].float().mean()),
             prefix + 'peak_limit_ratio_mean': float(peak_ratio[mask].float().mean())}
 
@@ -47,12 +50,13 @@ def episode_row(e, episode, iteration, returns, lengths, info, truncated, peak_m
            'ending': ending(bool(info['success'][e]), bool(info['collision'][e]),
                             bool(info['outside'][e]), bool(truncated[e]),
                             bool(info['timeout'][e]) if 'timeout' in info else False,
-                            bool(info['object_slip_failure'][e]) if 'object_slip_failure' in info else False),
+                            bool(info['object_slip_failure'][e]) if 'object_slip_failure' in info else False,
+                            bool(info['tool_motion_failure'][e]) if 'tool_motion_failure' in info else False),
            'success': bool(info['success'][e]), 'collision': bool(info['collision'][e]),
            'outside': bool(info['outside'][e]), 'truncated': bool(truncated[e]),
 
            'peak_material_force_n': float(peak_material[e]), 'peak_limit_ratio': float(peak_ratio[e])}
-    for key, cast in (('object_slip_failure', bool), ('object_slip_m', float), ('timeout', bool), ('separated', bool), ('cut_progress', float),
+    for key, cast in (('completion_xy_error_m', float), ('tool_motion_failure', bool), ('object_slip_failure', bool), ('object_slip_m', float), ('timeout', bool), ('separated', bool), ('cut_progress', float),
                       ('depth_progress', float), ('released_springs', int),
                       ('material_components', int), ('damage_saturated_fraction', float)):
         if key in info:

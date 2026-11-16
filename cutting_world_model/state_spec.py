@@ -128,6 +128,8 @@ class CuttingStateSpec(nn.Module):
             'previous_acceleration': [1.] * 6, 'observation': [1.] * int(np.prod(self.shapes['observation'])),
             'success_counter': [metadata['environment']['successes_threshold'] + 1.],
         }
+        if 'completion_xy_error' in self.history_fields:
+            history_scale['completion_xy_error'] = [metadata['free_cut_task']['completion_position']['radius_m']]
         history_scale['cut_progress'] = [1.]
         history_scale['depth_span'] = [0.1]  # known reset travel, metres
         history_scale['step_count'] = [metadata.get('free_cut_task', {}).get('horizon_steps', 1)]

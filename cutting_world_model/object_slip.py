@@ -3,8 +3,8 @@
 RMS relative to settled reset prevents cancellation between separating fragments.
 It also includes rotation/deformation: it is not a rigid-body slip estimator.
 """
-import math
 import torch
+from .motion_limits import validate_limits, penalty
 
 REVISION = 'planar_mass_rms_v1'
 
@@ -13,23 +13,13 @@ def validate(config):
         raise ValueError('Specify revision, free_m, failure_m and weight for object_slip')
     if config['revision'] != REVISION:
         raise ValueError('Unsupported object motion metric')
-    for key in ('free_m', 'failure_m', 'weight'):
-        v = config[key]
-        if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v):
-            raise ValueError('Object motion settings must be finite numbers')
-    if not 0 <= config['free_m'] < config['failure_m'] or config['weight'] < 0:
-        raise ValueError('Require 0 <= free_m < failure_m and nonnegative weight')
+    validate_limits(config)
     return dict(config)
 
 def planar_rms(position, reference, mass, axes):
     displacement = (position - reference)[..., list(axes)]
     weights = mass / mass.sum(-1, keepdim=True)
     return (displacement.square().sum(-1) * weights).sum(-1).clamp_min(0).sqrt()
-
-def penalty(distance, config, horizon):
-    excess = ((distance - config['free_m']) /
-              (config['failure_m'] - config['free_m'])).clamp(0, 1)
-    return config['weight'] / horizon * excess.square()
 
 @torch.no_grad()
 def observe(env, frame):

@@ -201,9 +201,11 @@ class SliceItHeads:
         result = result + (goal_reached & ~collision).to(result.dtype) * cost["done"]
         return result + out_of_workspace.to(result.dtype) * cost["collision"]
 
-    def termination(self, observation, success_counter, collision):
+    def termination(self, observation, success_counter, collision, arrival_mask=None):
         error = (observation[..., :len(self.dims)] * observation.new_tensor(self.max_distance)).abs()
         position_reached = (error < error.new_tensor(self.env["goal_threshold"])).all(dim=-1)
+        if arrival_mask is not None:
+            position_reached = position_reached & arrival_mask
         success_counter = success_counter + position_reached.to(success_counter.dtype)
         goal_reached = (position_reached & (success_counter > self.env["successes_threshold"])
                         & ~collision & (not self.env["termination_on_negative_reward"]))

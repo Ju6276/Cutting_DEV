@@ -148,6 +148,8 @@ class GPUEnvironment:
                 frame['cut_progress'] = frame['knife_path_progress'].to(pose.dtype)
         if getattr(self, 'start_clearance_m', None) is not None:
             frame['start_clearance_m'] = self.start_clearance_m[:, None].clone()
+        if self.free_task is not None and 'completion_position' in self.free_task.config:
+            frame['completion_xy_error'] = self.free_task.completion_distance(pose,frame['target_pose'])[:,None]
         from .object_slip import observe
         observe(self, frame)
         return frame
@@ -235,7 +237,8 @@ class GPUEnvironment:
                                             else frame['cut_progress'])[:, 0], self.step_count, collision, pose=frame['ee_pose'],
                                            board=frame if self.free_task.config['version'] in ('free_cut_v4', 'free_cut_pose_v1', 'pose_depth_v2') else None,
                                            success_counter=self.success_counter,
-                                           object_slip=(frame['object_slip'][:,0] if 'object_slip' in frame else None))
+                                           object_slip=(frame['object_slip'][:,0] if 'object_slip' in frame else None),
+                                           target_pose=frame['target_pose'])
             reward = self.free_task.reward(self.current['cut_progress'][:, 0],
                                           frame['cut_progress'][:, 0], frame['observation'],
                                           frame['peak_wrench'], self.target_speed, events)
@@ -244,6 +247,9 @@ class GPUEnvironment:
             counter = events.get('counter', self.success_counter)
             truncated = torch.zeros_like(terminated)
             task_info = {k: events[k] for k in ('separated', 'timeout')}
+            if 'completion_xy_error_m' in events:
+                task_info['completion_xy_error_m'] = events['completion_xy_error_m']
+                task_info['tool_motion_failure'] = events['tool_motion_failure']
             if 'object_slip_failure' in events:
                 task_info.update({k: events[k] for k in ('object_slip_failure', 'object_slip_m')})
             task_info['cut_progress'] = frame['cut_progress'][:, 0]

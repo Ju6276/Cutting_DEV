@@ -58,7 +58,7 @@ def test_free_zone_soft_penalty_and_bounded_episode_cost():
     assert cost.max()*180<=20.
 
 @pytest.mark.parametrize('backend',['mujoco_warp_disect','mujoco_warp_blademaster'])
-@pytest.mark.parametrize('distance',[0.,.0425,.061])
+@pytest.mark.parametrize('distance',[0.,.025,.035,.0425,.05,.06,.061])
 def test_physical_and_wm_reward_termination_agree(backend,distance):
     wm,s,g=model(backend);sp=wm.spec
     s[:,sp.layout['success_counter']]=sp.heads.env['successes_threshold']

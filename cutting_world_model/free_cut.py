@@ -28,6 +28,27 @@ def validate_task(config):
         if config['version'] != 'pose_depth_v2':
             raise ValueError('Bounded pitch requires pose_depth_v2')
         required.add('pitch_control')
+    if 'completion_position' in config:
+        position = config['completion_position']
+        if (config['version'] != 'pose_depth_v2' or not isinstance(position, dict)
+                or set(position) != {'revision', 'radius_m'}
+                or position['revision'] != 'robot_base_xy_goal_v1'
+                or isinstance(position['radius_m'], bool)
+                or not isinstance(position['radius_m'], (int, float))
+                or not math.isfinite(position['radius_m']) or position['radius_m'] <= 0):
+            raise ValueError('Explicit positive final XY radius required for pose_depth_v2')
+        required.add('completion_position')
+    if 'tool_motion' in config:
+        from .motion_limits import validate_limits
+        motion = config['tool_motion']
+        if (config['version'] != 'pose_depth_v2' or 'completion_position' not in config
+                or not isinstance(motion, dict)
+                or set(motion) != {'revision', 'enabled', 'free_m', 'failure_m', 'weight'}
+                or motion['revision'] != 'robot_base_xy_goal_v1'
+                or type(motion['enabled']) is not bool):
+            raise ValueError('Explicit optional tool-motion constraint required')
+        validate_limits(motion)
+        required.add('tool_motion')
     if 'object_slip' in config:
         from .object_slip import validate
         validate(config['object_slip'])
@@ -124,7 +145,9 @@ class FreeCutTask:
             # Enforce settlement dominance for every accepted configuration, not one probe.
             penalty_bound = (2 * self.weights['speed'] + self.horizon * self.dt *
                              (self.weights['load'] + self.weights['jerk'])
-                             + self.config.get('object_slip', {}).get('weight', 0))
+                             + self.config.get('object_slip', {}).get('weight', 0)
+                             + (self.config.get('tool_motion', {}).get('weight', 0)
+                                if self.config.get('tool_motion', {}).get('enabled') else 0))
             if min(self.weights['success'], self.weights['failure']) <= self.weights['progress'] + penalty_bound:
                 raise ValueError('Terminal rewards must exceed progress plus the finite running-penalty bound')
 
@@ -155,6 +178,30 @@ class FreeCutTask:
                  observation.new_tensor(self.heads.max_distance)).abs()
         return (error > error.new_tensor(self.heads.env['workspace_limit'])).any(-1)
 
+    def completion_distance(self, pose, target_pose):
+        if pose is None or target_pose is None:
+            raise ValueError('Final position criterion requires EE and target poses')
+        return torch.linalg.vector_norm(pose[..., :2] - target_pose[..., :2], dim=-1)
+
+    def arrival_mask(self, pose, target_pose):
+        config = self.config.get('completion_position')
+        if config is None:
+            return None
+        return self.completion_inside(self.completion_distance(pose, target_pose))
+
+    def completion_inside(self, distance):
+        from .motion_limits import inside
+        return inside(distance, self.config['completion_position']['radius_m'])
+
+    def tool_motion_failure(self, distance, like):
+        config = self.config.get('tool_motion')
+        if config is None or not config['enabled']:
+            return torch.zeros_like(like, dtype=torch.bool)
+        if distance is None:
+            raise ValueError('Tool-motion constraint requires robot-derived distance')
+        from .motion_limits import outside
+        return outside(distance, config['failure_m'])
+
     def slip_failure(self, distance, like):
         config = self.config.get('object_slip')
         if config is None:
@@ -163,7 +210,7 @@ class FreeCutTask:
             raise ValueError('Object motion task requires measured/predicted object_slip')
         return distance > config['failure_m']
 
-    def events(self, observation, peak, progress, step_count, collision=None, pose=None, board=None, success_counter=None, object_slip=None):
+    def events(self, observation, peak, progress, step_count, collision=None, pose=None, board=None, success_counter=None, object_slip=None, target_pose=None):
         limits = peak.new_tensor(self.heads.force_limits)
         force = (peak.abs() > limits).any(-1)
         if collision is not None:
@@ -177,17 +224,21 @@ class FreeCutTask:
                 raise ValueError('Pose task requires arrival counter and board measurements')
             if bool((board['knife_min_board_gap'][..., 0] < -2e-6).any()):
                 raise FloatingPointError('Invalid knife-board penetration, not an RL failure')
-            _, reached, _, counter = self.heads.termination(observation, success_counter, force)
+            _, reached, _, counter = self.heads.termination(observation, success_counter, force, self.arrival_mask(pose, target_pose))
             slipped = self.slip_failure(object_slip, force)
-            success = reached & ~outside & ~force & ~slipped
-            timeout = (step_count >= self.horizon) & ~force & ~outside & ~slipped & ~success
+            tool_error = self.completion_distance(pose,target_pose) if 'completion_position' in self.config else None
+            tool_outside = self.tool_motion_failure(tool_error,force)
+            success = reached & ~outside & ~force & ~slipped & ~tool_outside
+            timeout = (step_count >= self.horizon) & ~force & ~outside & ~slipped & ~tool_outside & ~success
             return dict(**({} if separated is None else {'separated': separated}),
                         **({'object_slip_failure': slipped, 'object_slip_m': object_slip}
                            if 'object_slip' in self.config else {}),
+                        **({'completion_xy_error_m': tool_error, 'tool_motion_failure': tool_outside}
+                           if 'completion_position' in self.config else {}),
                         collision=force, outside=outside,
                         success=success, timeout=timeout, counter=counter,
                         board_contact=board['knife_board_contact'][..., 0].bool(),
-                        terminated=force | outside | slipped | success | timeout)
+                        terminated=force | outside | slipped | tool_outside | success | timeout)
         if self.config['version'] == 'free_cut_v4':
             if board is None:
                 raise ValueError('v4 requires physical knife-board and coverage measurements')
@@ -208,7 +259,7 @@ class FreeCutTask:
                     success=success, timeout=timeout,
                     terminated=force | outside | success | timeout)
 
-    def step_reward(self, previous_progress, progress, observation, peak, target_speed, object_slip=None):
+    def step_reward(self, previous_progress, progress, observation, peak, target_speed, object_slip=None, tool_distance=None):
         if target_speed is None:
             raise ValueError('free_cut requires a commanded feed speed')
         w = self.weights
@@ -233,14 +284,21 @@ class FreeCutTask:
                 raise ValueError('Object motion reward requires object_slip')
             from .object_slip import penalty
             slip_cost = penalty(object_slip, self.config['object_slip'], self.horizon)
-        return (w['progress'] * increment - speed_cost - slip_cost
+        tool_cost = 0.
+        motion = self.config.get('tool_motion')
+        if motion is not None and motion['enabled']:
+            if tool_distance is None:
+                raise ValueError('Tool-motion reward requires robot-derived distance')
+            from .motion_limits import penalty
+            tool_cost = penalty(tool_distance, motion, self.horizon)
+        return (w['progress'] * increment - speed_cost - slip_cost - tool_cost
                 - self.dt * (w['load'] * utilization.clamp(max=1) + w['jerk'] * jerk))
 
     def reward(self, previous_progress, progress, observation, peak, target_speed, events):
         if self.config['version'] == 'free_cut_v4' and bool(events['board_penetration'].any()):
             raise FloatingPointError('Invalid knife-board penetration: exclude transition, not an RL failure penalty')
-        result = self.step_reward(previous_progress, progress, observation, peak, target_speed, events.get('object_slip_m'))
-        failure = events['collision'] | events['outside'] | events.get('object_slip_failure', False)
+        result = self.step_reward(previous_progress, progress, observation, peak, target_speed, events.get('object_slip_m'), events.get('completion_xy_error_m'))
+        failure = events['collision'] | events['outside'] | events.get('object_slip_failure', False) | events.get('tool_motion_failure', False)
         return (result + self.weights['success'] * events['success'].to(result.dtype)
                 - self.weights['failure'] * failure.to(result.dtype))
 

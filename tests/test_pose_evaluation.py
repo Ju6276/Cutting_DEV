@@ -17,6 +17,7 @@ def test_native_components_are_not_declared_slice_separation():
     s=summarize([row],1)
     assert s["complete"] and s["multiple_components_rate"]==1
     assert "separated_rate" not in s
+    assert "object_slip_failure_rate" not in s
 
 def test_interface_mismatch_rejected():
     meta=dict(free_cut_task={"version":"free_cut_pose_v1"},environment={"force_limits":[50]*6},
@@ -27,3 +28,43 @@ def test_interface_mismatch_rejected():
     actual["environment"]["force_limits"][0]=100
     with pytest.raises(ValueError,match="environment"):
         validate_interfaces(meta,actual,{"task":meta["free_cut_task"]})
+
+
+def test_motion_failure_is_reported_in_summary():
+    row=dict(success=False,collision=False,outside=False,timeout=False,
+             object_slip_failure=True,object_slip_m=.061,
+             **{"return":-100.,"steps":12,"peak_material_force_n":3.,
+                "peak_limit_ratio":.1,"material_impulse_ns":1.,"speed_error_mps":.01})
+    result=summarize([row],1)
+    assert result["object_slip_failure_rate"]==1
+    assert result["mean_terminal_object_slip_m"]==pytest.approx(.061)
+
+
+def test_shared_evaluation_resizes_and_reseeds_both_backends():
+    from scripts.evaluate_pose_policy import evaluation_config
+    from test_shared_scene import contract, manifest
+    from cutting_world_model.shared_scene import configs
+    from cutting_world_model.episode_conditions import EpisodeConditions
+    import numpy as np
+    c=contract();d,b=configs(c,manifest(c))
+    dc=evaluation_config(d,5,91);bc=evaluation_config(b,5,91,True)
+    assert all(g['worlds']==5 for g in dc['groups']) and bc['worlds']==15
+    assert bc['start_clearance_m']==[x for g in dc['groups'] for x in g['start_clearance_m']]
+    assert dc['episode_conditions']['seed']==bc['episode_conditions']['seed']==91
+    ds=EpisodeConditions(dc['episode_conditions'],dc['groups']).sample(np.ones(15,bool))
+    bs=EpisodeConditions(bc['episode_conditions'],bc['groups']).sample(np.ones(15,bool))
+    for key in ds:np.testing.assert_array_equal(ds[key],bs[key])
+    changed=evaluation_config(d,5,92)
+    cs=EpisodeConditions(changed['episode_conditions'],changed['groups']).sample(np.ones(15,bool))
+    assert not np.array_equal(ds['youngs_modulus'],cs['youngs_modulus'])
+    assert dc['groups'][0]['start_clearance_m']!=changed['groups'][0]['start_clearance_m']
+    assert d['groups'][0]['worlds']==c['common']['worlds_per_object']
+    assert dc['task']==d['task'] and bc['task']==b['task']
+
+
+def test_physical_mount_mismatch_rejected():
+    meta=dict(free_cut_task={},environment={},controller={},
+              state_shapes={"observation":[34]},board_pose_geometry={"vertices_in_ee":[[0,0,0]]})
+    other=copy.deepcopy(meta);other['board_pose_geometry']['vertices_in_ee'][0][2]=.01
+    with pytest.raises(ValueError,match='board_pose_geometry'):
+        validate_interfaces(meta,other,{'task':{}})

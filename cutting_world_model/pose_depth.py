@@ -25,8 +25,10 @@ class PoseDepthStateSpec(ControlStateSpec):
         physical = cls.physical_fields
         if 'object_slip' in metadata.get('free_cut_task', {}):
             physical = physical + ('object_slip',)
-        return physical, CuttingStateSpec.history_fields + (
-            'step_count', 'cut_progress', 'depth_span')
+        history = CuttingStateSpec.history_fields + ('step_count', 'cut_progress', 'depth_span')
+        if 'completion_position' in metadata.get('free_cut_task', {}):
+            history += ('completion_xy_error',)
+        return physical, history
 
     def __init__(self, metadata):
         if metadata.get('physical_backend') not in ('mujoco_warp_disect', 'mujoco_warp_blademaster'):
@@ -36,6 +38,8 @@ class PoseDepthStateSpec(ControlStateSpec):
         super().__init__(metadata)
         self.free_task = FreeCutTask(metadata['free_cut_task'], self.heads)
         self.board_geometry = metadata['board_pose_geometry']
+        if 'completion_position' in self.free_task.config:
+            self.terminal_feature_dim += 1
         if 'object_slip' in self.free_task.config:
             self.terminal_feature_dim += 1
 
@@ -56,6 +60,9 @@ class PoseDepthStateSpec(ControlStateSpec):
         if 'object_slip' in self.free_task.config:
             failure = failure | self.free_task.slip_failure(
                 self.field(state, 'object_slip')[..., 0], failure)
+        if 'completion_position' in self.free_task.config:
+            failure = failure | self.free_task.tool_motion_failure(
+                self.field(state,'completion_xy_error')[...,0],failure)
         return failure, timeout
 
     hard_termination = PoseCutStateSpec.hard_termination
@@ -65,4 +72,7 @@ class PoseDepthStateSpec(ControlStateSpec):
         if 'object_slip' in self.free_task.config:
             margin = self.field(state, 'object_slip') / self.free_task.config['object_slip']['failure_m'] - 1
             features = torch.cat((features, margin), -1)
+        if 'completion_position' in self.free_task.config:
+            margin = self.field(state,'completion_xy_error') / self.free_task.config['completion_position']['radius_m'] - 1
+            features = torch.cat((features,margin),-1)
         return features

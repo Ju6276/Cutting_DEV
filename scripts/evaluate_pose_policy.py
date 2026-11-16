@@ -40,6 +40,14 @@ def summarize(rows, expected):
     for field in ("return", "steps", "peak_material_force_n", "peak_limit_ratio",
                   "material_impulse_ns", "speed_error_mps"):
         result["mean_" + field] = sum(r[field] for r in rows) / len(rows)
+    if all("object_slip_failure" in r for r in rows):
+        result["object_slip_failure_rate"] = sum(r["object_slip_failure"] for r in rows) / len(rows)
+    if all("tool_motion_failure" in r for r in rows):
+        result["tool_motion_failure_rate"] = sum(r["tool_motion_failure"] for r in rows) / len(rows)
+    if all("completion_xy_error_m" in r for r in rows):
+        result["mean_completion_xy_error_m"] = sum(r["completion_xy_error_m"] for r in rows) / len(rows)
+    if all("object_slip_m" in r for r in rows):
+        result["mean_terminal_object_slip_m"] = sum(r["object_slip_m"] for r in rows) / len(rows)
     if all("separated" in r for r in rows):
         result["separated_rate"] = sum(r["separated"] for r in rows) / len(rows)
     if all("material_components" in r for r in rows):
@@ -52,11 +60,44 @@ def validate_interfaces(saved, actual, config):
     if config["task"] != saved["free_cut_task"]:
         raise ValueError("Evaluation task/reward differs from the checkpoint")
     for key in ("environment", "controller", "policy_observation_revision",
-                "physical_backend", "task_interface_revision"):
+                "physical_backend", "task_interface_revision", "tool_revision",
+                "progress_semantics", "board_pose_geometry", "contact_discretization_revision"):
         if saved.get(key) != actual.get(key):
             raise ValueError("Checkpoint/environment mismatch: " + key)
     if saved["state_shapes"]["observation"] != actual["state_shapes"]["observation"]:
         raise ValueError("Observation dimensions differ")
+
+
+def evaluation_config(source, worlds_per_object, seed, blademaster=False):
+    """Regenerate paired evaluation cases, including explicit clearances and episode RNG."""
+    from cutting_world_model.shared_scene import sample_clearances
+    from cutting_world_model.scene_alignment import validate_alignment
+    if type(worlds_per_object) is not int or worlds_per_object < 1 or type(seed) is not int or seed < 0:
+        raise ValueError("Positive world count and nonnegative evaluation seed required")
+    config = copy.deepcopy(source)
+    config["seed"] = seed
+    if config.get("episode_conditions") is not None:
+        config["episode_conditions"]["seed"] = seed
+    aligned = config["task"].get("scene_alignment")
+    clearances = []
+    for group in config["groups"]:
+        if not aligned and group.get("start_clearance_m") is not None:
+            raise ValueError("Explicit clearances require a shared scene alignment for case regeneration")
+        group["worlds"] = worlds_per_object
+        if aligned:
+            bounds = validate_alignment(aligned)["clearance_range_m"]
+            values = sample_clearances(seed, group["name"], worlds_per_object, bounds)
+            if not blademaster:
+                group["start_clearance_m"] = values
+            clearances.extend(values)
+    if blademaster:
+        config["worlds"] = sum(g["worlds"] for g in config["groups"])
+        if aligned:
+            config["case_seed"] = seed
+            config["start_clearance_m"] = clearances
+        elif config.get("start_clearance_m") is not None:
+            raise ValueError("Explicit clearances require shared scene alignment")
+    return config
 
 
 def main():
@@ -71,7 +112,7 @@ def main():
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--record-geometry", action="store_true", help="Capture physical states for video; no change to policy or task")
     args = p.parse_args()
-    if args.worlds_per_object < 1 or args.max_hours <= 0:
+    if args.worlds_per_object < 1 or args.max_hours <= 0 or args.seed < 0:
         p.error("Positive world count and wall budget required")
     args.output.mkdir(parents=True, exist_ok=False)
     started = time.monotonic()
@@ -97,12 +138,9 @@ def main():
         config_path = args.conditions or args.blademaster_config
         config = json.loads(config_path.read_text())
         source_config = copy.deepcopy(config)
+        config = evaluation_config(source_config, args.worlds_per_object, args.seed,
+                                   blademaster=bool(args.blademaster_config))
         groups = config["groups"]
-        for g in groups:
-            g["worlds"] = args.worlds_per_object
-        config["seed"] = args.seed
-        if args.blademaster_config:
-            config["worlds"] = sum(g["worlds"] for g in groups)
         expected = sum(g["worlds"] for g in groups)
         group_names = [g["name"] for g in groups for _ in range(g["worlds"])]
         policy = SliceItPolicy(int(metadata["goal_dim"]), int(metadata["state_shapes"]["observation"][0])).cuda().eval()
@@ -115,7 +153,7 @@ def main():
                     "config_source_sha256": file_hash(config_path), "source_config": source_config,
                     "config": config, "seed": args.seed, "expected_cases": expected,
                     "policy": "frozen, no exploration noise, one scored episode per world",
-                    "scope": "development snapshot; backend task definitions differ",
+                    "scope": "development snapshot; task and physics identity recorded explicitly",
                     "command": sys.argv}
         write("manifest.json", manifest)
         del saved, learner

@@ -67,22 +67,31 @@ class PoseCutStateSpec(FreeCutStateSpec):
         obs=self.free_task.observation(fields['observation'],count[...,0])
         peak=fields['peak_wrench']
         force=(peak.abs()>self.force_limits).any(-1)
-        _,reached,_,counter=self.heads.termination(obs,self.field(old,'success_counter'),force)
+        target, _ = self.goal_parts(goal)
+        pose = self.fk(fields['joint_q'])
+        _,reached,_,counter=self.heads.termination(obs,self.field(old,'success_counter'),force,
+            self.free_task.arrival_mask(pose,target))
+        if 'completion_position' in self.free_task.config:
+            fields['completion_xy_error'] = self.free_task.completion_distance(pose,target)[...,None]
         outside=self.free_task.workspace(obs,self.fk(fields['joint_q']))
         distance = fields['object_slip'][...,0] if 'object_slip' in self.free_task.config else None
         slipped = self.free_task.slip_failure(distance, force)
-        success=reached & ~outside & ~force & ~slipped
+        tool_distance = fields['completion_xy_error'][...,0] if 'completion_position' in self.free_task.config else None
+        tool_outside = self.free_task.tool_motion_failure(tool_distance,force)
+        success=reached & ~outside & ~force & ~slipped & ~tool_outside
         fields.update(observation=obs,success_counter=counter,step_count=count)
         next_state=self.assemble(fields)
         reward=self.free_task.step_reward(self.field(old,'cut_progress')[...,0],
-                    fields['cut_progress'][...,0],obs,peak,speed,distance)
-        reward=reward+self.free_task.weights['success']*success-self.free_task.weights['failure']*(force|outside|slipped)
+                    fields['cut_progress'][...,0],obs,peak,speed,distance,tool_distance)
+        reward=reward+self.free_task.weights['success']*success-self.free_task.weights['failure']*(force|outside|slipped|tool_outside)
         return next_state,reward,self.hard_termination(next_state)
 
     def pose_success(self,state):
         obs=self.field(state,'observation')
         error=(obs[...,:len(self.heads.dims)]*obs.new_tensor(self.heads.max_distance)).abs()
         arrived=(error < error.new_tensor(self.heads.env['goal_threshold'])).all(-1)
+        if 'completion_position' in self.free_task.config:
+            arrived = arrived & self.free_task.completion_inside(self.field(state,'completion_xy_error')[...,0])
         failure,_=self.hard_events(state)
         return arrived & (self.field(state,'success_counter') > self.heads.env['successes_threshold']) & ~failure
 

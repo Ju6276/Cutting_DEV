@@ -45,14 +45,15 @@ fails rather than expanding the workspace silently.
 | Cut location / orientation | Prepared cut location; nominal vertical knife, no automatic cut-site search |
 | Start | Per-object settled top + uniform 5–30 mm; paired explicit cases |
 | Settling | 1.0 s simulated time with that episode's actual material parameters |
-| Goal | Shared board-aligned prescribed pose, original x/z/pitch tolerances and arrival counter |
+| Goal | Shared board-aligned prescribed pose, final XY radius plus z/pitch tolerances and arrival counter |
 | Board | Height 0; finite-blade stop at 1 micrometre; support plane has no finite edge |
 | Workspace | EE in robot-base frame: x[.038,.238], y[.405,.605], z[.096,.269] m |
 | Force / torque limits | [50,50,50,5,5,5], componentwise; simulation settings, not Mini45 calibration |
 | Observations | 34 values per frame, full six-component sensor wrench; history length is learner configuration |
 | Outputs | Six network outputs; pitch disabled, five effective channels |
 | Pitch option | Default off; when explicitly enabled, target angle ±5 degrees, rate ≤5 degrees/s |
-| Motion constraint | Planar mass-weighted RMS material motion: 25 mm free, 60 mm failure, weight 20 |
+| Final position | Robot EE XY distance from prescribed target <40 mm, plus original height/pitch/arrival conditions |
+| Optional path constraint | task.tool_motion.enabled: false = final only (default); true = EE XY distance 25 mm free / 60 mm failure / weight 20 |
 | Reward | pose_depth_v2: geometric maximum-depth progress 10, speed 20, load 1, jerk .1; success +100, failure −100 |
 | Completion | Pose arrival without higher-priority failures; material separation recorded independently |
 | Episode / discount | 180 control steps / 9 s; gamma 1 |
@@ -64,10 +65,11 @@ fails rather than expanding the workspace silently.
 | Nominal half potato | E=2 MPa, nu=.45, density=1101 kg/m³ |
 | Nominal prism | E=.04 MPa, nu=.45, density=830 kg/m³ |
 
-Workspace and motion thresholds are **fixed physical distances**, not scaled with
-object size. Rendered board edges are not a physical boundary. The motion metric
-includes fragment opening/deformation as well as translation. Do not interpret
-it as exact object-center displacement or an edge-of-board detector.
+Workspace and tool-position thresholds are **fixed physical distances**, not scaled
+with object size. Rendered board edges are not a physical boundary. The current
+configuration has no particle-displacement penalty: fragment opening is not charged.
+Tool distance is measured from the prescribed goal in robot-base XY, not from a
+moving object or from the rendered board edge. Both modes retain force/workspace/board limits.
 
 ## Explicit differences and remaining work
 
@@ -122,3 +124,25 @@ does not consume world B's random stream. Per-episode parameters, speed and coun
 are recorded in episode logs; they are not policy or WM material inputs.
 For the same case and episode number, both backends receive the same multipliers
 and speed. Native nominal fracture parameters remain backend-specific.
+
+## Two tool-position modes
+
+Set common.task.tool_motion.enabled to false (final only) or true (path and final),
+then regenerate both backend inputs. The prepared manifest checks the entire
+contract, including this switch. Final XY radius remains 40 mm in both modes;
+this extends the former 40 mm single-axis criterion to the horizontal plane.
+Height tolerance 2 mm, pitch-error tolerance .04 rad and >10 qualifying arrival
+samples are retained. Qualifying samples are cumulative, not necessarily consecutive.
+When path control is off, passing 60 mm alone neither adds cost nor ends the task;
+the existing robot workspace still applies. Failure to return to the final region
+before the horizon gives timeout, not a successful cut.
+
+With path control on, each 50 ms endpoint subtracts
+20/180 * clamp((distance-.025)/(.060-.025),0,1)^2.
+Above 60 mm the task ends with failure -100 once; exactly 60 mm remains inside.
+These are configurable engineering settings. No new policy has been trained
+with either revised final-position mode.
+
+Reward-equation audit: append --tool-reward-audit to either check_pose_depth.py
+command above. It evaluates both switches using measured transitions and
+counterfactual goal offsets; it does not assert learned motion improvement.

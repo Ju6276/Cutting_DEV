@@ -46,12 +46,6 @@
         "stop_gap_m": 1e-06
       },
       "tool_revision": "disect_knife_rigid_mount_v1",
-      "object_slip": {
-        "revision": "planar_mass_rms_v1",
-        "free_m": 0.025,
-        "failure_m": 0.06,
-        "weight": 20.0
-      },
       "pitch_control": {
         "revision": "bounded_pitch_v1",
         "enabled": false,
@@ -64,6 +58,17 @@
           0.005,
           0.03
         ]
+      },
+      "completion_position": {
+        "revision": "robot_base_xy_goal_v1",
+        "radius_m": 0.04
+      },
+      "tool_motion": {
+        "revision": "robot_base_xy_goal_v1",
+        "enabled": false,
+        "free_m": 0.025,
+        "failure_m": 0.06,
+        "weight": 20.0
       }
     },
     "episode_conditions": {

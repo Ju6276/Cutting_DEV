@@ -1,10 +1,49 @@
-# Real-robot calibration (real2sim) plan — draft, awaiting approval
+# Real-robot deployment interface and calibration plan
 
 Goal: make the simulated benchmark (UR5e + FDCC compliance controller + DiSECt
 material) match the real setup closely enough that (1) material parameters can be
 fitted from real cutting data, (2) policies trained in simulation can be evaluated
 on the real robot with the same metrics, and (3) the remaining sim–real gap is
 measured, not assumed. Nothing here runs before the open items are settled.
+
+## Current deployment contract — 2026-11-16
+
+The current shared pose_depth_v2 scene trains a policy with ten 34-value frames
+and an 8-value goal (position3, quaternion4, commanded speed1). Per frame:
+selected pose error3, velocity3, jerk3, previous action6, three samples of the
+six-axis normalized sensor wrench18, remaining episode time1. The policy has
+six outputs: two stiffness settings, two controller gain settings, accumulated
+sawing target displacement and optional pitch. Pitch is currently disabled.
+The outputs pass through the same SlicingActionMapper and FDCC semantics;
+they are not joint torques or a six-axis Cartesian command.
+
+Deployment path: robot joint/FK state + compensated sensor wrench -> timestamped
+filter/history and goal construction -> frozen policy -> action mapper ->
+Cartesian compliance controller -> UR hardware interface. Policy updates are
+50 ms in the present simulation. Hardware controller rate, latency, filtering
+and stop response must be measured and matched; no 1 kHz real-driver claim.
+Only the policy is needed online for this route. WM and critic train the policy;
+they need not be deployed. Image input is absent; pre-cut localization may
+supply the board frame, desired cutting location and estimated object height.
+
+The repository has simulation inference and pinned SliceIt/ROS integration
+sources, but no completed, validated current-policy real-robot deployment runner.
+The physical URDF/mount/sensor frames, gravity compensation, controller parameter
+mapping, communication timeout and real board/force stop remain deployment work.
+The simulated finite-blade stop must not be copied as a claim that real contact
+can be undone or that hardware stopping distance is zero.
+
+User-selected modes: constrain final knife/robot position only, or additionally
+constrain path deviation. Both now use robot-base XY EE distance to the prescribed
+goal (final radius40 mm; optional path25 mm free/60 mm failure), observable from
+calibrated robot kinematics. Particle/fragment opening is no longer a penalty in
+the shared configuration. These defaults still require physical validation;
+they are not sensor calibration or guarantees of real stopping distance.
+
+Controller references: [FZI Cartesian controllers](https://github.com/fzi-forschungszentrum-informatik/cartesian_controllers),
+[UR hardware interface](https://docs.universal-robots.com/Universal_Robots_ROS_Documentation/rolling/doc/ur_robot_driver/ur_robot_driver/doc/hardware_interface.html).
+The matching ROS version and controller integration are selected during deployment,
+not by mixing the historical ROS1 patch set with ROS2 commands.
 
 ## Hardware and open items
 
@@ -14,16 +53,16 @@ measured, not assumed. Nothing here runs before the open items are settled.
 | Diana7 | Available; not used in the first pass (see "Later"). |
 | ATI Mini45 | Available. **Open:** calibration (SI-145-5: ±145 N Fx/Fy, ±290 N Fz, 1/16 N resolution; SI-290-10: ±290/580 N, 1/8 N), installed calibration and software interface. A photo sent by the user (2026-11-11, not in the repository) shows an ATI Net F/T 9105-NETBA box, not the transducer's calibration label. Old S0 used simulation thresholds 50 N / 5 N·m; real-task limits remain open and distinct from sensor range (PLAN). |
 | Knife and mount | **Open:** CAD or measured geometry and mass, to replace the simulated knife frame and tool payload. |
-| Object placement | The old bottom-6-mm hold altered force/outcomes (RESULTS 2026-11-12); it is not an accepted fixture. **Open:** choose a realizable holding method, then model it. Historical free/fixed prism contracts remain distinct. |
+| Object placement | Current task uses freely placed objects. Measure the real support/friction and initial pose; historical bottom-held contracts remain separate. |
 | Foods / specimens | **Open:** proposal below. |
 
 ## Prerequisite: force quantity and completion
 
-Default material feedback is a scalar contact-magnitude proxy; optional net
-feedback now computes force/moment at the sensor with corrected contact coordinates
-and frame/timing handling (METHOD). Native robot wrench is also present. Numerical
-interface checks do not calibrate a real sensor/mount. Select the feedback convention
-and completion definition before transferring policies or interpreting calibration.
+Current shared scenes use net contact force/moment in the sensor frame, with
+corrected contact coordinates and timing (METHOD). The scalar proxy belongs to
+historical configurations. Interface tests do not calibrate the physical sensor
+or mount. Current completion is prescribed pose arrival without higher-priority
+failure, using the board-aligned task; material separation remains independent.
 Neither a prescribed spring-release fraction nor board height proves separation.
 
 ## Steps (one change each)

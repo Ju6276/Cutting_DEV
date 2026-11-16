@@ -144,12 +144,13 @@ still respond mechanically through the compliant controller.
 
 The x mapper accumulates up to 2 mm of target offset per 50 ms control step.
 There is no separate accumulated-offset clamp. Historical/default configurations
-have no object-motion penalty; the opt-in constraint below adds one without
-changing those checkpoints.
+have no object-motion penalty. The current shared contract instead offers the
+robot-position modes below, without changing historical checkpoints.
 Failure checks constrain the robot-base EE position and six-axis wrench.
 Verification boxes use x=[0.038,0.238], y=[0.405,0.605],
 z=[0.096,0.269] m. Pose completion uses the source x/z/pitch-error tolerances
-and arrival counter. Material displacement, lifting and separation are recorded
+and arrival counter; the current shared contract additionally checks final XY
+radius <40 mm. Material displacement, lifting and separation are recorded
 independently; reaching depth alone does not complete the task.
 
 Both backends support the material on a plane; the wood rectangle in the studio
@@ -157,12 +158,16 @@ image is display geometry. Its drawn edge is not an object-fall detector or the
 EE workspace boundary. The finite-blade board interlock prevents downward and
 rotational penetration and is separate from a compliant physical board-force law.
 
-The shared-knife checks are not matched training distributions: DiSECt samples
-material/start/speed, while the BladeMaster check uses nominal materials,
-5 mm clearance and 30 mm/s command. Settling durations and material integration
-also differ. Use explicit paired case definitions before a controlled comparison.
+The superseded shared-knife checks used different material/start/speed settings.
+They are archived. Current checks generate both configurations from the same
+shared contract, including paired episode sampling; see SHARED_SCENE. Material
+integration and constitutive laws still differ.
 
-## Optional object-motion constraint — 2026-11-16
+## Historical particle-motion constraint — 2026-11-16
+
+Superseded in the shared contract by the tool-position modes below. This section
+documents the earlier optional interface; fragment opening is not penalized in
+the current scene.
 
 User choice: small movement is free, excess movement has a soft cost, larger
 movement terminates unsuccessfully. This is `task.object_slip` on pose_depth_v2,
@@ -209,21 +214,11 @@ not established by the interface checks. No new camera pipeline is claimed.
 
 WM/critic state layouts change; old task checkpoints/replay cannot silently
 resume. Policy architecture stays the same, but old policies were not trained
-with this cost. New development configurations:
-`configs/free_cut/shared_motion_check.json` and
-`configs/blademaster/shared_motion_check.json`.
-They are three-object checks, not long-training launches. Neither friction nor
-material laws nor prior configuration files are changed.
-
-After `source runs/sac_env.sh`, run on GPU7:
-
-```bash
-PYTHONPATH=.:backends/mujoco /dataHDD/dong/Envs/cutting-mppi-20261108/bin/python scripts/check_pose_depth.py --backend disect --config configs/free_cut/shared_motion_check.json --output runs/NEW_MOTION_CHECK/disect.json --seconds 600
-PYTHONPATH=.:backends/mujoco /dataHDD/dong/Envs/cutting-mppi-20261108/bin/python scripts/check_pose_depth.py --backend blademaster --config configs/blademaster/shared_motion_check.json --output runs/NEW_MOTION_CHECK/blademaster.json --seconds 600
-```
-These compare measured next-state task reward/termination with the analytic WM
-task calculation, and verify partial resets. They do not test a trained WM's
-motion predictions or demonstrate reduced sliding after learning.
+with this historical cost. Archived reproduction inputs are under
+configs/archive/scene_checks_20261116; --motion-reward-audit requires their
+object_slip field. Current shared configurations use --tool-reward-audit instead.
+Both audits compare task equations on recorded physical transitions and
+counterfactual distances, not trained-policy responses.
 
 ## Shared scene initialization and optional pitch — 2026-11-16
 
@@ -241,3 +236,39 @@ updates use the 50 ms agent period, a configured degrees/s rate and total-angle
 bound. The WM uses the same differentiable mapping; disabled mode preserves the
 existing five effective channels. This option alone does not establish validity
 of tilted contact. The pose goal and blade/board boundary remain unchanged.
+
+
+## Current robot-position modes — 2026-11-16
+
+The user selected two options. Both measure the robot EE relative to the
+prescribed cut-completion target in the robot-base horizontal XY plane. The knife
+is rigidly mounted; final height and pitch conditions keep their existing roles.
+There is no new particle-motion field or particle-based penalty in the shared task.
+
+- completion_position.radius_m = .04: final planar distance must be strictly
+  below 40 mm. Original z error <2 mm, pitch-error <.04 rad, and arrival counter
+  >10 also apply. The counter increases only when all these conditions hold.
+- tool_motion.enabled = false: final only. Off-target intermediate movement
+  carries no additional position cost or position failure. Force/workspace/board
+  rules still apply; failure to finish before 180 steps is timeout.
+- tool_motion.enabled = true: path plus final. Distance <=25 mm is free;
+  25–60 mm has quadratic running cost, weight20 normalized by horizon180;
+  >60 mm is tool_motion failure with -100 once. No +100 on a failure.
+
+At 25/35/42.5/50/60 mm the extra per-step costs are respectively
+0 / .0090703 / .0277778 / .0566893 / .1111111. At 61 mm the active path mode
+adds the failure settlement. These distances are engineering defaults, not
+measured real-robot tolerances. Settings apply to both backends identically.
+
+Physical adapters and WM derive completion_xy_error from FK and the target.
+It is a deterministic state/history field, not an independent prediction head;
+policy inputs stay 34 per frame and outputs stay six. The optional hard event
+is included in imagined termination, pose-success masking and episode metrics.
+The changed task/state identity requires matched new checkpoints/replay.
+Tests include both modes, both horizontal directions, exact boundary values,
+failure precedence, physical/WM equation agreement, fit/BPTT and save/restore.
+
+Floating-point boundary comparisons allow eight machine epsilons at metre scale
+(about 1 micrometre for float32). This prevents a computed 60 mm endpoint from
+spuriously failing after world-frame subtraction; it is not a physical tolerance
+calibration. Final 40 mm remains excluded. Path checks use 50 ms endpoints.

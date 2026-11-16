@@ -2513,3 +2513,85 @@ the obsolete unused fixed reference-speed field was removed after the probes,
 with semantic equivalence checked against their inputs. Commands are in
 SHARED_SCENE and RUNNING. The learning probe overlapped regression workers;
 its wall time is not an exclusive-device capacity result. No long run started.
+
+## 2026-11-16 — Optional final/path robot position constraints and interface cleanup
+
+The user replaced particle-based sliding constraints with two selectable robot
+position modes. Current shared default is final only; path plus final is selected
+by common.task.tool_motion.enabled. Both require EE robot-base XY distance <40 mm
+from the prescribed goal, extending the old 40 mm single-axis test, together with
+the existing height/pitch tolerances and >10 qualifying arrival samples. Samples
+remain cumulative. Final success is +100 only without a simultaneous failure.
+
+The optional path mode leaves <=25 mm free, applies a quadratic cost up to
+20/horizon per step, and treats >60 mm as failure (-100 once). Final-only mode
+does not add this running cost or failure. Force, workspace and board rules
+remain in both modes. Fragment separation/opening carries no penalty in the
+canonical configuration. Distances are fixed engineering values, not calibrated
+hardware limits or size-adaptive thresholds. No policy has been retrained.
+
+Implementation: completion_xy_error is derived from joint FK and the known goal,
+not independently predicted by WM. Physical reward/termination, imagined reward/
+absorption, arrival counter, critic history and logging share the same rule.
+Policy dimensions remain 34 per frame / six outputs (pitch disabled). Task and
+state metadata change; historical checkpoint/replay is not silently resumed.
+
+Other issues found and repaired:
+- Evaluation resizing had left explicit clearance arrays at their original size;
+  evaluation seed did not reseed the new episode-condition sampler. Both now
+  regenerate from the shared case protocol.
+- Evaluation validates physical knife, board geometry, progress semantics and
+  contact discretization, and reports optional motion termination causes.
+- Scene capture had still forced old nominal materials, fixed 5 mm starts and
+  30 mm/s speed. It now requires the shared contract plus matching prepared
+  manifest, preserving all sampled conditions.
+- Six superseded depth/knife/motion check JSONs moved to
+  configs/archive/scene_checks_20261116. Historical trained-task inputs remain.
+- Real deployment docs now distinguish policy I/O from timestamping, wrench
+  compensation, coordinate transforms, action mapping, FDCC and hardware stopping.
+  This change does not implement or validate a real-robot execution runner.
+
+Boundary bug found by the physical-transition audit: requesting exactly 60 mm
+can yield 0.06000000000000005 m after robot-frame subtraction. A strict raw
+comparison incorrectly failed 6/9 DiSECt and 2/9 BladeMaster cases in the initial
+audit. Comparison now allows eight floating-point epsilons at metre scale.
+The 60 mm path boundary remains included; 40 mm final boundary remains excluded.
+Translated-coordinate tests cover float32 and float64. This numerical tolerance
+is not a new task safety margin.
+
+Evidence directory: runs/interface_motion_review_20261116/ (server only).
+tool_assets/ contains current prepared inputs. capture/ contains completed
+nine-world settled-state geometry from each backend with actual condition logs;
+no policy was loaded. Both use the same paired material/speed/gap distributions.
+Older disect.json / blademaster.json in this directory tested the now-retired
+particle-RMS interface. tool_disect.json / tool_blademaster.json preceded the
+roundoff fix; only the *_final.json reports should be used for current boundaries.
+
+The tool audit holds measured physical kinematics fixed and changes the goal XY
+offset to test both reward switches. It is not a naturally occurring 60 mm robot
+motion, a trained-policy evaluation or a learned-model accuracy measurement.
+Unit tests also cover final arrival, failure precedence, gradients, WM fitting/
+BPTT and checkpoint restoration under the new state layout.
+
+Validation completed on GPU7:
+- Final physical checks: three objects x three worlds/backend, 16 reference
+  steps, masked reset preserves all other worlds exactly. Physical-versus-WM
+  reward-equation max error 1.369e-8 (DiSECt), 1.545e-8 (BladeMaster).
+- For both backends, the counterfactual 60 mm endpoint fails 0/9 worlds and
+  61 mm fails 9/9 only in path mode. Final-only adds no distance running cost.
+  At 35/50/60 mm, path costs are .00907029/.05668934/.11111111 per step;
+  at 61 mm the reward change is -100.11111111 including failure settlement.
+- Root with explicit CUTTING_BACKEND_ROOT: 546 passed, 5 skipped in 241.12 s.
+  Skips are legacy SAC gym/TF checkpoint/separate bridge prerequisites, not the
+  new position-mode or physical adapter tests. The earlier no-backend-env pass
+  was 531/20 and is not the GPU validation result.
+- Bundled backend: 41 passed in 5.62 s. Native BladeMaster source is unchanged;
+  its prior 2165 passed /8 skipped suite was not repeated.
+- Both scene captures completed with nine worlds and the sampled shared
+  contract. Relative Markdown links resolve and git diff --check is clean.
+- Current artifacts: tool_disect_final.json, tool_blademaster_final.json,
+  their raw .transition.pt fixtures, root_gpu_tests.log, backend_tests.log,
+  capture/{disect,blademaster}/manifest.json in the evidence directory above.
+
+These checks establish the optional rules and interface consistency. They do
+not establish reduced drift after learning or successful real deployment.

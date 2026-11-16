@@ -90,13 +90,13 @@ def test_shared_mount_agrees_at_multiple_robot_poses():
 def test_shared_tool_is_explicit_versioned_task():
     for folder in ("free_cut", "blademaster"):
         config = json.loads(
-            Path("configs", folder, "shared_knife_check.json").read_text()
+            Path("configs", "archive", "scene_checks_20261116", folder, "shared_knife_check.json").read_text()
         )
         assert (
             validate_task(config["task"])["tool_revision"]
             == "disect_knife_rigid_mount_v1"
         )
         old = json.loads(
-            Path("configs", folder, "depth_three_object_check.json").read_text()
+            Path("configs", "archive", "scene_checks_20261116", folder, "depth_three_object_check.json").read_text()
         )
         assert "tool_revision" not in old["task"]

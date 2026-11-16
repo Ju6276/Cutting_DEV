@@ -2,8 +2,15 @@
 
 ## Active task and decisions
 
+User-selected position modes: final only (default) or path plus final, selected by
+common.task.tool_motion.enabled. Both use EE distance from the prescribed target
+in robot-base XY. Final radius <40 mm; optional path cost has 25 mm free / 60 mm
+failure / weight20. Particle displacement and fragment opening are not rewarded
+or penalized in the current shared contract. Existing force/workspace/board
+constraints remain. The current policies predate these settings; no new long run.
+
 One cut of freely placed cucumber, flat-bottom half potato and prism.
-The next task version is pose_depth_v2: shared maximum downward-depth progress
+The current task version is pose_depth_v2: shared maximum downward-depth progress
 for both backends, with no spring-release reward or spring-weighted speed cost.
 +100 remains prescribed pose completion without force/workspace failure and with
 the finite-blade board boundary. Material separation stays independent.
@@ -11,16 +18,9 @@ the finite-blade board boundary. Material separation stays independent.
 are retained in verification configs, not calibrated Mini45 hardware limits.
 The completed runs below used pose-v1, not this version. No new long run launched.
 See TASK_FREE_CUT for equations, state migration and verification status.
-The user additionally selected free small motion / excess-motion cost / larger
-failure boundary. The opt-in shared_motion_check configurations implement
-25 mm free / 60 mm failure using horizontal mass-weighted RMS material motion.
-Both three-object 16-step physical/WM-equation and partial-reset probes passed;
-root regression 463 passed / 5 skipped, backend 39 passed. Large-motion failure
-has constructed-state coverage; the short physical probes stayed inside the free
-zone. A learned policy's response to the new penalty has not been evaluated.
-This includes deformation/separation, not only translation. The WM now predicts
-this extra scalar; policy observations stay unchanged. Old task configs/runs are
-preserved. No new long training is authorized by this implementation.
+The initial particle-RMS motion implementation is retained for historical
+reproduction only. It has been replaced in the shared contract by the two
+robot-position modes above. Current checks and numeric results are in RESULTS.
 Current scene/reset source is [SHARED_SCENE](SHARED_SCENE.md) and
 configs/shared/scene_v1.json: paired per-world 5–30 mm gaps above each
 settled object's top; no separate fixed-5-mm check configuration.

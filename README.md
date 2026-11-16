@@ -22,9 +22,19 @@ gradients pass through the learned world model.
 
 ## Status — 2026-11-16
 
-The selected task direction is **target-pose completion with a board execution boundary**. Material separation and knife coverage are reported separately, not extra completion gates; the next version pose_depth_v2 replaces spring-release shaping with shared geometric depth progress. Completed runs still used pose-v1 and are not new-task results. The v3 free-cucumber policy has 543 updates; v4 was a frozen-policy coverage/board audit and is now a historical diagnostic, not a long-training recipe.
+Current shared scene and material/reset distribution: [SHARED_SCENE](docs/SHARED_SCENE.md),
+from [one configuration](configs/shared/scene_v1.json). Both physical backends
+support per-world/per-episode material and target-speed sampling. Scene capture,
+reward checks and generated training inputs use this definition. Historical runs
+below keep their original task and assets. See [configuration index](configs/README.md).
 
-The opt-in shared-motion check adds a 25 mm free / 60 mm failure material-motion envelope and a matching WM scalar prediction; it has passed equation/reset/regression checks, not policy retraining. See [task definition](docs/TASK_FREE_CUT.md#optional-object-motion-constraint--2026-11-16).
+
+The selected task direction is **target-pose completion with a board execution boundary**. Material separation and knife coverage are reported separately, not extra completion gates; the implemented opt-in pose_depth_v2 replaces spring-release shaping with shared geometric depth progress. Completed runs still used pose-v1 and are not new-task results. The v3 free-cucumber policy has 543 updates; v4 was a frozen-policy coverage/board audit and is now a historical diagnostic, not a long-training recipe.
+
+The shared task now offers final-position-only or path-and-final robot-position
+constraints through task.tool_motion.enabled. Both require final XY distance
+<40 mm; optional path control uses 25 mm free /60 mm failure. Natural fragment
+opening has no penalty. See [task definition](docs/TASK_FREE_CUT.md#current-robot-position-modes--2026-11-16).
 
 The board stop is implemented and physically checked; it is not a compliant board-force simulator. The completed training task was free_cut_pose_v1, retaining v3 running costs and pose-based +100 settlement. The shared pose_depth_v2 scene/reset protocol has passed bounded physical checks on both backends; no new training has been launched. The default pose-task potato is now the freely placed flat-bottom half, with 1 s per-material settling checked on 144 conditions. Development configurations and remaining work are listed in [PLAN](docs/PLAN.md). The earlier 192-world A6000 run and three-world BladeMaster run were stopped; neither reached policy updates. The full-wrench, transition-scaled 3072-world DiSECt run completed its 24-hour budget on GPU7. BladeMaster 256-world learning/reset/restore validation passed; its GPU9 long run later exited with SIGILL inside libcuda, with root cause unresolved. Its nominal-material distribution differs from the main DiSECt run. Current status and launch evidence: [restart record](docs/TRAINING_SCALE_20261114.md). The [earlier launch record](docs/archive/TRAINING_20261114.md) is historical. Current definition: [TASK_FREE_CUT](docs/TASK_FREE_CUT.md); dated evidence: [RESULTS](docs/RESULTS.md).
 

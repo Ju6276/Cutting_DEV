@@ -253,7 +253,7 @@ sidecar records all world IDs and the captured-state checksum.
 
 ### Capacity and running-training snapshots (2026-11-14)
 
-- `check_training_capacity.py`: bounded DiSECt multi-object capacity probe,
+- `check_training_capacity.py`: bounded DiSECt or BladeMaster multi-object capacity probe,
   including actual transitions, full learner updates, selected reset and
   checkpoint/replay restoration. Read `report.json.status`; a zero exit alone
   does not establish sufficient memory headroom. It collects at least 40 steps,
@@ -302,10 +302,10 @@ color transfer for other representations is disclosed, never called recovered UV
 
 ### Shared-tool scene stills
 
-- `capture_shared_scenes.py --output runs/NEW_SCENES [--backend both|disect|blademaster]`
-  captures one settled world per object with nominal material, 5 mm clearance
-  setting and 30 mm/s command. It loads no policy and takes no control steps;
-  each capture retains its actual config and metadata.
+- `capture_shared_scenes.py --shared-contract configs/shared/scene_v1.json --prepared PREPARED/manifest.json --output runs/NEW_SCENES [--backend both|disect|blademaster]`
+  captures settled worlds from the exact shared scene and episode distribution.
+  It loads no policy and takes no control steps; world count, material and start
+  conditions are retained without nominal-material or fixed-gap overrides.
 - `export_evaluation_scene.py --snapshot` exports these initial states through
   the same studio adapter as policy videos. No episode log is fabricated.
 - `render_episode_still.py --camera-from REFERENCE.json` reuses exactly the

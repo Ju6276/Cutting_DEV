@@ -983,3 +983,19 @@ restores their raw states and settles with those actual parameters.
 The learner still receives motion and wrench history. Material draws are logged,
 not appended to the actor/WM state. Training checkpoints now retain the episode
 sampler; resume starts new physical episodes at the next stream indices.
+
+
+## Robot-position constraint options (2026-11-16)
+
+Shared pose_depth_v2 now selects final-only versus path-and-final using
+common.task.tool_motion.enabled. Final EE target error is evaluated in robot-base
+XY (radius40 mm), extending the historical single-horizontal-axis goal check.
+The optional path constraint uses a bounded quadratic running cost and a hard
+60 mm failure, independently of particle motion. Neither mode penalizes fragment
+opening. See TASK_FREE_CUT for exact equations and boundary conventions.
+
+completion_xy_error is computed analytically from joint FK and the goal, stored
+in state/history for critic and goal-free termination queries; the WM does not
+predict its delta. Actor observation/action dimensions are unchanged. The physical
+and imagined arrival counter includes the same final-position mask. Historical
+particle-RMS checkpoints retain their old state specification and task metadata.

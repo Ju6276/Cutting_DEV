@@ -8,6 +8,12 @@ from pathlib import Path
 def fingerprint(value):
     return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(',',':')).encode()).hexdigest()
 
+def sample_clearances(seed, name, worlds, bounds):
+    if type(seed) is not int or seed < 0 or type(worlds) is not int or worlds < 1:
+        raise ValueError('Nonnegative seed and positive world count required')
+    generator = random.Random(f'{seed}:{name}:start-clearance-v1')
+    return [generator.uniform(*bounds) for _ in range(worlds)]
+
 def configs(contract, prepared):
     if contract['revision']!='paired_scene_v1':
         raise ValueError('Unsupported paired scene revision')
@@ -45,8 +51,7 @@ def configs(contract, prepared):
             raise ValueError('Prepared BladeMaster asset path differs from shared source')
         if item['elastic']!=obj['elastic']:
             raise ValueError('Prepared elastic parameters differ from shared source')
-        generator=random.Random(f'{seed}:{obj["name"]}:start-clearance-v1')
-        clearances=[generator.uniform(low,high) for _ in range(worlds)]
+        clearances=sample_clearances(seed,obj["name"],worlds,(low,high))
         b['start_clearance_m'].extend(clearances)
         d['groups'].append(dict(name=obj['name'],scene=item['scene'],worlds=worlds,
             clearance=[low,high],start_clearance_m=clearances,

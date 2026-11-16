@@ -596,6 +596,8 @@ class BladeMasterEnvironment(GPUEnvironment):
         finally:self.free_task=saved
         frame['observation']=self.free_task.observation(frame['observation'],self.step_count)
         frame['target_speed']=self.target_speed.clone()
+        if 'completion_position' in self.free_task.config:
+            frame['completion_xy_error'] = self.free_task.completion_distance(frame['ee_pose'],frame['target_pose'])[:,None]
         if self.condition_sampler is not None:
             frame['condition_episode']=torch.as_tensor(
                 self.condition_sampler.next_episode-1,device=self.device)[:,None].clone()
@@ -611,7 +613,8 @@ class BladeMasterEnvironment(GPUEnvironment):
         physical_progress = None if self.free_task.config['version']=='pose_depth_v2' else frame['cut_progress'][:,0]
         events=self.free_task.events(frame['observation'],frame['peak_wrench'],physical_progress,
             self.step_count,collision,pose=frame['ee_pose'],board=frame,success_counter=self.success_counter,
-            object_slip=(frame['object_slip'][:,0] if 'object_slip' in frame else None))
+            object_slip=(frame['object_slip'][:,0] if 'object_slip' in frame else None),
+            target_pose=frame['target_pose'])
         reward=self.free_task.reward(self.current['cut_progress'][:,0],frame['cut_progress'][:,0],
                                     frame['observation'],frame['peak_wrench'],self.target_speed,events)
         self.success_counter=events['counter']
@@ -622,6 +625,9 @@ class BladeMasterEnvironment(GPUEnvironment):
         self.needs_reset=events['terminated']
         self.current=frame
         info={k:events[k] for k in ('success','collision','outside','timeout','board_contact')}
+        if 'completion_xy_error_m' in events:
+            info['completion_xy_error_m'] = events['completion_xy_error_m']
+            info['tool_motion_failure'] = events['tool_motion_failure']
         if 'object_slip_failure' in events:
             info.update({k:events[k] for k in ('object_slip_failure','object_slip_m')})
         info.update(peak_force=force,depth_progress=frame['cut_progress'][:,0],**self.physics.step_metrics)
