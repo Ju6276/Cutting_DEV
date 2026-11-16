@@ -318,3 +318,11 @@ checks: check_pose_depth.py --shared-contract ... --prepared ....
 See [SHARED_SCENE](../docs/SHARED_SCENE.md) for exact commands. These use the
 same start-rule generator as the generated environment configs, not a second
 fixed-gap task.
+
+### Tool-position rule video
+record_tool_motion_demo.py records a bounded physical scripted reference rollout
+from the shared contract/prepared assets, and replays both position modes until
+their respective terminal events. It does not train or evaluate a learned policy.
+Use export_evaluation_scene.py and render_episode_still.py for the shared studio
+frames, then compose_tool_motion_demo.py for the two-panel distance/reward display.
+The right panel holds the terminal frame; this is not hardware braking simulation.

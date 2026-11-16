@@ -246,7 +246,7 @@ def main():
    physical_blade=True,mount_rigidity_residual_m=mount_residual,
    mount='Original handle; fixed-joint connector is display-only',tool_revision=task.get('tool_revision'),
    case=w,episode=row,policy_updates=initial['training']['policy_updates'],
-   scope=('Settled initial geometry; no policy or control steps' if a.snapshot else 'Frozen policy rerun; first world per object; no physics edits'))))
+   scope=('Settled initial geometry; no policy or control steps' if a.snapshot else row.get('scope','Frozen policy rerun; first world per object; no physics edits')))))
  a.output.parent.mkdir(parents=True,exist_ok=True)
  np.savez_compressed(a.output,**out)
  print(a.output,flush=True)

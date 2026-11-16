@@ -63,7 +63,10 @@ class GeometryRecorder:
 
     def __call__(self, frame, info):
         model = self.material.model
-        pose = self.material.state_field('body_X_sc')[0, model.knife_link_index].to(torch.float64)
+        # Reset alignment updates the authoritative pose before the first material
+        # integration refreshes body_X_sc. Reading that cached link transform here
+        # recorded an old knife position at frame zero.
+        pose = frame['knife_pose'][0].to(device=self.env.device, dtype=torch.float64)
         vertices = model.knife_tri_vertices.reshape(-1, 3).to(self.env.device, torch.float64)
         knife = quat_apply(pose[3:].expand(len(vertices), -1), vertices) + pose[:3]
         self.steps.append({

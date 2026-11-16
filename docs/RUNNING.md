@@ -395,3 +395,16 @@ seeds from --seed and --worlds-per-object for both backends; the resolved cases
 are written into the manifest. Reports include object-motion failures and terminal
 material displacement. The shared scene screenshot entry requires --shared-contract
 and --prepared and does not override material, gap or target speed.
+
+### Optional tool-position modes: physical rule demonstration
+
+Use record_tool_motion_demo.py --shared-contract configs/shared/scene_v1.json
+--prepared PREPARED/manifest.json --output NEW_RUN/recording --seconds 900.
+It selects the first paired cucumber case, runs a scripted lateral excursion and
+return with the final-only task, and computes the optional path-rule settlement
+on the same measured states. This is not a policy comparison or a braking model.
+Export NEW_RUN/recording with export_evaluation_scene.py (group 0 / DiSECt), render
+with render_episode_still.py --video --fps 10 --speed .5, then call
+compose_tool_motion_demo.py --recording NEW_RUN/recording --render NEW_RUN/studio.mp4
+--output NEW_RUN/tool_position_modes.mp4. The latter uses the rendered frame
+directory and actual task JSON for thresholds; no physical coordinates change.

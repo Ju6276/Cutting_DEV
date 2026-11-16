@@ -272,3 +272,9 @@ Floating-point boundary comparisons allow eight machine epsilons at metre scale
 (about 1 micrometre for float32). This prevents a computed 60 mm endpoint from
 spuriously failing after world-frame subtraction; it is not a physical tolerance
 calibration. Final 40 mm remains excluded. Path checks use 50 ms endpoints.
+
+The current path weight is a mild running preference, not a 25 mm hard limit:
+ten 50 ms steps at 50 mm cost about .567, whereas exceeding 60 mm charges the
+failure settlement once. The bounded physical rule demonstration is recorded
+in RESULTS (2026-11-16). It validates settlement and rendering, not post-training
+drift reduction. No weights were tuned to improve the demonstration.

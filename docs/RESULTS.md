@@ -2595,3 +2595,70 @@ Validation completed on GPU7:
 
 These checks establish the optional rules and interface consistency. They do
 not establish reduced drift after learning or successful real deployment.
+
+## 2026-11-16 — Actual motion demonstration of the two position modes
+
+Evidence: runs/tool_position_demo_20261116/recording_final/comparison.json.
+One paired-contract cucumber case (seed 0, first world), with its sampled
+material, clearance and target speed. A scripted reference controller requests
+a 75 mm lateral excursion over 1.5 s followed by return over 1.5 s, alongside
+the commanded downward reference. No policy weights, task thresholds, friction
+or material properties were adjusted for this demonstration.
+
+Only the final-only task executes physically. Both task rules are evaluated on
+each identical measured transition; the path-rule episode absorbs at its first
+termination and never accrues later rewards. The video holds its terminal frame.
+It does not simulate hardware braking or compare two newly trained policies.
+
+Results:
+- Path mode ends at step 25 (1.25 s) for tool_motion_failure.
+- Final-only mode returns to the goal region and succeeds at step 58 (2.90 s).
+- Maximum actual planar deviation is about 73.65 mm; final deviation about
+  11.7 mm. Maximum wrench-limit utilization is about 0.318, so the path-mode
+  difference is not caused by force failure.
+- Path running position cost before termination is about 0.625; the terminal
+  failure charge is 100. Total returns additionally include ordinary progress/
+  speed/load/settlement terms; use the JSON for their exact totals.
+- The recorder verifies the replayed final-only reward and termination against
+  the actual environment on every transition, including success settlement.
+
+Interpretation of the configured weight: at 35/50/60 mm, each 50 ms control
+endpoint costs .00907/.05669/.11111. Ten steps at 50 mm cost .5669; the maximum
+position running cost over the full 180-step horizon is 20. Thus it is a mild
+preference inside the allowed region, with a hard episode boundary outside
+60 mm. It does not force all movement to stay inside 25 mm, and the demonstration
+cannot establish trained-policy behavior. No reward weights changed.
+
+A real recording bug was discovered by the exporter's rigid-mount guard.
+GeometryRecorder read DiSECt body_X_sc after reset alignment; that cache is
+refreshed on the next material integration, while alignment already updates the
+authoritative material pose. The initial captured blade was displaced about
+2.047 mm relative to the following frames. Recording now reads frame.knife_pose.
+No material dynamics, control, task or reward code was changed. A regression
+test uses an intentionally unavailable/stale link cache and checks the captured
+transformed vertices. The final re-recording passes the exporter's all-frame
+rigidity check (error below 1e-8 m), using the same physical knife and mount.
+
+Rendering uses the shared studio exporter/renderer with verified cucumber
+appearance, one metal physical blade and no blue proxy/crack highlighting.
+The exporter now preserves explicit scripted-capture provenance instead of
+mislabeling every episode as a frozen learned-policy rollout.
+
+Regression after the recorder correction: root 547 passed /5 skipped (244.24 s),
+bundled backend 41 passed (5.85 s). The focused recorder/position tests pass 41/41.
+Video: tool_position_modes.mp4, 1800x1110, 10 fps, 6.9 s, 0.5x playback.
+Reviewed initial, terminal-boundary and final frames; ffprobe confirms the stream.
+Only the requested finished video/previews are copied to the Mac Downloads folder.
+
+The 60 mm path threshold is a radius in robot-base XY around the prescribed
+end-effector goal, not a square, object-centre radius or distance from an object's
+surface. It constrains one robot reference point, not the whole blade volume.
+The studio exporter contains a display-only cylindrical connector/collar between
+the retained URDF grip and the physical blade; its shape is schematic, not a
+measured installation part and not collision geometry. The comparison overlay
+now states this explicitly. No material/tool geometry changed for this video.
+
+Remaining limits: path checks use 50 ms control endpoints, not a continuous
+physical stop; post-training effectiveness is untested. The previously recorded
+GPU9 SIGILL inside libcuda remains unresolved (PLAN); this recording does not
+establish long-runtime reliability on that host.
