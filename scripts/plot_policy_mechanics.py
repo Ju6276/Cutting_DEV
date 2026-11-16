@@ -112,6 +112,13 @@ def run(root):
                 for row in range(6):
                     axs[row, col].axvline(t[hit[0]], color="#a84632", ls="--", lw=1)
 
+            separation = np.flatnonzero(d["separated"][ix] > 0.5)
+            if len(separation):
+                for row in range(6):
+                    axs[row, col].axvline(
+                        t[separation[0]], color="#238443", ls="-.", lw=1
+                    )
+
             on = dict(zip(d["contact_cases"].tolist(), d["contact_steps"].tolist()))
             for row in range(6):
                 axs[row, col].grid(alpha=0.2)
@@ -137,7 +144,7 @@ def run(root):
             axs[row, 2].legend(fontsize=8, ncol=3)
         fig.suptitle(
             label
-            + "\nRepresentative = lower median return within each object; dotted: contact proxy; red dashed: board interlock proximity (not learned braking)",
+            + "\nRepresentative = lower median return within each object; dotted: contact proxy; green: recorded separation; red dashed: board interlock proximity",
             fontsize=13,
         )
         fig.tight_layout(rect=[0, 0, 1, 0.95])

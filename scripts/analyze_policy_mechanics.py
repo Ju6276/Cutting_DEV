@@ -79,6 +79,7 @@ def run(evaluation, checkpoint, output):
         "board_gap",
         "x_error",
         "reward",
+        "separated",
     )
     raw = {k: [] for k in keys}
     for t, row in enumerate(traces):
@@ -106,6 +107,8 @@ def run(evaluation, checkpoint, output):
         raw["board_gap"].append(gap_from_pose(pose, meta["board_pose_geometry"])[ids])
         raw["x_error"].append((row["goal"][:, 0] - pose[:, 0])[ids])
         raw["reward"].append(row["reward"][ids])
+        separated = row["info"].get("separated", torch.full((len(obs),), float("nan")))
+        raw["separated"].append(separated.float()[ids])
     H = torch.cat(histories, 1)
     G = torch.cat(goals)
     A = torch.cat(clean)
@@ -208,6 +211,17 @@ def run(evaluation, checkpoint, output):
         identity=manifest["checkpoint_identity"],
         cases=len(cases),
         observed_steps=len(G),
+        recorded_separation_available=bool(np.isfinite(values["separated"]).any()),
+        recorded_separation_episodes=(
+            int(
+                sum(
+                    np.any(values["separated"][case == i] > 0.5)
+                    for i in range(len(cases))
+                )
+            )
+            if np.isfinite(values["separated"]).any()
+            else None
+        ),
         observation_dim=policy.observation_dim,
         history=10,
         decoder_feature_dim=latent.shape[1],

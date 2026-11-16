@@ -46,6 +46,11 @@ feed velocity versus command, finite-blade board clearance and lateral target er
 The representative case is the lower median-return episode of each object, selected by a
 fixed rule. Dotted marks denote a contact proxy (>0.5 N interval material peak, available
 to the next observation); red dashed marks denote proximity to the board interlock.
+Green marks denote the first recorded material-separation sample where available.
+DiSECt records that event each step. The BM traces contain only final component
+counts, so their exact separation time is unavailable; it is not inferred from
+depth progress or pose success. None of the 48 main episodes records complete
+material separation.
 
 - Main policy: median material force peaks are 6.39 N (cucumber), 8.72 N (potato), 3.34 N
   (prism). Approximately 84% of action components over the episodes are at a clipping bound.
