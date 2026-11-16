@@ -2475,9 +2475,41 @@ Optional pitch defaults off. Enabled mode has angle/rate clamps and matching
 differentiable physical-action/WM mappings; physical tilted-contact validation is
 still pending. Shared reference controls now use the same target speed. Nominal
 knife friction is explicitly .2 on both newly prepared backends, with old assets
-unchanged. Per-episode BladeMaster material randomization remains outstanding.
+unchanged. At that revision, per-episode BladeMaster material randomization was outstanding; the following entry records its implementation.
 
 Regression on GPU7: root 487 passed / 5 skipped (241.52 s), backend 41 passed
 (5.61 s). Root used the MPPI-capable environment and CUTTING_BACKEND_ROOT,
 so available GPU tests were enabled. Changed-document relative links and git
 diff whitespace checks passed. No long training started.
+
+
+## 2026-11-16 — Paired per-episode materials in both backends
+
+Both physical backends now share deterministic per-world episode streams:
+log-uniform E .5–2, density .8–1.25, cutting-resistance .5–2; uniform target
+speed 1–5 cm/s. Geometry groups remain fixed. Cutting resistance scales DiSECt
+spring stiffness and BladeMaster cutting energy respectively. Selected worlds
+restore raw state, apply their new coefficients and settle for 1 s. BladeMaster
+uses persistent per-world GPU coefficient arrays and a timestep selected at
+maximum E / minimum density. Saved streams resume from each world's next episode;
+physical episodes restart on trainer resume.
+
+GPU7 checks, three objects x three worlds:
+- Both 16-step physical/reward/reset checks passed; inactive worlds unchanged.
+- Corresponding initial/reset material, speed and gap cases agree to 5.83e-8.
+- Physical versus WM task-equation reward differences: DiSECt 1.46e-8,
+  BladeMaster 1.52e-8 (using actual next-state inputs).
+- BladeMaster collected 40 steps / 360 transitions; real critic window 32,
+  actor horizon 8, BC .25, observation 34. WM, policy and critic updates,
+  masked reset, replay/checkpoint and sampler restore all passed; optimizer
+  steps 20 / 2 / 40. Forty collection steps contained no naturally ended episode;
+  explicit partial resets exercised episode resampling.
+- Root regression: 496 passed / 5 skipped, 241.40 s. Robot/DiSECt backend:
+  41 passed, 12.51 s. Native BladeMaster: 2165 passed / 8 skipped / 18 subtests passed, 2140.56 s; source c51ef73 (SOURCES).
+
+Reports: runs/paired_material_20261116/{disect,blademaster,paired_conditions}.json
+and bm_learning/report.json. Final prepared configs are in assets_final;
+the obsolete unused fixed reference-speed field was removed after the probes,
+with semantic equivalence checked against their inputs. Commands are in
+SHARED_SCENE and RUNNING. The learning probe overlapped regression workers;
+its wall time is not an exclusive-device capacity result. No long run started.

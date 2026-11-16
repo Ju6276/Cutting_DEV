@@ -382,3 +382,13 @@ paths. Old pose-v1 checkpoints cannot be resumed as pose_depth_v2.
 
 The BladeMaster Python must include SciPy. Only one physical check runs on the
 GPU at a time. Both close their environment on exceptions or budget expiry.
+
+## Shared randomized scene inputs (2026-11-16)
+
+Generate both input files with prepare_shared_scenes.py from configs/shared/scene_v1.json.
+The generated DiSECt conditions and BladeMaster config use one episode sampler.
+Changing world count requires regenerating paired clearance cases rather than
+editing only the world count in generated JSON. Training resumes require the
+saved episode_conditions sampler state when this protocol is selected.
+Full learner checks accept check_training_capacity.py --backend disect or
+--backend blademaster with the matching generated --config.

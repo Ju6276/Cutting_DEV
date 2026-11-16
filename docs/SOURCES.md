@@ -56,3 +56,11 @@ branch `codex/shared-disect-knife`. GPU7 checkout:
 This supplies the two-slope finite blade contact/constraint kernels; Cutting_DEV
 supplies the common UR5e rigid mount. The task identity is
 `disect_knife_rigid_mount_v1`; see SHARED_KNIFE for geometry and commands.
+
+
+2026-11-16 current BladeMaster integration source: commit
+`c51ef733364aa9cbbbceb6ba5b422cabf67ddefc` on `codex/shared-disect-knife`,
+same GPU7 checkout as above. Adds persistent per-world material coefficient
+buffers, masked raw/settled snapshots and generator support. Scalar physical
+formulae are unchanged. Full GPU7 regression: 2165 passed / 8 skipped /
+18 subtests passed (2140.56 s). SHARED_SCENE defines the paired episode distribution.

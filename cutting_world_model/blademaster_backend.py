@@ -102,6 +102,12 @@ def load_material(config):
         mu=float(config['contact_friction_mu'])
         if not math.isfinite(mu) or mu<0:raise ValueError('Invalid contact friction')
         cfg=replace(cfg,friction_static=mu,friction_dynamic=mu)
+    if config.get('episode_conditions') is not None:
+        from .episode_conditions import validate
+        limits=validate(config['episode_conditions'])
+        stiffest=replace(cfg,young_modulus=cfg.young_modulus*limits['youngs_modulus'][1],
+                         density=cfg.density*limits['density'][0])
+        cfg=replace(cfg,dt=banana_dt(stiffest,cfg.grid_spacing,.002))
     cfg = replace(cfg, external_tool=True, tool_substep='hold', grid_storage='compact')
     if abs(round(.002/cfg.dt)*cfg.dt-.002) > 1e-12:
         raise ValueError('BladeMaster material dt must divide the 2 ms coupling interval')
@@ -150,6 +156,12 @@ class BladeMasterBatch(CuttingBatch):
         if sum(g['worlds'] for g in groups)!=self.worlds:
             raise ValueError('BladeMaster group world counts must sum to worlds')
         self.groups=groups
+        self.condition_sampler=None
+        if config.get('episode_conditions') is not None:
+            from .episode_conditions import EpisodeConditions
+            if config.get('execution') != 'batched':
+                raise ValueError('Randomized BladeMaster episodes require batched execution')
+            self.condition_sampler=EpisodeConditions(config['episode_conditions'], groups)
         self.material_configs=[];self.reference_points=[];self.group_names=[];self.group_index=[]
         material_groups=[]
         for group_index,group in enumerate(groups):
@@ -270,9 +282,13 @@ class BladeMasterBatch(CuttingBatch):
         self.progress = torch.zeros((self.worlds,1),device=self.device,dtype=self.dtype)
         self.metrics = StepMetrics(self.worlds,self.device,self.dtype)
         self.step_metrics = self.metrics.as_dict()
-        speed=float(config['target_speed_m_s'])
-        if not math.isfinite(speed) or speed<=0:raise ValueError('Target speed must be finite and positive')
-        self.target_speed = torch.full((self.worlds,),speed,device=self.device,dtype=self.dtype)
+        if self.condition_sampler is None:
+            speed=float(config['target_speed_m_s'])
+            if not math.isfinite(speed) or speed<=0:raise ValueError('Target speed must be finite and positive')
+            self.target_speed=torch.full((self.worlds,),speed,device=self.device,dtype=self.dtype)
+        else:
+            # The first reset samples every world's speed before any transition.
+            self.target_speed=torch.zeros(self.worlds,device=self.device,dtype=self.dtype)
         self.robot.save_reset_state()
         self._controller_initial = {k:v.clone() for k,v in vars(self.controller).items() if isinstance(v,torch.Tensor)}
         self._filter_initial = {k:getattr(self.filter,k).clone() for k in ('history','zi','offset')}
@@ -311,7 +327,46 @@ class BladeMasterBatch(CuttingBatch):
                 raise ValueError('Blade touches material during settling')
         self.solvers[index],self.ports[index] = solver,port
 
+    def _reset_randomized_batched(self, mask):
+        from blademaster_warp.batched import BatchedSolver
+        if not self.batch_groups:
+            offset=0
+            for group in self.groups:
+                count=group['worlds']
+                solver=BatchedSolver(self.material_configs[offset],count,device='cuda:0',
+                                     reference_points=self.reference_points[offset])
+                if not hasattr(solver,'set_material_scales'):
+                    raise ValueError('BladeMaster source lacks per-world material parameters')
+                indices=slice(offset,offset+count)
+                self.batch_groups.append((indices,solver))
+                for local,index in enumerate(range(offset,offset+count)):
+                    self.solvers[index]=MaterialWorldView(solver,local)
+                offset+=count
+        selected=mask.cpu().numpy()
+        values=self.condition_sampler.values
+        for indices,solver in self.batch_groups:
+            local=selected[indices]
+            if not local.any():
+                continue
+            solver.reset(local,raw=True)
+            solver.set_material_scales(local,
+                youngs_modulus=values['youngs_modulus'][indices],
+                density=values['density'][indices],
+                cutting_energy=values['cut_strength'][indices])
+            pose=self.tool_pose()[indices].cpu().numpy()
+            packed=np.zeros((len(local),49),dtype=np.float32)
+            packed[:,:7]=pose
+            for _ in range(round(self.settle_seconds/.002)):
+                out=solver.advance(packed,local.astype(np.int32),cutting=False).numpy()
+                self._check_batch_result(out[local])
+                if (np.linalg.norm(out[local,:3]/.002,axis=1)>1e-6).any():
+                    raise ValueError('Blade touches randomized material during settling')
+            solver.save_reset(mask=local)
+
     def _reset_batched(self, mask):
+        if self.condition_sampler is not None:
+            self._reset_randomized_batched(mask)
+            return
         from blademaster_warp.batched import BatchedSolver
         if not self.batch_groups:
             offset=0
@@ -362,6 +417,10 @@ class BladeMasterBatch(CuttingBatch):
     @torch.no_grad()
     def reset(self, mask=None):
         if mask is None: mask=torch.ones(self.worlds,device=self.device,dtype=torch.bool)
+        if self.condition_sampler is not None:
+            values=self.condition_sampler.sample(mask.cpu().numpy())
+            self.target_speed[mask]=torch.as_tensor(values['target_speed'],device=self.device,
+                                                    dtype=self.dtype)[mask]
         self.robot.reset(mask)
         for k,v in self._controller_initial.items():getattr(self.controller,k)[mask]=v[mask]
         for k,v in self._filter_initial.items():getattr(self.filter,k)[mask]=v[mask]
@@ -479,6 +538,7 @@ class BladeMasterEnvironment(GPUEnvironment):
         validate_task(config['task'])
         self.physics=BladeMasterBatch(backend_root,config)
         self.worlds,self.device=self.physics.worlds,self.physics.device
+        self.condition_sampler=self.physics.condition_sampler
         from types import SimpleNamespace
         group_names=list(dict.fromkeys(self.physics.group_names))
         self.groups=[SimpleNamespace(name=n) for n in group_names]
@@ -500,6 +560,9 @@ class BladeMasterEnvironment(GPUEnvironment):
             self.metadata.pop('depth_span_m')
         if config['task'].get('tool_revision'):
             self.metadata['tool_revision']=config['task']['tool_revision']
+        if self.condition_sampler is not None:
+            from .episode_conditions import metadata
+            self.metadata['episode_conditions']=metadata(self.condition_sampler.config)
         self.metadata=configure_force_observation(self.metadata,config.get('force_observation'))
         self.environment=self.metadata['environment'];self.controller=self.metadata['controller']
         self.heads=SliceItHeads(self.environment,self.controller)
@@ -533,6 +596,9 @@ class BladeMasterEnvironment(GPUEnvironment):
         finally:self.free_task=saved
         frame['observation']=self.free_task.observation(frame['observation'],self.step_count)
         frame['target_speed']=self.target_speed.clone()
+        if self.condition_sampler is not None:
+            frame['condition_episode']=torch.as_tensor(
+                self.condition_sampler.next_episode-1,device=self.device)[:,None].clone()
         return frame
 
     @torch.no_grad()
@@ -575,6 +641,27 @@ class BladeMasterEnvironment(GPUEnvironment):
     @staticmethod
     def goal(frame):
         return torch.cat((frame['target_pose'],frame['target_speed'][:,None]),-1).float()
+
+    def conditions(self, worlds):
+        rows=[]
+        for w in worlds:
+            cfg=self.physics.material_configs[w]
+            row=dict(group=self.object_names[w],target_speed_mps=float(self.target_speed[w]),
+                     young_modulus_pa=cfg.young_modulus,density_kg_m3=cfg.density,
+                     cutting_energy_j_m2=cfg.cutting_energy)
+            if self.start_clearance_m is not None:
+                row['start_clearance_m']=float(self.start_clearance_m[w])
+            if self.condition_sampler is not None:
+                values=self.condition_sampler.values
+                row.update(condition_episode=int(self.condition_sampler.next_episode[w]-1),
+                           youngs_modulus=float(values['youngs_modulus'][w]),
+                           density=float(values['density'][w]),
+                           cutting_energy_scale=float(values['cut_strength'][w]),
+                           young_modulus_pa=cfg.young_modulus*values['youngs_modulus'][w],
+                           density_kg_m3=cfg.density*values['density'][w],
+                           cutting_energy_j_m2=cfg.cutting_energy*values['cut_strength'][w])
+            rows.append(row)
+        return rows
 
     def restore_frame(self, frame):
         raise NotImplementedError('BM frame lacks deformation/topology state; reset physical episodes on resume')

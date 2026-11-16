@@ -963,4 +963,23 @@ are new-configuration choices, not calibration or old-run-equivalence claims.
 A packed DiSECt loader now rejects CPU-resident scene tensors before CUDA kernel
 launch. No native damage law was changed in this work. Optional bounded pitch
 has matching physical-action and WM equations (default off). See SHARED_SCENE for
-the implementation boundary and remaining randomization work.
+the scene definition and the episode-sampling implementation below.
+
+## Paired episode material distribution — 2026-11-16
+
+episode_conditions.py provides per-object/world/episode random streams shared
+by DiSECt and BladeMaster. E and density use the same log-uniform multipliers.
+The third log-uniform multiplier maps to DiSECt cutting-spring stiffness and
+BladeMaster cutting energy; these remain distinct physical quantities.
+Target speed is sampled uniformly and passed to the goal and reference controller.
+
+The BladeMaster generated batch kernels load per-world particle mass, Lamé
+coefficients and fracture threshold from persistent GPU arrays. They preserve
+the scalar solver equations; the native solver's heterogeneous contact tests
+compare against independent scalar instances. The robot adapter selects dt
+using the upper E and lower density bounds, updates only resetting worlds,
+restores their raw states and settles with those actual parameters.
+
+The learner still receives motion and wrench history. Material draws are logged,
+not appended to the actor/WM state. Training checkpoints now retain the episode
+sampler; resume starts new physical episodes at the next stream indices.

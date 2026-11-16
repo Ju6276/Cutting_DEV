@@ -16,6 +16,8 @@ def configs(contract, prepared):
     common=contract['common']
     if common['ground_friction_mu']!=common['knife_friction_mu']:
         raise ValueError('Current BM preset shares blade/board coefficients; explicit equality required')
+    from .episode_conditions import validate as validate_conditions
+    conditions=validate_conditions(common['episode_conditions'])
     task=copy.deepcopy(common['task'])
     from .scene_alignment import validate_alignment
     low, high = validate_alignment(task['scene_alignment'])['clearance_range_m']
@@ -30,13 +32,13 @@ def configs(contract, prepared):
         raise ValueError('Nonempty unique object names required')
     d=dict(description=contract['scope'],seed=seed,parallel=False,
            force_limits=common['force_limits'],force_observation=common['force_observation'],
-           task=copy.deepcopy(task),groups=[])
+           task=copy.deepcopy(task),episode_conditions=copy.deepcopy(conditions),groups=[])
     b=dict(description=contract['scope'],source_root=contract['blademaster_source_root'],
            worlds=worlds*len(contract['objects']),clearance_m=high,
            start_clearance_m=[],case_seed=seed,
-           settle_seconds=common['settle_seconds'],target_speed_m_s=common['target_speed_m_s'],
+           settle_seconds=common['settle_seconds'],
            force_limits=common['force_limits'],force_observation=common['force_observation'],
-           task=copy.deepcopy(task),execution='batched',groups=[])
+           task=copy.deepcopy(task),episode_conditions=copy.deepcopy(conditions),execution='batched',groups=[])
     for obj in contract['objects']:
         item=prepared['objects'][obj['name']]
         if item['blademaster_geometry_asset'] != obj['blademaster_geometry_asset']:
@@ -48,8 +50,9 @@ def configs(contract, prepared):
         b['start_clearance_m'].extend(clearances)
         d['groups'].append(dict(name=obj['name'],scene=item['scene'],worlds=worlds,
             clearance=[low,high],start_clearance_m=clearances,
-            material={k:[1.,1.] for k in ('youngs_modulus','density','cut_spring_stiffness')},
-            target_speed=[common['target_speed_m_s']]*2,
+            material={'youngs_modulus':conditions['youngs_modulus'],'density':conditions['density'],
+                      'cut_spring_stiffness':conditions['cut_strength']},
+            target_speed=conditions['target_speed'],
             sim_dt=obj['disect_sim_dt'],force_model='net',friction_velocity=.01,
             settle_seconds=common['settle_seconds']))
         b['groups'].append(dict(name=obj['name'],worlds=worlds,material=obj['blademaster_material'],

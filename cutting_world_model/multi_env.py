@@ -231,7 +231,7 @@ class ProcessGroup:
 
 
 class MultiConditionEnvironment:
-    def __init__(self, backend_root, groups, reward=None, seed=0, force_limits=None, parallel=False, task=None, force_observation=None):
+    def __init__(self, backend_root, groups, reward=None, seed=0, force_limits=None, parallel=False, task=None, force_observation=None, episode_conditions=None):
         """``parallel``: one persistent process per object group (``ProcessGroup``);
         otherwise groups are stepped one after another in this process (reference path)."""
         force_limits = validate_force_limits(force_limits, required=True)
@@ -240,6 +240,11 @@ class MultiConditionEnvironment:
         if not groups:
             raise ValueError('At least one object group is required')
         self.groups = list(groups)
+        self.condition_sampler = None
+        if episode_conditions is not None:
+            from .episode_conditions import EpisodeConditions
+            self.condition_sampler = EpisodeConditions(episode_conditions,
+                [dict(name=g.name, worlds=g.worlds) for g in self.groups])
         self.parallel = parallel
         self.generator = torch.Generator().manual_seed(seed)
         self.members, self.slices, self.lift, start = [], [], [], 0
@@ -298,6 +303,9 @@ class MultiConditionEnvironment:
                                           for i, g in enumerate(self.groups)]).to(self.device)
             self.material_scales = {k: torch.ones(self.worlds, device=self.device) for k in MATERIAL_KEYS}
             self.target_speed = torch.zeros(self.worlds, device=self.device)
+            if self.condition_sampler is not None:
+                from .episode_conditions import metadata
+                self.metadata['episode_conditions'] = metadata(self.condition_sampler.config)
             self.current = None
             self.reset()
         except BaseException:
@@ -329,6 +337,9 @@ class MultiConditionEnvironment:
     def _with_conditions(self, frame):
         frame['target_speed'] = self.target_speed[:, None].to(frame['observation']).clone()
         frame['object_group'] = self.group_index[:, None].clone()
+        if self.condition_sampler is not None:
+            frame['condition_episode'] = torch.as_tensor(
+                self.condition_sampler.next_episode-1,device=self.device)[:,None].clone()
         return frame
 
     @staticmethod
@@ -351,21 +362,31 @@ class MultiConditionEnvironment:
                   for g in config['groups']]
         return cls(backend_root, groups, reward=reward, seed=int(config.get('seed', 0)),
                    force_limits=config.get('force_limits'), parallel=bool(config.get('parallel', False)), task=config.get('task'),
-                   force_observation=config.get('force_observation'))
+                   force_observation=config.get('force_observation'), episode_conditions=config.get('episode_conditions'))
 
     @torch.no_grad()
     def reset(self, mask=None):
         if mask is None:
             mask = torch.ones(self.worlds, dtype=torch.bool, device=self.device)
         mask = mask.to(self.device, torch.bool)
+        conditions = (None if self.condition_sampler is None else
+                      self.condition_sampler.sample(mask.cpu().numpy()))
         active = []
         for i, (group, member, part) in enumerate(zip(self.groups, self.members, self.slices)):
             local = mask[part]
             if not bool(local.any()):
                 continue
             n = int(local.sum())
-            scales = {k: self._uniform(group.material.get(k, (1., 1.)), n, log=True).float() for k in MATERIAL_KEYS}
-            speeds = self._uniform(group.target_speed, n).float()
+            if conditions is None:
+                scales = {k: self._uniform(group.material.get(k, (1., 1.)), n, log=True).float() for k in MATERIAL_KEYS}
+                speeds = self._uniform(group.target_speed, n).float()
+            else:
+                indices = torch.arange(part.start, part.stop)[local.cpu()].numpy()
+                scales = {k:torch.tensor(conditions[source][indices], dtype=torch.float32)
+                          for k,source in (('youngs_modulus','youngs_modulus'),
+                                           ('density','density'),
+                                           ('cut_spring_stiffness','cut_strength'))}
+                speeds = torch.tensor(conditions['target_speed'][indices],dtype=torch.float32)
             for k, v in scales.items():
                 self.material_scales[k][part][local] = v.to(self.device)
             self.target_speed[part][local] = speeds.to(self.device)
@@ -403,6 +424,8 @@ class MultiConditionEnvironment:
                          'start_lift_m': float(self.lift[g][w - part.start]),
                          **({'start_clearance_m': float(self.current['start_clearance_m'][w, 0])}
                             if 'start_clearance_m' in self.current else {}),
+                         **({'condition_episode': int(self.condition_sampler.next_episode[w]-1)}
+                            if self.condition_sampler is not None else {}),
                          'target_speed_mps': float(self.target_speed[w]),
                          **{k: float(self.material_scales[k][w]) for k in MATERIAL_KEYS}})
         return rows

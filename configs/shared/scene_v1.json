@@ -1,9 +1,8 @@
 {
   "revision": "paired_scene_v1",
-  "scope": "Shared reset/scene protocol for deployment-oriented preparation; fixed nominal materials until per-episode BladeMaster adaptation is implemented. Not a long-training launch configuration.",
+  "scope": "Paired three-object scene and episode-condition distribution. Long-training budget and capacity are separate launch settings.",
   "common": {
     "worlds_per_object": 3,
-    "target_speed_m_s": 0.03,
     "settle_seconds": 1.0,
     "force_limits": [
       50.0,
@@ -66,6 +65,26 @@
           0.03
         ]
       }
+    },
+    "episode_conditions": {
+      "revision": "paired_episode_conditions_v1",
+      "seed": 0,
+      "youngs_modulus": [
+        0.5,
+        2.0
+      ],
+      "density": [
+        0.8,
+        1.25
+      ],
+      "cut_strength": [
+        0.5,
+        2.0
+      ],
+      "target_speed": [
+        0.01,
+        0.05
+      ]
     }
   },
   "blademaster_source_root": "/dataHDD/dong/Projects/BladeMaster-Warp-shared-knife-20261116",

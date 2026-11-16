@@ -1,5 +1,10 @@
 # BladeMaster UR5e backend integration review
 
+Historical initial integration review. The current batched three-object scene,
+shared knife and per-episode material sampling are defined in
+[SHARED_SCENE](SHARED_SCENE.md) and [METHOD](METHOD.md). The original sequential
+solver and preset knife described below are not the current shared configuration.
+
 Branch: `codex/blademaster-ur5e-backend`, based on `f9abb84`.
 This is an additional physical backend, not a replacement for the DiSECt experiments.
 

@@ -287,6 +287,8 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
             raise ValueError('Resume cadence options differ from saved transition schedule')
         torch.set_rng_state(saved['torch_rng'].cpu())
         torch.cuda.set_rng_state(saved['cuda_rng'].cpu())
+        from cutting_world_model.episode_conditions import resume_environment
+        frame=resume_environment(env,saved.get('episode_conditions'))
     replay = BatchedOnlineReplay(args.worlds, spec.state_dim, device,
                                  capacity=schedule.replay_capacity, goal_dim=goal_dim)
     if args.resume and not args.resume_without_replay:
@@ -354,7 +356,9 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
         torch.save({'learner': learner.checkpoint(), 'metadata': metadata,
                     'iteration': schedule.iteration, 'schedule': schedule.state_dict(),
                     'torch_rng': torch.get_rng_state(),
-                    'cuda_rng': torch.cuda.get_rng_state(), 'git': revisions}, temp)
+                    'cuda_rng': torch.cuda.get_rng_state(), 'git': revisions,
+                    'episode_conditions': (env.condition_sampler.state_dict()
+                        if getattr(env,'condition_sampler',None) is not None else None)}, temp)
         temp.replace(output / name)
         replay.save(replay_path(output / name), metadata=metadata, iteration=schedule.iteration,
                     transitions=schedule.transitions, checkpoint=name)
@@ -409,7 +413,7 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
             for e in ended.nonzero().flatten().tolist():
                 append_json(output / 'episodes.jsonl', episode_row(
                     e, int(episodes[e]), schedule.iteration + 1, returns, lengths, info, truncated,
-                    peak_material, peak_ratio, env.conditions([e])[0] if conditions is not None else
+                    peak_material, peak_ratio, env.conditions([e])[0] if hasattr(env,'conditions') else
                     ({'object': env.object_names[e]} if hasattr(env, 'object_names') else None)))
             schedule.after_environment_step()
             if ended.any():

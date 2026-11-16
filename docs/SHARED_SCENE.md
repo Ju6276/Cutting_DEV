@@ -44,7 +44,7 @@ fails rather than expanding the workspace silently.
 | Physical knife / mount | disect_knife_rigid_mount_v1; same finite blade and rigid EE transform |
 | Cut location / orientation | Prepared cut location; nominal vertical knife, no automatic cut-site search |
 | Start | Per-object settled top + uniform 5–30 mm; paired explicit cases |
-| Settling | 1.0 s simulated time for each nominal object; not a promise of identical final shapes |
+| Settling | 1.0 s simulated time with that episode's actual material parameters |
 | Goal | Shared board-aligned prescribed pose, original x/z/pitch tolerances and arrival counter |
 | Board | Height 0; finite-blade stop at 1 micrometre; support plane has no finite edge |
 | Workspace | EE in robot-base frame: x[.038,.238], y[.405,.605], z[.096,.269] m |
@@ -56,7 +56,9 @@ fails rather than expanding the workspace silently.
 | Reward | pose_depth_v2: geometric maximum-depth progress 10, speed 20, load 1, jerk .1; success +100, failure −100 |
 | Completion | Pose arrival without higher-priority failures; material separation recorded independently |
 | Episode / discount | 180 control steps / 9 s; gamma 1 |
-| Target speed in the current paired cases | 3 cm/s, fixed; both reference controllers use it |
+| Target speed | Uniform 1–5 cm/s, resampled per world per episode; both reference controllers use it |
+| Young's modulus / density | Per-episode log-uniform scales .5–2 / .8–1.25 |
+| Cutting resistance | Per-episode log-uniform scale .5–2: DiSECt spring stiffness, BladeMaster cutting energy |
 | Friction coefficients | Board .2, knife .2; contact laws still differ; no calibration claimed |
 | Nominal cucumber | E=2.6 MPa, nu=.37, density=950 kg/m³ |
 | Nominal half potato | E=2 MPa, nu=.45, density=1101 kg/m³ |
@@ -75,14 +77,18 @@ it as exact object-center displacement or an edge-of-board detector.
   own particle/discretization scheme; settled heights/deformation can differ.
 - Material timesteps differ. Robot/material exchange is 2 ms; DiSECt interpolates
   tool motion within that interval, BladeMaster currently holds the supplied pose.
-- The current paired profile deliberately has nominal materials and fixed target
-  speed. It is **not** the approved material-randomized long-training distribution.
-  DiSECt supports per-episode material resampling; BladeMaster's current homogeneous
-  batch does not yet provide matching per-world/per-episode material resampling.
-  Repeating objects or changing group presets is not a substitute.
-- A matched long-training profile still needs the material adaptation and shared
-  speed sampling, a resource/budget plan and online W&B. This change does not
-  launch training or establish sim-to-real performance.
+- Material episodes use the same per-world deterministic sampler in both backends.
+  Each reset draws E, density, a cutting-resistance multiplier and target speed.
+  Cutting-spring stiffness and cutting energy retain their different meanings;
+  matching their scale distributions does not equate fracture physics.
+- BladeMaster now applies per-world GPU coefficient buffers, restores selected
+  worlds to their raw state and settles them with the new material. It does not
+  reuse a nominal-material settled snapshot. The group timestep is chosen for
+  maximum E / minimum density so changes do not require new captured graphs.
+- Checkpoints include sampler configuration, next-episode counters and values.
+  Resume continues the streams and starts fresh physical episodes, following the
+  existing trainer's reset-on-resume convention.
+- A long run still needs resource/capacity and budget selection, plus online W&B.
 - Enabled pitch has mapping/WM gradient tests, but active tilted blade/material/
   board-contact validation remains pending. This turn probes vertical reference
   motion with pitch off; the sawing action mapping retains regression coverage.
@@ -106,3 +112,13 @@ $PY scripts/check_pose_depth.py --backend blademaster --shared-contract configs/
 Reports contain requested and actual blade gaps, settled tops, EE/goal poses,
 loaded friction, pitch settings, observation width, physical-versus-WM reward
 agreement and exact preservation of non-reset worlds. Numeric results belong in RESULTS.
+
+
+## Episode case replay
+
+The shared episode_conditions block defines the ranges and seed. A draw is keyed
+by object name, world index and that world's episode counter. Resetting world A
+does not consume world B's random stream. Per-episode parameters, speed and counter
+are recorded in episode logs; they are not policy or WM material inputs.
+For the same case and episode number, both backends receive the same multipliers
+and speed. Native nominal fracture parameters remain backend-specific.

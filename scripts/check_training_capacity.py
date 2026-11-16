@@ -1,4 +1,4 @@
-"""Bounded full-learner capacity probe on actual DiSECt multi-object transitions."""
+"""Bounded full-learner probe on actual multi-object transitions from either backend."""
 import argparse,json,sys,time,signal,subprocess,math,hashlib
 from pathlib import Path
 import torch
@@ -18,9 +18,16 @@ def main():
  p.add_argument('--output',type=Path,required=True);p.add_argument('--microbatch',type=int,default=512)
  p.add_argument('--seconds',type=int,default=2400);p.add_argument('--reserve-gib',type=float,default=3)
  p.add_argument('--snapshot',action='store_true')
+ p.add_argument('--backend',choices=['disect','blademaster'],default='disect')
  a=p.parse_args();a.output.mkdir(parents=True,exist_ok=False)
  cfg=json.loads(a.config.read_text());counts=[a.worlds//len(cfg['groups'])+(i<a.worlds%len(cfg['groups'])) for i in range(len(cfg['groups']))]
+ if any(g.get('start_clearance_m') is not None and len(g['start_clearance_m'])!=n
+        for g,n in zip(cfg['groups'],counts)):
+  raise ValueError('Generate paired cases at the requested world count before this probe')
+ if cfg.get('start_clearance_m') is not None and len(cfg['start_clearance_m'])!=a.worlds:
+  raise ValueError('Generate paired cases at the requested world count before this probe')
  for g,n in zip(cfg['groups'],counts):g['worlds']=n
+ if a.backend=='blademaster':cfg['worlds']=a.worlds
  (a.output/'config.json').write_text(json.dumps(cfg,indent=2))
  torch.set_num_threads(2);torch.manual_seed(0)
  report=dict(worlds=a.worlds,counts=counts,config=str(a.config),microbatch=a.microbatch,
@@ -46,7 +53,11 @@ def main():
   return subprocess.check_output(['nvidia-smi','--query-compute-apps=pid,used_memory','--format=csv,noheader'],text=True).strip()
  try:
   save('initializing')
-  env=MultiConditionEnvironment.from_config(ROOT/'backends/mujoco',cfg)
+  if a.backend=='blademaster':
+   from cutting_world_model.blademaster_backend import BladeMasterEnvironment
+   env=BladeMasterEnvironment(ROOT/'backends/mujoco',cfg)
+  else:
+   env=MultiConditionEnvironment.from_config(ROOT/'backends/mujoco',cfg)
   frame=env.current;n=env.worlds
   metadata=ControlStateSpec.metadata_from_frame(env.metadata,{k:v[0].cpu().numpy() for k,v in frame.items()})
   metadata['goal_dim']=8;metadata['task_conditions']=cfg
@@ -113,6 +124,10 @@ def main():
    report['snapshot_state_unchanged']=True
   save('save_restore')
   torch.save(learner.checkpoint(),a.output/'learner.pt')
+  if getattr(env,'condition_sampler',None) is not None:
+   torch.save(env.condition_sampler.state_dict(),a.output/'episode_conditions.pt')
+   env.condition_sampler.load_state_dict(torch.load(a.output/'episode_conditions.pt',weights_only=False))
+   report['episode_sampler_restored']=True
   replay.save(a.output/'replay.pt')
   learner.restore(torch.load(a.output/'learner.pt',map_location='cuda',weights_only=False))
   replay.load_state_dict(torch.load(a.output/'replay.pt',map_location='cpu',weights_only=False))

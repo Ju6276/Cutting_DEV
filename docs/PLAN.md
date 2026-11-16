@@ -24,17 +24,19 @@ preserved. No new long training is authorized by this implementation.
 Current scene/reset source is [SHARED_SCENE](SHARED_SCENE.md) and
 configs/shared/scene_v1.json: paired per-world 5–30 mm gaps above each
 settled object's top; no separate fixed-5-mm check configuration.
-Nominal coefficients, 1 s settling and 3 cm/s reference speed are shared.
-Formal per-episode material/speed distributions are not yet matched:
-BladeMaster heterogeneous material resets remain to implement before a matched
-randomized long run. Paired 9-world/16-step physical checks passed on both
-backends; root 487 passed / 5 skipped, backend 41 passed. No new training is launched.
+Per-world/per-episode material sampling is now implemented in both backends:
+E .5–2, density .8–1.25, cutting resistance .5–2 (spring stiffness versus
+cutting energy), and target speed 1–5 cm/s. Each changed material is settled for
+1 s from raw state before knife alignment. The stream is saved for resume.
+Randomized physical, learner and regression validation is recorded in RESULTS;
+the earlier nominal checks were root 487 / skip 5 and backend 41.
+No new long training is launched.
 The shared physical tool revision is implemented and has passed three-object
 reference probes; see SHARED_KNIFE. Regression completion is recorded in RESULTS.
 The existing two backend runs retain their original tools and are not an equal-knife comparison.
 
-For the DiSECt distribution, half potato uses 1 s per-material settling;
-cucumber/prism use 0.75 s.
+In the completed DiSECt run (historical configuration), half potato used 1 s per-material settling;
+cucumber/prism used 0.75 s. The new shared configuration uses 1 s for all three.
 Each episode samples E and cut-spring stiffness scales 0.5–2 and density
 0.8–1.25; target speed is 1–5 cm/s. Initial clearance 0.5–3 cm is sampled
 once per world. No new geometry or material calibration is claimed.

@@ -80,6 +80,13 @@ def main():
         assert frame['cut_progress'].abs().max()<1e-8
         report['initial_depth_span_m']=frame['depth_span'].flatten().tolist()
         report['loaded_scenes']=audit_loaded_scenes(env,a.backend)
+        if getattr(env,'condition_sampler',None) is not None:
+            report['initial_conditions']=env.conditions(range(n))
+            report['episode_sampler_initial']=env.condition_sampler.state_dict()
+            if a.backend=='blademaster':
+                report['native_material_parameters']=[
+                    {name:array.numpy().tolist() for name,array in solver.material_parameters.items()}
+                    for _,solver in env.physics.batch_groups]
         report['reset_audits']=[]
 
         rows=[];maximum_error=0.
@@ -114,7 +121,8 @@ def main():
                 if 'object_slip' in frame:
                     assert frame['object_slip'][reset].abs().max()<1e-8
                 # Audit only reset worlds; other worlds are already cutting.
-                report['reset_audits'].append(dict(step=step+1,worlds=reset.nonzero().flatten().tolist()))
+                report['reset_audits'].append(dict(step=step+1,worlds=reset.nonzero().flatten().tolist(),
+                    conditions=(env.conditions(range(n)) if hasattr(env,'conditions') else None)))
                 # Actual reset clearance is checked inside align_reset; requested cases stay identical.
                 if 'start_clearance_m' in frame:
                     torch.testing.assert_close(frame['start_clearance_m'], old['start_clearance_m'],
