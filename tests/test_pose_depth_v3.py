@@ -246,7 +246,7 @@ def disect_stub(reading):
                            feedback={'observation_wrench': reading.clone()},
                            force_limits=torch.full_like(reading, 30.),
                            board=SimpleNamespace(contacted=torch.ones(len(reading), dtype=torch.bool)),
-                           evaluation_paused=None, force_model='net', frame=lambda: {})
+                           evaluation_paused=None, force_model='net', frame=lambda: {}, fresh_sample_peak=True)
 
 
 def blademaster_stub(reading, v3, spec):
@@ -272,7 +272,7 @@ def test_both_backends_report_frozen_reading_after_latch_and_settle_identically(
     _, c_disect, _ = CuttingBatch.step(disect, action)
     bm = blademaster_stub(reading, True, sp)
     _, c_bm, _ = BladeMasterBatch.step(bm, action)
-    torch.testing.assert_close(disect.peak, reading.abs(), atol=0, rtol=0)  # existing DiSECt behaviour
+    torch.testing.assert_close(disect.peak, reading.abs(), atol=0, rtol=0)  # DiSECt v3 rule
     torch.testing.assert_close(bm.peak, disect.peak, atol=0, rtol=0)
     assert torch.equal(c_disect, c_bm) and not c_bm.any()
     # pose_depth_v2 BladeMaster is unchanged: latched worlds contribute nothing.

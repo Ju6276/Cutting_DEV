@@ -522,8 +522,11 @@ class BladeMasterBatch(CuttingBatch):
             if sample_callback is not None:sample_callback(self,active)
         if getattr(self,'board_latch_v3',False):
             from .pose_depth import latched_interval_peak
+            held=self.contacted&~collision
             self.peak,collision=latched_interval_peak(self.peak,self.feedback['sensor_wrench'],
                                                       self.contacted,collision,self.force_limits)
+            # Safety margin reads the same samples as peak (DiSECt v3 does the same).
+            self.metrics.check_wrench(self.feedback['sensor_wrench'].abs(),self.force_limits,held)
         if bool((gap_from_pose(self.frames[self.chain.tip],self.board_geometry)<-2e-6).any()):
             raise FloatingPointError('BladeMaster knife penetrated the board')
         if self.depth_task:

@@ -7,6 +7,23 @@ import torch
 from .controller.fdcc import quat_apply, quat_mul
 
 
+def latched_interval_peak(peak, reading, latched, collision, limits):
+    """Peak/force-limit rule for worlds held by the software board stop (pose_depth_v3).
+
+    Every 2 ms sample after the latch repeats the frozen force-limit reading. A world that
+    latched during this interval already holds its true in-interval peak (the frozen
+    reading is one of its samples); a world latched in an earlier interval reports
+    |frozen reading|, never zero and never a peak carried from the latch interval.
+    Collided worlds are unchanged. Both adapters apply it after the substeps of a
+    pose_depth_v3 step (DiSECt v2 sampled stopped worlds every substep instead).
+    """
+    held = latched & ~collision
+    observed = reading.abs()
+    peak = torch.where(held[:, None], torch.maximum(peak, observed), peak)
+    collision = collision | (held & (observed > limits).any(-1))
+    return peak, collision
+
+
 class KnifeBoard:
     def __init__(self, material, config, enforce=True):
         self.enforce = enforce

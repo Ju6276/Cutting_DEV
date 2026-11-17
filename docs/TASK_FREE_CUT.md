@@ -38,6 +38,34 @@ Changed (v3 only):
   every later interval reports |frozen reading| (never zero, never carried).
   DiSECt already did this; BladeMaster v2 reported zero after the latch.
   The force-limit check and load cost read the same signal.
+- Per-step sampling rule, both backends (v3 only; 2026-11-17): within one control
+  step, every 2 ms filtered reading produced in that step (each substep's new
+  reading, including the last) enters the component-wise peak, the force-limit
+  check and the safety_margin metric exactly once, right after it is produced.
+  The reading carried over from the previous step (or the initialised reading
+  after reset) is not counted again. A violation stops the world at that sample:
+  the next substep no longer moves it (same stop sample as before). Worlds
+  stopped without a latch (collided, or scripts' evaluation_paused) produce no
+  reading and add nothing; board-latched worlds follow the frozen-reading rule
+  above. Code: CuttingBatch.fresh_sample_peak (set by GPUEnvironment for v3) and
+  BladeMasterBatch.step; post-latch rule shared in
+  cutting_gpu_backend/knife_board.latched_interval_peak.
+  v2 difference (kept for traceability, unchanged): the DiSECt adapter reads the
+  previous substep's reading at the START of each substep, so its peak, check and
+  safety_margin include the previous step's last reading (counted in two steps);
+  with the net force model it also checks the step's last reading after the
+  loop. It also sampled stopped-but-not-collided worlds every substep. BladeMaster
+  v2/v3 already counted only new readings; its v3 safety_margin now also includes
+  the frozen reading of latched worlds, as its peak does.
+  peak_force (material force magnitude) is not a filtered reading and is not
+  changed by this rule.
+  Checked (GPU9, 2026-11-17): stub tests on the real step code of both adapters
+  (tests/test_peak_sampling_v3.py; identical reading sequences give identical
+  peak, collision and safety_margin); real simulation, cucumber_003, 2 worlds per
+  backend, 24 reference steps: peak equals the component-wise max of that step's
+  25 readings in every step; a v2-style carried reading would have raised some
+  component in 11/24 (DiSECt) and 6/24 (BladeMaster) steps. No latch or force
+  violation occurred in that short run; those cases are covered by the stub tests.
 - Reset (full or partial): latch and last_wrench reset only for reset worlds;
   last_wrench = the initialised sensor reading. Generic restore_frame remains
   unsupported for board tasks.

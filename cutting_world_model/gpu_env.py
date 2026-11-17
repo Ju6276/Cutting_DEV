@@ -82,6 +82,8 @@ class GPUEnvironment:
             if task['version'] in ('free_cut_v4', 'free_cut_pose_v1') + POSE_DEPTH_VERSIONS:
                 self.physics.enable_board(task['board'])
                 self.metadata['knife_board_revision'] = 'swept_stop_path_v2'
+            # pose_depth_v3: count each 2 ms reading of a step once (no carried-over sample).
+            self.physics.fresh_sample_peak = task['version'] == 'pose_depth_v3'
         m = self.metadata
         self.fk = SerialKinematics(m['robot_xml'], m['robot_base'], m['robot_tip'], m['joint_names']).to(self.device)
         self.previous_pose = self.fk(self.physics.robot.q.double())

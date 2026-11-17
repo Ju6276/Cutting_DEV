@@ -39,6 +39,11 @@ class CuttingBatch:
             raise ValueError("force_model must be 'scalar' or 'net'")
         self.evaluation_paused = None
         self.board = None  # opt-in execution stop; legacy transitions unchanged
+        # pose_depth_v3 sampling rule (set by the task environment): each 2 ms reading produced
+        # in this control step enters peak and the force-limit check once, right after it is
+        # produced; the reading carried over from the previous step is not counted again.
+        # False keeps the historical order (check the carried reading at each substep start).
+        self.fresh_sample_peak = False
         self.force_model = force_model
         root = Path(root)
         self.worlds = worlds
@@ -327,19 +332,21 @@ class CuttingBatch:
         terminal = None
         peak_force = torch.zeros(self.worlds, device=self.device)
         intervals = round(self.task['environment']['agent_control_dt'] / .002)
+        fresh_rule = getattr(self, 'fresh_sample_peak', False)
         for _ in range(intervals):
-            observed = self.feedback['observation_wrench'].abs()
-            self.peak = torch.where(collision[:, None], self.peak, torch.maximum(self.peak, observed))
-            self.metrics.check_wrench(observed, self.force_limits, ~collision)
-            newly_done = (~collision) & (observed > self.force_limits).any(-1)
-            if newly_done.any():
-                current = self.frame()
-                if terminal is None:
-                    terminal = current
-                else:
-                    for k in current:
-                        terminal[k][newly_done] = current[k][newly_done]
-                collision |= newly_done
+            if not fresh_rule:
+                observed = self.feedback['observation_wrench'].abs()
+                self.peak = torch.where(collision[:, None], self.peak, torch.maximum(self.peak, observed))
+                self.metrics.check_wrench(observed, self.force_limits, ~collision)
+                newly_done = (~collision) & (observed > self.force_limits).any(-1)
+                if newly_done.any():
+                    current = self.frame()
+                    if terminal is None:
+                        terminal = current
+                    else:
+                        for k in current:
+                            terminal[k][newly_done] = current[k][newly_done]
+                    collision |= newly_done
             stopped = collision if self.board is None else collision | self.board.contacted
             if self.evaluation_paused is not None:
                 stopped = stopped | self.evaluation_paused
@@ -417,10 +424,34 @@ class CuttingBatch:
                     self.material.set_motion(torch.zeros_like(twist).float(), active=newly_stopped)
             if paused is not None:
                 self.restore_recurrence(stopped, paused)
+            if fresh_rule:
+                # pose_depth_v3: the reading just produced by the worlds that moved, checked
+                # before the next substep can move them (same stop sample as the legacy order).
+                observed = self.feedback['observation_wrench'].abs()
+                self.peak = torch.where(active[:, None], torch.maximum(self.peak, observed), self.peak)
+                self.metrics.check_wrench(observed, self.force_limits, active)
+                newly_done = active & (observed > self.force_limits).any(-1)
+                if newly_done.any():
+                    current = self.frame()
+                    if terminal is None:
+                        terminal = current
+                    else:
+                        for k in current:
+                            terminal[k][newly_done] = current[k][newly_done]
+                    collision |= newly_done
             if sample_callback is not None:
                 # Read-only diagnostic at the 500 Hz coupling boundary, after feedback.
                 sample_callback(self, active)
-        if self.force_model == 'net':
+        if fresh_rule:
+            # Board-latched worlds produce no new reading after the latch and report the frozen
+            # reading (in the latch interval it was already counted at its own sample).
+            from .knife_board import latched_interval_peak
+            latched = self.board.contacted if self.board is not None else torch.zeros_like(collision)
+            held = latched & ~collision
+            reading = self.feedback['observation_wrench']
+            self.peak, collision = latched_interval_peak(self.peak, reading, latched, collision, self.force_limits)
+            self.metrics.check_wrench(reading.abs(), self.force_limits, held)
+        elif self.force_model == 'net':
             # Include the final 500 Hz sample before task heads can declare success.
             # The source scalar path retains its historical boundary convention.
             observed = self.feedback['observation_wrench'].abs()

@@ -95,20 +95,10 @@ def pose_depth_spec_class(version):
 
 
 def latched_interval_peak(peak, reading, latched, collision, limits):
-    """Peak/force-limit rule for worlds held by the software board stop (pose_depth_v3).
-
-    Every 2 ms sample after the latch repeats the frozen force-limit reading. A world that
-    latched during this interval already holds its true in-interval peak (the frozen
-    reading is one of its samples); a world latched in an earlier interval reports
-    |frozen reading|, never zero and never a peak carried from the latch interval.
-    Collided worlds are unchanged. This is the DiSECt adapter's existing behaviour
-    (stopped worlds are still sampled); BladeMaster applies it explicitly for v3.
-    """
-    held = latched & ~collision
-    observed = reading.abs()
-    peak = torch.where(held[:, None], torch.maximum(peak, observed), peak)
-    collision = collision | (held & (observed > limits).any(-1))
-    return peak, collision
+    """Post-latch peak rule; one implementation shared with the DiSECt adapter
+    (cutting_gpu_backend.knife_board, which cannot import this package)."""
+    from cutting_gpu_backend.knife_board import latched_interval_peak as rule
+    return rule(peak, reading, latched, collision, limits)
 
 
 def observe_board_latch(env, frame):
