@@ -1,6 +1,8 @@
 # Current and historical configurations
 
-Current shared scene: [shared/scene_v1.json](shared/scene_v1.json).
+Current shared scene: [shared/scene_v1.json](shared/scene_v1.json), task pose_depth_v3.
+Its pose_depth_v2 form used by the 2026-11-16 runs is archived under
+archive/shared_scene_v1_pose_depth_v2_20261116 (read/evaluate only).
 Generate both backend inputs with scripts/prepare_shared_scenes.py; see
 [SHARED_SCENE](../docs/SHARED_SCENE.md). Scene capture and reward checks consume
 these same inputs. World count in the shared file is a bounded-check resource

@@ -189,6 +189,7 @@ def main():
 def run(args, output, status, started):
     sys.path.insert(0, str(args.backend_root.resolve()))
     from cutting_world_model.gpu_env import GPUEnvironment
+    from cutting_world_model.free_cut import refuse_retired_training
     torch.set_num_threads(2)
     torch.manual_seed(args.seed)
     reward = ({'force_penalty': 'linear', 'force_penalty_scale': args.force_penalty_scale}
@@ -201,6 +202,7 @@ def run(args, output, status, started):
             raise ValueError('BladeMaster uses its task reward; legacy force-penalty overrides are unsupported')
         from cutting_world_model.blademaster_backend import BladeMasterEnvironment
         bm_config=json.loads(args.blademaster_config.read_text())
+        refuse_retired_training(bm_config.get('task'))  # before building physics
         status['worlds']=int(bm_config['worlds'])
         write_json(output / 'progress.json', status)
         env = BladeMasterEnvironment(args.backend_root, bm_config)
@@ -210,6 +212,7 @@ def run(args, output, status, started):
     elif args.conditions is not None:
         from cutting_world_model.multi_env import MultiConditionEnvironment
         conditions = json.loads(args.conditions.read_text())
+        refuse_retired_training(conditions.get('task'))  # before building physics
         status['worlds']=sum(group['worlds'] for group in conditions['groups'])
         write_json(output / 'progress.json', status)
         if conditions.get('w_speed'):
@@ -243,6 +246,8 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
                                 getattr(getattr(env, 'physics', None), 'batch_groups', None)):
         raise ValueError('--snapshot-at requires DiSECt groups or batched BladeMaster')
     device = 'cuda:0'
+    from cutting_world_model.free_cut import refuse_retired_training
+    refuse_retired_training(env.metadata.get('free_cut_task'))
     frame = env.current
     one = {k: v[0].cpu().numpy() for k, v in frame.items()}
     metadata = ControlStateSpec.metadata_from_frame(env.metadata, one)

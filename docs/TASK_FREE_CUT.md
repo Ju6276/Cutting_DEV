@@ -1,11 +1,22 @@
 # Free-object single cut — shared geometric-progress pose task
 
-Updated 2026-11-16. New opt-in task **pose_depth_v2** is shared by
+Updated 2026-11-17. The single current task version is **pose_depth_v3**:
+the pose_depth_v2 task plus the software board-stop consistency fix and analytic
+imagined survival below. It is not a new cutting task. pose_depth_v2 is kept only
+to read/evaluate the 2026-11-16 runs; new training on it is refused.
+Origin (2026-11-16): the depth-progress pose task is shared by
 DiSECt and BladeMaster. The user requested removing spring-release shaping and
 using BladeMaster-style downward progress. Previously trained checkpoints retain
 free_cut_pose_v1 / blademaster_pose_v1; their results have not been relabelled.
 
-## pose_depth_v3 — software board-stop consistency (2026-11-17, not enabled for training)
+## pose_depth_v3 — software board-stop consistency (2026-11-17)
+
+Current task version since 2026-11-17 (configs/shared/scene_v1.json, both
+backends; v2 copy in configs/archive/shared_scene_v1_pose_depth_v2_20261116).
+Users do not choose v2/v3: checkpoints, replay and manifests record the version
+and code checks compatibility. scripts/train_gpu.py and scripts/train_sac_multi.py
+refuse pose_depth_v2 (fresh or resumed); evaluation/diagnostics of v2 checkpoints
+are unchanged. No v3 training has been launched yet.
 
 pose_depth_v3 = pose_depth_v2 task + software board-stop boundary consistency
 fix + analytic imagined survival. The board stop is the execution interlock
@@ -129,7 +140,7 @@ connections remain a separately recorded outcome.
 
 Scope note (2026-11-17): this section and its subsections through "Entry points
 and retained history" describe `free_cut_pose_v1` only. For the current
-`pose_depth_v2` task, release-progress shaping is replaced by geometric depth
+`pose_depth_v3` (and v2) task, release-progress shaping is replaced by geometric depth
 progress (above), and `configs/free_cut/pose_*.json` are historical fixtures,
 not current development configurations.
 

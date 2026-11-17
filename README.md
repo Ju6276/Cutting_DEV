@@ -3,7 +3,9 @@
 Force-conditioned robotic cutting with a learned world model and BPTT policy
 optimization. UR5e + FDCC is shared by two material backends: DiSECt
 (FEM, prepared cutting interface) and native BladeMaster (MPM, damage).
-The current task is **pose_depth_v2**: prescribed final pose without failure,
+The current task version is **pose_depth_v3** (= the pose_depth_v2 task plus a
+software board-stop consistency fix and analytic imagined survival; v2 is kept
+only for the 2026-11-16 runs): prescribed final pose without failure,
 with a board execution boundary. Pose success is not proof of material separation.
 
 ## Current entry points — 2026-11-17

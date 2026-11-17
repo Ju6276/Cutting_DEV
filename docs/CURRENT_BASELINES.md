@@ -24,7 +24,8 @@ historical reproduction; these are separately identified implementations.
 
 ## Shared task and inputs
 
-All new entry points consume the current shared `pose_depth_v2` config:
+All new entry points consume the current shared `pose_depth_v3` config (the
+pose_depth_v2 task rules plus the software board-stop consistency fix):
 same robot, finite mounted blade, FDCC action mapping, force limits, rewards,
 board boundary, randomized episode conditions and final-position rule.
 Success is pose-task completion, not proof of material separation.

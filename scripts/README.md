@@ -16,7 +16,7 @@ An available script does not authorize another experiment.
 | Task/reward equations and optional tool-position rule | `check_pose_depth.py`; [SHARED_SCENE](../docs/SHARED_SCENE.md) |
 
 Do not launch `train_gpu.py` with bare defaults as the current task: defaults
-retain the historical fixed-prism source variant. Current task is pose_depth_v2;
+retain the historical fixed-prism source variant. Current task is pose_depth_v3 (v2 training refused);
 material separation is diagnostic. The optional risk variant is not selected.
 [CURRENT_BASELINES](../docs/CURRENT_BASELINES.md) records tested backend coverage,
 input contracts, SAC provenance and analytic-model limitations.

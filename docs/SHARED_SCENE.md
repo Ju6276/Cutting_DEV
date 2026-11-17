@@ -54,7 +54,8 @@ fails rather than expanding the workspace silently.
 | Pitch option | Default off; when explicitly enabled, target angle ±5 degrees, rate ≤5 degrees/s |
 | Final position | Robot EE XY distance from prescribed target <40 mm, plus original height/pitch/arrival conditions |
 | Optional path constraint | task.tool_motion.enabled: false = final only (default); true = EE XY distance 25 mm free / 60 mm failure / weight 20 |
-| Reward | pose_depth_v2: geometric maximum-depth progress 10, speed 20, load 1, jerk .1; success +100, failure −100 |
+| Task version | pose_depth_v3 = pose_depth_v2 task + software board-stop consistency + analytic imagined survival (TASK_FREE_CUT); v2 archived for the 2026-11-16 runs |
+| Reward | geometric maximum-depth progress 10, speed 20, load 1, jerk .1; success +100, failure −100 (unchanged from v2) |
 | Completion | Pose arrival without higher-priority failures; material separation recorded independently |
 | Episode / discount | 180 control steps / 9 s; gamma 1 |
 | Target speed | Uniform 1–5 cm/s, resampled per world per episode; both reference controllers use it |
@@ -115,6 +116,11 @@ $PY scripts/prepare_shared_scenes.py --contract configs/shared/scene_v1.json --o
 $PY scripts/check_pose_depth.py --backend disect --shared-contract configs/shared/scene_v1.json --prepared runs/NEW_SHARED_SCENE/assets/manifest.json --output runs/NEW_SHARED_SCENE/disect.json --seconds 900
 $PY scripts/check_pose_depth.py --backend blademaster --shared-contract configs/shared/scene_v1.json --prepared runs/NEW_SHARED_SCENE/assets/manifest.json --output runs/NEW_SHARED_SCENE/blademaster.json --seconds 900
 ~~~
+
+The contract fingerprint includes task.version: assets prepared for the archived
+pose_depth_v2 contract are rejected for the current file; regenerate them (the
+DiSECt scene bytes are unchanged by the version, so the per-object scene and
+geometry hashes stay equal).
 
 Reports contain requested and actual blade gaps, settled tops, EE/goal poses,
 loaded friction, pitch settings, observation width, physical-versus-WM reward

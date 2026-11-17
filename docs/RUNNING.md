@@ -285,7 +285,10 @@ in a full local preflight before relying on it.
 
 ## Frozen multi-object pose evaluation (2026-11-15)
 
-Use scripts/evaluate_pose_policy.py for pose_depth_v2 and historical free_cut_pose_v1 / blademaster_pose_v1.
+Use scripts/evaluate_pose_policy.py for current pose_depth_v3, pose_depth_v2 checkpoints of the
+2026-11-16 runs, and historical free_cut_pose_v1 / blademaster_pose_v1. Training entry points
+(train_gpu.py, train_sac_multi.py) refuse pose_depth_v2; continue those runs only from their
+frozen checkout 5ec9f85.
 It executes one predeclared first episode per world without exploration or learning,
 writes cases, checkpoint/config hashes, raw per-step trajectories and per-object
 summaries, and closes the environment on success/error. Wall-budget/incomplete

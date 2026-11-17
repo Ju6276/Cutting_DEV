@@ -1,8 +1,8 @@
 # Historical free-cut configurations
 
 These files preserve recorded task versions and checkpoint compatibility.
-**None of the pose_*.json files in this directory selects current
-pose_depth_v2**: they still contain free_cut_pose_v1.
+**None of the pose_*.json files in this directory selects the current
+pose_depth_v3**: they still contain free_cut_pose_v1.
 Generate current paired backend inputs from
 [shared/scene_v1.json](../shared/scene_v1.json), following
 [SHARED_SCENE](../../docs/SHARED_SCENE.md). Use the generated files recorded

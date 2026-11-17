@@ -43,6 +43,8 @@ def main():
         p.error('Positive budgets/buffer/batch required')
     if args.smoke and (args.max_transitions>4096 or args.max_hours>1):
         p.error('Smoke test is limited to4096 transitions and1 hour')
+    from cutting_world_model.free_cut import refuse_retired_training
+    refuse_retired_training(json.loads((args.conditions or args.blademaster_config).read_text()).get('task'))
     args.output.mkdir(parents=True,exist_ok=False)
     started=time.monotonic()
     torch.set_num_threads(2)

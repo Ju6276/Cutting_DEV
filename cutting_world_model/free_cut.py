@@ -13,6 +13,21 @@ SUPPORTED_REVISIONS = ('free_cut_v1', 'free_cut_v2', REVISION, 'free_cut_v4', 'f
 # boundary consistency fix (latched-state fields, post-latch peak rule, loss masking,
 # analytic imagined survival). Checks of the shared semantics use this family.
 POSE_DEPTH_VERSIONS = ('pose_depth_v2', 'pose_depth_v3')
+# The single current task version. pose_depth_v2 remains readable/evaluable only, for
+# traceability of the 2026-11-16 runs; it is not a separate task choice.
+CURRENT_POSE_DEPTH = 'pose_depth_v3'
+RETIRED_TRAINING = {'pose_depth_v2': (
+    'pose_depth_v2 is kept only to read/evaluate the 2026-11-16 runs. New training uses '
+    'pose_depth_v3 (same task rules plus the software board-stop consistency fix and '
+    'analytic imagined survival): configs/shared/scene_v1.json. Continue the 2026-11-16 '
+    'runs only from their frozen checkout 5ec9f85.')}
+
+
+def refuse_retired_training(task):
+    """Raise before any training launch or resume on a read/evaluate-only task version."""
+    version = (task or {}).get('version')
+    if version in RETIRED_TRAINING:
+        raise ValueError(RETIRED_TRAINING[version])
 WEIGHTS = ('progress', 'speed', 'load', 'jerk', 'success', 'failure')
 
 
