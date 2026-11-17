@@ -1,14 +1,20 @@
 # Real-robot deployment interface and calibration plan
 
+**2026-11-17 hardware update:** the first physical platform is UR10e with an
+external ATI Mini45-E, user-confirmed SI-580-20 calibration, and a Mech-Mind camera
+(model pending). Start with the [UR10e FDCC setup handoff](UR10E_FDCC_SETUP_ZH.md):
+no-knife motion and compliance tests, without RL, MPC or vision. This is a plan,
+not completed hardware validation. Later stages below are conditional.
+
 Goal: make the simulated benchmark (UR5e + FDCC compliance controller + DiSECt
 material) match the real setup closely enough that (1) material parameters can be
 fitted from real cutting data, (2) policies trained in simulation can be evaluated
 on the real robot with the same metrics, and (3) the remaining sim–real gap is
 measured, not assumed. Nothing here runs before the open items are settled.
 
-## Current deployment contract — 2026-11-16
+## Deployment interface — updated 2026-11-17
 
-The current shared pose_depth_v2 scene trains a policy with ten 34-value frames
+The current shared pose_depth_v3 policy interface uses a policy with ten 34-value frames
 and an 8-value goal (position3, quaternion4, commanded speed1). Per frame:
 selected pose error3, velocity3, jerk3, previous action6, three samples of the
 six-axis normalized sensor wrench18, remaining episode time1. The policy has
@@ -49,9 +55,9 @@ not by mixing the historical ROS1 patch set with ROS2 commands.
 
 | Item | Status |
 |---|---|
-| UR5e | Available; same arm model as the simulation. Primary platform. |
-| Diana7 | Available; not used in the first pass (see "Later"). |
-| ATI Mini45 | Available. **Open:** calibration (SI-145-5: ±145 N Fx/Fy, ±290 N Fz, 1/16 N resolution; SI-290-10: ±290/580 N, 1/8 N), installed calibration and software interface. A photo sent by the user (2026-11-11, not in the repository) shows an ATI Net F/T 9105-NETBA box, not the transducer's calibration label. Old S0 used simulation thresholds 50 N / 5 N·m; real-task limits remain open and distinct from sensor range (PLAN). |
+| UR10e | User-confirmed physical platform; simulation currently uses UR5e. Robot calibration, tool installation and controller transfer require validation. |
+| Mech-Mind camera | User-confirmed; model and extrinsics pending. Not required for initial FDCC tests. |
+| ATI Mini45-E | User-confirmed SI-580-20: Fx/Fy ±580 N, Fz ±1160 N, Mx/My/Mz ±20 N·m. Installed calibration file, acquisition interface and mounting transform remain to verify. Sensor ranges are not task stop limits; simulation 50 N / 5 N·m is not a hardware prescription. |
 | Knife and mount | **Open:** CAD or measured geometry and mass, to replace the simulated knife frame and tool payload. |
 | Object placement | Current task uses freely placed objects. Measure the real support/friction and initial pose; historical bottom-held contracts remain separate. |
 | Foods / specimens | **Open:** proposal below. |
@@ -69,9 +75,9 @@ Neither a prescribed spring-release fraction nor board height proves separation.
 
 ### R0 — Software path and geometry
 
-- UR5e via the Universal Robots ROS driver and the FZI `cartesian_controllers`
-  FDCC implementation (Scherzinger et al., IROS 2017), with the same
-  `configs/public_prism/controller.json` parameters as the simulation.
+- UR10e via the matching Universal Robots ROS 2 driver and the FZI `cartesian_controllers`
+  FDCC implementation (Scherzinger et al., IROS 2017). Identify and validate
+  parameters on this hardware; do not copy UR5e simulation gains as approved settings.
 - Record the knife-tip and sensor frames on the real tool (CAD plus a touch-off
   measurement) and update the simulated chain only if they differ.
 - Measure the command-to-motion latency and the F/T sampling rate.
@@ -106,7 +112,7 @@ threshold fixed from the measured noise floor before any cutting data is used.
   simulation.
 - Compare end-effector trajectories and contact wrench responses; identify
   latency and any robot-model mismatch. Align joint torque limits with the real
-  UR5e here (deferred from the simulation work).
+  UR10e here (deferred from the simulation work).
 
 Decision: simulated and real tracking agree within a tolerance set after the
 first repeated real measurements (real repeat spread is the reference).
@@ -145,7 +151,7 @@ it comes from.
 ### R4 — Closed-loop evaluation on the real robot
 
 - Run the reference trajectory, then frozen policies (to be selected from the
-  current pose_depth_v2 WM+BPTT runs and the vector SAC baseline; the old
+  version-compatible WM+BPTT runs and the vector SAC baseline; the old
   BENCHMARK SAC at step 85000 is historical) on calibrated materials, with a workspace bound and an emergency
   stop. **Open:** how the force limit is detected and enforced on the real robot
   (sensor, filter, rate, stop mechanism, reaction time); no hardware guarantee is
@@ -157,7 +163,7 @@ it comes from.
 
 ## Later
 
-- Diana7: a second platform for transfer, or a second arm holding the object.
+- A second arm or another robot is outside the initial UR10e FDCC validation.
   Holding with a compliant arm adds its own dynamics (Mitsioni et al., 2019).
 - Skin or hard-core objects (low priority, per the user).
 
@@ -167,6 +173,6 @@ it comes from.
 - SliceIt! (ICRA 2024) — [arXiv 2404.02569](https://arxiv.org/abs/2404.02569), [code](https://github.com/omron-sinicx/sliceit)
 - Jamdagni and Jia, robotic slicing of fruits and vegetables (ICRA 2021) — [project page](https://robolab-iastate.github.io/ResearchRoboticCutting)
 - ATI Mini45 calibrations — [ATI](https://www.ati-ia.com/Products/ft/ft_models.aspx?id=Mini45)
-- FDCC and `cartesian_controllers` — [arXiv 2009.11888](https://arxiv.org/abs/2009.11888) (follow-up); UR10e evaluation [arXiv 2210.13421](https://arxiv.org/abs/2210.13421)
+- FDCC and `cartesian_controllers` — [arXiv 2009.11888](https://arxiv.org/abs/2009.11888) (follow-up); UR10e evaluation [arXiv 2303.12440](https://arxiv.org/abs/2303.12440)
 - Wrist F/T calibration with total least squares — [arXiv 1904.06158](https://arxiv.org/abs/1904.06158); payload identification [Sensors 2022](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8777628/); [force_torque_tools](https://index.ros.org/r/force_torque_tools/)
 - Mitsioni et al., data-driven MPC for food cutting — [arXiv 1903.03831](https://arxiv.org/abs/1903.03831)

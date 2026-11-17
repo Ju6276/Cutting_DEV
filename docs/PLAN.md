@@ -76,6 +76,15 @@ pose target in its one case. These are illustrations, not an algorithm ranking.
 SAC visual handoff is not implemented. New shapes, rotations and real depth
 remain deferred; no additional visual tuning or training is scheduled.
 
+## Initial real-robot bring-up
+
+The user selected UR10e + ATI Mini45-E (SI-580-20). First validate driver,
+motion and FDCC wrench feedback on the control PC without a knife, RL, MPC
+or vision. Follow [the Chinese handoff](UR10E_FDCC_SETUP_ZH.md). The Mech-Mind
+camera and tool/mount CAD are later inputs. Hardware installation, calibration
+and tests remain pending; this does not alter frozen simulations or authorize
+a new training run. No additional near-board controller handover is selected.
+
 ## Boundaries that still matter
 
 - Pose completion is not validated complete material separation.

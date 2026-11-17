@@ -23,6 +23,7 @@ with a board execution boundary. Pose success is not proof of material separatio
 | Measured outcomes and limits | [RESULTS](docs/RESULTS.md) |
 | Installation, tests, recording and shared renderer | [RUNNING](docs/RUNNING.md) |
 | Server data and preserved run provenance | [DATA](docs/DATA.md) |
+| UR10e + ATI: first FDCC hardware setup | [Chinese setup handoff](docs/UR10E_FDCC_SETUP_ZH.md) |
 | Full documentation index | [docs](docs/README.md) |
 
 Development is consolidated on GitHub main. Running jobs retain their frozen

@@ -23,7 +23,8 @@ locations. A dated experiment or archived launch is not a new training instructi
 | [BladeMaster assets](BLADEMASTER_DISECT_ASSETS.md) | Candidate objects converted to prescribed-interface DiSECt |
 | [NOVELTY](NOVELTY.md), [READING_LIST](READING_LIST.md) | Literature evidence and entry points |
 | [Literature search](literature/force_adaptive_search_20261112.md) | Candidate topic search and evidence levels |
-| [REAL2SIM](REAL2SIM.md) | Conditional real-robot draft |
+| [UR10e + ATI FDCC setup](UR10E_FDCC_SETUP_ZH.md) | Chinese handoff for the control PC: installation, interfaces and first hardware tests |
+| [REAL2SIM](REAL2SIM.md) | Real-robot plan; UR10e hardware facts and conditional later work |
 | [SOURCES](SOURCES.md) | Upstream revisions and provenance |
 
 [Script map](../scripts/README.md) identifies execution and diagnostic entry points.
