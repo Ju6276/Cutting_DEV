@@ -383,3 +383,11 @@ the offline full-mesh center; neither visual route implies material separation.
   official XYZ encoder plus midpoint head; local_v1 is the historical comparison.
 - compare_visual_centers.py verifies matched cases/labels/data hashes across the
   six fixed-seed runs and writes paired errors; no automatic tuning or training.
+
+- evaluate_visual_cut.py --method wm_policy|wm_mppi|analytic_mpc: one DP3/geometric
+  goal to any of these frozen controllers in the native-BladeMaster prototype.
+  wm_mppi additionally requires --model-checkpoint paired by exact actor tensors
+  with --policy. --allow-backend-transfer explicitly opts into a different
+  material backend, with matching robot/task/tool/state contracts.
+  analytic_mpc uses --policy only as goal-convention metadata; no learned control
+  weights or terminal critic. Samples512,horizon8,one refinement by default.

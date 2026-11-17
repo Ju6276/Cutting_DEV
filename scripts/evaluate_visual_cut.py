@@ -24,12 +24,20 @@ def main():
     p.add_argument("--selection",choices=["visible-midpoint","fixed-midpoint","learned-midpoint"],default="visible-midpoint")
     p.add_argument("--center-checkpoint",type=Path)
     p.add_argument("--wall-seconds",type=float,default=1500)
+    p.add_argument("--method",choices=["wm_policy","wm_mppi","analytic_mpc"],default="wm_policy")
+    p.add_argument("--model-checkpoint",type=Path)
+    p.add_argument("--planner-horizon",type=int,default=8)
+    p.add_argument("--planner-samples",type=int,default=512)
+    p.add_argument("--planner-refinements",type=int,default=1)
+    p.add_argument("--analytic-substeps",type=int,default=5)
     a=p.parse_args()
+    if (a.method=="wm_mppi") != (a.model_checkpoint is not None):
+        p.error("--model-checkpoint is required only for wm_mppi")
     if (a.selection=="learned-midpoint") != (a.center_checkpoint is not None):
         p.error("--center-checkpoint is required only for learned-midpoint")
     center_model,center_data=load_center(a.center_checkpoint) if a.center_checkpoint else (None,None)
     a.output.mkdir(exist_ok=False)
-    start=time.monotonic();env=None;traces=[];rows=[];status={"state":"initializing"}
+    start=time.monotonic();env=None;planner=None;traces=[];rows=[];status={"state":"initializing"}
     def write(n,d): (a.output/n).write_text(json.dumps(d,indent=2,allow_nan=False))
     def progress(**kw):
         status.update(kw,elapsed_seconds=time.monotonic()-start);write("progress.json",status)
@@ -53,7 +61,8 @@ def main():
             raise ValueError("Policy task/reward differs from evaluation")
         if data["metadata"]["goal_dim"]!=8 or data["metadata"]["state_shapes"]["observation"]!=[34]:
             raise ValueError("Current goal/observation interface required")
-        manifest=dict(policy_identity=data["identity"],config=config,visual_selection=a.selection,
+        manifest=dict(method=a.method,policy_identity=data["identity"] if a.method!="analytic_mpc" else None,
+            goal_convention_reference=data["identity"],config=config,visual_selection=a.selection,
             center_model=None if not a.center_checkpoint else dict(path=str(a.center_checkpoint),
                 sha256=hashlib.sha256(a.center_checkpoint.read_bytes()).hexdigest(),best_epoch=center_data["best_epoch"],
                 architecture=center_data.get("architecture","local_v1")),
@@ -61,13 +70,23 @@ def main():
             budget_seconds=a.wall_seconds,episodes=1,
             scope="Pre-cut depth selection then force-feedback policy; not continuously replanned vision",
             approach="IK/reset placement, not a collision-checked approach trajectory")
-        manifest["source_sha256"]={name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in ["scripts/evaluate_visual_cut.py","scripts/capture_visual_studio.py","cutting_world_model/visual_cut.py","cutting_world_model/visual_execution.py","cutting_world_model/visual_center.py","cutting_world_model/visual_center_features.py","cutting_world_model/vendor/dp3/pointnet.py","cutting_world_model/vendor/dp3/SOURCE.json"]}
+        manifest["source_sha256"]={name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in ["scripts/evaluate_visual_cut.py","scripts/capture_visual_studio.py","cutting_world_model/visual_cut.py","cutting_world_model/visual_execution.py","cutting_world_model/visual_center.py","cutting_world_model/visual_center_features.py","cutting_world_model/vendor/dp3/pointnet.py","cutting_world_model/vendor/dp3/SOURCE.json","cutting_world_model/shared_baselines.py","cutting_world_model/mpc.py"]}
         write("manifest.json",manifest);progress(phase="physics_initialize")
         env=BladeMasterEnvironment(ROOT/"backends/mujoco",config)
         if env.metadata["controller"]!=data["metadata"]["controller"]:
             raise ValueError("Controller/normalization mismatch")
-        policy=SliceItPolicy(8,34).to(env.device).eval();policy.load_state_dict(data["policy"]);policy.requires_grad_(False)
-        frozen={k:v.detach().cpu().clone() for k,v in policy.state_dict().items()}
+        policy=None;frozen=None
+        if a.method=="wm_policy":
+            policy=SliceItPolicy(8,34).to(env.device).eval()
+            policy.load_state_dict(data["policy"]);policy.requires_grad_(False)
+            frozen={k:v.detach().cpu().clone() for k,v in policy.state_dict().items()}
+        if a.model_checkpoint:
+            from cutting_world_model.visual_execution import validate_paired_visual_checkpoint
+            paired=torch.load(a.model_checkpoint,map_location="cpu",weights_only=False)
+            validate_paired_visual_checkpoint(data,paired)
+            manifest["model_checkpoint"]=dict(path=str(a.model_checkpoint),
+                sha256=hashlib.sha256(a.model_checkpoint.read_bytes()).hexdigest())
+            del paired
         # Move the reset pose clear of the camera's view; no trajectory claimed.
         park=env.current["ee_pose"][0].cpu().numpy().copy();park[0]=.043;park[2]=.245
         frame=place_before_episode(env,park)
@@ -114,6 +133,18 @@ def main():
         if plan["prescribed_cut_pose_used"]:raise AssertionError("Preset pose leakage")
         old_goal=env.physics.target[0].cpu().numpy().copy()
         frame=place_before_episode(env,plan["start_ee_pose"],plan["policy_goal"])
+        if a.method!="wm_policy":
+            from cutting_world_model.mpc import MPPIConfig
+            from cutting_world_model.shared_baselines import SharedMPPIPolicy
+            params=json.loads((ROOT/"backends/mujoco/runs/controller_source/controller_params.json").read_text())
+            planner=SharedMPPIPolicy(env,MPPIConfig(horizon=a.planner_horizon,
+                samples=a.planner_samples,refinements=a.planner_refinements,
+                discount=config["task"]["gamma"],terminal_value="none"),
+                checkpoint=a.model_checkpoint,controller_parameters=params,
+                analytic_substeps=a.analytic_substeps,
+                allow_backend_transfer=a.allow_backend_transfer)
+            manifest["planner"]=planner.manifest
+            torch.manual_seed(20261117)
         manifest.update(visual_plan=plan,old_goal_for_audit_only=old_goal.tolist(),
                         xy_goal_shift_mm=((np.array(plan["goal_ee_pose"])[:2]-old_goal[:2])*1000).tolist(),
                         actual_metadata=env.metadata)
@@ -128,9 +159,13 @@ def main():
         with torch.no_grad(),(a.output/"episodes.jsonl").open("w") as log:
             for step in range(1,config["task"]["horizon_steps"]+1):
                 if time.monotonic()-start>a.wall_seconds:raise TimeoutError("Visual trial wall budget")
-                goal=env.goal(frame);clean=policy(history,goal);action=clean.clamp(-1,1)
+                goal=env.goal(frame)
+                clean=planner.act(frame) if planner is not None else policy(history,goal)
+                action=clean.clamp(-1,1)
+                if not bool(torch.isfinite(action).all()):raise FloatingPointError("Nonfinite visual control action")
                 before={k:frame[k].cpu().clone() for k in ["observation","joint_q","ee_pose","step_count","cut_progress","peak_wrench"]}
                 frame,reward,ended,truncated,info=env.step(action)
+                if planner is not None:planner.observe(frame)
                 capture(step)
                 acc["return"]+=reward;acc["steps"]+=1
                 acc["force"]=torch.maximum(acc["force"],info["peak_force"].float())
@@ -150,12 +185,14 @@ def main():
                     rows.append(row);log.write(json.dumps(row,allow_nan=False)+"\n");break
                 history=torch.cat([history[1:],frame["observation"].float()[None]],0)
         if not rows:raise AssertionError("Episode failed to terminate")
-        if any(not torch.equal(v.cpu(),frozen[k]) for k,v in policy.state_dict().items()):
+        if policy is not None and any(not torch.equal(v.cpu(),frozen[k]) for k,v in policy.state_dict().items()):
             raise AssertionError("Frozen policy changed")
+        if planner is not None and not planner.unchanged():raise AssertionError("Frozen planner weights changed")
         progress(state="completed")
     except BaseException as error:
         progress(state="failed",error=repr(error));raise
     finally:
+        if planner is not None:write("planning.json",planner.plans)
         torch.save(traces,a.output/"trajectories.pt")
         write("summary.json",dict(status=status,episodes=rows))
         if env is not None:env.close()

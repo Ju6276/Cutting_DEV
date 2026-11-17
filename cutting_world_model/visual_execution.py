@@ -66,3 +66,13 @@ def place_before_episode(env, pose, goal=None):
     if any(not torch.equal(old,wp.to_torch(s.x.data)) for old,(_,s) in zip(before,p.batch_groups)):
         raise AssertionError("Pre-cut pose placement changed material")
     return env.current
+
+
+def validate_paired_visual_checkpoint(policy_data, model_data):
+    """Require the full WM checkpoint to contain the exact frozen source actor."""
+    if policy_data["metadata"] != model_data["metadata"]:
+        raise ValueError("Visual policy/WM checkpoint metadata differ")
+    actor=model_data["learner"]["policy"]
+    if actor.keys()!=policy_data["policy"].keys() or any(
+        not torch.equal(actor[k].cpu(),v.cpu()) for k,v in policy_data["policy"].items()):
+        raise ValueError("Visual policy/WM checkpoint actor weights differ")

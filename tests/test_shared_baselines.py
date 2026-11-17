@@ -67,7 +67,8 @@ def test_sac_updates_and_resume_preserve_physical_transition_credit(tmp_path):
     env.close()
 
 
-def test_current_mppi_independent_world_plans_and_gamma_guard(tmp_path,monkeypatch):
+@pytest.mark.parametrize('flat_speed',[False,True])
+def test_current_mppi_independent_world_plans_and_gamma_guard(tmp_path,monkeypatch,flat_speed):
     pytest.importorskip('pytorch_mppi')
     from test_pose_depth import model
     from cutting_world_model.world_model import CuttingWorldModel
@@ -80,6 +81,7 @@ def test_current_mppi_independent_world_plans_and_gamma_guard(tmp_path,monkeypat
     frame['success_counter']=frame['success_counter'][:,None]
     frame['target_pose']=goal[:,:7].float().repeat(2,1)
     frame['target_speed']=goal[:,7:].float().repeat(2,1)
+    if flat_speed:frame['target_speed']=frame['target_speed'].flatten()
     env=SimpleNamespace(worlds=2,device=torch.device('cpu'),current=frame,metadata=sp.metadata)
     path=tmp_path/'checkpoint.pt'
     from cutting_world_model.policy import SliceItCritic

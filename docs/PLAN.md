@@ -165,3 +165,16 @@ Completed: six online CPU fits, paired comparison, DP3 frozen physical handoff,
 and three requested GPU7 policy527 videos. Adopt DP3 for new visual training;
 aggregate development MAE improved, physical handoff still timed out.
 No active RL training or task changes. No additional visual tuning scheduled.
+
+## Authorized DP3 controller videos — 2026-11-17
+
+Export the existing DP3+policy66 episode with the approved shared studio.
+Wire the same visual start/goal into frozen WM+MPPI and nonlearned FDCC+MPPI.
+One nominal native-BladeMaster cucumber episode per added controller,180steps,
+1500s each, overall2h incl. renders. No training/reward/threshold tuning.
+WM checkpoint must contain exactly policy66 tensors; cross-backend inference
+must be explicit, retaining strict task/controller/state checks and equivalent
+blade/board geometry. Record source/execution backends and planning time.
+Horizon8,samples512,one refinement,no terminal critic; analytic substeps5.
+Shared camera/DP3 seed20261117,material/conditions. One episode is illustrative,
+not an algorithm ranking. The existing RL trial is reused, not cherry-picked.

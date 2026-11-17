@@ -27,7 +27,7 @@ def frame_metadata(env):
         env.metadata, {k: v[0].detach().cpu().numpy() for k, v in env.current.items()})
 
 
-def validate_current_interface(saved, actual):
+def validate_current_interface(saved, actual, allow_backend_transfer=False):
     if actual.get('free_cut_task', {}).get('version') != 'pose_depth_v2':
         raise ValueError('Current baselines require pose_depth_v2')
     keys = ('environment', 'controller', 'policy_observation_revision', 'physical_backend',
@@ -35,9 +35,25 @@ def validate_current_interface(saved, actual):
             'board_pose_geometry', 'contact_discretization_revision', 'free_cut_task',
             'state_shapes', 'prediction_layout', 'prediction_history', 'action_bounds',
             'robot_xml', 'robot_base', 'robot_tip', 'joint_names', 'goal_dim')
+    transfer = allow_backend_transfer and saved.get("physical_backend") != actual.get("physical_backend")
+    allowed = {"physical_backend", "contact_discretization_revision", "board_pose_geometry"} if transfer else set()
     for key in keys:
-        if saved.get(key) != actual.get(key):
+        if key not in allowed and saved.get(key) != actual.get(key):
             raise ValueError('Baseline checkpoint/environment mismatch: ' + key)
+    if transfer:
+        if {saved["physical_backend"], actual["physical_backend"]} != {"mujoco_warp_disect", "mujoco_warp_blademaster"}:
+            raise ValueError("Unsupported visual cross-backend transfer")
+        # Same physical blade and board plane, despite vertex ordering and
+        # backend-specific contact solver descriptions. No weight conversion.
+        a,b=saved["board_pose_geometry"],actual["board_pose_geometry"]
+        va,vb=(torch.as_tensor(x["vertices_in_ee"],dtype=torch.float64) for x in (a,b))
+        if va.shape != vb.shape or max(torch.cdist(va,vb).min(0).values.max(),
+                                      torch.cdist(va,vb).min(1).values.max()) > 1e-8:
+            raise ValueError("Transfer blade geometry mismatch")
+        na,nb=(torch.as_tensor(x["board_normal_base"],dtype=torch.float64) for x in (a,b))
+        oa,ob=(torch.as_tensor(x["board_origin_base"],dtype=torch.float64) for x in (a,b))
+        if not torch.allclose(na,nb,atol=1e-10,rtol=0) or abs(torch.dot(na,oa-ob)) > 1e-8 or a["stop_gap_m"]!=b["stop_gap_m"]:
+            raise ValueError("Transfer board plane mismatch")
 
 
 class AnalyticFDCCModel:
@@ -104,7 +120,7 @@ class AnalyticFDCCModel:
 class SharedMPPIPolicy:
     """Independent receding-horizon plans per world, shared frozen dynamics weights."""
     def __init__(self, env, config, checkpoint=None, controller_parameters=None,
-                 analytic_substeps=5):
+                 analytic_substeps=5, allow_backend_transfer=False):
         from pytorch_mppi import MPPI
         distribution = importlib.metadata.distribution('pytorch-mppi')
         revision = json.loads(distribution.read_text('direct_url.json') or '{}').get('vcs_info', {}).get('commit_id')
@@ -121,7 +137,7 @@ class SharedMPPIPolicy:
         self.critic_weights = None
         if checkpoint is not None:
             saved = torch.load(checkpoint, map_location='cpu', weights_only=False)
-            validate_current_interface(saved['metadata'], metadata)
+            validate_current_interface(saved['metadata'], metadata, allow_backend_transfer)
             self.model = CuttingWorldModel(saved['metadata']).to(env.device).eval()
             self.weights = saved['learner']['world_model']
             self.model.load_state_dict(self.weights)
@@ -157,7 +173,10 @@ class SharedMPPIPolicy:
         self.steps = [0]*env.worlds
         self.plans = []
         self.state = self.spec.pack_batch(env.current).float()
-        self.manifest = dict(method='wm_mppi' if checkpoint else 'analytic_mpc',
+        self.manifest = dict(cross_backend_transfer=bool(checkpoint and saved['metadata']['physical_backend'] != metadata['physical_backend']),
+            training_backend=saved['metadata']['physical_backend'] if checkpoint else None,
+            execution_backend=metadata['physical_backend'],
+            method='wm_mppi' if checkpoint else 'analytic_mpc',
             planner='UM-ARM-Lab/pytorch_mppi', upstream_revision=revision,
             planner_config=asdict(config), checkpoint_identity=identity,
             information='q, qd, signed six-axis sensor history, known target and controller/action history; geometric depth from kinematics',
@@ -171,7 +190,7 @@ class SharedMPPIPolicy:
     def act(self, frame, active=None):
         goal = frame['target_pose'].float()
         if self.spec.goal_dim == 8:
-            goal = torch.cat((goal,frame['target_speed'].float()),-1)
+            goal = torch.cat((goal,frame['target_speed'].float().reshape(self.worlds,1)),-1)
         actions = torch.zeros((self.worlds,6),device=self.state.device)
         for w,(planner,rollout) in enumerate(zip(self.planners,self.rollouts)):
             if active is not None and not bool(active[w]):

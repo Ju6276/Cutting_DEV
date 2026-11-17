@@ -1114,3 +1114,33 @@ conversion and frozen RL interfaces are unchanged. There is no arbitrary cut
 orientation prediction. New runs use a dedicated shuffle RNG independent of
 model parameter initialization so unequal architecture sizes do not alter data
 order. Same epochs/optimizer, not same capacity or compute time, is the comparison.
+
+## DP3 visual goals for planning controllers (2026-11-17)
+
+evaluate_visual_cut now dispatches wm_policy,wm_mppi,analytic_mpc after
+the same DP3 depth-based plane selection and pre-episode IK placement.
+The planner is constructed after the visual target/start is installed, ensuring
+its packed history begins at the actual visual start. Each physics step updates
+the planner state. Inputs are robot/controller/sensor histories and geometric
+depth; no material particles or spring progress are consumed by the planners.
+
+WM transfer is explicitly opt-in for this native-BladeMaster visual prototype.
+Default SharedMPPIPolicy validation stays strict. The explicit transfer admits
+only the DiSECt/BladeMaster backend/contact solver distinction and equivalent
+blade/board descriptions: unordered blade vertex sets agree within1e-8m,
+normal within1e-10 and plane offset within1e-8m, identical stop gap. Task,
+controller, action/observation/prediction layouts and robot metadata must still
+match exactly. The frozen source WM is not rewritten or trained on the target
+backend. Full checkpoint actor tensors must exactly match the reference frozen
+policy; filenames/update counters alone are insufficient.
+
+Nonlearned MPC uses the existing FDCC surrogate with held measured wrench,
+not a fitted cutting/material model; MPPI is the optimizer in both planners.
+The --policy file supplies quaternion/goal convention metadata in analytic mode;
+its actor/WM/critic weights are not used to compute actions. No terminal critic
+is enabled for this video comparison. Camera perception is pre-cut only.
+
+A native-backend interface bug was found by actual execution: target_speed is
+N in BladeMaster but N-by1 in the other interface. SharedMPPIPolicy now reshapes
+one scalar per world before goal concatenation. Both layouts have integration
+tests. The first failed zero-step attempts remain in the run directory.
