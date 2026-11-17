@@ -357,8 +357,10 @@ PYTHONPATH=.:backends/mujoco .venv/bin/python scripts/diagnose_pose_predictions.
 ```
 
 --config is the generated DiSECt conditions or BladeMaster config (default: the config
-embedded in the checkpoint). Outputs: summary.json (units and semantics written in the
-file; overall, per-object and per-world blocks), transitions.npz (recorded states,
+embedded in the checkpoint). Outputs: records.pt (raw physical records, written before
+the analysis; `--records RUN/NEW_POSE_DIAGNOSTIC/records.pt` repeats the analysis for
+the same checkpoint/seed/world count without physics), summary.json (units and
+semantics written in the file; overall, per-object and per-world blocks), transitions.npz (recorded states,
 actions, successors, events) and steps.npz (per start: per-step errors [k, N], window
 masks, WM/physical event and latch flags, head probability/label, critic, imagined
 objective, return-to-go).
@@ -377,7 +379,8 @@ realised discounted return-to-go. Physical separation (DiSECt separation_progres
 separated; BladeMaster terminal component count and saturated damage fraction) is
 recorded separately and is never a task label.
 
-Limits: a development diagnostic on few worlds; one episode per world; open-loop
+Limits: a development diagnostic on few worlds (DiSECt with 6 worlds took about 27 min
+of physics for 180-step episodes on GPU9; BladeMaster about 7 min); one episode per world; open-loop
 windows are truncated at the physical episode end; a force-risk constraint, if
 configured, is not included in the imagined objective.
 
