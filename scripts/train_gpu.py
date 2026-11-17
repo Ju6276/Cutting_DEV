@@ -13,7 +13,7 @@ import time
 import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from cutting_world_model.cuda_memory import release_physics_cache
+from cutting_world_model.cuda_memory import PhaseMemory, flat_metrics, release_physics_cache
 from cutting_world_model.online_replay import BatchedOnlineReplay
 from cutting_world_model.online_schedule import OnlineSchedule, TransitionSchedule
 from cutting_world_model.update_queue import UpdateQueue, drain_updates
@@ -357,7 +357,11 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
 
     signal.signal(signal.SIGUSR1, request_checkpoint)
 
+    memory = PhaseMemory()
+
     def progress(**values):
+        if 'phase' in values:
+            memory.enter(values['phase'])
         status.update(values, **learning_status(learner), transitions=schedule.transitions,
                       pending_learning_rounds=len(update_queue.pending),
                       active_learning_round=update_queue.active,
@@ -431,7 +435,7 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
                 'transitions': schedule.transitions, 'update': learner.updates, 'lr': lr,
                 **learning_status(learner),
                 'world_model': wm_metrics, 'policy': policy_metrics, 'timing': dict(timing),
-                'peak_gpu_mib': torch.cuda.max_memory_allocated() / 2**20,
+                'peak_gpu_mib': memory.run_peak_allocated_mib,
             })
             if learner.wm_only_updates and learner.wm_updates == learner.wm_only_updates:
                 checkpoint('wm_only_complete.pt')
@@ -466,6 +470,7 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
             tick = time.monotonic()
             frame, reward, terminated, truncated, info = env.step(executed)
             timing['physics'] += time.monotonic() - tick
+            memory.enter('record')
             with torch.no_grad():
                 next_state = spec.pack_batch_transition(frame, state)
                 replay.add(state, clean, executed, goal, reward, next_state, terminated, truncated)
@@ -493,9 +498,11 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
             schedule.after_environment_step()
             update_queue.enqueue(schedule.update_iterations)
             if ended.any():
+                progress(phase='reset')
                 tick = time.monotonic()
                 frame = env.reset(ended)
                 timing['reset'] += time.monotonic() - tick
+                memory.enter('record')
                 state = spec.reset_batch_history(frame, state, ended)
                 history[:, ended] = frame['observation'][ended].float()[None]
                 peak_material[ended] = 0
@@ -520,9 +527,13 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
                             'learning/wm_only_updates': learner.wm_only_updates,
                             'physics/transitions': schedule.transitions,
                             'episodes': int(episodes.sum()), 'replay/rows': replay.buffer.size,
-                            'gpu/torch_peak_mib': torch.cuda.max_memory_allocated() / 2**20,
+                            'gpu/torch_peak_mib': memory.run_peak_allocated_mib,
                             'wall_seconds': time.monotonic() - started})
             metrics.update({'time/' + k: v for k, v in timing.items()})
+            window = memory.take_window()
+            metrics.update(flat_metrics(window))
+            status['gpu_memory'] = memory.summary()
+            status['gpu_memory_window'] = window
             metrics.update({'optimizer/' + k + '_steps': v for k, v in learner.optimizer_steps.items()})
             tracker.log(metrics)
             append_json(output / 'steps.jsonl', dict(status))
