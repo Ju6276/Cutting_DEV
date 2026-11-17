@@ -366,7 +366,8 @@ scan color transfer to another representation; this changes no physical geometry
 The reference directory contains episode.npz and its hash-verified appearance.npz.
 Both flags are optional: geometric blocks use the neutral material palette.
 BladeMaster uses `--backend BladeMaster` and recorded physical blade poses.
-Its connector depicts the fixed joint; it is not additional contact geometry.
+Only the recorded original handle and physical blade are displayed; no fabricated
+connector is added. A measured adapter mesh remains unavailable.
 All outputs describe a frozen-policy rerun, not footage of the original training.
 
 The removed `render_pose_evaluation.py` is not a supported video entry. Preserve

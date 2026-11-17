@@ -356,6 +356,9 @@ See RUNNING; no scene replacement or inferred500 Hz peaks.
 
 - `capture_visual_cut_camera.py`: shared-scene RGB/metric-depth sensor preview;
   no new robot/knife display hardware.
-- `plan_visual_cut.py`: calibrated depth to prescribed starting pose / policy goal,
+- `plan_visual_cut.py`: calibrated depth to prescribed or visually selected plane / policy goal,
   optional frozen-checkpoint interface validation. Does not execute the robot.
+- capture_visual_studio.py: actual settled native snapshot to depth-selected plane.
+- evaluate_visual_cut.py: one bounded native BM episode driven by a visual goal;
+  explicit frozen cross-backend inference, no training or real approach planner.
 - [Vision route 1](../docs/VISION_ROUTE1.md) contains commands and current limits.

@@ -83,3 +83,65 @@ def test_policy_goal_rejects_wrong_frame_and_tool():
     meta["environment"]["relative_to_ee"]=False
     meta["board_pose_geometry"]["vertices_in_ee"][0][0]+=.01
     with pytest.raises(ValueError,match="geometry"):validate_policy_plan(plan,meta,cfg)
+
+@pytest.mark.parametrize("shift",[(0.,0.),(.01,-.008),(-.012,.01)])
+def test_visual_midpoint_tracks_cloud_without_preset(shift):
+    from cutting_world_model.visual_cut import visual_midpoint_plan
+    d,c,cfg=example()
+    rays=c.points(np.ones_like(d))-c.base_from_camera[:3,3]
+    eye=c.base_from_camera[:3,3]
+    d=-eye[2]/rays[:,:,2]
+    top_depth=(.06-eye[2])/rays[:,:,2]
+    top=c.points(top_depth)
+    mask=(np.abs(top[:,:,0]-shift[0])<.015)&(np.abs(top[:,:,1]-shift[1])<.055)
+    d[mask]=top_depth[mask]
+    cfg["tool_orientation_xyzw"]=cfg.pop("prescribed_ee_goal")[3:]
+    cfg["max_yaw_delta_deg"]=15.
+    p=visual_midpoint_plan(d,c,cfg)
+    np.testing.assert_allclose(p["selected_plane_point_base"][:2],shift,atol=.003)
+    assert not p["prescribed_cut_pose_used"]
+    assert p["visible_axis_ratio"]>2
+
+def test_visual_selector_refuses_target_leakage_and_ambiguous_axis():
+    from cutting_world_model.visual_cut import visual_midpoint_plan
+    d,c,cfg=example()
+    with pytest.raises(ValueError,match="prescribed"):visual_midpoint_plan(d,c,cfg)
+    cfg["tool_orientation_xyzw"]=cfg.pop("prescribed_ee_goal")[3:]
+    with pytest.raises(ValueError,match="ambiguous"):visual_midpoint_plan(d,c,cfg)
+
+@pytest.mark.parametrize("angle",[-8.,8.])
+def test_visual_plane_rotates_with_depth_object(angle):
+    from cutting_world_model.visual_cut import visual_midpoint_plan
+    d,c,cfg=example()
+    rays=c.points(np.ones_like(d))-c.base_from_camera[:3,3]
+    eye=c.base_from_camera[:3,3]
+    d=-eye[2]/rays[:,:,2]
+    top_depth=(.06-eye[2])/rays[:,:,2]
+    top=c.points(top_depth)
+    theta=np.radians(angle)
+    long=np.array([-np.sin(theta),np.cos(theta)])
+    across=np.array([np.cos(theta),np.sin(theta)])
+    mask=(np.abs(top[:,:,:2]@long)<.055)&(np.abs(top[:,:,:2]@across)<.015)
+    d[mask]=top_depth[mask]
+    cfg["tool_orientation_xyzw"]=cfg.pop("prescribed_ee_goal")[3:]
+    plan=visual_midpoint_plan(d,c,cfg)
+    assert abs(np.dot(np.array(plan["selected_plane_normal_base"])[:2],long))>.999
+    assert plan["yaw_delta_deg"]==pytest.approx(angle,abs=1)
+
+
+def test_visual_goal_quaternion_matches_policy_representation():
+    from cutting_world_model.visual_cut import visual_midpoint_plan,blade_points
+    d,c,cfg=example()
+    rays=c.points(np.ones_like(d))-c.base_from_camera[:3,3]
+    eye=c.base_from_camera[:3,3]
+    d=-eye[2]/rays[:,:,2]
+    td=(.06-eye[2])/rays[:,:,2];top=c.points(td)
+    mask=(np.abs(top[:,:,0])<.015)&(np.abs(top[:,:,1])<.055);d[mask]=td[mask]
+    cfg["tool_orientation_xyzw"]=cfg.pop("prescribed_ee_goal")[3:]
+    expected=visual_midpoint_plan(d,c,cfg)
+    cfg["tool_orientation_xyzw"]=(-np.array(cfg["tool_orientation_xyzw"])).tolist()
+    cfg["policy_quaternion_reference_xyzw"]=[0,0,0,1]
+    aligned=visual_midpoint_plan(d,c,cfg)
+    np.testing.assert_allclose(aligned["policy_goal"],expected["policy_goal"],atol=1e-7)
+    np.testing.assert_allclose(blade_points(aligned["goal_ee_pose"],cfg["vertices_in_ee"]),
+                               blade_points(expected["goal_ee_pose"],cfg["vertices_in_ee"]),atol=1e-7)

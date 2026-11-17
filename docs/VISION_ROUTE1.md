@@ -1,131 +1,124 @@
-# Vision route 1 — prescribed cut, calibrated depth (2026-11-17)
+# Vision route 1 — depth-selected cut and frozen policy (2026-11-17)
 
-## Implemented scope
+## Current implementation
 
-User requested the existing prescribed cut, without enlarging the task or retraining
-the low-level policy. This implementation produces a **pre-cut plan**, not a
-hardware driver or a completed vision-conditioned physical rollout.
+The user requested a plane selected from vision, followed by a physical cutting
+trial. The earlier prescribed-plane prototype is retained explicitly as a
+height/interface diagnostic; it is not the current plane-selection method.
 
-`cutting_world_model/visual_cut.py` accepts metric optical-axis depth,
-pinhole intrinsics, camera-to-robot-base calibration, calibrated board geometry,
-known robot self-occlusion, and the existing mounted blade / prescribed EE goal.
-It estimates the board height offset and visible food top, checks that the
-prescribed cut crosses the visible food footprint and fits within the blade,
-then returns a starting EE pose and the current eight-dimensional policy goal.
-It never uses the object mesh/category/material as estimator inputs.
-Mesh surface truth is used separately in the synthetic audit.
+visual_cut.visual_midpoint_plan receives metric depth, camera/board calibration
+and mounted-tool geometry/orientation. It never receives prescribed target XY.
+Known robot pixels are masked, the largest foreground component is segmented,
+and horizontal PCA identifies its visible major axis. The selected cut is the
+midpoint of the 2–98% visible extent along that axis; its normal follows the axis.
+A near-round visible shape (axis ratio below 2) rejects rather than silently
+falling back to the old plane. This geometric rule is not an optimal cutting
+location or a full-volume midpoint. The prototype restricts heading changes to
+15 degrees; that restriction does not establish policy generalization.
 
-The policy goal remains `[x,y,z,qx,qy,qz,qw,target_speed]` in **robot base**
-coordinates. A goal-only coordinate change does not make the policy invariant
-to arbitrary object positions. The policy still needs real joint/motion/wrench
-observations, with exactly the trained normalization and ten-frame history.
-No image is added to its observation.
+Calibration converts blade-edge placement into a starting EE pose and the 8D
+policy goal [x,y,z,qx,qy,qz,qw,target_speed] in robot-base coordinates. Raw goal
+quaternions must use the frozen policy's sign convention: q and -q are physically
+equal, but a network consuming the raw coordinates need not treat them equally.
+The optional policy_quaternion_reference_xyzw field supplies that convention.
+No object category, material label or food mesh enters the selector. It uses
+visible depth only. Synthetic mesh truth is audited separately.
 
-## Camera and cut selection
+## Camera and commands
 
-The proposed fixed camera is beyond the workpiece in +base Y, 320 mm in front
-of the board centre and 550 mm above it, looking back and down. Its optical axis
-is about 30 degrees from vertical. At 640 by 480 pixels, focal length is 700 px.
-These are synthetic design values, not measured camera calibration.
+The camera is +base Y of the workpiece, offset [0,0.32,0.55] m from board centre,
+looking back/down about 30 degrees from vertical. Image640x480, focal700 px.
+These are synthetic values, not real camera calibration. Pre-cut clearance is
+20 mm plus a 1 mm height margin (within the training5–30 mm range); commanded
+speed is3 cm/s (training1–5 cm/s). Board normal is calibrated, only board height
+is refined. Unknown/occluded tops or multiple objects can require another view.
 
-The existing single metallic physical blade and original robot/handle visual
-assets are reused. There is no blue overlay knife or invented mounting rod.
-The camera preview is a sensor view; it does not replace the studio video renderer.
-
-Current route: **prescribed XY cut plane and orientation**. Vision estimates
-height and checks whether that plane intersects the observed object. If it
-misses, reject the plan; do not secretly relocate the DiSECt cut interface.
-Start clearance is 20 mm plus an explicit 1 mm height-estimation margin, within
-the trained 5–30 mm range. Speed is a caller command, default 3 cm/s, within
-1–5 cm/s. The margin and clearance together must fit within the allowed range.
-Finite blade mounting, not just the EE origin, determines the goal at the board.
-
-Route 2 would learn to predict a cut goal from an image/point cloud. The label
-must come from a specified cutting objective: currently the same prescribed
-plane; later, for example, a specified slice thickness from a chosen end.
-It does not discover the desired cut solely from recognising a vegetable.
-Training that predictor is separate from retraining the low-level policy;
-deployment outside the low-level task distribution still requires validation.
-
-## Commands
-
-From the GPU7 repository, render a calibrated camera from an existing recording:
-
-```sh
-PYTHONPATH=.:scripts /dataHDD/dong/Envs/render-20261108/bin/python scripts/capture_visual_cut_camera.py \
-  --recording runs/shared_scene_views_20261116/disect/geometry/0000/group_00 \
-  --appearance-scene runs/shared_scene_views_20261116/disect/cucumber.npz \
-  --source-root /opt/ros/noetic/share/ur_description \
-  --source-root /dataHDD/dong/Projects/SliceIt/catkin_ws/src \
-  --camera configs/vision/front_camera_v1.json \
-  --config configs/vision/prescribed_cut_v1.json \
-  --output runs/NEW_CAMERA_CAPTURE
-```
-
-Offline planning also accepts real camera exports after calibration:
-
-```sh
+~~~sh
 PYTHONPATH=. .venv/bin/python scripts/plan_visual_cut.py \
-  --depth runs/NEW_CAMERA_CAPTURE/depth.npz \
+  --selection visible-midpoint \
+  --depth RUN/depth.npz \
   --camera configs/vision/front_camera_v1.json \
-  --config configs/vision/prescribed_cut_v1.json \
-  --output runs/NEW_CAMERA_CAPTURE/plan_checked.json
-```
+  --config configs/vision/visual_midpoint_v1.json \
+  --output RUN/visual_plan.json
+~~~
 
-NPZ fields: `depth_m`, optional boolean `robot_mask`. Depth means camera-Z,
-not Euclidean ray range; convert sensor units explicitly. Optional
-`--checkpoint PATH` validates goal/observation schema, coordinate convention,
-task version and blade/board geometry against the frozen checkpoint, on CPU.
-It neither runs that policy nor synthesizes its observation history.
+NPZ inputs: depth_m (optical-axis depth, not ray distance), optional robot_mask.
+Optional --checkpoint validates the existing34D observation/8D goal contract,
+base frame and blade/board calibration. It does not run the policy. Goal-relative
+coordinates alone do not guarantee out-of-distribution robustness.
 
-Outputs: `plan.json`, visible point cloud, RGB/depth, diagnostic overlay and
-separate geometry audit. The yellow overlay is the prescribed blade line at
-the board, not a visually discovered cut or material-separation prediction.
-The teal overlay marks selected visible foreground.
+capture_visual_studio.py renders the actual settled physics snapshot into RGB
+and metric depth, then selects the plane. RGB colors are the shared display
+palette, not a material measurement. The video still uses the approved shared
+studio renderer, single metallic blade and original robot/handle, with no blue
+knife overlay or invented adapter rod. Yellow lines show the selected plane's
+intersection with the board, not a material-separation prediction.
 
-## Recorded-scene verification
+## Bounded physical trial
 
-GPU7: `/dataHDD/dong/Projects/Cutting_DEV_board/runs/vision_route1_20261117/`.
-Three existing, settled DiSECt-material scene recordings; current shared UR5e
-and blade. Ideal depth includes occlusion by the recorded robot and blade.
-Self masking uses known robot projection, not food instance labels.
+scripts/evaluate_visual_cut.py executes one native BladeMaster cucumber world.
+DiSECt's baked cut topology is not silently relocated to support a new plane.
+It uses policy66 from GPU7 checkpoint128 (original checkpoint SHA256
+3bf6d7017bcfe31b5e38da68d61372156c2c85a77e8328b84989e126d138a8fd), since the new
+A6000 run still has no policy updates. This is explicitly **cross-backend frozen
+inference**, not evaluation of the eventual A6000-trained actor.
 
-| Object | Visible top estimate | Physical surface top | Approximate absolute error |
-|---|---:|---:|---:|
-| Cucumber | 38.35 mm | 38.69 mm | 0.34 mm |
-| Half potato | 25.89 mm | 26.03 mm | 0.14 mm |
-| Prism | 49.73 mm | 49.76 mm | 0.03 mm |
+The handoff verifies controller/task/observation compatibility, then uses
+simulation IK/reset placement before the episode, preserving material positions.
+This is not a collision-checked real approach trajectory. The policy thereafter
+receives measured simulated motion/force history and the visual goal at20 Hz.
+This is one-shot pre-cut vision followed by motion/force feedback, not continuous
+visual servoing. The trial is bounded to one180-step episode with a25-minute
+external timeout; no weights, reward, material law or active training job change.
 
-All three passed visible-footprint and workspace checks. These are single
-recorded frames, not sensor accuracy statistics or policy completion rates.
-The 1 mm engineering margin covered these observed top errors; it is not a
-guarantee for occluded/noisy real objects.
+~~~sh
+PYTHONPATH=.:backends/mujoco timeout --kill-after=20s 1500 \
+  .venv/bin/python scripts/evaluate_visual_cut.py \
+  --policy RUN/frozen_policy66.pt --backend-checkpoint RUN/bm_checkpoint192.pt \
+  --allow-backend-transfer --wall-seconds 1450 \
+  --render-python /dataHDD/dong/Envs/vision-render-20261117/bin/python \
+  --output RUN/NEW_TRIAL
+~~~
 
-Current frozen policy checkpoint128 (sha256
-`3bf6d7017bcfe31b5e38da68d61372156c2c85a77e8328b84989e126d138a8fd`)
-passed the CPU goal-interface check. No checkpoint weights were changed.
+Outputs retain visual plan, provenance/source hashes, conditions, all physical
+transitions, per-step geometry and final task/force/material diagnostics.
+Do not interpret pose completion or reconstructed surface appearance as verified
+material separation. The active native policy is not modified by this test.
 
-## Execution boundary and remaining work
+## Evidence and provenance
 
-A robot application must first move to the planned starting pose through its
-checked pre-cut motion, update the controller target consistently, and initialize
-history from actual measurements. Only then can the frozen policy execute.
-This task has implemented and tested perception/goal conversion; **a physical
-episode initialized from this visual plan has not yet been run**. Current long
-runs keep their original simulation reset and never consume these plans.
+GPU7 runs/vision_variants_20261117 contains seven independently scanned assets:
+cucumber001/002/003, potato001/002/003, apple002. They come from
+[OmniObject3D](https://omniobject3d.github.io/) through the AlbertS666 HF mirror;
+source metric scale and textures are retained, with download/hash ledgers.
+Five pass the visual-axis rule. Potato003 and apple002 reject as ambiguous.
+These static ideal-depth examples have no robot occlusion and have not been
+physically settled or cutting-validated. Whole potato scans differ from the
+half-potato training asset. Scans supply geometry/colors, not calibrated physics.
 
-Real use needs measured camera intrinsics/extrinsics, tool/board calibration and
-visibility/noise validation. The estimator knows the board normal and only fits
-a small height correction; it does not estimate an arbitrary tilted board.
-A largely hidden top or multiple foreground objects can require another view.
-The board stopping margin remains the simulation contract, not a real-robot
-contact tolerance. Visible footprint coverage does not prove full material
-separation. No claims of real deployment or arbitrary cut generalization.
+Earlier prescribed-plane checks in runs/vision_route1_20261117 used three settled
+recordings: cucumber/half-potato/prism visible-top errors0.34/0.14/0.03 mm. Those
+are single-frame ideal-depth comparisons, not real sensor accuracy. Their yellow
+lines were prescribed. Keep that older video distinct from visual-selection
+results; its 589/3skip root and41 backend checks are historical verification.
 
-## Regression verification
+Current physical trials are on GPU9 in runs/vision_closedloop_20261117. Early
+attempts are retained: trial01 startup exit139 (cause unconfirmed); trial02 IK
+comparison fixed for quaternion sign equivalence; trial03/04 renderer dependency
+and missing snapshot identity errors. Trial05 completed but used the opposite
+raw goal quaternion sign from the source policy; it is an interface diagnostic,
+not the final transfer result. Trial06 uses the source goal convention. See
+RESULTS for measurements and final regression counts.
 
-GPU9 RTX 4090: root suite **589 passed, 3 skipped**; bundled backend **41 passed**.
-The new vision module contributes 12 passing geometry/interface tests.
-Both suites include unchanged GPU paths; these checks shared GPU9 with the
-already-running SAC job and are not throughput benchmarks. New depth rendering
-was verified on GPU7. Running training checkouts were not modified.
+The GPU9 rendering env is Python3.8 / VTK9.5.2 / pycollada0.8; pycollada0.9.3 uses
+functools.cache unavailable on3.8. Prefer the standard Python3.12 render env for
+new installations. Tests share GPU9 with SAC and are not exclusive throughput
+measurements. No source/weights/data are copied to Mac; requested previews are.
+
+Real deployment additionally needs measured camera/tool/board calibration,
+noise/visibility checks, an actual approach controller and validated low-level
+goal coverage. The simulation board stop is not a real contact tolerance.
+
+Final verification: root596 passed/3 skipped, backend41 passed;19 visual tests.
+The completed physical handoff timed out at180 steps (blade gap2.476 mm),
+without force-limit failure. It demonstrates execution, not task success.

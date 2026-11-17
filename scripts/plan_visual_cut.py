@@ -7,10 +7,11 @@ JSON calibration: DepthCamera fields; task JSON: prescribed geometry/allowed ran
 import argparse,json,hashlib
 from pathlib import Path
 import numpy as np
-from cutting_world_model.visual_cut import DepthCamera,estimate_plan,validate_policy_plan
+from cutting_world_model.visual_cut import DepthCamera,estimate_plan,validate_policy_plan,visual_midpoint_plan
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--selection",choices=("prescribed","visible-midpoint"),default="prescribed")
     p.add_argument("--depth",type=Path,required=True)
     p.add_argument("--camera",type=Path,required=True)
     p.add_argument("--config",type=Path,required=True)
@@ -19,7 +20,8 @@ def main():
     a=p.parse_args()
     d=np.load(a.depth,allow_pickle=False)
     camera=DepthCamera(**json.loads(a.camera.read_text()))
-    result=estimate_plan(d["depth_m"],camera,json.loads(a.config.read_text()),
+    planner=estimate_plan if a.selection=="prescribed" else visual_midpoint_plan
+    result=planner(d["depth_m"],camera,json.loads(a.config.read_text()),
                          d["robot_mask"] if "robot_mask" in d else None)
     mask=result.pop("object_mask")
     if a.checkpoint:

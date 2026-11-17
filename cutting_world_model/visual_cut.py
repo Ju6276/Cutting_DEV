@@ -90,12 +90,8 @@ def blade_points(pose, vertices):
     return np.asarray(vertices)@quaternion_matrix(pose[3:]).T+pose[:3]
 
 
-def estimate_plan(depth, camera, config, robot_mask=None):
-    """Returns a plan, never directly moves hardware or changes task labels.
-
-    Board normal/ROI are calibrated; only board height is re-estimated. Current
-    cut XY/orientation stay prescribed. Multiple objects / poor visibility reject.
-    """
+def observe_depth(depth, camera, config, robot_mask=None):
+    """Extract a visible surface without consulting any cut target."""
     z=np.asarray(depth,float)
     points=camera.points(z)
     origin=np.asarray(config["board_origin_base"],float)
@@ -141,6 +137,17 @@ def estimate_plan(depth, camera, config, robot_mask=None):
         raise ValueError("Ambiguous multiple foreground components")
     object_mask=labels==keep
     p=points[object_mask];heights=height[object_mask]
+    return dict(points=p, heights=heights, object_mask=object_mask,
+                board_offset_m=offset, board_pixels=int(len(inliers)))
+
+def estimate_plan(depth, camera, config, robot_mask=None):
+    """Validate and instantiate a prescribed cut; never select one from geometry."""
+    seen=observe_depth(depth,camera,config,robot_mask)
+    p,heights=seen["points"],seen["heights"]
+    object_mask=seen["object_mask"];offset=seen["board_offset_m"]
+    origin=np.asarray(config["board_origin_base"],float)
+    normal=np.asarray(config["board_normal_base"],float)
+    observed_origin=origin+offset*normal
     # Robust top quantile, plus explicit conservative margin. No hidden true top.
     surface_top=float(np.quantile(heights,config.get("top_quantile",.995)))
     margin_height=float(config.get("height_margin_m",.001))
@@ -186,7 +193,7 @@ def estimate_plan(depth, camera, config, robot_mask=None):
         surface_top_m=surface_top,conservative_top_m=top,clearance_m=clearance,
         target_speed_mps=speed,start_ee_pose=start.tolist(),goal_ee_pose=goal.tolist(),
         policy_goal=np.r_[goal,speed].tolist(),cut_point_base=cut_point.tolist(),
-        cut_normal_base=cut_normal.tolist(),board_pixels=int(len(inliers)),
+        cut_normal_base=cut_normal.tolist(),board_pixels=seen["board_pixels"],
         object_pixels=int(object_mask.sum()),footprint_coverage=True,
         coverage_scope="visible surface near prescribed plane; not material-separation evidence",
         preparation="move to start with a separate checked robot motion; initialize real observation history",
@@ -214,3 +221,65 @@ def validate_policy_plan(plan, metadata, config):
     if not np.allclose(goal[:7], plan["goal_ee_pose"], atol=1e-7):
         raise ValueError("Inconsistent pose and policy goal")
     return goal
+
+def visual_midpoint_plan(depth, camera, config, robot_mask=None):
+    """Select the visible object's mid-section, using depth rather than preset XY.
+
+    config supplies calibrated tool orientation, never a prescribed target pose.
+    The rule is geometric, not an optimum for force, stability or slice volume.
+    """
+    import copy
+    if "prescribed_ee_goal" in config:
+        raise ValueError("Visual selection must not receive a prescribed cut pose")
+    seen=observe_depth(depth,camera,config,robot_mask)
+    points=seen["points"]
+    normal=np.asarray(config["board_normal_base"],float)
+    if not np.allclose(normal,[0,0,1],atol=1e-6):
+        raise ValueError("Midpoint selector currently requires horizontal calibrated board")
+    centred=points[:,:2]-points[:,:2].mean(0)
+    values,vectors=np.linalg.eigh(centred.T@centred/len(centred))
+    ratio=float(values[-1]/max(values[0],1e-12))
+    if ratio<float(config.get("minimum_axis_ratio",2.)):
+        raise ValueError("Visible major axis is ambiguous; supply a cut heading or user-selected plane")
+    long=np.r_[vectors[:,-1],0.]
+    canonical=np.asarray(config["tool_orientation_xyzw"],float)
+    vertices=np.asarray(config["vertices_in_ee"],float)
+    local=blade_points(np.r_[np.zeros(3),canonical],vertices)
+    _,_,vh=np.linalg.svd(local-local.mean(0),full_matrices=False)
+    edge=vh[0].copy();edge[2]=0;edge/=np.linalg.norm(edge)
+    ref_normal=np.cross(normal,edge);ref_normal/=np.linalg.norm(ref_normal)
+    if np.dot(long,ref_normal)<0:long=-long
+    yaw=float(np.arctan2(np.cross(ref_normal,long)[2],np.dot(ref_normal,long)))
+    if abs(np.degrees(yaw))>float(config.get("max_yaw_delta_deg",15)):
+        raise ValueError("Visual cut heading exceeds the development yaw envelope")
+    # q_yaw * q_tool, xyzw.
+    z=np.sin(yaw/2);w=np.cos(yaw/2);v=canonical[:3]
+    quat=np.r_[w*v+canonical[3]*np.array([0.,0.,z])+np.cross([0.,0.,z],v),
+               w*canonical[3]-z*v[2]]
+    quat/=np.linalg.norm(quat)
+    reference=config.get("policy_quaternion_reference_xyzw",canonical)
+    reference=np.asarray(reference,float)
+    if reference.shape!=(4,) or not np.isfinite(reference).all() or not np.isclose(np.linalg.norm(reference),1.,atol=1e-5):
+        raise ValueError("Invalid policy quaternion reference")
+    # q and -q are physically equal, but the policy consumes raw goal coordinates.
+    if np.dot(quat,reference)<0:quat=-quat
+    across=np.cross(long,normal)
+    quantiles=config.get("extent_quantiles",[.02,.98])
+    lo,hi=np.quantile(points@long,quantiles)
+    left,right=np.quantile(points@across,quantiles)
+    centre=long*((lo+hi)/2)+across*((left+right)/2)
+    plane_origin=np.asarray(config["board_origin_base"])+normal*seen["board_offset_m"]
+    centre+=normal*(np.dot(plane_origin,normal)-np.dot(centre,normal))
+    oriented=blade_points(np.r_[np.zeros(3),quat],vertices)
+    heights=oriented@normal
+    edge_centre=oriented[heights<heights.min()+.0002].mean(0)
+    goal=np.r_[centre-edge_centre,quat]
+    fitted=copy.deepcopy(config);fitted["prescribed_ee_goal"]=goal.tolist()
+    result=estimate_plan(depth,camera,fitted,robot_mask)
+    result.update(mode="visual_major_axis_midpoint_v1",
+        selection_rule="midpoint of 2–98% visible extent along the horizontal major axis",
+        selected_plane_point_base=centre.tolist(),selected_plane_normal_base=long.tolist(),
+        visible_axis_ratio=ratio,yaw_delta_deg=float(np.degrees(yaw)),
+        selected_extent_m=float(hi-lo),prescribed_cut_pose_used=False,
+        selection_scope="visible-surface geometric midpoint; not best cut, force optimum, or full volume midpoint")
+    return result

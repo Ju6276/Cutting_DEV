@@ -1049,3 +1049,16 @@ top and supplies base-frame EE pose plus commanded speed. It does not change
 the policy observation or learning algorithm. Recorded-frame validation is
 complete; visually initialized closed-loop control is not yet tested.
 See [VISION_ROUTE1](VISION_ROUTE1.md).
+
+
+### Visual goal selector and physical handoff (2026-11-17)
+
+visual_cut.visual_midpoint_plan chooses a visible geometric mid-section from
+depth, independently of preset cut XY; ambiguous axes reject. Calibration then
+maps the physical blade edge to an8D base-frame policy goal. visual_execution
+places the robot only before an episode (native BM, single world); it verifies
+IK, board clearance, goal validity and unchanged material positions. This reset
+adapter is not a real-robot approach planner. The native BM handoff permits a
+new cut plane without rebuilding DiSECt topology. The frozen policy sees its
+existing motion/force observations and goal, not the input image or segmentation.
+See VISION_ROUTE1 and RESULTS for the cross-backend nature and bounded evidence.

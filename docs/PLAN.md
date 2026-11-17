@@ -75,11 +75,16 @@ analytic force model or a reproduction of a published cutting MPC.
 
 ## Vision route 1 (2026-11-17)
 
-User authorized pre-cut geometric perception for the existing prescribed cut.
-Implemented calibrated depth to starting pose and eight-dimensional base-frame
-policy goal; three recorded scenes and frozen checkpoint interface checked.
-No visual network training, arbitrary cut selection or changes to running jobs.
-Physical execution initialized by the visual plan is not yet verified.
+User corrected the goal: select the cut plane from vision, then try a physical
+feedback-controlled episode. The optional visible-major-axis midpoint selector
+does not read prescribed target XY. Seven scan shapes tested for perception;
+the native BladeMaster single-world handoff uses an explicitly cross-backend,
+frozen policy66, since the A6000 run has no trained actor yet. No ongoing job,
+reward, material law or long-training budget is changed. This is one-shot
+pre-cut vision followed by motion/force feedback, not visual servoing.
+The bounded physical trial completed its180-step budget but timed out without
+pose success; blade remained2.476 mm above the board. Do not broaden the
+training task or claim visual generalization from this one transfer trial.
 See [VISION_ROUTE1](VISION_ROUTE1.md) for commands, measurements and limits.
 
 ## Historical evidence

@@ -3004,3 +3004,75 @@ The end-to-end physical handoff remains unverified. See
 [VISION_ROUTE1](VISION_ROUTE1.md) for inputs, commands and limitations.
 Evidence is on GPU7 under runs/vision_route1_20261117; no Mac project copy.
 GPU9 regression: root589 passed/3 skipped; bundled backend41 passed.
+
+## 2026-11-17 — A6000 throughput and WM-only schedule check
+
+Read-only inspection of the unchanged shared-run checkout (5ec9f85), GPU1,
+W&B pvord4sx. At iteration333:169,830 physical transitions,217 completed WM
+rounds,0 policy updates. This agrees exactly with
+floor((169830-30720)/640)=217. A WM round contains10 optimizer minibatches.
+The launch requests500 WM-only rounds, not500 optimizer steps.
+
+Over the most recent30 vector steps:50.44 s/step, comprising28.67 s physics,
+10.93 s reset/settling and10.83 s WM fitting. Cumulative physics and reset
+accounted for approximately84% of elapsed time. The512-sized network microbatch
+is unrelated to the510 physical worlds. Material randomization resets selected
+worlds, advances1 s of settling in500 exchanges, and reads each exchange back to
+CPU for contact/finite checks; this is measurable overhead and a possible
+optimization target, not evidence of skipped learning or deadlock.
+
+At this rate joint learning starts around vector iteration688 (roughly5 hours
+after the inspection), subject to subsequent throughput. The24h wall cap remains;
+1.28M transitions are an alternative stop condition, not a promise within24h.
+No schedule, physical timestep, reset conditions or running job was changed.
+
+
+## 2026-11-17 — Depth-selected plane and frozen physical feedback trial
+
+The user clarified that perception must choose the cut plane, rather than check
+a supplied plane. Added visible-major-axis midpoint selection with no preset XY
+input. Translated and rotated depth fixtures verify that selection moves with
+the cloud; near-round axes reject. Policy goal quaternion sign is anchored to
+the source policy representation, not merely checked as an equivalent rotation.
+
+Seven independently scanned, textured OmniObject3D assets were rendered at native
+metric scale: cucumber001/002/003, potato001/002/003 and apple002. Three cucumbers
+and two elongated potato views passed; potato003 and apple002 rejected as
+ambiguous. These are static ideal-depth geometry examples, not seven physical
+cutting tests or calibrated material models. GPU7 evidence:
+runs/vision_variants_20261117 (including per-object visual plans and gallery).
+
+A single native BladeMaster cucumber trial used frozen main-run checkpoint128,
+policy66. The A6000 native actor had zero updates, so this is explicitly a
+cross-backend inference demonstration. The selected plane shifted the EE goal
+by X -0.355 mm / Y +8.986 mm relative to the old preset, with yaw about0.46 deg.
+Only calibrated depth selected its location. Pre-cut IK/reset changed the robot
+pose while verifying unchanged material positions; no physical approach motion
+was claimed. Thereafter actual force/motion feedback drove180 policy steps.
+
+Final trial06: timeout, return -6.754, no force-limit or workspace failure;
+peak material force2.720 N, peak limit utilization0.0850, depth progress0.95869.
+Blade-board gap ended at2.476 mm, EE target height error2.491 mm, XY error14.103 mm.
+Material component diagnostic remained1. The chain executes, but this policy did
+not complete the selected task. This is neither native-policy performance nor
+proof of arbitrary cut generalization. No counterfactual separates visual goal
+change from cross-backend transfer; no policy/reward/material parameter was tuned
+to make the trial succeed.
+
+GPU9 evidence: runs/vision_closedloop_20261117/trial_06 contains all raw transitions,
+per-step geometry, visual plan, conditions, source/checkpoint provenance and
+handoff_audit.json. Shared studio rendering uses the actual recorded blade and
+original handle; no adapter rod or blue blade is added. Camera display coloring
+was corrected on the source polydata before its normal filter; depth and plan
+were independently verified unchanged (max depth difference0).
+
+Earlier attempts are retained rather than counted as episodes: trial01 startup
+exit139, cause unconfirmed; trial02 overly strict raw quaternion IK comparison;
+trial03/04 renderer dependency / snapshot identity failures. Trial05 ran but used
+the opposite raw goal quaternion sign from the source policy, so its timeout is
+an interface diagnostic. Trial06 corrected the input convention; it still timed
+out. Long training checkouts and algorithms were not changed. All evaluation and
+regression time shared GPU9 with SAC; no exclusive throughput claim.
+
+Final regression on GPU9: root596 passed/3 skipped; backend41 passed.
+19 visual geometry/interface tests are included.
