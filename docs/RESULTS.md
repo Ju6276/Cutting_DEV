@@ -3409,3 +3409,42 @@ Separately confirmed by code reading (both affect the live runs' imagination,
 size not measured): the physical board stop latches after contact while the WM
 board projection still allows later lateral/upward motion; the learned
 termination head reduces imagined survival without settling a terminal reward.
+
+## 2026-11-17 — Shared runs end; cut-geometry check; BladeMaster separation
+
+Run endings: see TRAINING_SHARED_20261116 "Final status" (A6000 budget_complete,
+482,460 transitions; GPU7 failed at 22.4 h by CUDA allocation failure,
+933,888 transitions).
+
+Cut geometry (read-only, robot-base frame = world here). Blade edge along +x
+(150 mm), cut-plane normal y; the policy actions are x, z, pitch, so y is not
+controlled: measured blade y spread over all 3072+510 snapshot worlds and the
+evaluations <= 0.2 mm, within 1 mm of the DiSECt cut-spring plane. The final
+XY error is therefore along the blade edge, not a miss of the cut plane.
+
+policy527 frozen evaluation (DiSECt checkpoint_00000224, 1 world/object):
+
+| Object | Final x offset mm | y offset mm | Blade covers object width | Depth | Object drag x mm | Released springs | Separated |
+|---|---:|---:|---:|---:|---:|---|---|
+| Cucumber | +11.4 | -0.25 | 1.00 | 1.00 | 1.7 | 64/65 | no |
+| Half potato | +28.3 | -0.20 | 1.00 | 0.98 | 22.9 | 94 | no |
+| Prism | +28.3 | -0.19 | 0.96 | 1.00 | 20.2 | 275 | no |
+
+Descent from ~55 mm to ~3 mm above the board in ~5 control steps (fastest step
+~0.43 m/s; targets 0.03–0.046 m/s). After reaching the board, on potato and
+prism the blade slides ~2 mm/step along +x to +28 mm and the object centroid
+follows almost one-to-one (relative drift 5–8 mm). Early training (snapshots at
+iteration 1 vs 120, worlds still in their first episode, both backends): median
+x offset ~0 mm, object displacement < 1 mm. Measured: the drag-along-edge
+behaviour appears with training; the pose success region admits it.
+Not measured yet: late-training episodes (no per-step geometry was recorded; a
+frozen evaluation with --record-geometry of the final checkpoints is running).
+
+BladeMaster separation: material_components counts code-compatible grid
+connectivity components (blademaster_backend.py, topology.components) at
+termination; damage_saturated_fraction is a thin-band damage fraction. Neither
+is a "prescribed slice detached" indicator (fragments, board-pinch labelling,
+no plane check). BladeMaster separation is therefore reported as not
+determinable (null), not as "not separated". DiSECt separation (all prescribed
+cut springs released) and BladeMaster connectivity are different criteria and
+must not be pooled.

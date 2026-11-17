@@ -79,6 +79,23 @@ After the fixed budget, evaluate frozen checkpoints on identified development
 conditions and report outcomes including failures. No automatic reward retuning,
 material-range change or budget extension.
 
+## Final status — 2026-11-17
+
+- A6000 BladeMaster: state budget_complete (24-hour bound) at 20:02 CET,
+  iteration 946, 482,460 transitions, 705 WM / 205 policy updates; last.pt and
+  replay.pt written.
+- GPU7 DiSECt: state failed at 17:55 CET after 80,640 s, iteration 304, 933,888
+  transitions, 1406 WM / 906 policy updates, 5 pending learning rounds.
+  Error: RuntimeError("Failed to allocate 8388608 bytes on device 'cuda:0'") in
+  mujoco_warp collision (convex_narrowphase) during environment reset. W&B system
+  metrics: device memory 16.7 GB at launch, stepwise growth to 23.8 GB (92.4 %)
+  by 14:11, flat until 17:54, 24.37 GB at the failure; no external spike visible
+  (the metric is device-wide, so other processes cannot be fully excluded).
+  Last named paired checkpoint: checkpoint_00000288; last.pt/replay.pt were
+  written at the failure. Not restarted (no extension rule).
+- Both runs used pose_depth_v2, which is now read/evaluate-only; their results
+  are history, not candidates for the v3 method.
+
 ## Verified launch status — 2026-11-16 20:12 CET
 
 Both runs are running from clean, frozen source5ec9f85, native BladeMaster

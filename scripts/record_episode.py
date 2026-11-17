@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Record historical fixed-prism benchmark geometry in the MuJoCo world frame.
 
-Current pose_depth_v2 recording uses evaluate_pose_policy.py --record-geometry
+Current pose_depth_v3 recording (and read-only pose_depth_v2 checkpoints) uses evaluate_pose_policy.py --record-geometry
 and the shared studio pipeline; see scripts/README.md.
 
 ``episode_000.npz`` contains measured states/actions. ``episode.npz`` contains

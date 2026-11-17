@@ -10,12 +10,16 @@ before reporting that it is still active.
 
 - GPU7: 3072-world WM+BPTT, DiSECt material backend.
 - A6000 GPU1: 510-world WM+BPTT, native BladeMaster material backend.
-- Both entered joint training. Each has a fixed 24-hour / 1,280,000-transition
-  budget (first bound reached stops); no automatic extension, restart or task
-  changes. The budget cap is the same; the actual interaction is not. Rates
-  measured 2026-11-17 ~16:00 CET project the 24-hour bound first for both
-  (roughly 1.0M transitions GPU7, 0.5M A6000); record the actual final counts.
-  Compare the backends and SAC (1,281,024) at equal transition counts.
+- Both runs (pose_depth_v2, now read/evaluate-only) have ended; no restart or
+  extension. A6000: budget_complete at the 24-hour bound, 482,460 transitions,
+  705 WM / 205 policy updates. GPU7: FAILED at 22.4 h (2026-11-17 17:55) with a
+  CUDA allocation failure inside a physics reset, 933,888 transitions, 1406 WM /
+  906 policy updates; last named checkpoint 00000288 (see RESULTS). Same cap,
+  different actual interaction; SAC used 1,281,024. Compare at equal transition
+  counts only.
+- Before any next long run: GPU-memory headroom for 3072 DiSECt worlds on a
+  24 GB card must be fixed and verified (the GPU7 run grew from 16.7 to 23.8 GB
+  and failed on an 8 MB Warp allocation).
 - GPU9 SAC finished its transition budget (1,281,024 transitions, vector-step
   granularity). Preserve its checkpoint and evaluate under the recorded task.
 - After completion, evaluate the frozen policies on identified development
