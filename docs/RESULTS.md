@@ -3173,3 +3173,83 @@ backend41 passed. Root skips cover unavailable SB3/gym and explicit historical
 TensorFlow/physical bridge cases; no newly added visual test is skipped.
 Data IDs, placement splits, relative/base label consistency and checksum verified.
 New scripts compile; complete root run used the prepared CUDA/MPPI environment.
+
+## 2026-11-17 — Official DP3 point encoder vs local midpoint network
+
+User-authorized replacement trial; upstream MIT PointNetEncoderXYZ pinned at
+47385d9d6f5bde3f2ebdf2400ecb8261cc9e6b97, class AST verified identical. Only its
+colored diagnostic printing is suppressed. Official XYZ/64D/LayerNorm settings;
+our bounded midpoint head, not the DP3 diffusion policy. All weights trained
+from scratch. Original input normalization/target/goal conversion unchanged.
+
+Paired600/150/150 data,120epochs,Adam.001,batch32. Independent shuffle generator
+ensures the same data order across architectures for each seed. Local27073
+parameters; DP363297. Same epochs do not imply equal capacity or compute.
+Validation selects each checkpoint; test was already seen in the previous
+pilot, so this is a reused development benchmark, not a new final evaluation.
+
+| Seed | Local MAE mm | DP3 MAE mm |
+|---|---:|---:|
+| 20261117 | 0.2067 | 0.1519 |
+| 20261118 | 0.1945 | 0.1361 |
+| 20261119 | 0.2027 | 0.1230 |
+
+Mean MAE0.2013 ->0.1370mm (about32% lower); pooled95th percentile0.5014 ->
+0.3533mm; maximum0.9083 ->0.4869mm. Each paired seed favors DP3 on MAE.
+Case bootstrap of the three-fit mean difference DP3-local: -0.0643mm,
+95%[-0.0872,-0.0433]. This conditions on these fits, does not include a
+population of training seeds, unseen objects or actual camera errors.
+Use DP3 as the new visual encoder; retain local_v1 for historical checkpoints
+and comparison. No test-driven tuning or threshold changes were performed.
+
+Frozen physical handoff used preselected seed20261117 (not lowest test error),
+same policy66 SHA3bf6d7017bcfe31b5e38da68d61372156c2c85a77e8328b84989e126d138a8fd,
+nominal native-BladeMaster cucumber and explicit cross-backend inference.
+DP3 plane error -0.8453mm (previous local -0.6880mm),180-step timeout,
+return -7.0070, peak material force10.8438N, peak limit ratio0.2513, one material
+component. Final EE height error2.9135mm exceeds2mm tolerance; zero
+height-qualified samples. No force/workspace failure. One execution per version
+cannot establish a force difference; smaller dataset error did not improve
+task completion, and did not improve this particular physical localization.
+This uses old policy66 deliberately; it is unrelated to the newer policy527
+video below. No retraining or edits to either running controller.
+
+Code validation: root598 passed/6 skipped, backend41 passed; center10 passed.
+Optional SAC/Gym/historical TF skips remain. GPU7 training/evaluation/tests
+overlapped: timing is not exclusive-machine throughput.
+
+## 2026-11-17 — Requested GPU7 policy527 studio videos
+
+Fixed checkpoint224 (policy527,WM1027), SHA
+d542414c9f783ed9055b08bfd391f84ca1e1b9ada70af8ebf704fa861a7a4549.
+One first episode per shape, seed20261117, generated from the actual training
+conditions, unchanged task/reward, deterministic frozen policy, no updates.
+All three reached pose-task success in16 steps, none hit force/workspace limits.
+Material complete separation was false for all three.
+
+| Object | Return | Peak material force N | Peak limit ratio |
+|---|---:|---:|---:|
+| Cucumber |98.34|7.90|0.0958|
+| Half potato |99.96|15.85|0.5389|
+| Prism |97.63|17.99|0.3936|
+
+These three selected-by-seed cases are illustrations, not the last100 training
+episodes or a reliable success-rate estimate. Initial attempted evaluation
+combined the newer evaluator with frozen source lacking shared_baselines and
+failed before scoring; failed output retained. Successful rerun used the
+current validated interface, without changing the active training checkout.
+
+Shared studio renderer, verified cucumber scan map, potato appearance projection,
+same existing cameras/palette, physical blade/original handle only, no blue proxy
+or invented connector. Full clips0.5x,26frames10fps, plus synchronized signed
+sensor force/torque panels (20Hz filtered endpoints, not500Hz limit peaks).
+FFmpeg full decode and image inspection passed; downloaded MP4 SHA256 matches
+server. Local destination: Downloads/cutting_policy527_20261117.
+
+DP3 comparison W&B: all six remote runs verified finished at120epochs:
+- [0cboc47l](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/Cutting_DEV/runs/0cboc47l)
+- [usx01450](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/Cutting_DEV/runs/usx01450)
+- [bn7bjlv8](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/Cutting_DEV/runs/bn7bjlv8)
+- [57gbfk7p](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/Cutting_DEV/runs/57gbfk7p)
+- [8duewbr9](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/Cutting_DEV/runs/8duewbr9)
+- [cj4mrcsu](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/Cutting_DEV/runs/cj4mrcsu)

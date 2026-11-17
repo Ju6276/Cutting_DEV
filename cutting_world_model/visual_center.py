@@ -26,11 +26,34 @@ class CenterNet(nn.Module):
         return .5*torch.tanh(self.head(torch.cat([h.mean(1), h.amax(1)], -1)).squeeze(-1))
 
 
+class DP3CenterNet(nn.Module):
+    """Official DP3 XYZ encoder + our bounded midpoint regression head."""
+    def __init__(self):
+        super().__init__()
+        from .vendor.dp3.pointnet import PointNetEncoderXYZ
+        self.encoder = PointNetEncoderXYZ(in_channels=3, out_channels=64,
+                                         use_layernorm=True, final_norm="layernorm")
+        self.head = nn.Sequential(nn.Linear(64,64), nn.SiLU(), nn.Linear(64,1))
+        nn.init.zeros_(self.head[-1].weight)
+        nn.init.zeros_(self.head[-1].bias)
+
+    def forward(self, cloud):
+        return .5*torch.tanh(self.head(self.encoder(cloud)).squeeze(-1))
+
+
+def make_center(architecture):
+    if architecture == "local_v1":
+        return CenterNet()
+    if architecture == "dp3_xyz_v1":
+        return DP3CenterNet()
+    raise ValueError("Unknown center architecture: " + str(architecture))
+
+
 def load_center(path):
     data = torch.load(path, map_location="cpu", weights_only=False)
     if data.get("revision") != REVISION or data.get("scale_m") != SCALE_M or data.get("points") != POINT_COUNT:
         raise ValueError("Center checkpoint contract mismatch")
-    model = CenterNet().eval()
+    model = make_center(data.get("architecture", "local_v1")).eval()
     model.load_state_dict(data["model"])
     model.requires_grad_(False)
     return model, data

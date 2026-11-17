@@ -139,7 +139,10 @@ not establish tested visual integration.
 
 ## Method 2: fixed-heading learned midpoint
 
-Implementation: visual_center_features.cloud_input uses512 visible points,
+Current default: official DP3 encoder; see the DP3 replacement result below.
+The following records the initial local_v1 pilot for reproducibility.
+
+Initial local implementation: visual_center_features.cloud_input uses512 visible points,
 subtracts the **observed** XY centroid, and measures height from the observed
 board. Coordinates use a fixed0.1m scale; object size is not normalized away.
 The network receives no absolute XY, object ID, full mesh or target. A shared
@@ -206,3 +209,25 @@ The dataset/checkpoint stay on GPU7 under runs/visual_center_20261117.
 The full shape-source hashes, split membership, depth/RGB, input point clouds,
 labels, validation history and final test predictions are retained there.
 No active long-training configuration or low-level model was changed.
+
+## DP3 replacement result — 2026-11-17
+
+New training defaults to --architecture dp3_xyz_v1; old checkpoints still load
+local_v1. The point encoder is pinned official DP3 code (see METHOD/SOURCE.json),
+with a task-specific midpoint regression head, not an action diffusion network.
+Inputs/outputs and local-base-axis coordinate convention remain unchanged.
+On three matched seeds, mean midpoint MAE improved0.2013 ->0.1370mm.
+This is known-shape/small-translation development evidence, not real deployment.
+The seed20261117 frozen-policy66 physical handoff still timed out; plane error
+0.8453mm vs previous local0.6880mm. Improved aggregate perception does not imply
+better control. See RESULTS for the complete negative outcome and limits.
+
+~~~bash
+source runs/sac_env.sh
+PYTHONPATH=. /dataHDD/dong/Envs/cutting-mppi-20261108/bin/python scripts/train_visual_center.py --data runs/visual_center_20261117/dataset --output runs/NEW_DP3 --architecture dp3_xyz_v1 --seed 20261117 --epochs 120 --wall-seconds 900 --wandb-mode online
+PYTHONPATH=. /dataHDD/dong/Envs/cutting-mppi-20261108/bin/python scripts/compare_visual_centers.py --runs runs/dp3_center_20261117
+~~~
+
+Existing plan_visual_cut/evaluate_visual_cut commands accept the new center.pt
+without changing the policy or goal interface. Do not load DP3 weights into the
+legacy local network; architecture dispatch is explicit in the checkpoint.

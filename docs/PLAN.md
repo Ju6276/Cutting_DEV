@@ -143,3 +143,25 @@ handoff and frozen policy66, one nominal cucumber episode per selector
 (learned and fixed-heading geometric), each <=180 steps/1500s; total experiment
 wall budget2h. Report pose completion separately from material separation and
 perception. Do not change active long runs or claim new-object generalization.
+
+## Authorized DP3 encoder comparison — 2026-11-17
+
+User requested official DP3 encoder instead of the local pointwise encoder.
+Use pinned MIT XYZ encoder and its official 64D/LayerNorm configuration, with
+our midpoint regression head (not DP3 diffusion actions or pretrained weights).
+Compare both architectures on the existing 600/150/150 split, same Adam .001,
+batch32,120epochs and independent matched shuffle generators, seeds20261117–19.
+Six CPU fits, <=900s each, online W&B; select by validation only, no retuning
+on the already inspected test. This is a reused development benchmark.
+Report MAE/P95/max per shape and paired case differences; three seeds describe
+limited optimization variability, not real-world generalization.
+Frozen physical handoff: seed20261117 DP3 checkpoint (preselected, not best test),
+same policy66/nominal cucumber protocol, <=180steps/1500s. Existing local-model
+physical result remains a single-run reference. Total budget2h, no long-run change.
+Also user requested three new GPU7 policy videos: latest saved224 checkpoint,
+one first episode per shape, existing shared studio renderer, <=1800s evaluation.
+
+Completed: six online CPU fits, paired comparison, DP3 frozen physical handoff,
+and three requested GPU7 policy527 videos. Adopt DP3 for new visual training;
+aggregate development MAE improved, physical handoff still timed out.
+No active RL training or task changes. No additional visual tuning scheduled.

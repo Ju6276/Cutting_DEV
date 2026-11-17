@@ -1,0 +1,14 @@
+{
+  "repository": "https://github.com/YanjieZe/3D-Diffusion-Policy",
+  "commit": "47385d9d6f5bde3f2ebdf2400ecb8261cc9e6b97",
+  "path": "3D-Diffusion-Policy/diffusion_policy_3d/model/vision/pointnet_extractor.py",
+  "original_sha256": "d1fbe151475a8b055af588533206249881f1387c3f12ee0f069d0d30838ea5d7",
+  "adaptation": "Extract PointNetEncoderXYZ verbatim; replace terminal cprint dependency with no-op; mathematical operations unchanged.",
+  "config": {
+    "in_channels": 3,
+    "out_channels": 64,
+    "use_layernorm": true,
+    "final_norm": "layernorm",
+    "use_projection": true
+  }
+}

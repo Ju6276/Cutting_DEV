@@ -70,3 +70,27 @@ def test_outside_predicted_plane_is_rejected_not_clipped():
     class BadCenter(torch.nn.Module):
         def forward(self,x):return torch.ones(len(x))*10
     with pytest.raises(ValueError,match="Invalid predicted"):center_plan(d,c,cfg,model=BadCenter())
+
+
+@pytest.mark.parametrize("architecture", ["local_v1", "dp3_xyz_v1"])
+def test_versioned_center_roundtrip_and_invariance(tmp_path, architecture):
+    from cutting_world_model.visual_center import make_center
+    torch.manual_seed(4)
+    net=make_center(architecture).eval()
+    torch.nn.init.normal_(net.head[-1].weight,std=.1)
+    x=torch.randn(2,31,3,requires_grad=True)
+    torch.testing.assert_close(net(x),net(x[:,torch.randperm(31)]),atol=1e-6,rtol=1e-5)
+    net(x).sum().backward()
+    assert x.grad.isfinite().all() and x.grad.abs().sum()>0
+    path=tmp_path/"model.pt"
+    torch.save(dict(architecture=architecture,revision=REVISION,scale_m=SCALE_M,
+                    points=POINT_COUNT,model=net.state_dict()),path)
+    loaded,meta=load_center(path)
+    torch.testing.assert_close(net(x),loaded(x))
+    assert not any(p.requires_grad for p in loaded.parameters())
+    assert meta["architecture"]==architecture
+
+
+def test_unknown_center_architecture_rejected():
+    from cutting_world_model.visual_center import make_center
+    with pytest.raises(ValueError,match="Unknown center"):make_center("invalid")

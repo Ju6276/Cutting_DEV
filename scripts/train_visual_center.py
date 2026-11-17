@@ -3,7 +3,7 @@ import argparse,hashlib,json,time,copy
 from pathlib import Path
 import numpy as np
 import torch
-from cutting_world_model.visual_center import CenterNet,REVISION,SCALE_M,POINT_COUNT
+from cutting_world_model.visual_center import make_center,REVISION,SCALE_M,POINT_COUNT
 
 def metric(error):
     e=np.abs(np.asarray(error))*1000
@@ -13,8 +13,10 @@ def main():
     p.add_argument("--data",type=Path,required=True);p.add_argument("--output",type=Path,required=True)
     p.add_argument("--epochs",type=int,default=120);p.add_argument("--wall-seconds",type=float,default=900)
     p.add_argument("--wandb-mode",choices=["online","disabled"],default="online")
+    p.add_argument("--architecture",choices=["local_v1","dp3_xyz_v1"],default="dp3_xyz_v1")
+    p.add_argument("--seed",type=int,default=20261117)
     a=p.parse_args();a.output.mkdir(parents=True,exist_ok=False)
-    torch.set_num_threads(2);torch.manual_seed(20261117);start=time.monotonic()
+    torch.set_num_threads(2);torch.manual_seed(a.seed);start=time.monotonic()
     d=np.load(a.data/"dataset.npz",allow_pickle=False);manifest=json.loads((a.data/"manifest.json").read_text())
     actual_sha=hashlib.sha256((a.data/"dataset.npz").read_bytes()).hexdigest()
     if actual_sha!=manifest["dataset_sha256"]:raise ValueError("Dataset checksum differs from manifest")
@@ -27,13 +29,16 @@ def main():
     train=np.where(d["split"]=="train")[0];val=np.where(d["split"]=="val")[0];test=np.where(d["split"]=="test")[0]
     if (len(train),len(val),len(test))!=(600,150,150):raise ValueError("Expected approved 600/150/150 split")
     if len(set(d["case"]))!=900:raise ValueError("Duplicate case identities")
-    model=CenterNet();optim=torch.optim.Adam(model.parameters(),lr=.001)
-    config=dict(epochs=a.epochs,seed=20261117,device="cpu",batch_size=32,lr=.001,
-                dataset_sha256=manifest["dataset_sha256"],architecture="Pointwise 3-32-64-128, mean+max pool, 256-64-1 residual")
+    model=make_center(a.architecture);
+    order_generator=torch.Generator().manual_seed(a.seed)
+    optim=torch.optim.Adam(model.parameters(),lr=.001)
+    config=dict(epochs=a.epochs,seed=a.seed,device="cpu",batch_size=32,lr=.001,
+                dataset_sha256=manifest["dataset_sha256"],architecture=a.architecture,parameters=sum(p.numel() for p in model.parameters()),
+                data_order="dedicated generator independent of model initialization")
     run=None
     if a.wandb_mode=="online":
         import wandb
-        run=wandb.init(project="Cutting_DEV",name="visual-center-fixed-heading-20261117",mode="online",config=config,dir=str(a.output))
+        run=wandb.init(project="Cutting_DEV",name=f"visual-center-{a.architecture}-seed{a.seed}",mode="online",config=config,dir=str(a.output))
         (a.output/"wandb.json").write_text(json.dumps(dict(url=run.url,id=run.id,path=run.path)))
     best=float("inf");best_epoch=0;best_state=None
     try:
@@ -41,7 +46,7 @@ def main():
             for epoch in range(a.epochs):
                 if time.monotonic()-start>a.wall_seconds:raise TimeoutError("Visual learning wall budget")
                 model.train();losses=[]
-                for idx in torch.tensor(train)[torch.randperm(len(train))].split(32):
+                for idx in torch.tensor(train)[torch.randperm(len(train),generator=order_generator)].split(32):
                     pred=model(x[idx]);loss=(pred-y[idx]).square().mean()
                     optim.zero_grad();loss.backward();optim.step();losses.append(float(loss))
                 model.eval()
@@ -55,7 +60,7 @@ def main():
                 if run:run.log(row,step=epoch+1)
                 if (epoch+1)%10==0:print(json.dumps(row),flush=True)
         model.load_state_dict(best_state);model.eval()
-        checkpoint=dict(revision=REVISION,model=best_state,scale_m=SCALE_M,points=POINT_COUNT,
+        checkpoint=dict(architecture=a.architecture,revision=REVISION,model=best_state,scale_m=SCALE_M,points=POINT_COUNT,
                         train_config=config,best_epoch=best_epoch,best_val_mae_mm=best*1000,
                         input_scope="Visible local point cloud only; no mesh, object ID or absolute XY")
         torch.save(checkpoint,a.output/"center.pt")

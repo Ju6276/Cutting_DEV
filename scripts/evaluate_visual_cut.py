@@ -55,12 +55,13 @@ def main():
             raise ValueError("Current goal/observation interface required")
         manifest=dict(policy_identity=data["identity"],config=config,visual_selection=a.selection,
             center_model=None if not a.center_checkpoint else dict(path=str(a.center_checkpoint),
-                sha256=hashlib.sha256(a.center_checkpoint.read_bytes()).hexdigest(),best_epoch=center_data["best_epoch"]),
+                sha256=hashlib.sha256(a.center_checkpoint.read_bytes()).hexdigest(),best_epoch=center_data["best_epoch"],
+                architecture=center_data.get("architecture","local_v1")),
             cross_backend=data["metadata"]["physical_backend"]!="mujoco_warp_blademaster",
             budget_seconds=a.wall_seconds,episodes=1,
             scope="Pre-cut depth selection then force-feedback policy; not continuously replanned vision",
             approach="IK/reset placement, not a collision-checked approach trajectory")
-        manifest["source_sha256"]={name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in ["scripts/evaluate_visual_cut.py","scripts/capture_visual_studio.py","cutting_world_model/visual_cut.py","cutting_world_model/visual_execution.py","cutting_world_model/visual_center.py","cutting_world_model/visual_center_features.py"]}
+        manifest["source_sha256"]={name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in ["scripts/evaluate_visual_cut.py","scripts/capture_visual_studio.py","cutting_world_model/visual_cut.py","cutting_world_model/visual_execution.py","cutting_world_model/visual_center.py","cutting_world_model/visual_center_features.py","cutting_world_model/vendor/dp3/pointnet.py","cutting_world_model/vendor/dp3/SOURCE.json"]}
         write("manifest.json",manifest);progress(phase="physics_initialize")
         env=BladeMasterEnvironment(ROOT/"backends/mujoco",config)
         if env.metadata["controller"]!=data["metadata"]["controller"]:

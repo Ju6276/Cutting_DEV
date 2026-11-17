@@ -1093,3 +1093,24 @@ goal converter, then the existing frozen-policy handoff. Camera and data
 protocol, current test errors and failed physical trials are in
 [VISION_ROUTE1](VISION_ROUTE1.md). This is a modular task-input demonstration,
 not an adopted algorithmic novelty claim.
+
+## Visual midpoint DP3 encoder adapter (2026-11-17)
+
+The optional visual selector now defaults, when newly trained, to the official
+DP3 PointNetEncoderXYZ at commit47385d9d6f5bde3f2ebdf2400ecb8261cc9e6b97.
+The class is vendored verbatim under cutting_world_model/vendor/dp3 with MIT
+license and SOURCE.json; only colored terminal printing is suppressed. Its AST
+was checked against the pinned upstream class. Official dp3.yaml settings:
+XYZ3-64-128-256, ReLU, LayerNorm, max pooling,256-to64 projection + LayerNorm.
+Our64-64-1 SiLU/tanh midpoint head is additional, not part of DP3. No diffusion
+policy, action model or pretrained weights are imported.
+
+The original local_v1 encoder stays available solely for paired comparison and
+existing checkpoint loading. Versioned checkpoints dispatch explicitly; legacy
+checkpoints without architecture load local_v1, unknown architectures fail.
+Both consume the same512 observed-local XYZ points, fixed0.1m scaling, fixed
+base-frame axes, and output the same +-50mm residual in base Y. The board/goal
+conversion and frozen RL interfaces are unchanged. There is no arbitrary cut
+orientation prediction. New runs use a dedicated shuffle RNG independent of
+model parameter initialization so unequal architecture sizes do not alter data
+order. Same epochs/optimizer, not same capacity or compute time, is the comparison.

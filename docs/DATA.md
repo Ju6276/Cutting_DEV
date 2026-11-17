@@ -241,3 +241,15 @@ GPU9 development checkout runs/visual_center_closedloop_20261117:
 Both trials use the old frozen policy66 intentionally, for the same handoff
 comparison as the earlier route1 trial; they are not results of the latest
 long-trained policy. No source/training dataset/weight is copied to the Mac.
+
+## DP3 and policy527 artifacts — 2026-11-17
+
+GPU7 development checkout runs/dp3_center_20261117: six versioned checkpoints,
+epoch histories, reports, paired predictions/comparison, W&B verification and
+regression logs. Reuses runs/visual_center_20261117/dataset unchanged.
+GPU9 development checkout runs/dp3_center_closedloop_20261117: DP3 nominal
+frozen-policy66 handoff, original observations/geometry, outcomes and analysis.
+GPU7 runs/policy_video_20261117: failed first initialization preserved, successful
+evaluation_current and shared studio clips/wrench panels for three objects.
+Mac contains only requested MP4/PNG previews in
+/Users/judong/Downloads/cutting_policy527_20261117; no source/dataset/checkpoints.

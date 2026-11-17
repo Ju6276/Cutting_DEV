@@ -378,3 +378,8 @@ See RUNNING; no scene replacement or inferred500 Hz peaks.
 
 Use docs/VISION_ROUTE1.md for exact commands and scope. Model inputs never read
 the offline full-mesh center; neither visual route implies material separation.
+
+- train_visual_center.py --architecture dp3_xyz_v1 (default) uses the pinned
+  official XYZ encoder plus midpoint head; local_v1 is the historical comparison.
+- compare_visual_centers.py verifies matched cases/labels/data hashes across the
+  six fixed-seed runs and writes paired errors; no automatic tuning or training.
