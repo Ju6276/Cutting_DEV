@@ -122,7 +122,8 @@ def runner(monkeypatch):
             change_wm_terminal_gradient=False, critic_prefit_rounds=0, resume_without_replay=False,
             backend_root=Path(__file__).resolve().parents[1]/'backends/mujoco',
             wandb_project='test', wandb_entity=None, wandb_mode='disabled', max_hours=1,
-            max_iterations=steps, max_transitions=None, checkpoint_every=0)
+            max_iterations=steps, max_transitions=None, checkpoint_every=0,
+            cuda_cache_release='always', cuda_cache_reserve_gib=0., gpu_headroom_margin_gib=1.)
         out.mkdir()
         status = {'state': 'initializing'}
         env = Env(fail_close)

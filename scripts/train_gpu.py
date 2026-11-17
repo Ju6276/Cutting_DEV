@@ -13,7 +13,8 @@ import time
 import torch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from cutting_world_model.cuda_memory import PhaseMemory, flat_metrics, release_physics_cache
+from cutting_world_model.cuda_memory import (CACHE_RELEASE_MODES, HeadroomGuard, PhaseMemory,
+                                              flat_metrics, release_unused_cache)
 from cutting_world_model.online_replay import BatchedOnlineReplay
 from cutting_world_model.online_schedule import OnlineSchedule, TransitionSchedule
 from cutting_world_model.update_queue import UpdateQueue, drain_updates
@@ -89,7 +90,13 @@ def main():
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--microbatch', type=int, default=64)
     parser.add_argument('--cuda-cache-reserve-gib', type=float, default=0.,
-                        help='Release unused Torch cache before physics when free GPU memory is below this reserve; 0 disables')
+                        help='With --cuda-cache-release reserve: release only below this free memory (GiB)')
+    parser.add_argument('--cuda-cache-release', choices=CACHE_RELEASE_MODES, default='always',
+                        help="Release unused Torch cache before every physics step and reset: 'always' "
+                             "(default), 'reserve' (below --cuda-cache-reserve-gib), 'off'")
+    parser.add_argument('--gpu-headroom-margin-gib', type=float, default=1.,
+                        help='After the first joint learning round, stop with an error if free GPU memory '
+                             'before physics/reset is below the measured Warp high-water plus this margin')
     parser.add_argument('--wm-only-updates', type=int, default=500,
                         help='Completed world-model rounds before policy/critic updates')
     parser.add_argument('--max-hours', type=float, default=6.)
@@ -153,6 +160,10 @@ def main():
     args = parser.parse_args()
     if not math.isfinite(args.cuda_cache_reserve_gib) or args.cuda_cache_reserve_gib < 0:
         parser.error('--cuda-cache-reserve-gib must be finite and nonnegative')
+    if (args.cuda_cache_reserve_gib > 0) != (args.cuda_cache_release == 'reserve'):
+        parser.error('--cuda-cache-reserve-gib is required for, and only for, --cuda-cache-release reserve')
+    if not math.isfinite(args.gpu_headroom_margin_gib) or args.gpu_headroom_margin_gib < 0:
+        parser.error('--gpu-headroom-margin-gib must be finite and nonnegative')
     if args.change_wm_terminal_gradient and not args.resume:
         parser.error('--change-wm-terminal-gradient requires --resume')
     if args.actor_objective == 'bc' and args.actor_bc_alpha is None:
@@ -338,6 +349,13 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
         'wm_terminal_gradient_changed_at_resume': args.change_wm_terminal_gradient,
         'reward': metadata.get('free_cut_task') or reward_settings(metadata['environment']) or 'sliceit',
         'replay_snapshot': 'last.pt pairs with replay.pt; named checkpoints retain <stem>.replay.pt',
+        'gpu_memory_policy': {
+            'cache_release': args.cuda_cache_release, 'cache_reserve_gib': args.cuda_cache_reserve_gib,
+            'release_before': ['physics', 'reset'],
+            'headroom_margin_gib': args.gpu_headroom_margin_gib,
+            'headroom_guard': 'free >= Warp pool high-water + margin before physics/reset, '
+                              'armed after the first joint learning round',
+            'pytorch_cuda_alloc_conf': os.environ.get('PYTORCH_CUDA_ALLOC_CONF')},
     }
     write_json(output / 'manifest.json', manifest)
     tracker = ExperimentTracker(output, manifest, args.wandb_project, args.wandb_entity, args.wandb_mode)
@@ -358,6 +376,15 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
     signal.signal(signal.SIGUSR1, request_checkpoint)
 
     memory = PhaseMemory()
+    guard = HeadroomGuard(args.gpu_headroom_margin_gib)
+
+    def prepare_warp_phase(where):
+        """Release idle Torch cache, then check headroom, before a Warp-using phase."""
+        info = release_unused_cache(args.cuda_cache_release, args.cuda_cache_reserve_gib)
+        status['gpu_headroom'] = guard.check(where, armed=learner.updates >= 1)
+        if info is not None:
+            status['cuda_cache'] = {'where': where, **info}
+        return info
 
     def progress(**values):
         if 'phase' in values:
@@ -463,9 +490,7 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
                 goal = task_goal(frame)
                 clean = policy(history, goal)
                 executed = spec.execute(clean + .1 * torch.randn_like(clean))
-            cache_info = release_physics_cache(getattr(args, 'cuda_cache_reserve_gib', 0.))
-            if cache_info is not None:
-                status['cuda_cache'] = cache_info
+            cache_info = prepare_warp_phase('physics')
             progress(phase='physics', iteration=schedule.iteration, updates=learner.updates)
             tick = time.monotonic()
             frame, reward, terminated, truncated, info = env.step(executed)
@@ -499,6 +524,7 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
             update_queue.enqueue(schedule.update_iterations)
             if ended.any():
                 progress(phase='reset')
+                prepare_warp_phase('reset')
                 tick = time.monotonic()
                 frame = env.reset(ended)
                 timing['reset'] += time.monotonic() - tick
@@ -562,4 +588,9 @@ def run_with_environment(args, output, status, started, env, conditions, task_go
 
 
 if __name__ == '__main__':
+    # Default allocator for mixed Torch/Warp training (read at first CUDA use, so after the
+    # torch import is fine): expandable segments map memory in pages, so empty_cache can
+    # return idle pages, not only wholly free segments. An explicit PYTORCH_CUDA_ALLOC_CONF wins;
+    # the manifest records the value in effect.
+    os.environ.setdefault('PYTORCH_CUDA_ALLOC_CONF', 'expandable_segments:True')
     main()

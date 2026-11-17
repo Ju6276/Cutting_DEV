@@ -88,3 +88,67 @@ def test_phase_memory_disabled_without_cuda():
     memory = cuda_memory.PhaseMemory(cuda)
     memory.enter('physics'); memory.close()
     assert memory.take_window() == {} and memory.run_peak_allocated_mib == 0
+
+
+def fake_release_cuda(free, reserved, allocated, calls):
+    return SimpleNamespace(
+        mem_get_info=lambda: (free.pop(0), 24 * 2**30),
+        memory_reserved=lambda: reserved * 2**30,
+        memory_allocated=lambda: allocated * 2**30,
+        empty_cache=lambda: calls.append("release"))
+
+
+def test_always_mode_releases_any_unused_cache_even_with_ample_free(monkeypatch):
+    calls = []
+    cuda = fake_release_cuda([6 * 2**30, 8.5 * 2**30], 19, 16.5, calls)
+    monkeypatch.setattr(cuda_memory, "torch", SimpleNamespace(cuda=cuda))
+    result = cuda_memory.release_unused_cache("always")
+    assert calls == ["release"]
+    assert result == dict(free_before_gib=6, free_after_gib=8.5,
+                          unused_cache_before_gib=2.5, released=True)
+
+
+def test_always_mode_without_cache_does_not_flush(monkeypatch):
+    def unexpected():
+        raise AssertionError("Must not flush")
+    cuda = SimpleNamespace(mem_get_info=lambda: (6 * 2**30, 24 * 2**30),
+                           memory_reserved=lambda: 2**30, memory_allocated=lambda: 2**30,
+                           empty_cache=unexpected)
+    monkeypatch.setattr(cuda_memory, "torch", SimpleNamespace(cuda=cuda))
+    assert cuda_memory.release_unused_cache("always")["released"] is False
+
+
+def test_release_modes(monkeypatch):
+    monkeypatch.setattr(cuda_memory, "torch", SimpleNamespace())
+    assert cuda_memory.release_unused_cache("off") is None
+    with pytest.raises(ValueError):
+        cuda_memory.release_unused_cache("reserve", 0)
+    with pytest.raises(ValueError):
+        cuda_memory.release_unused_cache("sometimes")
+
+
+def guard(free_mib, warp_high_mib, margin_gib=1.):
+    cuda = SimpleNamespace(mem_get_info=lambda: (free_mib * 2**20, 24 * 2**30))
+    pool = None if warp_high_mib is None else {"warp_pool_used_high_mib": warp_high_mib}
+    return cuda_memory.HeadroomGuard(margin_gib, cuda=cuda, warp=lambda: pool)
+
+
+def test_headroom_guard_requires_warp_high_water_plus_margin():
+    row = guard(2000, 841).check("physics", armed=True)
+    assert row["required_mib"] == 841 + 1024 and row["free_mib"] == 2000
+    with pytest.raises(RuntimeError, match="before reset: 1800 MiB free < 1865 MiB"):
+        guard(1800, 841).check("reset", armed=True)
+
+
+def test_headroom_guard_only_records_until_armed():
+    row = guard(100, 841).check("physics", armed=False)
+    assert row["armed"] is False and row["free_mib"] == 100
+
+
+def test_headroom_guard_without_warp_pool_uses_margin_and_rejects_bad_margin():
+    assert guard(1500, None).check("physics", armed=True)["warp_high_mib"] is None
+    with pytest.raises(RuntimeError):
+        guard(1000, None).check("physics", armed=True)
+    for bad in (-1, float("nan"), float("inf")):
+        with pytest.raises(ValueError):
+            cuda_memory.HeadroomGuard(bad, cuda=SimpleNamespace(), warp=lambda: None)
