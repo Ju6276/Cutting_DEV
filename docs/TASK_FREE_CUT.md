@@ -5,6 +5,73 @@ DiSECt and BladeMaster. The user requested removing spring-release shaping and
 using BladeMaster-style downward progress. Previously trained checkpoints retain
 free_cut_pose_v1 / blademaster_pose_v1; their results have not been relabelled.
 
+## pose_depth_v3 — software board-stop consistency (2026-11-17, not enabled for training)
+
+pose_depth_v3 = pose_depth_v2 task + software board-stop boundary consistency
+fix + analytic imagined survival. The board stop is the execution interlock
+introduced in this repository (commit b367fcd). It is not a board contact-force
+model and does not reproduce DiSECt or SliceIt behaviour; neither has a latch.
+
+Changed (v3 only):
+- Frame/WM state: `board_contact` (latch flag 0/1; history field, derived, not
+  predicted) and `last_wrench` (6; force-limit signal at the last 2 ms sample,
+  net model = filtered sensor wrench; physical field predicted by the dynamics,
+  scaled by the force limits).
+- Latch: contact' = contact OR (step shortened by the stop AND end clearance
+  <= 10 um). Same criterion in DiSECt, BladeMaster and the WM board projection.
+- Latched state: q, wrench history, last_wrench, depth progress and object slip
+  held; qd = 0; peak = |last_wrench|. Step count, arrival counter, remaining
+  time, motion command and observation continue; observed EE velocity is zero,
+  as in both physical adapters.
+- Peak rule, both backends: the latch interval keeps its true in-interval peak;
+  every later interval reports |frozen reading| (never zero, never carried).
+  DiSECt already did this; BladeMaster v2 reported zero after the latch.
+  The force-limit check and load cost read the same signal.
+- Reset (full or partial): latch and last_wrench reset only for reset worlds;
+  last_wrench = the initialised sensor reading. Generic restore_frame remains
+  unsupported for board tasks.
+- WM fit: transitions whose recorded start state is latched are zero-weighted
+  in the dynamics loss (normalisation by valid transitions unchanged); the
+  first-contact transition is kept. A batch without unlatched starts skips the
+  dynamics optimizer update. Logged: dynamics_fit_count, dynamics_masked_count,
+  dynamics_skipped_batches. Terminal BCE unchanged.
+- Imagined survival: success (+100), failure (−100) and timeout are all settled
+  analytically, so survival = prod(1 − absorbed) in actor imagination, GAE
+  targets and WM+MPPI. The terminal head is still fitted with the same BCE and
+  gradient route (with terminal_gradient=dynamics its gradient still reaches the
+  dynamics); its probabilities are logged, not used as survival.
+- v3 refuses v2 checkpoints, critics and replay (state shape/version checks).
+
+Unchanged: reward weights, +100 arrival rule, −100 failures, thresholds,
+horizon, workspace, force limits, board stop gap. Final-pose region still
+permissive (user decision pending). Pose success is still not cut-through;
+separation remains a diagnostic. pose_depth_v2, free_cut_v3, free_cut_pose_v1
+and blademaster_pose_v1 behave as before.
+
+Measured vs not: v3 guarantees post-latch rule consistency between the physical
+adapters and the WM (tests/test_pose_depth_v3.py; real-simulation latch check below). First-contact timing in imagination still
+depends on dynamics prediction error and the rigid finite-blade projection
+proxy; that is not measured.
+
+Real-simulation latch check, GPU9, 2026-11-17 (temporary v3 copy of the shared
+scene, prism and cucumber_003, 2 worlds each per backend; reference controller at
+.05 m/s with its end pushed 20 mm past the board goal so the stop latches; task
+target unchanged). In every world: latch interval peak = true in-interval max of
+the 2 ms samples, last_wrench = last sample; every later step peak = |last_wrench|,
+q, wrench history and last_wrench unchanged, qd = 0, step/arrival counters kept
+running until pose success (counter 11); packed v3 WM state matched the frame;
+partial reset cleared the latch with last_wrench = sensor reading (0 after settle);
+other worlds unchanged; no NaN.
+
+| Backend | Object, world | Latch step | Gap at latch (um) | Latch peak (N) | Later peak (N) | End |
+|---|---|---|---|---|---|---|
+| DiSECt | prism 0 / 1 | 29 / 23 | .97 / 1.03 | 9.79 / 9.97 | 1.44 / 5.72 | success 38 / 33 |
+| DiSECt | cucumber 0 / 1 | 31 / 29 | 1.02 / .99 | 2.41 / 3.57 | 2.19 / 2.87 | success 40 / 38 |
+| BladeMaster | cucumber 0 / 1 | 28 / 23 | 1.02 / .99 | 1.12 / .027 | .031 / .027 | success 38 / 32 |
+| BladeMaster | prism 0 / 1 | 30 / 29 | 1.06 / 1.02 | .53 / .18 | .29 / .038 | success 39 / 38 |
+
+Forces: largest force component. Not a training or success-rate result.
+
 ## Current reward and state semantics
 
 Let g_t be the lowest point of the recorded finite-blade rigid proxy above
