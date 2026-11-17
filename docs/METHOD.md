@@ -2,12 +2,31 @@
 
 
 
-# Source mapping
+# Implementation reference
+
+## Active configuration — 2026-11-17
+
+Current shared runs use pose_depth_v2,34D observations x10 frames plus8D goal,
+real-data critic with32-step windows,8-step actor imagination and BC.25.
+Learning is scheduled by collected physical transitions; periodic checkpoints
+and online W&B are enabled. Both current material backends use geometric
+maximum-depth shaping and the same pose/board/failure contract.
+[SHARED_SCENE](SHARED_SCENE.md) is the configuration authority;
+[PLAN](PLAN.md) gives the active run schedule and next work.
+
+## Historical source-baseline mapping
+
+The following source mapping describes the retained original fixed-prism/source
+adapter. Its24D observation,7D goal, vector-step cadence and historical
+checkpoint choices are not the current shared training configuration.
+Later dated implementation sections document migrations; old run results keep
+their original version.
+
+
 
 > 2026-11-12: `RESULTS <date>` references up to 2026-11-10 point to
-> [archive/RESULTS_20261102_20261110](archive/RESULTS_20261102_20261110.md). The multi-condition task
-> definition (success rule, object hold, reward) is under revision ([PLAN](PLAN.md)); the risk penalty
-> and the official SuperMimic adaptation failed their first runs and are code, not results.
+> [archive/RESULTS_20261102_20261110](archive/RESULTS_20261102_20261110.md). The risk penalty
+> and the official SuperMimic adaptation failed their first runs and are retained historical variants, not the active route.
 
 Source revision: SuperMimic-Reproduced `ba610534`; SliceIt `1e79abad`;
 robot utilities `ddc85eca`; DiSECt `db7de0f`. Complete dependency pins and
@@ -847,7 +866,7 @@ Per-object settling settings now belong to `group_reset_settings` when object gr
 The source mode is preserved. The opt-in transition schedule earns WM updates
 from newly collected physical transitions rather than a world-count-independent
 vector-step counter; its warmup, integer credit, LR clock and budget are specified
-in [TRAINING_SCALE_20261114](TRAINING_SCALE_20261114.md).
+in [TRAINING_SCALE_20261114](archive/TRAINING_SCALE_20261114.md).
 The opt-in sensor_wrench6_v1 observation adds all six sensor components while
 preserving pose/velocity axes, action mapping and reward. WM already predicted
 six-dimensional wrench. See [WRENCH_OBSERVATION_REVIEW](archive/WRENCH_OBSERVATION_REVIEW.md)

@@ -24,7 +24,7 @@ unexecuted. BladeMaster has its current small-scale functional checks, but no
 new large-scale A6000/GPU9 deployment check; GPU9's native fault remains unresolved.
 
 
-[FRAMEWORK_AUDIT_20261116](../FRAMEWORK_AUDIT_20261116.md) records local design choices,
+[FRAMEWORK_AUDIT_20261116](FRAMEWORK_AUDIT_20261116.md) records local design choices,
 material-preset provenance, the removed fabricated display connector and current
 preflight scope. No new long training has been launched. Historical resource
 settings below are not the new shared-scene launch configuration. The subsequent
@@ -104,8 +104,8 @@ stopped and frozen. No automatic budget extensions; the later user-authorized
 BladeMaster GPU9 launch is recorded below.
 
 Actual training overview/detail images were rendered from step1. Training reached its budget: 346 vector steps, 1,062,912 transitions, 1109 policy updates. Frozen evaluation is the current step; do not silently extend training.
-See [restart record](../TRAINING_SCALE_20261114.md) and
-[force observation](../archive/WRENCH_OBSERVATION_REVIEW.md).
+See [restart record](TRAINING_SCALE_20261114.md) and
+[force observation](WRENCH_OBSERVATION_REVIEW.md).
 
 DiSECt tofu remains outside the main distribution. The former apparent 10mm
 overlap was a ghost-node diagnostic error; physical contact geometry is tracked

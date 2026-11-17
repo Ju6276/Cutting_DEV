@@ -122,3 +122,24 @@ goal coverage. The simulation board stop is not a real contact tolerance.
 Final verification: root596 passed/3 skipped, backend41 passed;19 visual tests.
 The completed physical handoff timed out at180 steps (blade gap2.476 mm),
 without force-limit failure. It demonstrates execution, not task success.
+
+## Integration status and next pilot — 2026-11-17
+
+| Controller | Current-task evaluator | Visual-goal physical execution |
+|---|---|---|
+| Frozen WM+BPTT policy | Implemented | Implemented for one BladeMaster world; trial06 timed out |
+| Vector SAC | Implemented; bounded training launched separately | Not implemented |
+| Frozen WM+MPPI | Implemented | Not implemented |
+| Nonlearned approximate FDCC+MPPI | Implemented | Not implemented |
+
+evaluate_visual_cut.py currently loads SliceItPolicy; it is not a general
+controller dispatcher. evaluate_pose_policy.py supports the four controller
+types but does not consume visual plans. Shared 8D goal semantics alone do
+not establish tested visual integration.
+
+Method 2 is the fixed-heading, centered-cut supervised pilot in [PLAN](PLAN.md).
+The geometric midpoint rule supplies labels; there is no trained visual network
+yet. Unlike route 1's estimated PCA heading, this pilot uses a known fixed
+heading, so a round silhouette does not require inventing an orientation.
+Keeping all poses fixed can make a constant predictor sufficient; this stage
+tests the pipeline only, with generalization deferred by user choice.

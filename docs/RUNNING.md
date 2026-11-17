@@ -184,13 +184,17 @@ The existing 4090 export at
 to that destination instead. Its manifest records the same warmup and source
 revision. Return to the root Python 3.12 environment for the tests.
 
-Run both suites separately to preserve their module resolution:
+Run both suites separately to preserve their module resolution. On the prepared
+GPU7 checkout, first source runs/sac_env.sh; this sets CUDA_HOME and
+TORCH_EXTENSIONS_DIR as well as the source/asset paths. An empty shell does not
+have a working DiSECt kernel environment.
 
 For full optional-MPPI coverage on GPU7, use
 `/dataHDD/dong/Envs/cutting-mppi-20261108/bin/python` for the root suite;
 the backend suite uses the base environment as below.
 
 ```bash
+source runs/sac_env.sh
 CUTTING_BACKEND_ROOT="$PWD/backends/mujoco" PYTHONPATH=.:backends/mujoco \
   .venv/bin/python -m pytest tests -q
 (cd backends/mujoco && PYTHONPATH=. ../../.venv/bin/python -m pytest tests -q)

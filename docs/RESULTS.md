@@ -1741,7 +1741,7 @@ history, not completed learning results. The source vector-step cadence generate
 disproportionate fitting relative to the small BladeMaster data stream.
 The three-component policy wrench interface was a retained design, not a missing
 WM force output. The next run explicitly versions the six-component actor input.
-Restart details and capacity measurements: [TRAINING_SCALE_20261114](TRAINING_SCALE_20261114.md).
+Restart details and capacity measurements: [TRAINING_SCALE_20261114](archive/TRAINING_SCALE_20261114.md).
 
 
 ## 2026-11-14 — Full-wrench collection-scaled restart preflight
@@ -2666,7 +2666,7 @@ establish long-runtime reliability on that host.
 
 ## 2026-11-16 — Framework provenance audit and latest-task learner preflight
 
-See [FRAMEWORK_AUDIT_20261116](FRAMEWORK_AUDIT_20261116.md) for upstream/local
+See [FRAMEWORK_AUDIT_20261116](archive/FRAMEWORK_AUDIT_20261116.md) for upstream/local
 choices and remaining training-readiness limits. Removed the invented renderer
 shank and collar; corrected stale shared-knife/reset and integration-patch docs.
 No learner, reward, material parameter or physical mount change in this audit.
@@ -3076,3 +3076,31 @@ regression time shared GPU9 with SAC; no exclusive throughput claim.
 
 Final regression on GPU9: root596 passed/3 skipped; backend41 passed.
 19 visual geometry/interface tests are included.
+
+
+## 2026-11-17 — Documentation consolidation and current cut-plane audit
+
+This change touches documentation and Git organization only. No Python source,
+task/config JSON, asset, model weight or running job is changed. README/PLAN/
+PAPER now separate current implementation, method2 fixed-heading center-cut
+pilot, and historical evidence. METHOD explicitly labels its old24D/7D source
+mapping as historical. Three dated review/launch files move to archive with
+links rebased. DATA records retired branches and preserved heads.
+
+The GPU7 active prepared DiSECt assets reconstruct interfaces at material x=0.
+Fractions along their initial x bounds: cucumber49.8683%, half potato49.7168%,
+prism50.0000%. SHARED_SCENE records file hashes, frames and midpoint offsets.
+These are approximately centered geometric cuts, not equal-volume claims.
+
+Method2 is scoped, not trained. Visual physical execution currently supports
+only the frozen WM+BPTT policy; SAC, WM+MPPI and analytic MPC visual adapters
+remain to be implemented.
+
+Validation on GPU7 RTX4090 with the prepared environment:
+root588 passed/6 skipped (298.70 s), bundled backend41 passed (6.70 s);
+relative Markdown links and git diff whitespace checks pass.
+Root used the optional MPPI Python; backend used .venv. Existing deprecation
+warnings remain. The first invocation omitted runs/sac_env.sh and failed on
+TORCH_EXTENSIONS_DIR; RUNNING now includes that prerequisite.
+These test counts describe this environment, not certification of untested
+hardware deployment or all historical physics paths.

@@ -1,3 +1,5 @@
+> Historical record. Use [PLAN](../PLAN.md) and [SHARED_SCENE](../SHARED_SCENE.md) for current configuration; this file does not authorize a launch.
+
 # Framework provenance and training-readiness audit — 2026-11-16
 
 Scope: current shared-scene contract, backend adapters, renderer export, learning
@@ -54,9 +56,9 @@ risk variants) are separate paths. The MPPI integration combines the external
 optimizer with local WM state/cost/termination adapters. These two learner
 preflights do not certify those alternatives for the newest shared task.
 
-Exact active values and commands: [SHARED_SCENE](SHARED_SCENE.md),
-[scene_v1.json](../configs/shared/scene_v1.json). Source revisions:
-[SOURCES](SOURCES.md). Task equations: [TASK_FREE_CUT](TASK_FREE_CUT.md).
+Exact active values and commands: [SHARED_SCENE](../SHARED_SCENE.md),
+[scene_v1.json](../../configs/shared/scene_v1.json). Source revisions:
+[SOURCES](../SOURCES.md). Task equations: [TASK_FREE_CUT](../TASK_FREE_CUT.md).
 
 ## Corrections in this audit
 

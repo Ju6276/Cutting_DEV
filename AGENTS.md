@@ -8,9 +8,9 @@
   commands in `docs/RUNNING.md`; exclude assets, runs, credentials and environments
   from Git. Document source modifications in METHOD and preserve licenses.
 
-- Current phase (2026-11-15): bounded multi-object pose-task engineering training
+- Current phase (2026-11-17): bounded multi-object pose-task engineering training
   after platform checks, plus problem-led literature review. Current authorized GPU7/A6000 shared-task launches are recorded in PLAN and TRAINING_SHARED_20261116. Historical
-  GPU7/GPU9 runs and their frozen versions are recorded in TRAINING_SCALE_20261114; archive/TRAINING_20261114 is the stopped historical launch. The force-spike premise and first S3 comparison are retired. Historical
+  GPU7/GPU9 runs and their frozen versions are recorded in archive/TRAINING_SCALE_20261114; archive/TRAINING_20261114 is the stopped historical launch. The force-spike premise and first S3 comparison are retired. Historical
   pose success is not validated separation; scalar material feedback is not a
   Mini45 contact wrench. Do not restart S3 from a reproduction command. Sawing and
   geometry input are directions chosen or favoured by the user (PLAN); start work on
@@ -73,3 +73,5 @@
   for future launches. Short capacity/diagnostic scripts are not long training.
   GPU7 and A6000 credentials are in /dataHDD/dong/.config/wandb/netrc; use NETRC
   without printing file contents or keys.
+
+- Current development is consolidated on origin/main. Frozen training checkouts retain their recorded revisions. Vision method2 starts with centered cuts and fixed object headings; PLAN defines this pipeline pilot, not a generalization claim. Do not interpret legacy reproduction branches or archived plans as current launch instructions.

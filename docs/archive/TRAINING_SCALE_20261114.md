@@ -1,3 +1,5 @@
+> Historical record. Use [PLAN](../PLAN.md) and [SHARED_SCENE](../SHARED_SCENE.md) for current configuration; this file does not authorize a launch.
+
 # Collection-scaled multi-object restart — 2026-11-14
 
 ## Authorization and scope

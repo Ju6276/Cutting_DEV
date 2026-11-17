@@ -5,21 +5,20 @@ locations. A dated experiment or archived launch is not a new training instructi
 
 | Document | Role |
 |---|---|
-| [Framework audit](FRAMEWORK_AUDIT_20261116.md) | Source/local choices, rendering correction and current training-readiness limits |
 | [PLAN](PLAN.md) | Current decisions, GPU7/A6000 deployments, fixed budgets and next work |
+| [SAC training](TRAINING_SAC_20261116.md) | GPU9 bounded vector SAC launch |
 | [Shared training](TRAINING_SHARED_20261116.md) | Current task launch protocol, verification and online run records |
 | [TASK_FREE_CUT](TASK_FREE_CUT.md) | Pose completion, board boundary, running rewards and diagnostic labels |
-| [TRAINING_SCALE_20261114](TRAINING_SCALE_20261114.md) | Full-wrench observation, transition cadence and 3072-world main launch |
 | [RUNNING](RUNNING.md) | Installation, tests and online W&B requirement |
 | [DATA](DATA.md) | Current server paths, checkpoints, preserved evidence and cleanup ledger |
 | [Current baselines](CURRENT_BASELINES.md) | SAC source search, current vector SAC and two model-based planners |
-| [Vision route 1](VISION_ROUTE1.md) | Depth-selected plane, frozen-policy handoff, camera and validation scope |
+| [Vision](VISION_ROUTE1.md) | Route1 implementation, method2 fixed-heading pilot, controller integration status |
 | [METHOD](METHOD.md) | Implemented learning methods and physical interfaces |
 | [RESULTS](RESULTS.md) | Dated measurements and limitations, including failed runs |
 | [PAPER](PAPER.md) | Research scope and claims still requiring evidence |
 | [BENCHMARK](BENCHMARK.md) | Historical fixed-prism contract, not the active multi-object task |
 | [OFFICIAL_SUPERMIMIC](OFFICIAL_SUPERMIMIC.md) | Official implementation adaptation and deviations |
-| [BladeMaster backend](BLADEMASTER_BACKEND_REVIEW.md) | Native-cutting backend, historical semantics and shared-task updates |
+| [BladeMaster backend](BLADEMASTER_BACKEND_REVIEW.md) | Initial integration history; current contract is SHARED_SCENE |
 | [BladeMaster assets](BLADEMASTER_DISECT_ASSETS.md) | Candidate objects converted to prescribed-interface DiSECt |
 | [NOVELTY](NOVELTY.md), [READING_LIST](READING_LIST.md) | Literature evidence and entry points |
 | [Literature search](literature/force_adaptive_search_20261112.md) | Candidate topic search and evidence levels |
@@ -29,6 +28,8 @@ locations. A dated experiment or archived launch is not a new training instructi
 [Script map](../scripts/README.md) identifies execution and diagnostic entry points.
 
 ## Historical records
+
+- [Old scale/launch record](archive/TRAINING_SCALE_20261114.md), [batching implementation review](archive/BLADEMASTER_BATCHING_REVIEW_20261114.md), [framework provenance audit](archive/FRAMEWORK_AUDIT_20261116.md). Current launch numbers are in the shared/SAC training records, not these historical files.
 
 - Stopped launches: [192-world A6000](archive/TRAINING_20261114.md),
   [three-world BladeMaster](archive/BLADEMASTER_MULTIOBJECT_TRAINING_20261114.md).

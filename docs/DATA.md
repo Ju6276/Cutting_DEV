@@ -179,3 +179,45 @@ The original progress.json remains unchanged and stale; launch_status.json
 records exit_code=-4. Neither file may be read as evidence of ongoing training.
 
 Frozen evaluations are now complete: GPU7 disect_last (0/48, timeout), A6000 disect_192_ready (0/48, workspace), GPU9 blademaster_3456 (48/48 pose success). GPU7 comparison.json stores all three identities/results; see RESULTS for protocol and limitations. No long run restarted.
+
+
+## Documentation and branch cleanup — 2026-11-17
+
+Development is fast-forward consolidated onto origin/main from the verified
+visual-route branch; no force push or commit rewrite. Active/frozen checkouts
+on GPU7, GPU9 and A6000 keep their recorded commits and physical inputs.
+Only clean development checkouts are synchronized.
+
+The following remote heads are retired after ancestry checks: every commit is
+reachable from the consolidated main. Existing experiment links to these names
+must use the commit below when the historical revision matters.
+
+| Retired branch | Preserved commit |
+|---|---|
+| codex/blademaster-multiobject | e4c9f413811e8085a6eeda256d21fd16fe33dfa1 |
+| codex/board-cut-v4 | cfbac161d19b9e77799c1a70851e51bd4ac201a8 |
+| codex/current-baselines | cfbac161d19b9e77799c1a70851e51bd4ac201a8 |
+| codex/knife-geometry-check | c0d5a76d67860b78f007eb9eae3f8ceedfcf9841 |
+| codex/reference-audit | cb699722c81531c4792b7884d8cd109e01e30802 |
+| codex/residual-spring-debug | 1c4a217d12609b33fd5cede5e093a08ad456a281 |
+| codex/transition-schedule-20261114 | 3738271127e232363e628e1a72579c19c72b6a28 |
+
+Preserved: codex/visual-cut-route1 (current development), codex/free-cut-v1
+(existing GPU7 worktree), codex/bm-gpu9-online-20261115 (historical frozen
+GPU9 worktree). Unmerged branches codex/blademaster-batched,
+codex/docs-cleanup-20261113, codex/free-cut-infra, codex/free-cut-mppi and
+feat/apple-cutting-adapter are not deleted: unique commits have not been
+fully reconciled. Local branches attached to any worktree are also retained.
+
+Historical batching, scale/launch and framework audits moved into docs/archive
+with rebased links. The old README recipes and PAPER narrative remain at
+4653d10 in Git instead of being duplicated in the current task entry points.
+RESULTS and scientific provenance are retained. No checkpoints, buffers,
+physical assets, active jobs or user files are deleted by this cleanup.
+
+Validation note: the first cleanup test invocation omitted runs/sac_env.sh
+and failed on missing TORCH_EXTENSIONS_DIR. RUNNING now includes that prerequisite.
+Final validation uses the complete prepared CUDA environment; the failed
+invocation is not counted as a passing check.
+
+Merged local heads not attached to a worktree are also pruned after ancestry checks. Each server retains its active/development and frozen-worktree branches; their checkout versions are not advanced by pruning.

@@ -1,4 +1,4 @@
-# Current plan — 2026-11-16
+# Current plan — 2026-11-17
 
 ## Active authorized runs
 
@@ -19,7 +19,7 @@ commands, verification and online run links.
   whichever comes first. No automatic extension or old-task checkpoint reuse.
 - Every long run requires online W&B and a remotely verified first history.
   Checkpoints/replay and physical snapshots remain on the server.
-- GPU9: user authorized current-task multi-environment SAC on 2026-11-16 after baseline validation. Capacity preflight precedes the bounded launch; see TRAINING_SAC_20261116. Its historical BladeMaster SIGILL in libcuda is not declared resolved.
+- GPU9: user authorized current-task multi-environment SAC on 2026-11-16 after baseline validation. Capacity preflight and online launch are recorded in [TRAINING_SAC_20261116](TRAINING_SAC_20261116.md). Its historical BladeMaster SIGILL in libcuda is not declared resolved.
 
 ## Fixed task and algorithm
 
@@ -86,6 +86,43 @@ The bounded physical trial completed its180-step budget but timed out without
 pose success; blade remained2.476 mm above the board. Do not broaden the
 training task or claim visual generalization from this one transfer trial.
 See [VISION_ROUTE1](VISION_ROUTE1.md) for commands, measurements and limits.
+
+## Method 2: centered cut with fixed heading (user decision, 2026-11-17)
+
+First implement the learned visual-goal pipeline on the existing object poses.
+Do not randomize object headings or broaden the low-level task in this stage.
+A plane passes through the object's bounding-box midpoint along the fixed cut
+normal; orientation comes from the prescribed robot-compatible heading.
+This is a geometric midpoint, not equal-volume partition or an optimal cut.
+
+Use calibrated depth/point clouds as model input. Ground-truth mesh geometry
+may generate supervised labels, but is not an inference input. Predict the
+center coordinate along the normal; combine it with measured height,
+board/tool calibration and the existing speed command to construct the same
+start pose and 8D goal interface as route 1. Keep the low-level policy frozen.
+
+At fully fixed placement a constant output can match every label. Report that
+constant-center baseline and perception error; passing this pilot only validates
+data -> prediction -> goal -> physical execution. Do not call it localization,
+material adaptation or generalization. Position/heading and new-object
+generalization are later work, not prerequisites for this pilot.
+
+Implementation order:
+1. Prepare centered labels and depth examples for the current fixed poses,
+   with source identities and held-out views; do not split duplicate frames
+   across train/test and call them unseen objects.
+2. Add the learned center predictor and validate coordinate/goal conversion.
+3. Execute a bounded frozen-policy trial, reporting pose success, failure,
+   force and material separation independently.
+4. Reuse that explicit visual-goal handoff for SAC / WM+MPPI / analytic MPC.
+   Their independent current-task evaluation is already available; visual
+   execution adapters are still missing.
+
+No method-2 model has been trained yet. The current DiSECt assets bake x=0
+in material coordinates, approximately the middle of all three objects.
+A different inferred plane requires a separately prepared DiSECt asset or
+the native BladeMaster backend; changing an RL goal cannot change cut topology.
+No new long run or change to an active run is implied by this pilot plan.
 
 ## Historical evidence
 

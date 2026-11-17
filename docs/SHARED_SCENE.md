@@ -77,7 +77,7 @@ moving object or from the rendered board edge. Both modes retain force/workspace
   `paper-banana`; geometry, E, Poisson ratio and density are overridden, but the
   nominal yield stress (30000 Pa) and cutting energy (700 J/m²) remain preset
   values. These are not calibrated fracture properties for these three objects.
-  See [framework audit](FRAMEWORK_AUDIT_20261116.md).
+  See [framework audit](archive/FRAMEWORK_AUDIT_20261116.md).
 - Material physics: FEM / pre-inserted cutting springs versus MPM / native damage.
   Equal E, density or friction coefficients do not imply equal resulting forces.
 - Geometry discretization: each backend samples the same intended object with its
@@ -97,7 +97,7 @@ moving object or from the rendered board edge. Both modes retain force/workspace
   existing trainer's reset-on-resume convention.
 - A long run still needs resource/capacity and budget selection, plus online W&B.
 - Enabled pitch has mapping/WM gradient tests, but active tilted blade/material/
-  board-contact validation remains pending. This turn probes vertical reference
+  board-contact validation remains pending. Existing validation probes vertical reference
   motion with pitch off; the sawing action mapping retains regression coverage.
 
 ## Preparation and replay
@@ -145,8 +145,8 @@ before the horizon gives timeout, not a successful cut.
 With path control on, each 50 ms endpoint subtracts
 20/180 * clamp((distance-.025)/(.060-.025),0,1)^2.
 Above 60 mm the task ends with failure -100 once; exactly 60 mm remains inside.
-These are configurable engineering settings. No new policy has been trained
-with either revised final-position mode.
+These are configurable engineering settings. Current shared long runs use final-only; their launch records do not establish
+that optional path constraints improve learned behavior.
 
 Reward-equation audit: append --tool-reward-audit to either check_pose_depth.py
 command above. It evaluates both switches using measured transitions and
@@ -156,3 +156,38 @@ Shared-tool studio and overview renderers now use the existing main-run
 24 x 16 cm board exterior for both backends. Original recorded display corners
 are preserved in studio exports. This is a visual footprint, not a finite
 support boundary; physics remains an infinite support plane.
+
+## Actual prepared DiSECt cut planes — audited 2026-11-17
+
+These are the prepared assets loaded by the GPU7 shared long run, not merely
+the source mesh defaults. Reconstructing virtual cut-edge points from
+cut_edge_indices and cut_edge_coords gives the following initial interface.
+Material axes: y is up, x is the cut normal (object length direction), z follows
+the knife edge. Each plane is x=0 within numerical precision.
+
+| Object | Material x bounds (mm) | Plane x (mm) | Offset from bounds midpoint (mm) | Fraction along x span |
+|---|---|---|---|---|
+| cucumber_003 | -85.9233, 86.3772 | 0 | -0.2270 | 49.8683% |
+| potato_half | -43.9809, 44.4819 | 0 | -0.2505 | 49.7168% |
+| prism | -50.0000, 50.0000 | 0 | 0 | 50.0000% |
+
+Thus all are middle cross-cuts; only prism is exactly centered in the exported
+bounding box. This does not imply equal material volume or mass on either side.
+At the initial coupling transform all three planes are approximately base
+Y=0.505 m, with normal +base Y. These are initial material interfaces, not
+a claim that deforming or sliding material remains in a fixed world plane.
+
+The exporter sweeps the reference knife edge to prepare cutting topology; it
+does not autonomously choose a center. Object placement and knife trajectory
+determine the plane before export. A visual goal cannot relocate that topology.
+
+Evidence on GPU7:
+runs/cut_plane_audit_20261117/current_planes.json in Cutting_DEV_board.
+Loaded files under
+/dataHDD/dong/Experiments/Cutting_DEV/runs/long_readiness_20261116/prepared/:
+
+| File | SHA256 |
+|---|---|
+| cucumber_003.pt | e3311f1a9b64d266ba597582fd096888cc665f2a4370693e1f4a89ab0b6fe0ad |
+| potato_half.pt | 46e32d9535b1014e79bc5b76764b6626e1383d2d5007f556436ee230e3384a56 |
+| prism.pt | 53b979a7efdaf9be4b41523806be8f2cab5dc3d9d3e04dad6eb116c12482b641 |
