@@ -206,8 +206,9 @@ def validate_policy_plan(plan, metadata, config):
         raise ValueError("Route 1 adapter expects current 8-goal / 34-observation policy")
     if metadata.get("environment", {}).get("relative_to_ee") is not False:
         raise ValueError("Policy goals must use robot-base coordinates")
-    if metadata.get("free_cut_task", {}).get("version") != "pose_depth_v2":
-        raise ValueError("Route 1 adapter requires current pose_depth_v2 task")
+    from .free_cut import POSE_DEPTH_VERSIONS
+    if metadata.get("free_cut_task", {}).get("version") not in POSE_DEPTH_VERSIONS:
+        raise ValueError("Route 1 adapter requires current pose_depth_v2/v3 task")
     geometry = metadata["board_pose_geometry"]
     for key in ("vertices_in_ee", "board_origin_base", "board_normal_base"):
         a, b = np.asarray(geometry[key]), np.asarray(config[key])

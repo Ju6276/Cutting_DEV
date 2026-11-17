@@ -82,7 +82,8 @@ def components(task, old_progress, frame, target_speed, info):
 def run(config_path, output, deadline):
     cfg=json.loads(config_path.read_text())
     group=cfg['groups'][0]
-    if cfg['task']['version'] not in ('free_cut_pose_v1', 'pose_depth_v2'):
+    from cutting_world_model.free_cut import POSE_DEPTH_VERSIONS
+    if cfg['task']['version'] not in ('free_cut_pose_v1',) + POSE_DEPTH_VERSIONS:
         raise ValueError('This audit is for the current pose task')
     output.mkdir(parents=True,exist_ok=False)
     n=len(CASES);speed=.03;clearance=.01
@@ -94,8 +95,8 @@ def run(config_path, output, deadline):
     env.target_speed=torch.full((n,),speed,device=env.device,dtype=torch.float64)
     frame=env.settle(group['settle_seconds'])
     meta=ControlStateSpec.metadata_from_frame(env.metadata,{k:v[0].cpu().numpy() for k,v in frame.items()})
-    from cutting_world_model.pose_depth import PoseDepthStateSpec
-    spec_type=PoseDepthStateSpec if cfg['task']['version']=='pose_depth_v2' else PoseCutStateSpec
+    from cutting_world_model.pose_depth import pose_depth_spec_class
+    spec_type=pose_depth_spec_class(cfg['task']['version']) if cfg['task']['version'] in POSE_DEPTH_VERSIONS else PoseCutStateSpec
     spec=spec_type(meta).to(env.device).double()
     state=spec.pack_batch(frame).double()
     goal=torch.cat((frame['target_pose'],env.target_speed[:,None]),-1).double()
@@ -130,11 +131,13 @@ def run(config_path, output, deadline):
             formula_error=max(formula_error,err)
             if err>2e-5:raise AssertionError('Reward decomposition disagrees with training environment')
             fields={k:frame[k].double() for k in spec.physical_fields}
-            if cfg['task']['version']=='pose_depth_v2':
+            if cfg['task']['version'] in POSE_DEPTH_VERSIONS:
                 from cutting_world_model.pose_depth import depth_progress
                 fields['depth_span']=spec.field(state,'depth_span')
                 fields['cut_progress']=depth_progress(spec.fk(fields['joint_q']),spec.board_geometry,
                     fields['depth_span'],spec.field(state,'cut_progress'))
+                if 'board_contact' in spec.history_fields:
+                    fields['board_contact']=frame['board_contact'].double()
             _,model_reward,_=spec.derive(state,fields,action,goal)
             err=float((model_reward[active]-reward[active]).abs().max())
             wm_error=max(wm_error,err)

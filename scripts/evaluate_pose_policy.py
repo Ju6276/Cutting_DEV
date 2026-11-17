@@ -198,7 +198,8 @@ def main():
         if metadata is not None:
             validate_interfaces(metadata, actual, config)
             from cutting_world_model.shared_baselines import validate_current_interface
-            if config["task"]["version"] == "pose_depth_v2":
+            from cutting_world_model.free_cut import POSE_DEPTH_VERSIONS
+            if config["task"]["version"] in POSE_DEPTH_VERSIONS:
                 validate_current_interface(metadata, actual)
         if args.method in ("wm_mppi", "analytic_mpc"):
             from cutting_world_model.mpc import MPPIConfig

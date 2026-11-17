@@ -40,7 +40,8 @@ def main():
     device = 'cuda:0'
     saved = torch.load(args.checkpoint, map_location=device, weights_only=False)
     metadata = saved['metadata']
-    if metadata.get('free_cut_task', {}).get('version') in ('free_cut_pose_v1', 'blademaster_pose_v1', 'pose_depth_v2'):
+    from cutting_world_model.free_cut import POSE_DEPTH_VERSIONS
+    if metadata.get('free_cut_task', {}).get('version') in ('free_cut_pose_v1', 'blademaster_pose_v1') + POSE_DEPTH_VERSIONS:
         raise ValueError('Pose tasks must use scripts/evaluate_pose_policy.py; this historical evaluator labels free-cut success as separation')
     goal_dim = int(metadata.get('goal_dim', 7))
     if goal_dim != 8:

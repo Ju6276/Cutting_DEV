@@ -112,7 +112,11 @@ class PoseCutStateSpec(FreeCutStateSpec):
         remaining=(1-self.field(state,'step_count')/self.free_task.horizon).clamp(0,1)
         return torch.cat((force,workspace,target,counter,remaining),-1)
 
-def project_board(self, state, fields):
+def project_board(self, state, fields, with_contact=False):
+    """Shorten the penetrating part of an imagined step to the board stop.
+    ``with_contact`` additionally returns (limited, end_gap) for the pose_depth_v3
+    software latch; the projected fields are identical either way.
+    """
     old_q = self.field(state,'joint_q')
     proposed = fields['joint_q']
     start_gap = gap_from_pose(self.fk(old_q), self.board_geometry)
@@ -144,4 +148,8 @@ def project_board(self, state, fields):
     fraction=torch.where(start_gap < stop-2e-6,torch.zeros_like(fraction),fraction)
     fields['joint_q']=old_q+fraction[...,None]*(proposed-old_q)
     fields['joint_qd']=torch.where(limited[...,None],torch.zeros_like(fields['joint_qd']),fields['joint_qd'])
+    if with_contact:
+        with torch.no_grad():
+            end_gap=gap_from_pose(self.fk(fields['joint_q']),self.board_geometry)
+        return fields,limited,end_gap
     return fields

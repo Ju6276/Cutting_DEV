@@ -1,6 +1,6 @@
 """Versioned free-object single-cut tasks (v4 currently physical evaluation only).
 
-Weights are explicit experiment inputs. Pose variants reuse arrival semantics; pose_depth_v2 uses geometric progress.
+Weights are explicit experiment inputs. Pose variants reuse arrival semantics; pose_depth_v2/v3 use geometric progress.
 Historical pose and separation variants retain their recorded running rewards.
 """
 import math
@@ -8,7 +8,11 @@ import numpy as np
 import torch
 
 REVISION = 'free_cut_v3'
-SUPPORTED_REVISIONS = ('free_cut_v1', 'free_cut_v2', REVISION, 'free_cut_v4', 'free_cut_pose_v1', 'blademaster_pose_v1', 'pose_depth_v2')
+SUPPORTED_REVISIONS = ('free_cut_v1', 'free_cut_v2', REVISION, 'free_cut_v4', 'free_cut_pose_v1', 'blademaster_pose_v1', 'pose_depth_v2', 'pose_depth_v3')
+# pose_depth_v3 inherits every pose_depth_v2 rule and adds only a software board-stop
+# boundary consistency fix (latched-state fields, post-latch peak rule, loss masking,
+# analytic imagined survival). Checks of the shared semantics use this family.
+POSE_DEPTH_VERSIONS = ('pose_depth_v2', 'pose_depth_v3')
 WEIGHTS = ('progress', 'speed', 'load', 'jerk', 'success', 'failure')
 
 
@@ -19,29 +23,29 @@ def validate_task(config):
     if 'scene_alignment' in config:
         from .scene_alignment import validate_alignment
         validate_alignment(config['scene_alignment'])
-        if config['version']!='pose_depth_v2' or config.get('tool_revision')!='disect_knife_rigid_mount_v1':
+        if config['version'] not in POSE_DEPTH_VERSIONS or config.get('tool_revision')!='disect_knife_rigid_mount_v1':
             raise ValueError('Aligned reset requires the shared rigid knife task')
         required.add('scene_alignment')
     if 'pitch_control' in config:
         from cutting_gpu_backend.controller.pitch import validate_pitch_control
         validate_pitch_control(config['pitch_control'])
-        if config['version'] != 'pose_depth_v2':
-            raise ValueError('Bounded pitch requires pose_depth_v2')
+        if config['version'] not in POSE_DEPTH_VERSIONS:
+            raise ValueError('Bounded pitch requires pose_depth_v2/v3')
         required.add('pitch_control')
     if 'completion_position' in config:
         position = config['completion_position']
-        if (config['version'] != 'pose_depth_v2' or not isinstance(position, dict)
+        if (config['version'] not in POSE_DEPTH_VERSIONS or not isinstance(position, dict)
                 or set(position) != {'revision', 'radius_m'}
                 or position['revision'] != 'robot_base_xy_goal_v1'
                 or isinstance(position['radius_m'], bool)
                 or not isinstance(position['radius_m'], (int, float))
                 or not math.isfinite(position['radius_m']) or position['radius_m'] <= 0):
-            raise ValueError('Explicit positive final XY radius required for pose_depth_v2')
+            raise ValueError('Explicit positive final XY radius required for pose_depth_v2/v3')
         required.add('completion_position')
     if 'tool_motion' in config:
         from .motion_limits import validate_limits
         motion = config['tool_motion']
-        if (config['version'] != 'pose_depth_v2' or 'completion_position' not in config
+        if (config['version'] not in POSE_DEPTH_VERSIONS or 'completion_position' not in config
                 or not isinstance(motion, dict)
                 or set(motion) != {'revision', 'enabled', 'free_m', 'failure_m', 'weight'}
                 or motion['revision'] != 'robot_base_xy_goal_v1'
@@ -52,20 +56,20 @@ def validate_task(config):
     if 'object_slip' in config:
         from .object_slip import validate
         validate(config['object_slip'])
-        if config['version'] != 'pose_depth_v2':
-            raise ValueError('Object motion constraint requires pose_depth_v2')
+        if config['version'] not in POSE_DEPTH_VERSIONS:
+            raise ValueError('Object motion constraint requires pose_depth_v2/v3')
         required.add('object_slip')
     if 'tool_revision' in config:
-        if config['tool_revision'] != 'disect_knife_rigid_mount_v1' or config['version'] != 'pose_depth_v2':
-            raise ValueError('Shared knife requires pose_depth_v2')
+        if config['tool_revision'] != 'disect_knife_rigid_mount_v1' or config['version'] not in POSE_DEPTH_VERSIONS:
+            raise ValueError('Shared knife requires pose_depth_v2/v3')
         required.add('tool_revision')
     if config['version'] != 'free_cut_v1':
         required |= {'gamma', 'workspace'}
-        if config['version'] != 'pose_depth_v2':
+        if config['version'] not in POSE_DEPTH_VERSIONS:
             required.add('initial_progress_fraction')
         if config.get('gamma') != 1.0:
             raise ValueError('This free-cut version is an undiscounted finite-horizon task (gamma=1)')
-        fraction = config.get('initial_progress_fraction', .001 if config['version'] == 'pose_depth_v2' else 0)
+        fraction = config.get('initial_progress_fraction', .001 if config['version'] in POSE_DEPTH_VERSIONS else 0)
         if isinstance(fraction, bool) or not math.isfinite(fraction) or not 0 < fraction < 1:
             raise ValueError('Initial progress fraction must be strictly between 0 and 1')
         box = config.get('workspace', {})
@@ -74,7 +78,7 @@ def validate_task(config):
         lo, hi = np.asarray(box['lower']), np.asarray(box['upper'])
         if lo.shape != (3,) or hi.shape != (3,) or not np.isfinite([lo, hi]).all() or not (lo < hi).all():
             raise ValueError('Workspace needs finite ordered XYZ bounds')
-    if config['version'] in ('free_cut_v4', 'free_cut_pose_v1', 'blademaster_pose_v1', 'pose_depth_v2'):
+    if config['version'] in ('free_cut_v4', 'free_cut_pose_v1', 'blademaster_pose_v1') + POSE_DEPTH_VERSIONS:
         required.add('board')
         board = config.get('board', {})
         expected = {'height_m', 'stop_gap_m'}
@@ -140,7 +144,7 @@ class FreeCutTask:
         self.horizon = self.config['horizon_steps']
         self.weights = self.config['weights']
         self.dt = heads.env['agent_control_dt']
-        if self.config['version'] in ('free_cut_v3', 'free_cut_v4', 'free_cut_pose_v1', 'blademaster_pose_v1', 'pose_depth_v2'):
+        if self.config['version'] in ('free_cut_v3', 'free_cut_v4', 'free_cut_pose_v1', 'blademaster_pose_v1') + POSE_DEPTH_VERSIONS:
             # Over one finite episode: sum positive delta-rho <= 1 and sum dt/T <= 1.
             # Enforce settlement dominance for every accepted configuration, not one probe.
             penalty_bound = (2 * self.weights['speed'] + self.horizon * self.dt *
@@ -217,9 +221,9 @@ class FreeCutTask:
             force = force | collision
         outside = self.workspace(observation, pose)
         separated = None if progress is None else progress >= 1
-        # pose_depth_v2 receives physical separation only as a diagnostic in the
+        # pose_depth_v2/v3 receive physical separation only as a diagnostic in the
         # DiSECt adapter; geometric progress never determines this label.
-        if self.config['version'] in ('free_cut_pose_v1', 'blademaster_pose_v1', 'pose_depth_v2'):
+        if self.config['version'] in ('free_cut_pose_v1', 'blademaster_pose_v1') + POSE_DEPTH_VERSIONS:
             if success_counter is None or board is None:
                 raise ValueError('Pose task requires arrival counter and board measurements')
             if bool((board['knife_min_board_gap'][..., 0] < -2e-6).any()):
@@ -269,7 +273,7 @@ class FreeCutTask:
         utilization = (peak.abs() / peak.new_tensor(self.heads.force_limits)).amax(-1)
         jerk = self.heads.jerkiness(observation).clamp(max=1)
         increment = progress - previous_progress
-        if self.config['version'] in ('free_cut_v3', 'free_cut_v4', 'free_cut_pose_v1', 'blademaster_pose_v1', 'pose_depth_v2'):
+        if self.config['version'] in ('free_cut_v3', 'free_cut_v4', 'free_cut_pose_v1', 'blademaster_pose_v1') + POSE_DEPTH_VERSIONS:
             # Symmetric relative mismatch: reciprocal speeds v/v* and v*/v have
             # equal cost per progress increment. Reverse motion has maximum cost.
             mismatch = ((speed - target_speed) / (speed.abs() + target_speed)).square()

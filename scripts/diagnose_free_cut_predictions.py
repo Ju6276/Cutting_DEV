@@ -43,7 +43,8 @@ def load(checkpoint, device):
     metadata = saved['metadata']
     if not metadata.get('free_cut_task'):
         raise ValueError('Not a free_cut checkpoint')
-    if metadata.get('free_cut_task', {}).get('version') in ('free_cut_pose_v1', 'blademaster_pose_v1', 'pose_depth_v2'):
+    from cutting_world_model.free_cut import POSE_DEPTH_VERSIONS
+    if metadata.get('free_cut_task', {}).get('version') in ('free_cut_pose_v1', 'blademaster_pose_v1') + POSE_DEPTH_VERSIONS:
         raise ValueError('This historical diagnostic interprets completion as separation; use pose-task evaluation')
     wm = CuttingWorldModel(metadata).to(device)
     wm.load_state_dict(saved['learner']['world_model'])

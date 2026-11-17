@@ -85,6 +85,7 @@ class CuttingStateSpec(nn.Module):
                                np.array([.3] * 3 + [.5] * 3)),
             'wrench_history': (np.tile(force, self.heads.history),) * 3,
             'peak_wrench': (force,) * 3,
+            'last_wrench': (force,) * 3,  # pose_depth_v3 only
             'cut_progress': (1., 1., 1.),
         }
         if 'object_slip' in self.physical_fields:
@@ -133,6 +134,7 @@ class CuttingStateSpec(nn.Module):
         history_scale['cut_progress'] = [1.]
         history_scale['depth_span'] = [0.1]  # known reset travel, metres
         history_scale['step_count'] = [metadata.get('free_cut_task', {}).get('horizon_steps', 1)]
+        history_scale['board_contact'] = [1.]  # pose_depth_v3 software board-stop latch flag
         history_scale.update(controller_tare_compensation=force.tolist(), filter_offset=force.tolist())
         for name in self.history_fields:
             scales_in.extend(history_scale[name])

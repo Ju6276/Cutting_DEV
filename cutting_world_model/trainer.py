@@ -12,6 +12,9 @@ from third_party.supermimic.trainer_config import WMTrainerCfg, PolicyTrainerCfg
 from .metric_counts import RATE_COUNTS, COUNT_KEYS
 from .task_heads import pose_error
 
+# pose_depth_v3 only: transitions kept / zero-weighted in the dynamics fit (summed counts).
+DYNAMICS_MASK_COUNTS = frozenset({'dynamics_fit_count', 'dynamics_masked_count'})
+
 
 def chunks(n, size):
     for start in range(0, n, size):
@@ -109,7 +112,8 @@ class OnlineLearner:
         self.microbatch = microbatch
         self.wcfg, self.pcfg = wm_cfg or WMTrainerCfg(), policy_cfg or PolicyTrainerCfg()
         task = wm.spec.metadata.get('free_cut_task', {})
-        if task.get('version') in ('free_cut_v2', 'free_cut_v3', 'free_cut_pose_v1', 'blademaster_pose_v1', 'pose_depth_v2'):
+        from .free_cut import POSE_DEPTH_VERSIONS
+        if task.get('version') in ('free_cut_v2', 'free_cut_v3', 'free_cut_pose_v1', 'blademaster_pose_v1') + POSE_DEPTH_VERSIONS:
             if policy_cfg is not None and policy_cfg.gamma != task['gamma']:
                 raise ValueError('Policy/critic discount must match the finite-horizon task')
             self.pcfg = replace(self.pcfg, gamma=task['gamma'])
@@ -188,6 +192,7 @@ class OnlineLearner:
                 }.items():
                     aggregate[key] = aggregate.get(key, 0) + value.detach()
             optimizer.zero_grad(set_to_none=True)
+            batch_fit = 0
             for part in chunks(cfg.batch_size, self.microbatch):
                 if valid is None:
                     weight = (part.stop - part.start) / cfg.batch_size
@@ -201,9 +206,10 @@ class OnlineLearner:
                 if not torch.isfinite(loss):
                     raise FloatingPointError('Non-finite world-model loss')
                 (loss * weight).backward()
+                batch_fit += int(metrics.get('dynamics_fit_count', 0))
                 metrics['loss'] = loss.detach()
                 for key, value in metrics.items():
-                    if key in COUNT_KEYS:
+                    if key in COUNT_KEYS or key in DYNAMICS_MASK_COUNTS:
                         aggregate[key] = aggregate.get(key, 0) + value.detach()
                         continue
                     if key in RATE_COUNTS and RATE_COUNTS[key] in metrics:
@@ -212,10 +218,18 @@ class OnlineLearner:
                                      if key in ('nse_1step', 'nse_kstep') else weight)
                     aggregate[key] = (aggregate.get(key, 0.)
                                       + value.detach() * metric_weight / cfg.batches_per_update)
+            if getattr(model.spec, 'board_latch', False) and batch_fit == 0:
+                # pose_depth_v3: every sampled transition starts latched, so the batch holds no
+                # dynamics information. Drop the (zero) dynamics gradients so Adam does not move
+                # the dynamics on momentum/weight decay alone; the terminal head still updates.
+                for p in model.dynamics.parameters():
+                    p.grad = None
+                aggregate['dynamics_skipped_batches'] = aggregate.get('dynamics_skipped_batches', 0) + 1
             gn = finite_gradient_norm(model.parameters(), cfg.grad_clip)
             optimizer.step()
             aggregate['grad_norm'] = aggregate.get('grad_norm', 0.) + gn.detach() / cfg.batches_per_update
-        count_keys = COUNT_KEYS | {'sampled_transitions', 'sample_terminal_transitions', 'short_windows'}
+        count_keys = COUNT_KEYS | DYNAMICS_MASK_COUNTS | {'sampled_transitions', 'sample_terminal_transitions',
+                                                          'short_windows', 'dynamics_skipped_batches'}
         metrics = {key: int(value) if key in count_keys else float(value)
                    for key, value in aggregate.items()}
         for rate, numerator in RATE_COUNTS.items():

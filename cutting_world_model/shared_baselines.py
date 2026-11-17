@@ -14,7 +14,8 @@ import torch
 from .control_state import ControlStateSpec
 from .checkpoint import checkpoint_identity
 from .mpc import ModelRollout
-from .pose_depth import PoseDepthStateSpec, depth_progress
+from .free_cut import POSE_DEPTH_VERSIONS
+from .pose_depth import pose_depth_spec_class, depth_progress
 from .pose_cut import project_board
 from .world_model import CuttingWorldModel
 from .policy import SliceItCritic
@@ -28,8 +29,8 @@ def frame_metadata(env):
 
 
 def validate_current_interface(saved, actual, allow_backend_transfer=False):
-    if actual.get('free_cut_task', {}).get('version') != 'pose_depth_v2':
-        raise ValueError('Current baselines require pose_depth_v2')
+    if actual.get('free_cut_task', {}).get('version') not in POSE_DEPTH_VERSIONS:
+        raise ValueError('Current baselines require pose_depth_v2/v3')
     keys = ('environment', 'controller', 'policy_observation_revision', 'physical_backend',
             'task_interface_revision', 'tool_revision', 'progress_semantics',
             'board_pose_geometry', 'contact_discretization_revision', 'free_cut_task',
@@ -67,11 +68,11 @@ class AnalyticFDCCModel:
         from cutting_gpu_backend.controller.fdcc import SerialChain, ControllerConfig
         if type(substeps) is not int or substeps < 1:
             raise ValueError('Positive analytic substep count required')
-        if metadata['free_cut_task']['version'] != 'pose_depth_v2':
+        if metadata['free_cut_task']['version'] not in POSE_DEPTH_VERSIONS:
             raise ValueError('Analytic model supports only geometric pose-depth task')
         if 'object_slip' in metadata['free_cut_task']:
             raise ValueError('Analytic model cannot predict particle slip')
-        self.spec = PoseDepthStateSpec(metadata).to(device)
+        self.spec = pose_depth_spec_class(metadata['free_cut_task']['version'])(metadata).to(device)
         self.chain = SerialChain(metadata['robot_xml'], metadata['robot_base'],
             metadata['robot_tip'], metadata['joint_names']).to(device=device, dtype=torch.float64)
         self.controller_config = ControllerConfig.from_parameters(controller_parameters)
@@ -107,9 +108,17 @@ class AnalyticFDCCModel:
         fields['joint_qd'] = ((q-q0)/spec.dt).to(state)
         fields['peak_wrench'] = wrench.abs().to(state)
         fields['wrench_history'] = wrench.to(state)[:, None].expand_as(fields['wrench_history']).clone()
-        fields = project_board(spec, state, fields)
+        latch = getattr(spec, 'board_latch', False)
+        if latch:
+            # v3: the held wrench is also the predicted last force-limit reading.
+            fields['last_wrench'] = wrench.to(state)
+            fields, limited, end_gap = project_board(spec, state, fields, with_contact=True)
+        else:
+            fields = project_board(spec, state, fields)
         fields['cut_progress'] = depth_progress(spec.fk(fields['joint_q']),
             spec.board_geometry, fields['depth_span'], spec.field(state, 'cut_progress'))
+        if latch:
+            fields = spec.apply_board_latch(state, fields, limited, end_gap)
         predicted, reward, done = spec.derive(state, fields, action, goal)
         # Analytic task terminal, no learned survival/head or critic.
         logits = torch.where(done, state.new_full(done.shape, float('inf')),
@@ -127,8 +136,8 @@ class SharedMPPIPolicy:
         if revision != MPPI_REVISION:
             raise ValueError('Install the pinned planner from requirements-mpc.txt')
         metadata = frame_metadata(env)
-        if metadata.get('free_cut_task', {}).get('version') != 'pose_depth_v2':
-            raise ValueError('Shared planner requires pose_depth_v2')
+        if metadata.get('free_cut_task', {}).get('version') not in POSE_DEPTH_VERSIONS:
+            raise ValueError('Shared planner requires pose_depth_v2/v3')
         if config.discount != metadata['free_cut_task']['gamma']:
             raise ValueError('Planner discount must equal current task gamma')
         self.critic = None

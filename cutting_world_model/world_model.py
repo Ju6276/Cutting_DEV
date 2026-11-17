@@ -36,9 +36,10 @@ class CuttingWorldModel(nn.Module):
         if metadata.get('free_cut_task', {}).get('version') == 'blademaster_pose_v1':
             from .blademaster_state import BladeMasterStateSpec
             spec_class = BladeMasterStateSpec
-        if metadata.get('free_cut_task', {}).get('version') == 'pose_depth_v2':
-            from .pose_depth import PoseDepthStateSpec
-            spec_class = PoseDepthStateSpec
+        from .free_cut import POSE_DEPTH_VERSIONS
+        if metadata.get('free_cut_task', {}).get('version') in POSE_DEPTH_VERSIONS:
+            from .pose_depth import pose_depth_spec_class
+            spec_class = pose_depth_spec_class(metadata['free_cut_task']['version'])
         self.spec = spec_class(metadata)
         self.dynamics = DynamicsMLP(self.spec.dynamics_dim, 6, 7, hidden, self.spec.delta_dim)
         if metadata.get('free_cut_task', {}).get('version') in ('free_cut_v2', 'free_cut_v3', 'free_cut_pose_v1'):
@@ -135,7 +136,8 @@ class CuttingWorldModel(nn.Module):
 
     def completion_labels(self, states, done):
         # Physical separation, independent of force failures and finite task deadlines.
-        if self.spec.metadata.get('free_cut_task', {}).get('version') in ('free_cut_pose_v1', 'blademaster_pose_v1', 'pose_depth_v2'):
+        from .free_cut import POSE_DEPTH_VERSIONS
+        if self.spec.metadata.get('free_cut_task', {}).get('version') in ('free_cut_pose_v1', 'blademaster_pose_v1') + POSE_DEPTH_VERSIONS:
             return done  # source-style task termination, not physical separation
         if hasattr(self.spec, 'free_task'):
             return (self.spec.field(states[1:], 'cut_progress')[..., 0] >= 1).to(done.dtype)
@@ -177,6 +179,8 @@ class CuttingWorldModel(nn.Module):
         loss_state = states.new_zeros(())
         loss_term = states.new_zeros(())
         correct = torch.zeros((), dtype=torch.int64, device=states.device)
+        latch = getattr(self.spec, 'board_latch', False)
+        dynamics_count = torch.zeros((), dtype=torch.int64, device=states.device)
         completion_metrics = {k: states.new_zeros(()) for k in
                               ('completion_brier_physical', 'completion_probability_excess')}
         completion_counts = {key: correct.clone() for key in RATE_COUNTS if key != 'term_acc'}
@@ -188,7 +192,15 @@ class CuttingWorldModel(nn.Module):
             action = torch.where(valid[:, None], actions[t], 0.)
             predicted, _, logits = self.fit_predict(input_state, action, goal)
             target = torch.where(valid[:, None], states[t + 1], states[0])
-            compared = torch.where(valid[:, None], predicted, target)
+            fit = valid
+            if latch:
+                # pose_depth_v3: a transition whose recorded START state is latched at the
+                # software board stop is frozen by rule, not by dynamics; it is zero-weighted
+                # in the dynamics fit. The first-contact transition (unlatched start) is kept.
+                # Normalization stays the valid count, so the terminal BCE is unchanged.
+                fit = valid & ~self.spec.contact(states[t])[..., 0]
+                dynamics_count = dynamics_count + fit.sum()
+            compared = torch.where(fit[:, None], predicted, target)
             sq = self.spec.error_vector(compared, target).square()
             loss_state = loss_state + sq.sum()
             logits = torch.where(valid, logits, 0.)
@@ -220,6 +232,8 @@ class CuttingWorldModel(nn.Module):
                       'nse_1step': first_error, 'nse_kstep': last_error.mean(),
                       'term_acc': correct / count, 'term_correct_count': correct,
                       'metric_transition_count': count,
+                      **({'dynamics_fit_count': dynamics_count,
+                          'dynamics_masked_count': count - dynamics_count} if latch else {}),
                       **({key: value.detach() / count for key, value in completion_metrics.items()}
                          if hasattr(self.spec, 'free_task') and not hasattr(self.spec, 'pose_success') else {}),
                       **({key: value / count for key, value in completion_counts.items()}

@@ -31,7 +31,7 @@ from cutting_gpu_backend.metrics import StepMetrics
 from cutting_gpu_backend.robot import Robot
 from .kinematics import quat_apply, quat_log, quat_mul, quat_inverse, SerialKinematics
 from .task_heads import SliceItHeads, validate_force_limits, configure_force_observation
-from .free_cut import FreeCutTask, validate_task
+from .free_cut import FreeCutTask, validate_task, POSE_DEPTH_VERSIONS
 from .gpu_env import GPUEnvironment
 from .pose_cut import gap_from_pose
 
@@ -260,7 +260,10 @@ class BladeMasterBatch(CuttingBatch):
             execution_boundary='1ms revolute joint swept curvature bound',reach_bound_m=self.reach_bound)
         self.initial_pose = self.frames[self.chain.tip].clone()
         self.reward_depth_span = (gap_from_pose(self.initial_pose,self.board_geometry)-self.stop_gap)[:,None]
-        self.depth_task = config['task']['version'] == 'pose_depth_v2'
+        self.depth_task = config['task']['version'] in POSE_DEPTH_VERSIONS
+        # pose_depth_v3 software board-stop consistency: post-latch samples report the
+        # frozen reading (as the DiSECt adapter does), instead of contributing nothing.
+        self.board_latch_v3 = config['task']['version'] == 'pose_depth_v3'
         if not bool((torch.isfinite(self.reward_depth_span) & (self.reward_depth_span > 0)).all()):
             raise ValueError('Reset blade must start above its board stopping height')
         self.target = self.initial_pose.clone()
@@ -517,6 +520,10 @@ class BladeMasterBatch(CuttingBatch):
                 self.progress=geometric_progress(self.frames[self.chain.tip],self.board_geometry,
                                                  self.depth_span,self.progress)
             if sample_callback is not None:sample_callback(self,active)
+        if getattr(self,'board_latch_v3',False):
+            from .pose_depth import latched_interval_peak
+            self.peak,collision=latched_interval_peak(self.peak,self.feedback['sensor_wrench'],
+                                                      self.contacted,collision,self.force_limits)
         if bool((gap_from_pose(self.frames[self.chain.tip],self.board_geometry)<-2e-6).any()):
             raise FloatingPointError('BladeMaster knife penetrated the board')
         if self.depth_task:
@@ -533,7 +540,7 @@ class BladeMasterBatch(CuttingBatch):
 class BladeMasterEnvironment(GPUEnvironment):
     @torch.no_grad()
     def __init__(self, backend_root, config):
-        if config['task']['version'] not in ('blademaster_pose_v1', 'pose_depth_v2'):
+        if config['task']['version'] not in ('blademaster_pose_v1',) + POSE_DEPTH_VERSIONS:
             raise ValueError('BladeMaster needs its own task identity')
         validate_task(config['task'])
         self.physics=BladeMasterBatch(backend_root,config)
@@ -554,7 +561,7 @@ class BladeMasterEnvironment(GPUEnvironment):
             depth_span_m=self.physics.depth_span,
             blademaster=self.physics.material_metadata,
             backend_config=copy.deepcopy(config))
-        if config['task']['version'] == 'pose_depth_v2':
+        if config['task']['version'] in POSE_DEPTH_VERSIONS:
             from .pose_depth import PROGRESS_SEMANTICS
             self.metadata['progress_semantics'] = PROGRESS_SEMANTICS
             self.metadata.pop('depth_span_m')
@@ -601,6 +608,9 @@ class BladeMasterEnvironment(GPUEnvironment):
         if self.condition_sampler is not None:
             frame['condition_episode']=torch.as_tensor(
                 self.condition_sampler.next_episode-1,device=self.device)[:,None].clone()
+        if self.free_task.config['version'] == 'pose_depth_v3':
+            from .pose_depth import observe_board_latch
+            observe_board_latch(self,frame)
         return frame
 
     @torch.no_grad()
@@ -610,7 +620,7 @@ class BladeMasterEnvironment(GPUEnvironment):
         frame,collision,force=self.physics.step(action,reference,sample_callback)
         self.step_count+=1
         frame=self._observe(frame,action)
-        physical_progress = None if self.free_task.config['version']=='pose_depth_v2' else frame['cut_progress'][:,0]
+        physical_progress = None if self.free_task.config['version'] in POSE_DEPTH_VERSIONS else frame['cut_progress'][:,0]
         events=self.free_task.events(frame['observation'],frame['peak_wrench'],physical_progress,
             self.step_count,collision,pose=frame['ee_pose'],board=frame,success_counter=self.success_counter,
             object_slip=(frame['object_slip'][:,0] if 'object_slip' in frame else None),

@@ -70,8 +70,9 @@ def main():
             from cutting_world_model.multi_env import MultiConditionEnvironment
             env=MultiConditionEnvironment.from_config(ROOT/'backends/mujoco',config)
         metadata=frame_metadata(env)
-        if metadata.get('free_cut_task',{}).get('version')!='pose_depth_v2':
-            raise ValueError('SAC multi requires current pose_depth_v2 task')
+        from cutting_world_model.free_cut import POSE_DEPTH_VERSIONS
+        if metadata.get('free_cut_task',{}).get('version') not in POSE_DEPTH_VERSIONS:
+            raise ValueError('SAC multi requires current pose_depth_v2/v3 task')
         vec=CuttingVecEnv(env,args.history)
         if args.resume:
             previous=read_sac_metadata(args.resume,require_replay=True)

@@ -41,7 +41,10 @@ def window_loss_components(wm, states, actions, goal, done, valid_steps):
         # measure the source BCE gradient on the dynamics.
         predicted, _, logits = wm.fit_predict(input_state, action, goal)
         target = torch.where(valid[:, None], states[t + 1], states[0])
-        compared = torch.where(valid[:, None], predicted, target)
+        fit = valid
+        if getattr(spec, 'board_latch', False):
+            fit = valid & ~spec.contact(states[t])[..., 0]  # as CuttingWorldModel.masked_window_loss
+        compared = torch.where(fit[:, None], predicted, target)
         sq = spec.error_vector(compared, target).square()
         if sq.shape[-1] != max(s.stop for s in slices.values()):
             raise ValueError('Field slices do not cover the error vector')
