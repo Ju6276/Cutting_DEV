@@ -300,7 +300,7 @@ def analyse(learner, rec, k, chunk=512):
     w_of = torch.arange(n, device=device)[None, :].expand(T, n).flatten()[flat]
     N = len(t_of)
     S, G = rec['state'][t_of, w_of], rec['goal'][t_of, w_of]
-    Hs = rec['history_states'][t_of, w_of].transpose(0, 1)  # [hist, N, D]
+    Hs = rec['history_states'][t_of, :, w_of].transpose(0, 1)  # [T, hist, n, D] -> [hist, N, D]
     W = torch.clamp(length[w_of] - t_of, max=k)  # usable window per start
     js = torch.arange(1, k + 1, device=device)
     jvalid = js[:, None] <= W[None, :]  # [k, N]
