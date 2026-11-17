@@ -325,7 +325,12 @@ class OnlineLearner:
             reward = torch.where(absorbed, torch.zeros_like(reward), reward)
             next_state = torch.where(absorbed[:, None], state, next_state)
             absorbed = absorbed | task_done
-            probability = torch.where(absorbed, torch.ones_like(logits), logits.sigmoid())
+            if getattr(spec, 'analytic_survival', False):
+                # pose_depth_v3: survival = prod(1 - absorbed); learned head not used here
+                # (still fitted and logged as model_probabilities).
+                probability = absorbed.to(logits.dtype)
+            else:
+                probability = torch.where(absorbed, torch.ones_like(logits), logits.sigmoid())
             state = next_state
             survival = survival * (1 - probability)
             history = torch.cat((history[1:], spec.field(state, 'observation')[None]), 0)

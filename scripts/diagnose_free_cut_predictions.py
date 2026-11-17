@@ -230,7 +230,8 @@ def main():
             objective = objective + survival * ri
             ni = torch.where(absorbed[:, None], state_i, ni)
             absorbed = absorbed | done
-            pi = torch.where(absorbed, 1., pi)
+            # Pose tasks are refused above; analytic survival mirrors trainer.imagine.
+            pi = absorbed.to(pi.dtype) if getattr(spec, 'analytic_survival', False) else torch.where(absorbed, 1., pi)
             survival = survival * (1 - pi)
             state_i = ni
             hist_i = torch.cat((hist_i[1:], spec.field(ni, 'observation')[None]), 0)

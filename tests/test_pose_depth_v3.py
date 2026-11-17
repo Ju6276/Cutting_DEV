@@ -482,3 +482,65 @@ def test_analytic_surrogate_applies_the_same_latch():
     free = put(sp, held, board_contact=[0.])
     moved, _, _ = analytic.predict(free, torch.ones(1, 6), goal)
     assert not torch.equal(sp.field(moved, 'joint_q'), sp.field(free, 'joint_q'))
+
+
+class FixedPolicy(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.unused = torch.nn.Parameter(torch.zeros(1))
+
+    def forward(self, history, goal):
+        return torch.full((goal.shape[0], 6), .2, dtype=goal.dtype) + 0 * self.unused
+
+
+def survival_fixture(version):
+    from cutting_world_model.policy import SliceItCritic
+    from cutting_world_model.trainer import OnlineLearner
+    from third_party.supermimic.trainer_config import WMTrainerCfg
+    wm, s, g = model(version)
+    sp = wm.spec
+    torch.nn.init.normal_(wm.dynamics.mlp.net[-1].weight, std=1e-3)
+    torch.nn.init.zeros_(wm.term_head.net[-1].weight)
+    torch.nn.init.constant_(wm.term_head.net[-1].bias, 3.)  # learned head says "ending" (p~0.95)
+    goal = g.clone()
+    goal[:, 0] += .05  # never arrives
+    timing = put(sp, s, step_count=[sp.free_task.horizon - 3.])
+    if version == 'pose_depth_v3':
+        timing = latched_state(sp, timing)
+    state = torch.cat((timing, s))
+    learner = OnlineLearner(wm, FixedPolicy().double(), SliceItCritic(sp.state_dim, 8).double(),
+                            actor_horizon=6, wm_cfg=WMTrainerCfg(compile=None))
+    return learner, wm, state, goal.repeat(2, 1)
+
+
+def test_v3_imagined_survival_is_analytic_absorption_only():
+    from cutting_world_model.trainer import discount_weights
+    learner, wm, state, goal = survival_fixture('pose_depth_v3')
+    with torch.no_grad():
+        ro = learner.imagine(state, state.repeat(10, 1, 1), goal)
+    assert ro.survival[:, 0].tolist() == [1., 1., 1., 0., 0., 0., 0.]  # timeout on the 3rd step
+    assert ro.survival[:, 1].tolist() == [1.] * 7  # learned head p~0.95 does not cut survival
+    assert ro.dhat[1:, 0].tolist() == [0., 0., 1., 1., 1., 1.] and not ro.dhat[1:, 1].any()
+    assert (ro.model_probabilities[:, 1] > .9).all()  # learned head still logged
+    assert (ro.rewards[3:, 0] == 0).all() and ro.rewards[2, 0] != 0
+    weights = discount_weights(ro, 1.)
+    assert weights[:, 0].tolist() == [1., 1., 1., 0., 0., 0.]  # terminal transition counted once
+    from cutting_world_model.mpc import ModelRollout
+    rollout = ModelRollout(wm, 1., None)
+    rollout.goal = goal[:1]
+    aug = torch.cat((state, torch.ones(2, 1, dtype=state.dtype), torch.zeros(2, 2, dtype=state.dtype)), -1)
+    survival = []
+    with torch.no_grad():
+        for t in range(5):
+            aug = rollout.dynamics(aug, torch.zeros(2, 6, dtype=state.dtype), t)
+            survival.append(aug[:, -3].tolist())
+    assert survival == [[1., 1.], [1., 1.], [0., 1.], [0., 1.], [0., 1.]]
+
+
+def test_v2_imagined_survival_still_uses_learned_head():
+    learner, wm, state, goal = survival_fixture('pose_depth_v2')
+    assert not hasattr(wm.spec, 'analytic_survival')
+    with torch.no_grad():
+        ro = learner.imagine(state, state.repeat(10, 1, 1), goal)
+    assert ro.survival[1, 1] < .2  # learned p~0.95 still multiplies survival in v2
+    torch.testing.assert_close(ro.dhat[1:, 1], ro.model_probabilities[:, 1])

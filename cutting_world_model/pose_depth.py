@@ -140,6 +140,12 @@ class PoseDepthV3StateSpec(PoseDepthStateSpec):
     interval peak. Only the first-contact step is predicted by the dynamics.
     """
     board_latch = True
+    # Success (+100), failure (-100) and timeout are all settled analytically in derive /
+    # hard_termination, so imagined survival is the analytic absorption alone. The learned
+    # terminal head is still fitted with the unchanged BCE (and, with terminal_gradient
+    # 'dynamics', its gradient still reaches the dynamics); its probabilities are logged
+    # but do not weight the policy objective, GAE targets or MPPI cost.
+    analytic_survival = True
 
     @classmethod
     def fields_for(cls, metadata):

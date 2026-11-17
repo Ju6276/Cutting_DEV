@@ -81,7 +81,11 @@ class ModelRollout:
                 self.spec.field(next_state, 'observation'),
                 self.spec.field(state, 'success_counter'), collision)
         absorbed = absorbed | done
-        probability = torch.where(absorbed, 1., logits.sigmoid())
+        if getattr(self.spec, 'analytic_survival', False):
+            # pose_depth_v3: analytic absorption only; the learned head does not weight cost.
+            probability = absorbed.to(survival.dtype)
+        else:
+            probability = torch.where(absorbed, 1., logits.sigmoid())
         cost = -(self.discount ** t) * survival * reward
         next_survival = survival * (1 - probability)
         result = torch.cat((next_state, next_survival[:, None],
@@ -171,7 +175,8 @@ class MPPIPolicy:
             'policy_updates': self.checkpoint_identity['policy_updates'],
             'wm_updates': self.checkpoint_identity['wm_updates'],
             'paired_checkpoint': paired_manifest,
-            'terminal_weighting': 'task_absorption_and_learned_survival',
+            'terminal_weighting': ('task_absorption_only' if getattr(self.spec, 'analytic_survival', False)
+                                   else 'task_absorption_and_learned_survival'),
             'initial_plan': 'action_bounds_midpoint', 'action_coordinates': 'normalized_minus1_plus1',
             'information': {
                 'state_fields': list(self.spec.base_fields),
