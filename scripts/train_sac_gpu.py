@@ -1,4 +1,7 @@
-"""Run SliceIt's source SAC trainer against the ROS-free, single-world backend."""
+"""Historical SliceIt TensorFlow SAC against the single-world backend.
+
+Current batched PyTorch SAC uses train_sac_multi.py and the shared task config.
+Retain this source-reproduction entry separately; do not combine their results."""
 import argparse
 import json
 import os

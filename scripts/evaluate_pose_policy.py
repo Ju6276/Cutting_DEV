@@ -307,6 +307,12 @@ def main():
                        "groups": {g: summarize([r for r in rows if r["group"] == g], group_names.count(g))
                                   for g in sorted(set(group_names))}}
             write("summary.json", summary)
+        except BaseException as error:
+            try:
+                progress(state="failed", phase="persist_results", error=repr(error))
+            except Exception:
+                pass  # Keep the original persistence error.
+            raise
         finally:
             if env is not None:
                 env.close()

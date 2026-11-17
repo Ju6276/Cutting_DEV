@@ -11,8 +11,8 @@ interaction. This is engineering training, not an algorithm superiority claim.
 
 ## Frozen settings
 
-- Source: current codex/board-cut-v4; exact launch commits recorded in runtime
-  manifests. Native BladeMaster:c51ef73 (codex/shared-disect-knife).
+- Frozen source:5ec9f85 (exact manifests retained); native BladeMaster:c51ef73.
+  Old branch names are launch provenance, not current development entry points.
 - Scene: configs/shared/scene_v1.json; pose_depth_v2, final only, pitch off.
 - Objects: cucumber003, flat-bottom half potato, prism; equal allocation.
 - GPU7:3072 worlds; A6000 GPU1:510 worlds (170/object), full capacity verified.

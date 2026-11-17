@@ -92,7 +92,7 @@ They remain outside Git.
 The commands for the historical working baseline (resumed from policy62/WM562 with
 critic reset and 100 pre-fit rounds) and for the `source` configuration (script
 defaults, from scratch) are in
-[README](../README.md#run-the-existing-fixed-prism-task); the two must not be confused. Without variant flags, `train_gpu.py` runs `source`: imagined critic
+[historical README](https://github.com/Ju6276/Cutting_DEV/blob/4653d10/README.md); the two must not be confused. Without variant flags, `train_gpu.py` runs `source`: imagined critic
 targets, 32-step policy rollout, no BC (`--critic-target imagined`, `--actor-horizon`
 unset = 32, `--actor-bc-alpha` unset = off). Variant flags are documented in
 [METHOD](METHOD.md).
@@ -184,7 +184,11 @@ The existing 4090 export at
 to that destination instead. Its manifest records the same warmup and source
 revision. Return to the root Python 3.12 environment for the tests.
 
-Run both suites separately to preserve their module resolution. On the prepared
+Run both suites separately to preserve their module resolution. Use a card
+with headroom for the multi-process CUDA tests; the November17 audit hit OOM
+when sharing GPU7 with its 3072-world long run and moved validation to idle GPU9.
+Do not stop a training job or turn an OOM into a passing test.
+On the prepared
 GPU7 checkout, first source runs/sac_env.sh; this sets CUDA_HOME and
 TORCH_EXTENSIONS_DIR as well as the source/asset paths. An empty shell does not
 have a working DiSECt kernel environment.
@@ -205,62 +209,27 @@ Complete reference cutting uses `scripts/benchmark_gpu_env.py --worlds 1
 task success, force, released springs and timing. Value accuracy additionally
 uses complete physical discounted returns; recorded results are in RESULTS.
 
-## Record and render a physical episode
+## Record and render current episodes
 
-`record_episode.py` uses the benchmark controller factory, contract and evaluation
-loop. It saves raw states/actions in `episode_000.npz`, measured world-frame
-geometry in `episode.npz`, and the benchmark report. WM–MPPI also saves every
-planning call in `planning.json`. The example records the existing working
-checkpoint with the selected H16 planner.
-The policy and planner comparison must load that same checkpoint; it is not a
-new multi-condition result:
-
-```bash
-POLICY_CHECKPOINT=runs/sm_ckpts/abl_a250_last.pt
-/dataHDD/dong/Envs/cutting-mppi-20261108/bin/python scripts/record_episode.py --method wm-mppi \
-  --checkpoint "$POLICY_CHECKPOINT" --paired-checkpoint "$POLICY_CHECKPOINT" --label wm_mppi \
-  --seed 0 --wall-seconds 600 --mpc-horizon 16 --mpc-samples 512 \
-  --mpc-refinements 4 --mpc-temperature 0.1 --mpc-noise-std 0.5 \
-  --mpc-discount 0.99 --mpc-terminal-value none \
-  --output runs/videos/wm_mppi
-```
-
-`--method supermimic` records a frozen actor. Recording now follows the nominal
-benchmark only; the retired perturbation option is removed. Choose a new output
-directory for each recording. Rendering runs separately with
-VTK, numpy, Pillow, pycollada and ffmpeg (`requirements-render.txt`); the GPU7 environment is
-`/dataHDD/dong/Envs/render-20261108`. It needs no physics packages:
-
-```bash
-/dataHDD/dong/Envs/render-20261108/bin/python scripts/render_episode.py \
-  --recording runs/videos/wm_mppi --title 'Learned WM + MPPI' \
-  --source-root /opt/ros/noetic/share \
-  --source-root /dataHDD/dong/Projects/SliceIt/catkin_ws/src \
-  --speed 0.1 --fps 30
-```
-
-Add `--preview` for three PNGs before encoding. URDF visual meshes and their
-material colors attach to the recorded robot body poses; `--robot-geometry
-collision` selects the simplified physics meshes. The video shows a whole-arm view,
-a cutting close-up and measured force traces. Playback speed is derived from
-recorded simulation timestamps. Control-step force peaks and spring releases
-are held at their last measured value; geometry alone is interpolated. The full
-gray URDF tool includes its handle and mounting adapter; the blue overlay shows
-the recorded DiSECt contact blade. Both views preserve their recorded poses,
-and the close-up includes the mounting adapter. `--wireframe` shows
-material triangles, including DiSECt's interpolated virtual cut vertices and
-cut triangles. The board support is display geometry.
+Use the frozen pose evaluator and shared studio commands below.
+Historical fixed-prism `record_episode.py` / VTK video commands are retained
+only in the [old operating guide](https://github.com/Ju6276/Cutting_DEV/blob/e7b9e69/docs/RUNNING.md).
+They are not the approved current video pipeline.
 
 ## Remote-only development and storage
 
 Open GPU7 in VS Code Remote SSH and use /dataHDD/dong/Projects/Cutting_DEV_board
-(branch codex/board-cut-v4). The isolated A6000 training checkout and launch status are in [TRAINING_20261114](archive/TRAINING_20261114.md). The Mac holds no project checkout or experiment files.
+(current development follows origin/main). GPU7/A6000 frozen training
+checkouts are recorded in [TRAINING_SHARED_20261116](TRAINING_SHARED_20261116.md).
+The Mac holds only explicitly requested exported previews/videos, not project
+source, training data or checkpoints.
 GPU9 was reauthorized on2026-11-15 for BladeMaster; access it through tams61.
 Historical checkouts remain untouched; see PLAN for its isolated deployment.
 
 GPU7 storage:
 
-- Code: /dataHDD/dong/Projects/Cutting_DEV.
+- Current development: /dataHDD/dong/Projects/Cutting_DEV_board.
+- Historical checkout: /dataHDD/dong/Projects/Cutting_DEV.
 - Runs: /dataHDD/dong/Experiments/Cutting_DEV/runs; the checkout's runs links here.
 - Prepared robot/material assets: /dataHDD/dong/Assets/Cutting_DEV/prepared;
   backends/mujoco/runs links here.
@@ -286,30 +255,10 @@ ownership before changing them. GPU7 cleanup details and retained assets are in
 [DATA](DATA.md).
 
 
-Bounded review only, on GPU7 after sourcing runs/sac_env.sh:
-~~~bash
-PYTHONPATH=. .venv/bin/python scripts/check_free_cut_task.py --config configs/free_cut/review_v2.json --output runs/NEW_REFERENCE_CHECK --wall-seconds 2700
-PYTHONPATH=. .venv/bin/python scripts/check_free_cut_reset.py --output runs/NEW_RESET_CHECK --wall-seconds 1200
-PYTHONPATH=. .venv/bin/python scripts/check_free_cut_learning.py --output runs/NEW_UPDATE_CHECK --wall-seconds 600
-~~~
-Use fresh output directories. The final command is one gradient-update execution check with
-a short test deadline and small batches, not a recommended training setup. No policy efficacy
-can be inferred from it. Review details: [FREE_CUT_REPAIR](archive/FREE_CUT_REPAIR_20261113.md).
-
-
-Second-review checks (fresh output directories; GPU7, source runs/sac_env.sh):
-~~~bash
-PYTHONPATH=. .venv/bin/python scripts/check_free_cut_task.py --config configs/free_cut/review_v3.json --output runs/NEW_V3_REFERENCES --wall-seconds 2100
-PYTHONPATH=. .venv/bin/python scripts/check_free_cut_throughput.py --worlds 256 --iterations 32 --staggered-start --full-update-profile --output runs/NEW_V3_TIMING --wall-seconds 1200
-~~~
-The throughput script executes real controller transitions and gradient updates, with an
-explicit artificial 16-step deadline and optionally staggered initial remaining deadlines
-for reset stress. Initial updates use small batches; the optional final profile uses source
-batch counts (WM 10x2048, actor 4096, real critic 5 epochs x4 minibatches), horizon 8,
-microbatch 64, full networks and eager execution. It is not a convergence experiment, does
-not produce a trained policy, and does not authorize long training. CUDA compilation memory
-and different-object worker processes are not bounded by this one-object eager profile.
-The source training logger now separates time/reset from time/physics.
+Historical v2/v3 reward/reset/throughput commands are in the
+[previous guide](https://github.com/Ju6276/Cutting_DEV/blob/e7b9e69/docs/RUNNING.md).
+Current shared-task checks use the generated configs and
+`check_training_capacity.py` / `check_pose_depth.py`; see SHARED_SCENE.
 
 ## Online W&B for long training (required since 2026-11-15)
 
@@ -342,15 +291,22 @@ runs are not complete evaluations. Configured task, limits and observation inter
 must match the checkpoint. Native BM component count is not labeled intended-slice
 separation. The historical evaluate_multi.py rejects these pose tasks.
 
-Example (development conditions, not a sealed final test set):
+Use the generated config recorded in the checkpoint/run manifest, not an
+older similarly named three-object JSON. Evaluation regenerates paired cases
+for the requested seed/world count and validates task metadata:
 
 ```bash
-.venv/bin/python scripts/evaluate_pose_policy.py   --checkpoint RUN/training/last.pt   --conditions configs/free_cut/pose_three_object_wrench6_3072.json   --worlds-per-object 16 --seed 20261115 --max-hours 1 --output RUN/evaluation
+.venv/bin/python scripts/evaluate_pose_policy.py \
+  --checkpoint RUN/training/last.pt --conditions RUN/PREPARED/disect.json \
+  --worlds-per-object 16 --seed 20261117 --max-hours 1 \
+  --record-geometry --output RUN/NEW_EVALUATION
 ```
 
-For BM use --blademaster-config configs/blademaster/three_intact_batched256.json
-instead of --conditions. This config is nominal, so repeated worlds are
-replicas rather than distinct randomized material/geometry cases.
+Replace RUN/PREPARED/disect.json with the actual generated DiSECt config path.
+For native BladeMaster use `--blademaster-config RUN/PREPARED/blademaster.json`
+with that run's generated config instead of `--conditions`. These are path
+placeholders; use the exact files referenced by the manifest.
+
 CUTTING_EVAL_ROOT can point to a frozen source checkout when running the audited
 evaluation script from an external experiment directory; the manifest records
 both the physical-source Git revision and evaluation-script SHA256.

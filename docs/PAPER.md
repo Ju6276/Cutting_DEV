@@ -33,7 +33,9 @@ Route1 selects a visible midpoint from depth. Its frozen-policy physical
 handoff ran but timed out; successful general visual cutting is not established.
 Method2 has been trained on fixed-heading, small-translation cases of the three
 existing shapes and connected to the frozen policy, as a process pilot. Its held-out known-shape localization improved over the geometric reference,
-but both physical trials timed out. This is not evidence of new-object visual
+but both RL physical trials timed out. Later DP3 controller clips also include
+a paired WM+MPPI timeout and one analytic-MPC pose completion. These are
+single-case illustrations, not a controller ranking. This is not evidence of new-object visual
 generalization or a paper contribution by itself. See [VISION_ROUTE1](VISION_ROUTE1.md).
 
 ## Comparisons and evidence still needed

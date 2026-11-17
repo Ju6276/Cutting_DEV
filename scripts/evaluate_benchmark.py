@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Run frozen controllers through one fixed physical cutting environment."""
+"""Historical fixed-prism controller evaluation.
+
+For current pose_depth_v2 tasks use evaluate_pose_policy.py with the recorded
+generated shared configuration; see docs/CURRENT_BASELINES.md."""
 import argparse
 import importlib.metadata
 import json

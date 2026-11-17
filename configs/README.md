@@ -11,3 +11,10 @@ recorded checkpoints. Their task, knife and randomization settings are versioned
 they are not alternatives to the current shared scene.
 Superseded intermediate depth/knife/motion checks are under
 archive/scene_checks_20261116. They remain fixtures for migration tests.
+
+Visual inputs are under vision/: camera calibration, the historical
+prescribed-plane mode and current visual-midpoint selector. They do not
+replace the physical task or the generated material-backend configs.
+free_scenes/ and food_scenes/ contain source scene-export settings;
+blademaster_disect/ contains candidate asset conversions, not approved long-run
+tasks. Keep their validation status from DATA/RESULTS when reusing them.

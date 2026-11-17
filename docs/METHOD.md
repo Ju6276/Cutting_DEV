@@ -604,7 +604,7 @@ task defaults. Objects: scanned surfaces
 (`scripts/prepare_food_mesh.py`, fTetWild with a ~1 mm envelope) and DiSECt official
 materials (`scripts/make_food_configs.py`), exported with `export_disect_scene.py`.
 
-## Adaptive force-risk penalty (`--risk-constraint`)
+## Historical force-risk penalty (`--risk-constraint`, not selected)
 
 Retained variant, not the selected paper method. Old S3 cannot establish control
 benefit. B1 is a historical screen with an already-used test split.
@@ -758,7 +758,7 @@ This correction changes future material motion and therefore can change cutting
 forces, despite leaving all numerical parameters unchanged.
 
 
-## Opt-in free-object task (2026-11-12)
+## Historical opt-in free-object task (2026-11-12)
 
 The historical pose task above is unchanged. The user-authorized implementation
 free_cut_v1 is described in [TASK_FREE_CUT](TASK_FREE_CUT.md); source and verification
@@ -1065,8 +1065,9 @@ physics remain distinct. Physical test coverage is explicitly recorded there.
 Route 1 is a nonlearned depth-to-goal preprocessing module. It preserves the
 prescribed cut plane, uses calibrated board/tool geometry, estimates the visible
 top and supplies base-frame EE pose plus commanded speed. It does not change
-the policy observation or learning algorithm. Recorded-frame validation is
-complete; visually initialized closed-loop control is not yet tested.
+the policy observation or learning algorithm. This describes the original
+prescribed-plane mode; the visible-midpoint selector and tested physical
+handoffs below supersede its initial untested-execution status.
 See [VISION_ROUTE1](VISION_ROUTE1.md).
 
 
@@ -1144,3 +1145,12 @@ A native-backend interface bug was found by actual execution: target_speed is
 N in BladeMaster but N-by1 in the other interface. SharedMPPIPolicy now reshapes
 one scalar per world before goal concatenation. Both layouts have integration
 tests. The first failed zero-step attempts remain in the run directory.
+
+## Evaluation persistence cleanup — 2026-11-17
+
+Visual evaluation now closes the physical environment even if planner JSON,
+trajectory serialization or summary writing fails. Persistence errors mark
+the progress state failed when the filesystem permits writing; a failed error
+log does not hide the original persistence exception. The pose evaluator
+already closed unconditionally and now also marks persistence failure.
+Task rules, checkpoints and controller/model outputs are unchanged.

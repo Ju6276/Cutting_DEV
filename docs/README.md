@@ -8,6 +8,7 @@ locations. A dated experiment or archived launch is not a new training instructi
 | [PLAN](PLAN.md) | Current decisions, GPU7/A6000 deployments, fixed budgets and next work |
 | [SAC training](TRAINING_SAC_20261116.md) | GPU9 bounded vector SAC launch |
 | [Shared training](TRAINING_SHARED_20261116.md) | Current task launch protocol, verification and online run records |
+| [Shared scene](SHARED_SCENE.md), [knife](SHARED_KNIFE.md) | Authoritative shared settings, physical geometry and backend differences |
 | [TASK_FREE_CUT](TASK_FREE_CUT.md) | Pose completion, board boundary, running rewards and diagnostic labels |
 | [RUNNING](RUNNING.md) | Installation, tests and online W&B requirement |
 | [DATA](DATA.md) | Current server paths, checkpoints, preserved evidence and cleanup ledger |

@@ -16,6 +16,25 @@ from cutting_world_model.visual_center import center_plan,load_center
 from cutting_world_model.episode_log import episode_row
 
 ROOT=Path(__file__).resolve().parents[1]
+def save_results_and_close(env, planner, traces, rows, status, output, write):
+    """Keep physics cleanup unconditional, including disk/serialization failures."""
+    try:
+        if planner is not None:
+            write("planning.json", planner.plans)
+        torch.save(traces, output / "trajectories.pt")
+        write("summary.json", dict(status=status, episodes=rows))
+    except BaseException as error:
+        status.update(state="failed", phase="persist_results", error=repr(error))
+        # Preserve the original error even when the filesystem is unavailable.
+        try:
+            write("progress.json", status)
+        except Exception:
+            pass
+        raise
+    finally:
+        if env is not None:
+            env.close()
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument("--policy",type=Path,required=True);p.add_argument("--backend-checkpoint",type=Path,required=True)
@@ -192,8 +211,5 @@ def main():
     except BaseException as error:
         progress(state="failed",error=repr(error));raise
     finally:
-        if planner is not None:write("planning.json",planner.plans)
-        torch.save(traces,a.output/"trajectories.pt")
-        write("summary.json",dict(status=status,episodes=rows))
-        if env is not None:env.close()
+        save_results_and_close(env, planner, traces, rows, status, a.output, write)
 if __name__=="__main__":main()

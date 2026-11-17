@@ -3312,3 +3312,52 @@ then the full1x episode plus synchronized20Hz filtered force/torque endpoint
 charts. Those charts are not the500Hz peak-limit measurement. Images were
 inspected for all three controllers. Delivery filenames are dp3_rl.mp4,
 dp3_wm_mppi.mp4 and dp3_analytic_mpc.mp4 under the DATA paths.
+
+## 2026-11-17 — Current-entry cleanup and evaluation persistence repair
+
+The repository audit found stale current-facing instructions, not a new
+training-method change:
+- PLAN still said A6000 had no trained actor and repeated completed visual
+  budgets as future work. It now points to dated evidence and current actions.
+- RUNNING still described the old blue contact-blade overlay, an obsolete
+  development branch and old pose-v1 evaluation configs. The current path is
+  frozen pose evaluation -> shared physical-scene export -> studio rendering
+  -> optional synchronized sensor-wrench panels.
+- The script index listed TensorFlow single-world SAC as the active unified
+  learner and contradicted the now-implemented visual MPC dispatcher.
+  It now identifies train_sac_multi.py and all three visual controller choices.
+- Every configs/free_cut/pose_*.json still declares free_cut_pose_v1; their
+  README incorrectly called them current. They are retained as historical
+  fixtures. Current pose_depth_v2 inputs are generated from the shared contract.
+- DP3's existing MIT license and pinned provenance are now indexed in NOTICE.
+
+A real lifecycle defect was fixed in evaluate_visual_cut.py: planner/trajectory/
+summary persistence errors could skip env.close(). Cleanup now always runs,
+and failed persistence updates progress when writing remains possible.
+The pose evaluator already closed unconditionally; it now also marks result
+persistence failures instead of leaving completed status behind.
+Fault-injection tests cover all three save stages, successful saving and an
+unwritable error log. These do not establish new physical cutting performance.
+
+No task/reward threshold, model architecture, physical scene, active training
+checkout, replay or weight was changed. Historical code imported by shared
+exporters and tests remains, explicitly labeled; it is not deleted merely
+because it is old. Current-facing local links and first-party Python syntax
+were checked. The previous long PLAN and script instructions remain at
+Git revision e7b9e69 rather than another duplicated archive file.
+
+Runtime snapshot during this audit (2026-11-17, around15:00 CET): GPU7
+policy784,854016 transitions; A6000 policy113,423300 transitions; both joint.
+GPU9 SAC progress records completed at1281024 transitions / transition_budget,
+23956 seconds. These are status observations, not frozen evaluation scores.
+Validation: initial GPU7 suite609 passed /6 skipped /1 failed; the failing
+parallel-group initialization raised CUDA OOM while the long trainer occupied
+about22GiB. An isolated retry reproduced the resource failure. Tests were not
+relaxed and the trainer was not stopped. On idle GPU9 (RTX4090), the same
+changed code passed the complete root suite619 passed /3 skipped in155.5s,
+including the parallel reset test, and the backend suite41 passed in3.3s.
+GPU9's optional baseline environment includes SB3/Gym coverage unavailable in
+the GPU7 optional-MPPI environment, so collection/pass counts differ.
+First-party syntax:157 files; current-facing local-link check:30 documents,
+zero broken paths. Existing upstream AST deprecation warnings remain; no
+physics, learning efficacy or real-robot calibration claim follows from tests.

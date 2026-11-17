@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Render recorded physical geometry with two views and measured force traces.
+"""Historical VTK recording renderer and shared geometry helpers.
+
+For current approved videos use export_evaluation_scene.py followed by
+render_episode_still.py; see scripts/README.md. This module remains imported
+by shared exporters and must not be deleted as an unused renderer.
 
 Uses one EGL window for both viewports. Geometry interpolates between recorded
 control boundaries; force peaks and released-spring counts remain measured data.

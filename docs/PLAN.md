@@ -1,25 +1,25 @@
 # Current plan — 2026-11-17
 
-## Active authorized runs
+## Authorized runs and next actions
 
-Both long runs are launched and online history is verified. The user authorized
-long training on GPU7 and A6000 after documentation,
-visualization, deployment and capacity checks. The previous no-launch status is
-superseded by this instruction; it is preserved in the archived plan below.
-See [shared training record](TRAINING_SHARED_20261116.md) for the launch state,
-commands, verification and online run links.
+Runtime status is a timestamped observation, not inferred from this plan.
+Frozen launch protocol, budgets and W&B links:
+[shared WM+BPTT runs](TRAINING_SHARED_20261116.md),
+[vector SAC](TRAINING_SAC_20261116.md). Read each run's progress and process
+before reporting that it is still active.
 
-- GPU7: current DiSECt material backend, 3072 worlds (1024/object). Full
-  learner/reset/replay-restore capacity passed; follow-up runner fixes passed
-  root569/skip5 and bundled backend41 (including the new offline wrench panel).
-- A6000 GPU1: current BladeMaster material backend. 510 worlds
-  (170/object) passed actual learner, masked reset, snapshot and replay restore
-  checks with 7.90 GiB minimum measured free memory after updates. GPU0 is occupied and untouched.
-- Both start fresh. Each ends at24 hours or1,280,000 new physical transitions,
-  whichever comes first. No automatic extension or old-task checkpoint reuse.
-- Every long run requires online W&B and a remotely verified first history.
-  Checkpoints/replay and physical snapshots remain on the server.
-- GPU9: user authorized current-task multi-environment SAC on 2026-11-16 after baseline validation. Capacity preflight and online launch are recorded in [TRAINING_SAC_20261116](TRAINING_SAC_20261116.md). Its historical BladeMaster SIGILL in libcuda is not declared resolved.
+- GPU7: 3072-world WM+BPTT, DiSECt material backend.
+- A6000 GPU1: 510-world WM+BPTT, native BladeMaster material backend.
+- Both entered joint training. Each has a fixed 24-hour / 1,280,000-transition
+  budget; no automatic extension, restart or task changes.
+- GPU9 SAC finished its transition budget (1,281,024 transitions, vector-step
+  granularity). Preserve its checkpoint and evaluate under the recorded task.
+- After completion, evaluate the frozen policies on identified development
+  conditions: per-object pose completion, failures/timeouts, return, speed
+  error, wrench utilization and independent material-separation diagnostics.
+  Record checkpoint identities, conditions, timing and source versions.
+- Keep active training checkouts frozen. Development cleanup and offline
+  rendering changes do not replace their code. All long runs require online W&B.
 
 ## Fixed task and algorithm
 
@@ -48,138 +48,47 @@ task settings must not be edited independently for each backend.
   then500 WM-only rounds. WM/policy effective batches2048/4096;
   microbatches512/critic8192. Pending learning rounds are checkpointed.
 
-## Measurements and remaining limits
+## Current baseline and vision status
 
-Track per-object reward, pose successes, all failure reasons, speed error and
-wrench utilization. Capture actual first-step training geometry; use the shared
-studio renderer and all-world overview. Final frozen evaluation uses predeclared
-development conditions, records their identities and preserves terminal traces.
-No outcome threshold is a license to change the task or extend the budget.
+[CURRENT_BASELINES](CURRENT_BASELINES.md) is the implementation/coverage ledger.
+Current entries are vector SB3 SAC, frozen WM+MPPI and approximate nonlearned
+FDCC+MPPI. The original TensorFlow SliceIt SAC remains historical reproduction.
+No claim of matched-budget superiority follows from integration tests.
 
-The board stop is an execution boundary, not compliant board-force simulation.
-The support plane is infinite; visible board edges are not physical edges.
-Native material parameters are uncalibrated. A measured adapter mesh is absent;
-do not invent display hardware. Tilted contact remains unverified and disabled.
+Vision is pre-cut goal selection followed by motion/wrench feedback, not
+continuous visual servoing or a core RL contribution.
+[Vision protocol](VISION_ROUTE1.md) documents geometric midpoint and learned
+midpoint routes. Official DP3 XYZ encoder plus our regression head is the new
+default; the local encoder remains a named comparison.
 
-Current-task baseline implementation and source search are recorded in
-[CURRENT_BASELINES](CURRENT_BASELINES.md). The original TensorFlow SAC runner is
-historical single-world training; the inspected parallel SAC commit is batched
-evaluation. No reusable cutting-connected PyTorch parallel trainer was found.
-The user authorized SB3 as fallback. Its new vector bridge and learner use
-physical-transition update credits, terminal replay, current observations and
-task metadata. Frozen WM+MPPI and an explicitly approximate nonlearned FDCC+MPPI
-model share the current pose-task evaluation/recording entry point.
-GPU9 bounded three-object DiSECt-material validation completed; measured results
-and remaining backend coverage are in CURRENT_BASELINES/RESULTS. Do not claim a formal trained comparator, a calibrated
-analytic force model or a reproduction of a published cutting MPC.
+Completed: known-shape visual-data pilot, three-seed encoder comparison,
+requested policy videos and nominal native-BladeMaster DP3 controller videos.
+The frozen policy66 and paired WM566 were deliberate historical references,
+not the latest A6000 actor. RL and WM+MPPI timed out; analytic MPC reached the
+pose target in its one case. These are illustrations, not an algorithm ranking.
+SAC visual handoff is not implemented. New shapes, rotations and real depth
+remain deferred; no additional visual tuning or training is scheduled.
 
-## Vision route 1 (2026-11-17)
+## Boundaries that still matter
 
-User corrected the goal: select the cut plane from vision, then try a physical
-feedback-controlled episode. The optional visible-major-axis midpoint selector
-does not read prescribed target XY. Seven scan shapes tested for perception;
-the native BladeMaster single-world handoff uses an explicitly cross-backend,
-frozen policy66, since the A6000 run has no trained actor yet. No ongoing job,
-reward, material law or long-training budget is changed. This is one-shot
-pre-cut vision followed by motion/force feedback, not visual servoing.
-The bounded physical trial completed its180-step budget but timed out without
-pose success; blade remained2.476 mm above the board. Do not broaden the
-training task or claim visual generalization from this one transfer trial.
-See [VISION_ROUTE1](VISION_ROUTE1.md) for commands, measurements and limits.
+- Pose completion is not validated complete material separation.
+- The board stop is an execution boundary, not compliant board-force simulation.
+  The physical support plane is infinite; rendered board edges are not physical.
+- Native material parameters and simulated wrench limits are uncalibrated.
+  Shared settings do not equate the two fracture/contact laws.
+- Pitch remains disabled; tilted contact is not verified.
+- No fabricated connector, blue overlay or replacement physical blade in videos.
+  Current export/render commands are in [RUNNING](RUNNING.md).
+- DiSECt needs a prepared cut interface; a new visual plane cannot silently
+  move that topology. Native BladeMaster handoff uses reset/IK placement,
+  not a validated real-robot approach trajectory.
+- Feature clusters or force/action correlations do not prove causal adaptation.
 
-## Method 2: trained center predictor and physical handoff (2026-11-17)
+## History and completed budgets
 
-User authorized a fixed-heading middle-cut pipeline before generalization.
-Completed:900 static depth placements of the current three geometries, a small
-point-cloud predictor, held-out perception comparison, and one physical episode
-per visual selector with the same frozen policy66. All object headings stay fixed;
-only perception-data XY placement varies +-15mm. No low-level weights change.
-
-Learned midpoint test MAE0.210mm (150 held-out placements of seen shapes);
-fixed-heading visible geometric midpoint5.499mm. These are ideal-depth
-interpolation results, not new-object or real-camera generalization.
-Physical native-BladeMaster cucumber handoffs both timed out at180 steps.
-Method2 plane error0.688mm versus8.852mm for geometry; the policy remained
-above the final height tolerance in both episodes. No threshold/reward change.
-
-The two routes now share the same target conversion and frozen-policy execution.
-Vision supplies a pre-cut goal; motion/wrench closes the execution feedback loop.
-It is not continuous visual tracking. Vision is a task-interface demonstration,
-not an adopted core RL contribution. See [VISION_ROUTE1](VISION_ROUTE1.md)
-and the dated RESULTS entry for commands, budgets, provenance and limitations.
-
-Remaining visual work is explicitly separate: the SAC visual handoff is not
-implemented; new shapes, rotations and real depth are
-deferred. A new DiSECt cut plane still requires prepared topology or a native
-BladeMaster execution backend. Do not silently move the baked interface.
-
-## Historical evidence
-
-Old GPU7 pose-v1 training completed its24h budget:policy1109,1,062,912
-transitions; frozen0/48 target-pose completions. Old GPU9 stopped with SIGILL:
-last logged policy998; evaluated saved policy866 had48/48 nominal-replica pose
-completions. These differ in tools, tasks and conditions, and are not a matched
-backend comparison. See RESULTS and DATA; preserve original checkpoints.
-
-[Previous full plan](archive/PLAN_before_shared_long_20261116.md) retains older
-capacity, cleanup, deployment and interpretation records. Historical source,
-v1–v3, S3 and perturbation scripts remain only for identified reproduction.
-The main task list is this file; dated evidence belongs in RESULTS.
-
-## Authorized method-2 execution — 2026-11-17
-
-User authorized training and frozen physical handoff. Budget:900 static depth
-placements (three shapes x300), fixed camera/heading, XY translation +-15mm;
-600 train/150 validation/150 test, grouped by placement identity. Mesh bounding-box
-midpoint labels are offline only. Small pointwise network predicts a residual
-from visible centroid; no object IDs or absolute XY inputs. CPU training120
-epochs,900s maximum, online W&B. Validation selects the checkpoint; test is
-opened once after selection. Dataset generation cap1800s.
-
-Compare learned center, fixed-heading geometric midpoint, constant world
-coordinate and visible centroid on the same test cases. No accuracy threshold
-authorizes retuning on test data. Reuse the existing physical native-BladeMaster
-handoff and frozen policy66, one nominal cucumber episode per selector
-(learned and fixed-heading geometric), each <=180 steps/1500s; total experiment
-wall budget2h. Report pose completion separately from material separation and
-perception. Do not change active long runs or claim new-object generalization.
-
-## Authorized DP3 encoder comparison — 2026-11-17
-
-User requested official DP3 encoder instead of the local pointwise encoder.
-Use pinned MIT XYZ encoder and its official 64D/LayerNorm configuration, with
-our midpoint regression head (not DP3 diffusion actions or pretrained weights).
-Compare both architectures on the existing 600/150/150 split, same Adam .001,
-batch32,120epochs and independent matched shuffle generators, seeds20261117–19.
-Six CPU fits, <=900s each, online W&B; select by validation only, no retuning
-on the already inspected test. This is a reused development benchmark.
-Report MAE/P95/max per shape and paired case differences; three seeds describe
-limited optimization variability, not real-world generalization.
-Frozen physical handoff: seed20261117 DP3 checkpoint (preselected, not best test),
-same policy66/nominal cucumber protocol, <=180steps/1500s. Existing local-model
-physical result remains a single-run reference. Total budget2h, no long-run change.
-Also user requested three new GPU7 policy videos: latest saved224 checkpoint,
-one first episode per shape, existing shared studio renderer, <=1800s evaluation.
-
-Completed: six online CPU fits, paired comparison, DP3 frozen physical handoff,
-and three requested GPU7 policy527 videos. Adopt DP3 for new visual training;
-aggregate development MAE improved, physical handoff still timed out.
-No active RL training or task changes. No additional visual tuning scheduled.
-
-## Authorized DP3 controller videos — 2026-11-17
-
-Export the existing DP3+policy66 episode with the approved shared studio.
-Wire the same visual start/goal into frozen WM+MPPI and nonlearned FDCC+MPPI.
-One nominal native-BladeMaster cucumber episode per added controller,180steps,
-1500s each, overall2h incl. renders. No training/reward/threshold tuning.
-WM checkpoint must contain exactly policy66 tensors; cross-backend inference
-must be explicit, retaining strict task/controller/state checks and equivalent
-blade/board geometry. Record source/execution backends and planning time.
-Horizon8,samples512,one refinement,no terminal critic; analytic substeps5.
-Shared camera/DP3 seed20261117,material/conditions. One episode is illustrative,
-not an algorithm ranking. The existing RL trial is reused, not cherry-picked.
-
-Completed controller execution: RL180-step timeout; paired WM+MPPI180-step
-timeout; analytic MPC105-step pose success. All use the same DP3 checkpoint
-and matched nominal conditions; neither learned model was retrained. The
-planner transfer/target-speed shape fix and result scope are in METHOD/RESULTS.
+[RESULTS](RESULTS.md) contains dated evidence; [DATA](DATA.md) locates artifacts.
+The [pre-cleanup plan](https://github.com/Ju6276/Cutting_DEV/blob/e7b9e69/docs/PLAN.md)
+preserves all completed vision budgets and their conditions.
+The [previous shared-launch plan](archive/PLAN_before_shared_long_20261116.md)
+retains older decisions. Archived S3, perturbation and old-task commands are
+not current launch instructions.

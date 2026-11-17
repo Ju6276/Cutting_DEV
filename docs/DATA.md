@@ -25,7 +25,7 @@ All runs use online W&B; physical snapshots and recovery data stay on servers.
 
 | Host | Checkout | Role / frozen code |
 |---|---|---|
-| GPU7 (tamsGPU7) | /dataHDD/dong/Projects/Cutting_DEV_board | Development, branch codex/board-cut-v4 |
+| GPU7 (tamsGPU7) | /dataHDD/dong/Projects/Cutting_DEV_board | Development follows origin/main (working branch codex/visual-cut-route1) |
 | GPU7 | /dataHDD/dong/Projects/Cutting_DEV_pose_long_20261114 | Budget-complete DiSECt main run, 02203b1 |
 | GPU9 (tamsGPU9) | /dataHDD/dong/Projects/Cutting_DEV_bm_long_20261115 | SIGILL-interrupted BladeMaster run, 931e2b5 |
 | A6000 (tamsGPU5) | /dataHDD/dong/Projects/Cutting_DEV_pose_scale_20261114 | Development mirror; no active cutting training |
@@ -263,3 +263,15 @@ logs. source_at_trial preserves the modified sources before Git synchronization.
 delivery/ contains approved-studio movies with pre-cut visual-selection intro
 and synchronized force/torque panels. All physics trajectories/weights stay
 on servers; requested videos/previews go to Mac Downloads/dp3_controllers_20261117.
+
+## 2026-11-17 entry-point cleanup
+
+Current PLAN/script guide were condensed; historical instructions remain at
+e7b9e69. No datasets, replay, weights, training checkouts or unmerged historical
+branches were deleted. Imported historical rendering helpers and task fixtures
+are retained with explicit scope. GPU7 validation artifacts:
+runs/repository_cleanup_20261117/{root_tests.log,grouped_retry.log,static_checks.json}.
+The first two preserve the GPU7 co-resident-training OOM, not passing coverage.
+GPU9 final suite logs use runs/repository_cleanup_20261117/{root_tests.log,backend_tests.log}
+in Cutting_DEV_baselines_20261116.
+Development mirrors are synchronized separately from frozen training checkouts.

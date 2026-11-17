@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Record benchmark control boundaries and geometry in the MuJoCo world frame.
+"""Record historical fixed-prism benchmark geometry in the MuJoCo world frame.
+
+Current pose_depth_v2 recording uses evaluate_pose_policy.py --record-geometry
+and the shared studio pipeline; see scripts/README.md.
 
 ``episode_000.npz`` contains measured states/actions. ``episode.npz`` contains
 geometry for offline rendering; interpolation between measured boundaries is
