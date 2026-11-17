@@ -47,6 +47,7 @@ EVENTS = ('success', 'force', 'workspace', 'object_slip', 'tool_motion', 'timeou
 INFO_KEYS = {'success': 'success', 'force': 'collision', 'workspace': 'outside',
              'object_slip': 'object_slip_failure', 'tool_motion': 'tool_motion_failure',
              'timeout': 'timeout'}
+PHYSICAL_SEPARATION = ('separation_progress', 'separated', 'material_components', 'damage_saturated_fraction')
 BACKENDS = {'mujoco_warp_disect': 'disect', 'mujoco_warp_blademaster': 'blademaster'}
 UNITS = {
     'ee_position_error_mm': 'Euclidean EE position error, millimetres',
@@ -266,9 +267,12 @@ def collect(env, learner, horizon):
         for event, key in INFO_KEYS.items():
             value = info.get(key)
             put('real_' + event, torch.zeros(n, dtype=torch.bool) if value is None else value.reshape(n).bool())
-        for key in ('separation_progress', 'separated', 'material_components', 'damage_saturated_fraction'):
-            if key in info:
-                put('physical_' + key, info[key].reshape(n).double())
+        # Physical separation diagnostics; BladeMaster reports its native ones only on steps
+        # with a termination, so missing steps are NaN (not measured), never zero.
+        for key in PHYSICAL_SEPARATION:
+            value = info.get(key)
+            put('physical_' + key, torch.full((n,), float('nan'), dtype=torch.float64) if value is None
+                else value.reshape(n).double())
         ended = (terminated | truncated).to(device)
         alive = alive & ~ended
         state = next_state
@@ -281,7 +285,11 @@ def collect(env, learner, horizon):
             hist_states[:, ended] = state[ended][None]
     if bool(alive.any()):
         raise RuntimeError('Task did not terminate all first episodes within its horizon')
-    return {k: torch.stack(v) for k, v in rec.items()}
+    out = {k: torch.stack(v) for k, v in rec.items()}
+    for key in PHYSICAL_SEPARATION:
+        if bool(out['physical_' + key].isnan().all()):
+            del out['physical_' + key]  # never logged by this backend
+    return out
 
 
 # ----------------------------------------------------------------------------- analysis
