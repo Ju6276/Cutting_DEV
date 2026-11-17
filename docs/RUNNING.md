@@ -338,6 +338,49 @@ All outputs describe a frozen-policy rerun, not footage of the original training
 The removed `render_pose_evaluation.py` is not a supported video entry. Preserve
 recordings and evaluation results; superseded visual previews can be deleted.
 
+### pose_depth_v3 WM prediction diagnostic
+
+`scripts/diagnose_pose_predictions.py` checks a pose_depth_v3 checkpoint's WM, terminal
+head and critic on the physical trajectories of its own frozen deterministic policy
+(executed action = spec.execute(policy), no exploration noise; zero optimizer updates,
+parameters verified unchanged). The backend (DiSECt or BladeMaster) follows the
+checkpoint metadata; cases are regenerated from --seed/--worlds-per-object with
+evaluate_pose_policy's evaluation_config. One first episode per world is used.
+pose_depth_v2 checkpoints are refused (read-only history, not diagnosed here).
+The historical diagnose_free_cut_predictions.py is a free_cut_v3 separation diagnostic
+and refuses pose tasks.
+
+```bash
+PYTHONPATH=.:backends/mujoco .venv/bin/python scripts/diagnose_pose_predictions.py \
+  --checkpoint RUN/training/checkpoint_XXXXXXXX.pt --config RUN/PREPARED/disect.json \
+  --worlds-per-object 2 --seed 20261117 --k 8 --output RUN/NEW_POSE_DIAGNOSTIC
+```
+
+--config is the generated DiSECt conditions or BladeMaster config (default: the config
+embedded in the checkpoint). Outputs: summary.json (units and semantics written in the
+file; overall, per-object and per-world blocks), transitions.npz (recorded states,
+actions, successors, events) and steps.npz (per start: per-step errors [k, N], window
+masks, WM/physical event and latch flags, head probability/label, critic, imagined
+objective, return-to-go).
+
+Semantics: every start is replayed open-loop on the recorded actions through
+OnlineLearner.imagine (world_model.step, spec.derive, spec.hard_termination; absorbed
+state frozen, its reward kept once); j=1 is the one-step prediction. A window ends at k
+or at the physical episode end. Compared: EE position (mm), max joint error (rad),
+wrench_history / |peak_wrench| / last_wrench (force N, torque Nm, separately), depth
+progress (fraction and mm), events (success, force, workspace, object slip, tool motion,
+timeout: one-step confusion and first-step timing in the window), board latch (first
+contact on unlatched starts reported separately from post-latch consistency). The
+terminal head is scored only as a predictor of the analytic termination label (v3
+survival is analytic). Critic and imagined objective are reported as gaps to the
+realised discounted return-to-go. Physical separation (DiSECt separation_progress /
+separated; BladeMaster terminal component count and saturated damage fraction) is
+recorded separately and is never a task label.
+
+Limits: a development diagnostic on few worlds; one episode per world; open-loop
+windows are truncated at the physical episode end; a force-risk constraint, if
+configured, is not included in the imagined objective.
+
 ### Current geometric-depth and material-motion verification
 
 Use the shared preparation and check commands in [SHARED_SCENE](SHARED_SCENE.md).

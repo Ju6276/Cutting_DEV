@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Same-trajectory prediction check for free_cut checkpoints (diagnostic; no training).
 
+Historical free_cut_v3 separation diagnostic: completion = material release. It refuses pose
+tasks; for pose_depth_v3 use scripts/diagnose_pose_predictions.py.
+
 Runs the checkpoint's deterministic policy for one episode per world on a multi-condition
 config and records, per control step: the packed WM state, the executed action, the goal,
 the observation history, the physical reward, cut progress, separation/force/workspace events,

@@ -79,9 +79,10 @@ Changed (v3 only):
   targets and WM+MPPI. The terminal head is still fitted with the same BCE and
   gradient route (with terminal_gradient=dynamics its gradient still reaches the
   dynamics); its probabilities are logged, not used as survival.
-  scripts/diagnose_free_cut_predictions.py has the same analytic branch but still
-  refuses every pose task (including v3) at load; it is a historical separation
-  diagnostic, not a v3 diagnostic entry point.
+  scripts/diagnose_free_cut_predictions.py is the historical free_cut_v3
+  separation diagnostic; it refuses every pose task (including v3) at load, so its
+  analytic-survival line is never reached. The v3 WM prediction diagnostic is
+  scripts/diagnose_pose_predictions.py (docs/RUNNING.md).
 - Reading the WM loss: with more latched transitions the dynamics loss and its
   gradient shrink by construction. Report dynamics_fit_count with the loss and
   judge prediction quality on unlatched transitions only.
