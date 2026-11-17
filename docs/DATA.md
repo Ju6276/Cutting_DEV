@@ -275,3 +275,25 @@ The first two preserve the GPU7 co-resident-training OOM, not passing coverage.
 GPU9 final suite logs use runs/repository_cleanup_20261117/{root_tests.log,backend_tests.log}
 in Cutting_DEV_baselines_20261116.
 Development mirrors are synchronized separately from frozen training checkouts.
+
+## 2026-11-17 Mac historical-output cleanup
+
+Verified backup on GPU7:
+ /dataHDD/dong/Archive/mac_cutting_cleanup_20261117/
+The manifest lists 1512 original files (526795759 bytes), checked individually
+by SHA-256 before any local deletion. verified.json and cleanup_receipt.json
+record verification and the exact removed paths.
+
+Removed from the Mac: October cutting_gpu_20261016 experiment outputs,
+five superseded November12–15 preview folders, and two historical CRESSim
+helper scripts. Total1491 files /475165167 bytes. All originals remain in
+the archive payload with their home-relative paths.
+No other project, personal document, literature PDF or reference media was
+deleted. November16–17 shared-scene, force-panel, policy-analysis, policy527
+and visual/DP3 exports remain at their existing Downloads paths.
+
+The local Literature/Robotic-Cutting README now indexes current server/GitHub
+sources and retained previews. REMOTE_GPU_ZH and RESEARCH_PLAN_ZH no longer
+provide obsolete local-code launch instructions; original documents were
+backed up first. Historical NOTES remains labeled as October evidence.
+Local receipt: Literature/Robotic-Cutting/mac_cleanup_20261117.json.
