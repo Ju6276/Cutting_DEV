@@ -51,6 +51,12 @@ Changed (v3 only):
   targets and WM+MPPI. The terminal head is still fitted with the same BCE and
   gradient route (with terminal_gradient=dynamics its gradient still reaches the
   dynamics); its probabilities are logged, not used as survival.
+  scripts/diagnose_free_cut_predictions.py has the same analytic branch but still
+  refuses every pose task (including v3) at load; it is a historical separation
+  diagnostic, not a v3 diagnostic entry point.
+- Reading the WM loss: with more latched transitions the dynamics loss and its
+  gradient shrink by construction. Report dynamics_fit_count with the loss and
+  judge prediction quality on unlatched transitions only.
 - v3 refuses v2 checkpoints, critics and replay (state shape/version checks).
 
 Unchanged: reward weights, +100 arrival rule, −100 failures, thresholds,
@@ -73,6 +79,10 @@ q, wrench history and last_wrench unchanged, qd = 0, step/arrival counters kept
 running until pose success (counter 11); packed v3 WM state matched the frame;
 partial reset cleared the latch with last_wrench = sensor reading (0 after settle);
 other worlds unchanged; no NaN.
+The 20 mm push past the goal is a test-only device to trigger the stop; it is not a
+training setting. Under the task rules, reaching the target pose within the 2 mm
+height tolerance without touching the board is a valid success (the unmodified
+reference did so at steps 38–45).
 
 | Backend | Object, world | Latch step | Gap at latch (um) | Latch peak (N) | Later peak (N) | End |
 |---|---|---|---|---|---|---|
