@@ -315,6 +315,12 @@ class BladeMasterBatch(CuttingBatch):
         return compose_pose(self.material_from_base,compose_pose(
             self.frames[self.chain.tip],self.ee_from_blade.expand(self.worlds,-1)))
 
+    def prescribed_blade_pose(self):
+        """Material-frame blade pose at the task target; its local x axis is the prescribed
+        cut-plane normal (BladeMaster side 1 is blade-local x < 0, batch_contact.py:464-467)."""
+        return compose_pose(self.material_from_base,compose_pose(
+            self.target,self.ee_from_blade.expand(self.worlds,-1)))
+
     def _new_material(self, index):
         kwargs={} if self.reference_points[index] is None else {'reference_points':self.reference_points[index]}
         solver = self.Solver(self.material_configs[index],device='cuda:0',**kwargs)
@@ -649,12 +655,31 @@ class BladeMasterEnvironment(GPUEnvironment):
             from blademaster_warp.topology import components
             count=torch.full((self.worlds,),-1,dtype=torch.long,device=self.device)
             released=torch.full((self.worlds,),float('nan'),device=self.device)
+            detailed=self.free_task.config['version']=='pose_depth_v3'
+            if detailed:
+                from .blademaster_separation import separation_diagnostics
+                plane=self.physics.prescribed_blade_pose()
+                normal=quat_apply(plane[:,3:],plane.new_tensor([1.,0.,0.]).expand(self.worlds,3))
+                plane,normal=plane.cpu().numpy(),normal.cpu().numpy()
+                diagnostics=[None]*self.worlds
             for index in events['terminated'].nonzero().flatten().tolist():
                 solver=self.physics.solvers[index]
-                _,sizes=components(solver.node_numpy,solver.weight_numpy,solver.codes.numpy())
-                count[index]=len(sizes)
-                released[index]=float((solver.damage.numpy()>=1).mean())
+                codes,damage=solver.codes.numpy(),solver.damage.numpy()
+                if detailed:
+                    cfg=solver.config
+                    diagnostics[index]=separation_diagnostics(
+                        solver.node_numpy,solver.weight_numpy,codes,damage,solver.ref.numpy(),
+                        plane[index,:3],normal[index],cfg.grid_spacing,cfg.cut_band_cells,
+                        cut_index=solver.cut_index,components=components)
+                    count[index]=len(diagnostics[index]['component_sizes'])
+                else:
+                    _,sizes=components(solver.node_numpy,solver.weight_numpy,codes)
+                    count[index]=len(sizes)
+                released[index]=float((damage>=1).mean())
             info.update(material_components=count,damage_saturated_fraction=released)
+            if detailed:
+                # Per-world dicts (None for running worlds); logging only, never reward/success/input.
+                info['separation_diagnostics']=diagnostics
         return frame,reward.float(),events['terminated'],torch.zeros_like(events['terminated']),info
 
     @staticmethod

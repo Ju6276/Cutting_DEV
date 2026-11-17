@@ -3448,3 +3448,28 @@ no plane check). BladeMaster separation is therefore reported as not
 determinable (null), not as "not separated". DiSECt separation (all prescribed
 cut springs released) and BladeMaster connectivity are different criteria and
 must not be pooled.
+
+## 2026-11-17 — BladeMaster v3 cut-topology diagnostics: first real run
+
+Logging-only fields (TASK_FREE_CUT, v3 section). GPU7, shared scene_v1 (v3),
+2 worlds per object, scripted reference descent (`reference=True`, sampled
+speeds), 2 episodes per world, 151 vector steps, 461 s. All 12 episodes ended
+in pose success. Driver and records:
+runs/mem_headroom_20261117/{bm_separation_run.py,bm6_separation.json}.
+
+| Object | Particles | Component sizes | Side-coded fraction | Side 1 / 2 | Band (±36 mm) particles | Band damage>=1 | Boundary offset (mm) | Code-0 bridges |
+|---|---:|---|---:|---|---:|---:|---:|---:|
+| cucumber_003 | 6258 | 3496, 2762 | .475 | 1466 / 1504 | 2970 | 0 | .8 | 0 |
+| potato_half | 2777 | 1409, 1368 | .960–.961 | 1318 / 1347–1350 | 2668 | 0 | .8 | 0 |
+| prism | 18513 | 9537, 8976 | .727 | 6732 / 6732 | 13464 | 0 | 1.0 | 0 |
+
+Measured: in every episode the native topology had two components, split by
+side codes, while no particle in the band (or overall) reached damage 1. This
+agrees with the source reading: with the external tool, side codes follow edge
+passage, not damage, so a two-component count here records where the scripted
+edge went, not fracture. The band (6 x 6 mm grid spacing) covers most of the
+small objects. Component sizes repeat exactly across episodes and worlds of an
+object despite randomized material/speed. Not established: behaviour under learned
+policies (partial or lateral cuts), and whether the zero damage is expected for
+these presets. The candidate flag was true for all 12; it is not a separation
+result.

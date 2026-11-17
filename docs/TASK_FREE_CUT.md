@@ -122,6 +122,31 @@ reference did so at steps 38–45).
 
 Forces: largest force component. Not a training or success-rate result.
 
+### BladeMaster cut-topology diagnostics (v3, logging only; 2026-11-17)
+
+At each pose_depth_v3 BladeMaster episode end, episode rows (training
+episodes.jsonl and evaluate_pose_policy cases) carry `bm_separation`
+(cutting_world_model/blademaster_separation.py). It is never reward, success,
+policy or WM input. Native BladeMaster has no "prescribed slice detached" field,
+so `separated` is always null with `separation_note`; `material_components` > 1 is
+not separation of the prescribed cut. Fields:
+
+- `component_sizes`: sorted particle counts of native topology.components.
+- `side_coded_fraction`, `side_1_particles`, `side_2_particles`: digit of cut 0
+  (the batched coupling always uses cut index 0). With the external tool
+  `free_blade` is 0, so assign labels any particle the edge has passed within
+  6 grid spacings of the blade plane (or pinched on the board), independent of
+  damage (BladeMaster batch_contact.py:444-469).
+- `bridging_code0_particles`: unlabelled particles whose own stencil nodes are
+  shared with both side-1 and side-2 particles (one-hop bridges only).
+- `band_damage_saturated_fraction`: damage>=1 among particles within
+  cut_band_cells x grid spacing of the prescribed plane in reference coordinates.
+- `side_boundary_offset_m`: best 1-D split of side-1/side-2 reference positions,
+  signed along the prescribed plane normal (blade local x at the task target).
+- `board_pinched_particles`: null; the pinch test is internal to assign.
+- `separated_bm_candidate`: candidate only (two largest components >=10% each,
+  reference centroids on opposite sides of the plane); used nowhere.
+
 ## Current reward and state semantics
 
 Let g_t be the lowest point of the recorded finite-blade rigid proxy above

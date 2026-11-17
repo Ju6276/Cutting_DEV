@@ -61,6 +61,10 @@ def episode_row(e, episode, iteration, returns, lengths, info, truncated, peak_m
                       ('material_components', int), ('damage_saturated_fraction', float)):
         if key in info:
             row[key] = cast(info[key][e])
+    diagnostics = info.get('separation_diagnostics')
+    if diagnostics is not None and diagnostics[e] is not None:
+        # BladeMaster pose_depth_v3 cut-topology record: logging only (separated is None).
+        row['bm_separation'] = diagnostics[e]
     if condition is not None:
         row['condition'] = condition
     return row
