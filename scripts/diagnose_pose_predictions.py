@@ -309,18 +309,24 @@ def analyse(learner, rec, k, chunk=512):
     real_next = rec['next_state'][tj, w_of]  # [k, N, D]
 
     # Open-loop replay through trainer.imagine (chunked over starts).
-    parts = {key: [] for key in ('states', 'rewards', 'dhat')}
+    parts = {key: [] for key in ('states', 'rewards', 'dhat', 'logits')}
+    first_step_gap = 0.
     for lo in range(0, N, chunk):
         sl = slice(lo, min(lo + chunk, N))
         ro = replay_rollout(learner, S[sl], Hs[:, sl], G[sl], actions[:, sl])
         parts['states'].append(ro.states)
         parts['rewards'].append(ro.rewards)
         parts['dhat'].append(ro.dhat)
+        # One-step logits on the same batch (terminal head read as a predictor only).
+        one, _, logits = wm.predict(S[sl], actions[0, sl], G[sl])
+        parts['logits'].append(logits)
+        # Consistency of the replay's first step with world_model.predict, in the WM's own
+        # normalized error units (spec.error_vector); exact up to GPU kernel nondeterminism.
+        first_step_gap = max(first_step_gap, float(spec.error_vector(one, ro.states[1]).abs().max()))
+    if first_step_gap > 1e-3:
+        raise AssertionError('Replay first step differs from world_model.predict: %g' % first_step_gap)
     pred = torch.cat(parts['states'], 1)  # [k+1, N, D]; pred[0] = start
-    # One-step logits (identical first step; terminal head read as a predictor only).
-    one, _, logits = wm.predict(S, actions[0], G)
-    if not torch.allclose(one, pred[1], atol=1e-5, rtol=1e-5):
-        raise AssertionError('Replay first step differs from world_model.predict')
+    logits = torch.cat(parts['logits'])
 
     # ---- per-step errors [k, N]
     P, R = pred[1:], real_next
@@ -421,7 +427,7 @@ def analyse(learner, rec, k, chunk=512):
                      wm_dhat=torch.cat(parts['dhat'], 1)[1:], **{'error_' + k_: v for k_, v in errors.items()},
                      **{'wm_' + e: wm_flags[e] for e in EVENTS}, **{'real_' + e: real_flags[e] for e in EVENTS})
     return {'errors': errors, 'events': events, 'latch': latch, 'head': head,
-            'per_start': per_start}
+            'per_start': per_start, 'replay_first_step_max_normalized_gap': first_step_gap}
 
 
 def calibration(probability, label, bins=10):
@@ -472,6 +478,11 @@ def summarize(result, select, k):
     }
 
 
+def file_hash(path):
+    from evaluate_pose_policy import file_hash as digest
+    return digest(path)
+
+
 def finite_json(value):
     """JSON-ready copy: numpy scalars to Python, non-finite floats to None (not measured)."""
     if isinstance(value, dict):
@@ -494,6 +505,8 @@ def main():
     p.add_argument('--worlds-per-object', type=int, default=2)
     p.add_argument('--seed', type=int, default=20261117)
     p.add_argument('--k', type=int, default=8, help='open-loop length (default 8 = actor horizon)')
+    p.add_argument('--records', type=Path,
+                   help='Re-analyse records.pt written by an earlier run of this script (no physics)')
     p.add_argument('--output', type=Path, required=True)
     args = p.parse_args()
     if args.k < 1 or args.worlds_per_object < 1 or args.seed < 0:
@@ -516,20 +529,33 @@ def main():
         raise ValueError('Config task differs from the checkpoint task')
     before = {name: [t.clone() for t in m.state_dict().values()]
               for name, m in (('wm', learner.wm), ('policy', learner.policy), ('critic', learner.critic))}
-    env, config = build_environment(metadata, source, args.worlds_per_object, args.seed)
-    try:
-        from cutting_world_model.control_state import ControlStateSpec
-        from cutting_world_model.shared_baselines import validate_current_interface
-        from evaluate_pose_policy import validate_interfaces
-        frame = env.current
-        actual = ControlStateSpec.metadata_from_frame(env.metadata, {key: v[0].cpu().numpy() for key, v in frame.items()})
-        validate_interfaces(metadata, actual, config)
-        validate_current_interface(metadata, actual)
-        group_names = [g['name'] for g in config['groups'] for _ in range(g['worlds'])]
-        conditions = env.conditions(range(env.worlds))
-        rec = collect(env, learner, int(config['task']['horizon_steps']))
-    finally:
-        env.close()
+    if args.records is not None:
+        stored = torch.load(args.records, map_location=device, weights_only=False)
+        if stored['checkpoint_sha256'] != file_hash(args.checkpoint):
+            raise ValueError('Records were collected with a different checkpoint')
+        if (stored['seed'], stored['worlds_per_object']) != (args.seed, args.worlds_per_object):
+            raise ValueError('Records differ in seed / world count')
+        rec, group_names, conditions = stored['records'], stored['group_names'], stored['conditions']
+    else:
+        env, config = build_environment(metadata, source, args.worlds_per_object, args.seed)
+        try:
+            from cutting_world_model.control_state import ControlStateSpec
+            from cutting_world_model.shared_baselines import validate_current_interface
+            from evaluate_pose_policy import validate_interfaces
+            frame = env.current
+            actual = ControlStateSpec.metadata_from_frame(env.metadata, {key: v[0].cpu().numpy() for key, v in frame.items()})
+            validate_interfaces(metadata, actual, config)
+            validate_current_interface(metadata, actual)
+            group_names = [g['name'] for g in config['groups'] for _ in range(g['worlds'])]
+            conditions = env.conditions(range(env.worlds))
+            rec = collect(env, learner, int(config['task']['horizon_steps']))
+        finally:
+            env.close()
+        # Raw physical records first, so the analysis can be repeated without physics.
+        torch.save({'records': rec, 'group_names': group_names, 'conditions': conditions,
+                    'checkpoint_sha256': file_hash(args.checkpoint), 'seed': args.seed,
+                    'worlds_per_object': args.worlds_per_object, 'config': config},
+                   args.output / 'records.pt')
     rollout_seconds = time.monotonic() - started
     result = analyse(learner, rec, args.k)
     for name, m in (('wm', learner.wm), ('policy', learner.policy), ('critic', learner.critic)):
@@ -573,7 +599,8 @@ def main():
         'worlds': n, 'policy_updates': saved['learner'].get('updates'),
         'wm_updates': saved['learner'].get('training_stage', {}).get('wm_updates'),
         'command': sys.argv, 'rollout_seconds': rollout_seconds,
-        'total_seconds': time.monotonic() - started,
+        'total_seconds': time.monotonic() - started, 'records_reused': args.records is not None,
+        'replay_first_step_max_normalized_gap': result['replay_first_step_max_normalized_gap'],
         'units': UNITS,
         'semantics': {
             'one_step': 'j=1 of the open-loop replay from the recorded start state with the recorded action',
