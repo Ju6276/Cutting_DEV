@@ -1,12 +1,14 @@
 > Current task update (2026-11-16): pose_depth_v2 uses the same analytic maximum blade-depth progress in both backends and the WM. No spring-release shaping or learned release-progress head; pose +100 and failure precedence remain. See [TASK_FREE_CUT](TASK_FREE_CUT.md). All earlier pose-v1/v3 results retain their recorded definitions.
 
+> Update (2026-11-17): the current version is pose_depth_v3 = pose_depth_v2 rules plus the software board-stop consistency fix and analytic imagined survival (TASK_FREE_CUT). The WM state gains last_wrench (predicted, 6) and board_contact (derived, 1); latched-start transitions are excluded from the dynamics fit. Statements below about the 2026-11-16 shared runs refer to pose_depth_v2.
+
 
 
 # Implementation reference
 
 ## Active configuration — 2026-11-17
 
-Current shared runs use pose_depth_v2,34D observations x10 frames plus8D goal,
+The 2026-11-16 shared runs use pose_depth_v2,34D observations x10 frames plus8D goal,
 real-data critic with32-step windows,8-step actor imagination and BC.25.
 Learning is scheduled by collected physical transitions; periodic checkpoints
 and online W&B are enabled. Both current material backends use geometric
