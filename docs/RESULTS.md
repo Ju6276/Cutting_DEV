@@ -3473,3 +3473,47 @@ object despite randomized material/speed. Not established: behaviour under learn
 policies (partial or lateral cuts), and whether the zero damage is expected for
 these presets. The candidate flag was true for all 12; it is not a separation
 result.
+
+## 2026-11-17 — GPU memory headroom: 3072-world DiSECt (GPU7)
+
+Question: why the 2026-11-16 GPU7 run failed in a Warp allocation during reset at
+iteration 304, and whether a cache/allocator default restores headroom. GPU7
+(RTX 4090, 24564 MiB), only these processes on the card. Real v3 config
+(prepared 3072 worlds, warmup 30720, microbatch 512, critic microbatch 8192,
+real critic, actor horizon 8, BC 0.25, seed 0), but 3072 transitions per update
+and 24 WM-only rounds, 44 iterations (10 warmup, 24 WM-only, 10 joint rounds).
+No episode ended in any run, so no masked reset was measured. Init 463-465 s.
+Records: runs/mem_headroom_20261117/{baseline_joint,fix_release,
+fix_release_expandable}/steps.jsonl (gpu_memory_window per iteration).
+
+Physics rows use iterations 13-35 (after WM-only rounds) and 36-44 (after joint
+rounds 1-9); reserved is the physics-phase peak, free is device free memory at
+physics start (after any release). MiB.
+
+| Run | Torch reserved in physics, WM-only / joint | critic_data peak reserved / allocated | Free at physics start, WM-only / joint |
+|---|---:|---:|---:|
+| baseline (no release) | 16618 / 19034-19038 | 19034-19038 / 18401-18408 | 6776 / 4352-4356 |
+| release before physics/reset | 16168-16238 / 16324-16532 | 19002-19122 / 18404-18409 | 7156-7246 / 6858-7066 |
+| release + expandable segments | 16126-16188 / 16272-16398 | 18766-18930 / 18335-18339 | 7206-7288 / 6992-7118 |
+
+Warp pool high-water was 841 MiB in all runs, reached during initialization
+(full initial reset) and not exceeded afterwards. After joint rounds, release
+returned 2.90-3.01 GiB (release only) and 2.73-2.89 GiB (with expandable
+segments) of idle Torch cache before each physics step. Without release, the
+first joint round (critic_data peak) raised Torch reserved by 2.4 GB and kept it;
+it then stayed flat for 9 rounds. The long run's further growth (device 16.7 to
+23.8 GB, W&B) was not reproduced, so its cause (possibly variable-size
+allocations once episodes end) is not established. With release only, the
+physics reserved peak still rose 16324 to 16532 MiB over joint rounds 1-9;
+with expandable segments it stayed within 16272-16398 MiB.
+
+Expandable segments with DiSECt Torch CUDA graphs: initialization (settle graph
+capture) succeeded. First 10 warmup steps vs baseline at seed 0: reward mean
+0.178512 vs 0.178511, max abs per-step reward difference 4.2e-3; two baseline
+runs differ by 3.7e-3 (DiSECt is not bitwise deterministic). Default for
+current runs: release always + expandable segments + headroom guard (1 GiB
+margin over Warp high-water, armed after the first joint round; METHOD). In
+the verification run the guard required 1865 MiB with 6992-7118 MiB free.
+Not established: behaviour over hours, under resets and with episode-dependent
+critic windows; 3072-world long runs remain unverified for memory.
+

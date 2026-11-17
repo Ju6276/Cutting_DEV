@@ -875,20 +875,34 @@ six-dimensional wrench. See [WRENCH_OBSERVATION_REVIEW](archive/WRENCH_OBSERVATI
 for layout, normalization and checkpoint compatibility. These are explicit
 engineering variants, not claimed methodological contributions.
 
-### Optional Torch-cache release before physics (2026-11-15)
+### Torch/Warp GPU memory sharing (default since 2026-11-17)
 
-The GPU trainer accepts --cuda-cache-reserve-gib (default0, disabled). Before
-each physical step, after producing the action, it checks CUDA free memory.
-Below the requested reserve, it releases only unoccupied PyTorch allocator
-cache using empty_cache; live model/replay/optimizer tensors remain allocated.
-The reserve is a release trigger, not an assertion that enough memory can
-always be recovered. Free memory before/after and release events are recorded.
+Torch (learning, DiSECt state) and Warp (MuJoCo Warp collision, `wp.empty` from the
+CUDA stream-ordered pool) share one device. Warp does not change the pool's release
+threshold, so its blocks return to the device at synchronization and every physics
+step or reset needs its in-use high-water as free device memory. Torch keeps idle
+blocks after a learning round that Warp cannot use.
 
-This addresses two independent allocators: Torch learning can retain idle blocks
-that the Warp physics allocator cannot use. It does not change source effective
-batch sizes, gradient accumulation, reward, task, or optimizer schedule.
-An environment may still run out of memory if actual live allocations grow or
-another user occupies the card; complete local capacity checks remain required.
+Defaults in scripts/train_gpu.py (recorded in the manifest as `gpu_memory_policy`):
+
+- `--cuda-cache-release always`: before every physical step and every reset, release
+  unoccupied Torch allocator cache with empty_cache. Live model/replay/optimizer
+  tensors stay allocated. `reserve` (with `--cuda-cache-reserve-gib`, the previous
+  trigger) and `off` remain available.
+- `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True`, set by the trainer entry point
+  unless the variable is already set, so idle pages of a segment can be returned and
+  not only wholly free segments.
+- Headroom guard (`--gpu-headroom-margin-gib`, default 1): after the release, free
+  device memory must be at least the measured Warp pool high-water (since process
+  start, which includes the full-batch initial reset) plus the margin. The guard is
+  armed after the first joint learning round and raises a RuntimeError naming the
+  numbers; it never reduces worlds or batches. Before arming it only records.
+
+Per-phase Torch reserved/allocated peaks and device free memory are logged as
+`gpu_mem/<phase>/*` and in steps.jsonl (`gpu_memory`, `gpu_memory_window`,
+`gpu_headroom`, `cuda_cache`). None of this changes reward, task, effective batch
+sizes, gradient accumulation or optimizer schedule. Measured numbers: RESULTS
+2026-11-17 (GPU memory headroom).
 
 
 ## Frozen-evaluation physical-tool rendering (2026-11-15; historical geometry)

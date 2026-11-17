@@ -277,11 +277,22 @@ with --wandb-mode offline describe previous runs and must not be copied into a
 new long-training launch.
 
 
-For mixed Torch/Warp workloads, --cuda-cache-reserve-gib 3 can release unused
-Torch cache before physics when less than3GiB is free. It is opt-in and is
-recorded in the training manifest. It does not reduce the number of worlds or
-effective learning batches. Confirm its free-memory and physics/reset behavior
-in a full local preflight before relying on it.
+GPU memory (METHOD, Torch/Warp GPU memory sharing): by default the trainer
+releases unused Torch cache before every physical step and reset, sets
+PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True unless already set, and, after
+the first joint learning round, stops with a RuntimeError if free memory before
+physics/reset is below the Warp pool high-water plus --gpu-headroom-margin-gib
+(default 1). Do not lower the margin or reduce worlds to get past that error;
+free the card or plan capacity. The manifest's gpu_memory_policy records the
+settings; steps.jsonl gpu_headroom shows free/required MiB. On the 3072-world
+GPU7 DiSECt config, free memory exceeded the requirement by about 5 GiB over 9
+joint rounds of a short run without resets (RESULTS 2026-11-17).
+A short memory check must reach joint rounds. Before any episode ends, real-data
+critic windows need full 32-step windows (policy horizon 32): with warmup 30720,
+--transitions-per-update 3072 and --wm-only-updates 2 the first joint round
+(iteration 13) failed with "replay buffer has no sampleable rows yet"; with
+--wm-only-updates 24 it started at iteration 35 and ran.
+
 
 ## Frozen multi-object pose evaluation (2026-11-15)
 
