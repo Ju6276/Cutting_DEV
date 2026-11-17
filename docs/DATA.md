@@ -221,3 +221,23 @@ Final validation uses the complete prepared CUDA environment; the failed
 invocation is not counted as a passing check.
 
 Merged local heads not attached to a worktree are also pruned after ancestry checks. Each server retains its active/development and frozen-worktree branches; their checkout versions are not advanced by pruning.
+
+
+## Learned visual midpoint pilot — 2026-11-17
+
+GPU7 development checkout runs/visual_center_20261117:
+- dataset/:900 RGB/depth cases, dataset.npz (visible clouds and offline targets),
+  manifest.json (source hashes, camera, configuration, split/placement identities).
+- learning/: center.pt, epochs.jsonl, report.json, test_predictions.npz, wandb.json.
+- Online run abn7qktr:120 epochs, validation-selected epoch117, finished.
+
+GPU9 development checkout runs/visual_center_closedloop_20261117:
+- fixed-midpoint/ and learned-midpoint/: manifests, perception inputs/plans,
+  complete180-step transitions, geometry, episode metrics and studio video export.
+- comparison.json: offline full-surface midpoint error and final height/force
+  audit; queue.json records normal subprocess completion.
+- A copy of comparison.json/queue.json is retained on GPU7.
+
+Both trials use the old frozen policy66 intentionally, for the same handoff
+comparison as the earlier route1 trial; they are not results of the latest
+long-trained policy. No source/training dataset/weight is copied to the Mac.

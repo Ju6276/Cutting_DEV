@@ -362,3 +362,19 @@ See RUNNING; no scene replacement or inferred500 Hz peaks.
 - evaluate_visual_cut.py: one bounded native BM episode driven by a visual goal;
   explicit frozen cross-backend inference, no training or real approach planner.
 - [Vision route 1](../docs/VISION_ROUTE1.md) contains commands and current limits.
+
+## Fixed-heading learned visual midpoint (2026-11-17)
+
+- generate_visual_center_data.py:900 ideal-depth placements from three existing
+  settled surfaces; source hashes, disjoint case splits and offline mesh labels.
+- train_visual_center.py: bounded CPU point-cloud training, validation checkpoint
+  selection, one final test report and online W&B.
+- plan_visual_cut.py: prescribed, visible-midpoint, fixed-midpoint or learned-midpoint;
+  learned mode requires --center-checkpoint.
+- evaluate_visual_cut.py: same frozen-policy physical loop for geometric or
+  learned goals; this is not a SAC/MPC visual dispatcher.
+- capture_visual_studio.py --capture-only: shared RGB/depth capture before a
+  separately selected planner; default geometric capture behavior is retained.
+
+Use docs/VISION_ROUTE1.md for exact commands and scope. Model inputs never read
+the offline full-mesh center; neither visual route implies material separation.

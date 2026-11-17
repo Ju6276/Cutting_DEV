@@ -34,7 +34,8 @@ calibration. See SHARED_SCENE for exact values instead of duplicated launch reci
 
 Visual selection currently executes only a frozen WM+BPTT policy. SAC and the
 two planners have independent current-task evaluators; their visual handoffs
-are not implemented. Method 2 is a scoped pilot plan, not a trained model.
+are not implemented. Method 2 now has a trained fixed-heading center predictor and a frozen-policy
+physical trial; neither visual route's latest trial achieved pose completion.
 
 ## Repository map
 

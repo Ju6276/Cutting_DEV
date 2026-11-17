@@ -87,42 +87,31 @@ pose success; blade remained2.476 mm above the board. Do not broaden the
 training task or claim visual generalization from this one transfer trial.
 See [VISION_ROUTE1](VISION_ROUTE1.md) for commands, measurements and limits.
 
-## Method 2: centered cut with fixed heading (user decision, 2026-11-17)
+## Method 2: trained center predictor and physical handoff (2026-11-17)
 
-First implement the learned visual-goal pipeline on the existing object poses.
-Do not randomize object headings or broaden the low-level task in this stage.
-A plane passes through the object's bounding-box midpoint along the fixed cut
-normal; orientation comes from the prescribed robot-compatible heading.
-This is a geometric midpoint, not equal-volume partition or an optimal cut.
+User authorized a fixed-heading middle-cut pipeline before generalization.
+Completed:900 static depth placements of the current three geometries, a small
+point-cloud predictor, held-out perception comparison, and one physical episode
+per visual selector with the same frozen policy66. All object headings stay fixed;
+only perception-data XY placement varies +-15mm. No low-level weights change.
 
-Use calibrated depth/point clouds as model input. Ground-truth mesh geometry
-may generate supervised labels, but is not an inference input. Predict the
-center coordinate along the normal; combine it with measured height,
-board/tool calibration and the existing speed command to construct the same
-start pose and 8D goal interface as route 1. Keep the low-level policy frozen.
+Learned midpoint test MAE0.210mm (150 held-out placements of seen shapes);
+fixed-heading visible geometric midpoint5.499mm. These are ideal-depth
+interpolation results, not new-object or real-camera generalization.
+Physical native-BladeMaster cucumber handoffs both timed out at180 steps.
+Method2 plane error0.688mm versus8.852mm for geometry; the policy remained
+above the final height tolerance in both episodes. No threshold/reward change.
 
-At fully fixed placement a constant output can match every label. Report that
-constant-center baseline and perception error; passing this pilot only validates
-data -> prediction -> goal -> physical execution. Do not call it localization,
-material adaptation or generalization. Position/heading and new-object
-generalization are later work, not prerequisites for this pilot.
+The two routes now share the same target conversion and frozen-policy execution.
+Vision supplies a pre-cut goal; motion/wrench closes the execution feedback loop.
+It is not continuous visual tracking. Vision is a task-interface demonstration,
+not an adopted core RL contribution. See [VISION_ROUTE1](VISION_ROUTE1.md)
+and the dated RESULTS entry for commands, budgets, provenance and limitations.
 
-Implementation order:
-1. Prepare centered labels and depth examples for the current fixed poses,
-   with source identities and held-out views; do not split duplicate frames
-   across train/test and call them unseen objects.
-2. Add the learned center predictor and validate coordinate/goal conversion.
-3. Execute a bounded frozen-policy trial, reporting pose success, failure,
-   force and material separation independently.
-4. Reuse that explicit visual-goal handoff for SAC / WM+MPPI / analytic MPC.
-   Their independent current-task evaluation is already available; visual
-   execution adapters are still missing.
-
-No method-2 model has been trained yet. The current DiSECt assets bake x=0
-in material coordinates, approximately the middle of all three objects.
-A different inferred plane requires a separately prepared DiSECt asset or
-the native BladeMaster backend; changing an RL goal cannot change cut topology.
-No new long run or change to an active run is implied by this pilot plan.
+Remaining visual work is explicitly separate: visual handoffs for SAC/WM+MPPI/
+analytic MPC are not implemented; new shapes, rotations and real depth are
+deferred. A new DiSECt cut plane still requires prepared topology or a native
+BladeMaster execution backend. Do not silently move the baked interface.
 
 ## Historical evidence
 
@@ -136,3 +125,21 @@ backend comparison. See RESULTS and DATA; preserve original checkpoints.
 capacity, cleanup, deployment and interpretation records. Historical source,
 v1–v3, S3 and perturbation scripts remain only for identified reproduction.
 The main task list is this file; dated evidence belongs in RESULTS.
+
+## Authorized method-2 execution — 2026-11-17
+
+User authorized training and frozen physical handoff. Budget:900 static depth
+placements (three shapes x300), fixed camera/heading, XY translation +-15mm;
+600 train/150 validation/150 test, grouped by placement identity. Mesh bounding-box
+midpoint labels are offline only. Small pointwise network predicts a residual
+from visible centroid; no object IDs or absolute XY inputs. CPU training120
+epochs,900s maximum, online W&B. Validation selects the checkpoint; test is
+opened once after selection. Dataset generation cap1800s.
+
+Compare learned center, fixed-heading geometric midpoint, constant world
+coordinate and visible centroid on the same test cases. No accuracy threshold
+authorizes retuning on test data. Reuse the existing physical native-BladeMaster
+handoff and frozen policy66, one nominal cucumber episode per selector
+(learned and fixed-heading geometric), each <=180 steps/1500s; total experiment
+wall budget2h. Report pose completion separately from material separation and
+perception. Do not change active long runs or claim new-object generalization.

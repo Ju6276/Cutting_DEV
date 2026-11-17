@@ -1,4 +1,4 @@
-# Vision route 1 — depth-selected cut and frozen policy (2026-11-17)
+# Visual goals — geometric and learned centers (2026-11-17)
 
 ## Current implementation
 
@@ -127,7 +127,7 @@ without force-limit failure. It demonstrates execution, not task success.
 
 | Controller | Current-task evaluator | Visual-goal physical execution |
 |---|---|---|
-| Frozen WM+BPTT policy | Implemented | Implemented for one BladeMaster world; trial06 timed out |
+| Frozen WM+BPTT policy | Implemented | Implemented for geometric and learned selectors in one BladeMaster world; both latest trials timed out |
 | Vector SAC | Implemented; bounded training launched separately | Not implemented |
 | Frozen WM+MPPI | Implemented | Not implemented |
 | Nonlearned approximate FDCC+MPPI | Implemented | Not implemented |
@@ -137,9 +137,72 @@ controller dispatcher. evaluate_pose_policy.py supports the four controller
 types but does not consume visual plans. Shared 8D goal semantics alone do
 not establish tested visual integration.
 
-Method 2 is the fixed-heading, centered-cut supervised pilot in [PLAN](PLAN.md).
-The geometric midpoint rule supplies labels; there is no trained visual network
-yet. Unlike route 1's estimated PCA heading, this pilot uses a known fixed
-heading, so a round silhouette does not require inventing an orientation.
-Keeping all poses fixed can make a constant predictor sufficient; this stage
-tests the pipeline only, with generalization deferred by user choice.
+## Method 2: fixed-heading learned midpoint
+
+Implementation: visual_center_features.cloud_input uses512 visible points,
+subtracts the **observed** XY centroid, and measures height from the observed
+board. Coordinates use a fixed0.1m scale; object size is not normalized away.
+The network receives no absolute XY, object ID, full mesh or target. A shared
+pointwise MLP3-32-64-128 with mean/max pooling and256-64-1 head predicts an
+offset from visible centroid along fixed +base Y. The output is bounded to
++-50mm. This is a small local model, not a full PointNet++ reproduction.
+
+Full rendered-surface bounds generate offline labels; "middle" means the
+midpoint of the complete bounds along the fixed cut normal, not equal volume.
+The three input surfaces are the existing settled cucumber003, half-potato and
+prism studio snapshots.900 cases =300 unique static XY placements per shape
+on a20x15 grid covering +-15mm, with no rotation. They are rendered from the same
+front camera. These translated surfaces are perception data, not900 newly
+settled physical simulations. No real depth noise or robot occlusion is modeled
+in this dataset; the physical handoff masks the known parked robot projection.
+
+A shared placement-ID partition gives200/50/50 train/validation/test cases per
+object (600/150/150 total). No placement's repeated view crosses splits.
+The test contains seen shapes and nearby unseen positions, not unseen objects.
+CPU training120 epochs, Adam.001, batch32, seed20261117; validation MAE selects
+epoch117. The test was opened only after selection. No test-driven retuning.
+Online W&B run:
+[abn7qktr](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/Cutting_DEV/runs/abn7qktr).
+Remote state finished and120 logged epochs were verified.
+
+Held-out midpoint MAE: learned0.210mm, fixed-heading visible-extent midpoint
+5.499mm, constant world coordinate7.685mm, visible centroid15.129mm.
+The learned predictor can exploit these three known shape/view priors.
+These numbers do not demonstrate novel geometry reasoning or real localization.
+
+### Commands
+
+Run from the prepared GPU7 development checkout, preserving the source assets:
+
+~~~bash
+PYTHONPATH=.:scripts /dataHDD/dong/Envs/render-20261108/bin/python scripts/generate_visual_center_data.py --scenes runs/shared_scene_views_20261116/disect --output runs/NEW_CENTER/dataset --wall-seconds 1800
+source runs/sac_env.sh
+PYTHONPATH=. /dataHDD/dong/Envs/cutting-mppi-20261108/bin/python scripts/train_visual_center.py --data runs/NEW_CENTER/dataset --output runs/NEW_CENTER/learning --epochs 120 --wall-seconds 900 --wandb-mode online
+PYTHONPATH=. .venv/bin/python scripts/plan_visual_cut.py --selection learned-midpoint --center-checkpoint runs/NEW_CENTER/learning/center.pt --depth RUN/depth.npz --camera RUN/camera.json --config RUN/visual_config.json --output RUN/learned_plan.json
+~~~
+
+No retraining of WM/policy is required for this interface trial; that is not
+a guarantee that an arbitrary new visual goal is executable by the policy.
+The approved physical trial used the same source policy66 as the earlier route1
+trial, explicitly transferred to native BladeMaster, with nominal cucumber
+and fixed heading. Reset/IK places the start; real approach planning is absent.
+
+Add --selection fixed-midpoint to evaluate_visual_cut.py for the geometric
+fixed-heading reference. For the learned route add --selection learned-midpoint
+--center-checkpoint MODEL. Both reuse the same camera, task checks,8D goal,
+policy history, physical loop, recording and shared studio rendering. The original
+--selection visible-midpoint remains the geometric PCA-heading prototype.
+The fair fixed-heading comparison does not silently rename it as learned vision.
+
+GPU9 results: runs/visual_center_closedloop_20261117.
+Both180-step episodes timed out; neither exceeded force/workspace limits.
+Geometric/learned plane errors8.852/0.688mm, final goal-height errors2.496/2.890mm
+against a2mm tolerance, and peak material forces2.747/8.605N.
+Both retained one connected material component. Improved localization did not
+make this frozen cross-backend controller complete the task. This is one nominal
+case per route, not a success-rate estimate or causal claim about force changes.
+
+The dataset/checkpoint stay on GPU7 under runs/visual_center_20261117.
+The full shape-source hashes, split membership, depth/RGB, input point clouds,
+labels, validation history and final test predictions are retained there.
+No active long-training configuration or low-level model was changed.

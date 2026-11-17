@@ -10,6 +10,7 @@ from cutting_world_model.visual_cut import DepthCamera,visual_midpoint_plan
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--capture-only",action="store_true",help="Save RGB/depth without selecting a plane")
     p.add_argument("--scene",type=Path,required=True);p.add_argument("--camera",type=Path,required=True)
     p.add_argument("--config",type=Path,required=True);p.add_argument("--output",type=Path,required=True)
     a=p.parse_args();a.output.mkdir(exist_ok=False)
@@ -50,6 +51,8 @@ def main():
     mask=(depth>0)&(known>0)&(np.abs(depth-known)<.0002)
     np.savez_compressed(a.output/"depth.npz",depth_m=depth,robot_mask=mask)
     Image.fromarray(rgb).save(a.output/"rgb.png")
+    if a.capture_only:
+        return
     plan=visual_midpoint_plan(depth,cam,cfg,mask);object_mask=plan.pop("object_mask")
     np.savez_compressed(a.output/"points.npz",object_points_base=cam.points(depth)[object_mask])
     (a.output/"plan.json").write_text(json.dumps(plan,indent=2,allow_nan=False))

@@ -31,10 +31,10 @@ configuration and training budgets to be disclosed.
 
 Route1 selects a visible midpoint from depth. Its frozen-policy physical
 handoff ran but timed out; successful general visual cutting is not established.
-Method2 is now scoped to a learned midpoint predictor with fixed object heading
-and current placement, as a process pilot. A constant-center predictor may
-solve fixed poses, so this pilot is not evidence of visual generalization or
-a paper contribution by itself. See [VISION_ROUTE1](VISION_ROUTE1.md).
+Method2 has been trained on fixed-heading, small-translation cases of the three
+existing shapes and connected to the frozen policy, as a process pilot. Its held-out known-shape localization improved over the geometric reference,
+but both physical trials timed out. This is not evidence of new-object visual
+generalization or a paper contribution by itself. See [VISION_ROUTE1](VISION_ROUTE1.md).
 
 ## Comparisons and evidence still needed
 

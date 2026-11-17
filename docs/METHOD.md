@@ -1081,3 +1081,15 @@ adapter is not a real-robot approach planner. The native BM handoff permits a
 new cut plane without rebuilding DiSECt topology. The frozen policy sees its
 existing motion/force observations and goal, not the input image or segmentation.
 See VISION_ROUTE1 and RESULTS for the cross-backend nature and bounded evidence.
+
+## Fixed-heading visual-goal predictor — 2026-11-17
+
+The optional visual_center module predicts a one-dimensional midpoint offset
+from observed local point clouds. It does not consume hidden material state,
+object labels or full mesh geometry at inference, and does not change the
+WM/BPTT/controller. Training supervision uses full surface bounds offline.
+Both learned and geometric fixed-heading selectors call the same board/tool
+goal converter, then the existing frozen-policy handoff. Camera and data
+protocol, current test errors and failed physical trials are in
+[VISION_ROUTE1](VISION_ROUTE1.md). This is a modular task-input demonstration,
+not an adopted algorithmic novelty claim.

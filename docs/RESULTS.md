@@ -3104,3 +3104,72 @@ warnings remain. The first invocation omitted runs/sac_env.sh and failed on
 TORCH_EXTENSIONS_DIR; RUNNING now includes that prerequisite.
 These test counts describe this environment, not certification of untested
 hardware deployment or all historical physics paths.
+
+
+## 2026-11-17 — Fixed-heading visual learning and two physical handoffs
+
+Authorized scope: train a midpoint predictor on three existing geometries with
+fixed headings and small XY translations, then execute with the frozen policy.
+This did not retrain the WM, actor or critic, or alter either active long run.
+Source data: recorded settled DiSECt studio surfaces of cucumber003, half potato,
+prism. Static rendering translations are not900 independently simulated settles.
+
+900 cases (300 per shape), split600/150/150 by unique placement ID, +-15mm XY.
+Ideal640x480 depth, fixed calibrated synthetic camera; no sensor noise or new
+shapes. Visible cloud centroid normalization excludes absolute XY and full mesh
+center from input. Offline labels are full surface-bounds midpoints along +base Y.
+Checkpoint selection used validation only; test read once. CPU120 epochs took
+42.58s; best epoch117, validation MAE0.2199mm. Online W&B abn7qktr is finished;
+remote history verifies epoch120. Dataset SHA256:
+8dac0c38e933dc29a4ef8e7575045c1ef63872d7e05d54fadc48c972bfb62da7.
+
+| Held-out150 placement cases | Midpoint MAE (mm) | P95 (mm) |
+|---|---:|---:|
+| Learned local-cloud residual |0.2099|0.5653|
+| Fixed-heading visible2-98% extent midpoint |5.4995|9.1961|
+| Constant world coordinate fitted on training labels |7.6851|15.2314|
+| Visible point-cloud centroid |15.1286|22.3001|
+
+The network can exploit the known shapes/view and occlusion bias. This is not
+new-object generalization, real camera accuracy or evidence of novel geometry
+learning. The geometric fixed-heading variant is compared here; original route1
+PCA-heading selection remains available separately.
+
+Physical evaluation on GPU9 used the same explicitly cross-backend transferred
+policy66 (source checkpoint128, SHA256
+3bf6d7017bcfe31b5e38da68d61372156c2c85a77e8328b84989e126d138a8fd).
+One native-BladeMaster nominal cucumber episode per selector,3cm/s,20mm
+clearance,180 steps. Policy identity and recorded material/command conditions
+match. Native numerical initialization is not claimed bit-identical.
+One-shot depth generates the goal; motion and wrench provide execution feedback.
+Start uses simulation IK/reset, not a validated robot approach trajectory.
+
+| Quantity | Geometric fixed heading | Learned fixed heading |
+|---|---:|---:|
+| Absolute midpoint error against initial full rendered surface (mm) |8.8515|0.6880|
+| Final target-height error (mm) |2.4964|2.8897|
+| Final blade-board gap (mm) |2.4798|2.7957|
+| Height-qualified samples (<2mm) |0|0|
+| Peak material-force norm (N) |2.7469|8.6046|
+| Maximum six-axis limit utilization |0.0854|0.2262|
+| Return |−6.7568|−6.9893|
+| Ending |timeout180|timeout180|
+| Connected material components |1|1|
+
+No force/workspace failure; neither pose completion nor complete material
+separation occurred. Learned localization improved in this single physical view,
+but control did not complete. The direct missing completion condition is target
+height; this alone does not identify the learning/transfer failure's cause.
+Do not turn these two cases into success-rate or force-superiority claims.
+
+Evidence: GPU7 runs/visual_center_20261117/{dataset,learning};
+GPU9 runs/visual_center_closedloop_20261117/{fixed-midpoint,learned-midpoint},
+comparison.json and queue.json. Both complete transitions and geometry recorded.
+Same shared studio renderer, single physical blade, original gripper, no invented
+connector or blue overlay. Visual results are not physical-separation labels.
+
+Validation on GPU7: targeted visual tests26 passed; root595 passed/6 skipped,
+backend41 passed. Root skips cover unavailable SB3/gym and explicit historical
+TensorFlow/physical bridge cases; no newly added visual test is skipped.
+Data IDs, placement splits, relative/base label consistency and checksum verified.
+New scripts compile; complete root run used the prepared CUDA/MPPI environment.

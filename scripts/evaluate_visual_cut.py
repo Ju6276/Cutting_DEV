@@ -1,7 +1,7 @@
 """One frozen-policy cutting episode following a depth-selected mid-section.
 
 Bounded development demonstration: optional explicit cross-backend policy transfer,
-simulation reset to pre-cut start, no learned perception or policy optimization.
+simulation reset to pre-cut start; optional frozen learned perception, no policy optimization.
 """
 import argparse,copy,hashlib,json,os,subprocess,time
 from pathlib import Path
@@ -12,6 +12,7 @@ from cutting_world_model.policy import SliceItPolicy
 from cutting_world_model.training_snapshot import capture_training_environment
 from cutting_world_model.visual_execution import place_before_episode
 from cutting_world_model.visual_cut import front_camera
+from cutting_world_model.visual_center import center_plan,load_center
 from cutting_world_model.episode_log import episode_row
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -20,8 +21,14 @@ def main():
     p.add_argument("--policy",type=Path,required=True);p.add_argument("--backend-checkpoint",type=Path,required=True)
     p.add_argument("--render-python",type=Path,required=True);p.add_argument("--output",type=Path,required=True)
     p.add_argument("--allow-backend-transfer",action="store_true")
+    p.add_argument("--selection",choices=["visible-midpoint","fixed-midpoint","learned-midpoint"],default="visible-midpoint")
+    p.add_argument("--center-checkpoint",type=Path)
     p.add_argument("--wall-seconds",type=float,default=1500)
-    a=p.parse_args();a.output.mkdir(exist_ok=False)
+    a=p.parse_args()
+    if (a.selection=="learned-midpoint") != (a.center_checkpoint is not None):
+        p.error("--center-checkpoint is required only for learned-midpoint")
+    center_model,center_data=load_center(a.center_checkpoint) if a.center_checkpoint else (None,None)
+    a.output.mkdir(exist_ok=False)
     start=time.monotonic();env=None;traces=[];rows=[];status={"state":"initializing"}
     def write(n,d): (a.output/n).write_text(json.dumps(d,indent=2,allow_nan=False))
     def progress(**kw):
@@ -46,12 +53,14 @@ def main():
             raise ValueError("Policy task/reward differs from evaluation")
         if data["metadata"]["goal_dim"]!=8 or data["metadata"]["state_shapes"]["observation"]!=[34]:
             raise ValueError("Current goal/observation interface required")
-        manifest=dict(policy_identity=data["identity"],config=config,
+        manifest=dict(policy_identity=data["identity"],config=config,visual_selection=a.selection,
+            center_model=None if not a.center_checkpoint else dict(path=str(a.center_checkpoint),
+                sha256=hashlib.sha256(a.center_checkpoint.read_bytes()).hexdigest(),best_epoch=center_data["best_epoch"]),
             cross_backend=data["metadata"]["physical_backend"]!="mujoco_warp_blademaster",
             budget_seconds=a.wall_seconds,episodes=1,
             scope="Pre-cut depth selection then force-feedback policy; not continuously replanned vision",
             approach="IK/reset placement, not a collision-checked approach trajectory")
-        manifest["source_sha256"]={name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in ["scripts/evaluate_visual_cut.py","scripts/capture_visual_studio.py","cutting_world_model/visual_cut.py","cutting_world_model/visual_execution.py"]}
+        manifest["source_sha256"]={name:hashlib.sha256((ROOT/name).read_bytes()).hexdigest() for name in ["scripts/evaluate_visual_cut.py","scripts/capture_visual_studio.py","cutting_world_model/visual_cut.py","cutting_world_model/visual_execution.py","cutting_world_model/visual_center.py","cutting_world_model/visual_center_features.py"]}
         write("manifest.json",manifest);progress(phase="physics_initialize")
         env=BladeMasterEnvironment(ROOT/"backends/mujoco",config)
         if env.metadata["controller"]!=data["metadata"]["controller"]:
@@ -82,10 +91,25 @@ def main():
                "--source-root","/dataHDD/dong/Projects/SliceIt/catkin_ws/src"]
         run([a.render_python,ROOT/"scripts/export_evaluation_scene.py","--evaluation",pre,"--group","0",
              "--snapshot","--backend","BladeMaster",*roots,"--output",pre/"scene.npz"])
-        run([a.render_python,ROOT/"scripts/capture_visual_studio.py","--scene",pre/"scene.npz",
+        capture_args=[a.render_python,ROOT/"scripts/capture_visual_studio.py","--scene",pre/"scene.npz",
              "--camera",a.output/"camera.json","--config",a.output/"visual_config.json",
-             "--output",a.output/"perception"])
-        plan=json.loads((a.output/"perception/plan.json").read_text())
+             "--output",a.output/"perception"]
+        if a.selection!="visible-midpoint":capture_args.append("--capture-only")
+        run(capture_args)
+        if a.selection=="visible-midpoint":
+            plan=json.loads((a.output/"perception/plan.json").read_text())
+        else:
+            depth=np.load(a.output/"perception/depth.npz",allow_pickle=False)
+            plan=center_plan(depth["depth_m"],camera,visual,depth["robot_mask"],model=center_model)
+            mask=plan.pop("object_mask")
+            np.savez_compressed(a.output/"perception/points.npz",object_points_base=camera.points(depth["depth_m"])[mask])
+            write("perception/plan.json",plan)
+            from PIL import Image,ImageDraw
+            preview=Image.open(a.output/"perception/rgb.png").convert("RGB")
+            centre=np.asarray(plan["selected_plane_point_base"]);along=np.cross(plan["selected_plane_normal_base"],[0,0,1])
+            line=camera.project(np.array([centre-.075*along,centre+.075*along]))
+            ImageDraw.Draw(preview).line([tuple(v) for v in line],fill=(245,185,45),width=3)
+            preview.save(a.output/"perception/perception.png")
         if plan["prescribed_cut_pose_used"]:raise AssertionError("Preset pose leakage")
         old_goal=env.physics.target[0].cpu().numpy().copy()
         frame=place_before_episode(env,plan["start_ee_pose"],plan["policy_goal"])
