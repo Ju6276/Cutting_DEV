@@ -47,8 +47,8 @@ This changes WM state/input/output dimensions relative to the old spring-progres
 model. Old replay/WM/critic cannot be silently resumed as this task. New metadata
 records task identity, backend identity and geometric progress semantics. No
 long training is started by the verification configurations:
-configs/free_cut/depth_three_object_check.json and
-configs/blademaster/depth_three_object_check.json.
+configs/archive/scene_checks_20261116/free_cut/depth_three_object_check.json and
+configs/archive/scene_checks_20261116/blademaster/depth_three_object_check.json.
 
 The optional tool revision `disect_knife_rigid_mount_v1` now unifies physical
 blade geometry and the rigid UR5e mount; see [SHARED_KNIFE](SHARED_KNIFE.md).
@@ -60,12 +60,18 @@ connections remain a separately recorded outcome.
 
 ## Historical pose-v1 definition (previous completed runs)
 
+Scope note (2026-11-17): this section and its subsections through "Entry points
+and retained history" describe `free_cut_pose_v1` only. For the current
+`pose_depth_v2` task, release-progress shaping is replaced by geometric depth
+progress (above), and `configs/free_cut/pose_*.json` are historical fixtures,
+not current development configurations.
+
 Updated 2026-11-14. The implemented task identity is `free_cut_pose_v1`.
 The user authorized changing the +100 success event to prescribed pose arrival and
 adding a nonpenetrating cutting-board boundary. Existing v3 running rewards are
 retained in this change; it is not a replacement of the entire reward with SliceIt's.
 
-## Completion and failure
+### Completion and failure (pose-v1)
 
 - The prescribed goal is the captured robot-base end-effector pose, translated
   along the board normal until the lowest point of the actual finite knife is at
@@ -84,7 +90,7 @@ retained in this change; it is not a replacement of the entire reward with Slice
   residual springs, geometric coverage and sliding remain separately reported.
   Pose-success rate must not be described as a physical-separation rate.
 
-## Board requirement
+### Board requirement (pose-v1)
 
 The board is the DiSECt plane y=0. The existing finite-blade swept-motion stop
 prevents downward and rotational penetration; it is a software interlock, not a
@@ -99,7 +105,7 @@ physical execution checks the integrated DiSECt knife, including the swept arc.
 The boundary projection runs eagerly (including its implicit BPTT derivative); the rest of the WM can use the existing compilation path. The physical/proxy gap discrepancy is measured by `scripts/check_pose_cut.py`.
 This proxy must not be described as a learned board contact-force model.
 
-## Running rewards and world model
+### Running rewards and world model (pose-v1)
 
 Unchanged from v3: progress weight 10; speed weight 20 (progress and finite-time
 components); load weight 1; jerk weight 0.1; gamma=1. Six-axis sensor limits remain
@@ -117,9 +123,9 @@ This changes the task identity and terminal semantics. Old v3 replay, critic and
 completion-head weights must not silently resume as the new task. Old checkpoints
 remain usable under their own version.
 
-## Entry points and retained history
+### Entry points and retained history (pose-v1)
 
-- Development configuration: `configs/free_cut/pose_cucumber.json`.
+- Historical pose-v1 configuration: `configs/free_cut/pose_cucumber.json`.
 - Physical/update/checkpoint check: `scripts/check_pose_cut.py`.
 - Training entry: `scripts/train_gpu.py --conditions configs/free_cut/pose_cucumber.json`;
   this file has four worlds and is not an approved long-training budget.
@@ -246,7 +252,8 @@ is rigidly mounted; final height and pitch conditions keep their existing roles.
 There is no new particle-motion field or particle-based penalty in the shared task.
 
 - completion_position.radius_m = .04: final planar distance must be strictly
-  below 40 mm. Original z error <2 mm, pitch-error <.04 rad, and arrival counter
+  below 40 mm. Original z error <2 mm, pitch-error component <.04 (quaternion-vector
+  component, about 0.08 rad; not radians), and arrival counter
   >10 also apply. The counter increases only when all these conditions hold.
 - tool_motion.enabled = false: final only. Off-target intermediate movement
   carries no additional position cost or position failure. Force/workspace/board

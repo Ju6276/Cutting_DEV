@@ -105,7 +105,9 @@ python scripts/evaluate_pose_policy.py --method analytic_mpc \
 All support the backend-selecting `--blademaster-config` alternative. A code
 interface is not evidence of a completed physical test on both backends; see
 the measured coverage below. Non-smoke SAC launches require online W&B, an
-approved budget and comparison settings. No formal SAC long run is launched here.
+approved budget and comparison settings. No formal SAC long run is launched by
+these commands; the separate bounded GPU9 run is recorded in
+[TRAINING_SAC](TRAINING_SAC_20261116.md).
 
 ## Validation record
 
@@ -149,9 +151,10 @@ current8D goals, critic evaluation and frozen critic weights. No separate
 physical episode with the terminal critic was run.
 
 Independent reviews of both planner paths found no additional blocking issue.
-No BladeMaster physical rollout is claimed by this validation: all three methods
-were tested on the current DiSECt-material task. Their backend-selecting API
-is shared; native BladeMaster execution still needs its own bounded test.
+This validation itself ran all three methods on the current DiSECt-material task
+only. Later one-world native-BladeMaster executions of WM+MPPI and nonlearned
+FDCC+MPPI are recorded in the DP3 section below; they are single illustrations,
+not a bounded BladeMaster evaluation.
 
 
 

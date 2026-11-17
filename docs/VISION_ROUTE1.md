@@ -60,7 +60,8 @@ scripts/evaluate_visual_cut.py executes one native BladeMaster cucumber world.
 DiSECt's baked cut topology is not silently relocated to support a new plane.
 It uses policy66 from GPU7 checkpoint128 (original checkpoint SHA256
 3bf6d7017bcfe31b5e38da68d61372156c2c85a77e8328b84989e126d138a8fd), since the new
-A6000 run still has no policy updates. This is explicitly **cross-backend frozen
+A6000 run had no policy updates when this trial was run (it entered joint
+training on 2026-11-17 09:40). This is explicitly **cross-backend frozen
 inference**, not evaluation of the eventual A6000-trained actor.
 
 The handoff verifies controller/task/observation compatibility, then uses
@@ -128,7 +129,7 @@ without force-limit failure. It demonstrates execution, not task success.
 | Controller | Current-task evaluator | Visual-goal physical execution |
 |---|---|---|
 | Frozen WM+BPTT policy | Implemented | Implemented for geometric and learned selectors in one BladeMaster world; both latest trials timed out |
-| Vector SAC | Implemented; bounded training launched separately | Not implemented |
+| Vector SAC | Implemented; bounded GPU9 training finished (1,281,024 transitions) | Not implemented |
 | Frozen WM+MPPI | Implemented | DP3 goal executed in native BladeMaster; one paired WM566 transfer trial timed out |
 | Nonlearned approximate FDCC+MPPI | Implemented | DP3 goal executed; one nominal case reached pose goal in105steps |
 

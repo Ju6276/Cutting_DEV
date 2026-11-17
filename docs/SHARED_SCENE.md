@@ -136,7 +136,8 @@ Set common.task.tool_motion.enabled to false (final only) or true (path and fina
 then regenerate both backend inputs. The prepared manifest checks the entire
 contract, including this switch. Final XY radius remains 40 mm in both modes;
 this extends the former 40 mm single-axis criterion to the horizontal plane.
-Height tolerance 2 mm, pitch-error tolerance .04 rad and >10 qualifying arrival
+Height tolerance 2 mm, pitch-error tolerance .04 (quaternion-vector component,
+about 0.08 rad; not radians) and >10 qualifying arrival
 samples are retained. Qualifying samples are cumulative, not necessarily consecutive.
 When path control is off, passing 60 mm alone neither adds cost nor ends the task;
 the existing robot workspace still applies. Failure to return to the final region

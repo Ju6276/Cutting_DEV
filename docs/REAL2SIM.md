@@ -144,13 +144,13 @@ it comes from.
 
 ### R4 — Closed-loop evaluation on the real robot
 
-- Run the reference trajectory, then frozen policies (the current working
-  baseline and SAC from the unified environment, step 85000; names as in
-  BENCHMARK) on calibrated materials, with a workspace bound and an emergency
+- Run the reference trajectory, then frozen policies (to be selected from the
+  current pose_depth_v2 WM+BPTT runs and the vector SAC baseline; the old
+  BENCHMARK SAC at step 85000 is historical) on calibrated materials, with a workspace bound and an emergency
   stop. **Open:** how the force limit is detected and enforced on the real robot
   (sensor, filter, rate, stop mechanism, reaction time); no hardware guarantee is
   assumed until this is measured.
-- Metrics follow BENCHMARK "Task definitions" (success = goal-pose counter,
+- Metrics follow the current task definition in TASK_FREE_CUT (success = goal-pose counter,
   terminal reasons separately); material separation is recorded as its own
   measurement, not as success. Also steps/time, sensor peak and mean force,
   limit exceedances. Compare with the simulation of the same calibrated material.

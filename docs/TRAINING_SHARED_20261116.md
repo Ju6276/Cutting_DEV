@@ -17,7 +17,7 @@ interaction. This is engineering training, not an algorithm superiority claim.
 - Objects: cucumber003, flat-bottom half potato, prism; equal allocation.
 - GPU7:3072 worlds; A6000 GPU1:510 worlds (170/object), full capacity verified.
 - Fresh networks/replay, seed0. Real critic32, actor8, BC.25; gamma1.
--30720 warmup transitions;640 transitions/update;500 WM-only rounds.
+- 30720 warmup transitions;640 transitions/update;500 WM-only rounds.
 - Microbatch512, critic microbatch8192; effective batches2048/4096 unchanged.
 - Each run:24h or1,280,000 new transitions, first bound; no extension.
   The transition stop is checked on vector-step boundaries, with at most one

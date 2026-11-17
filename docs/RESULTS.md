@@ -3226,6 +3226,9 @@ One first episode per shape, seed20261117, generated from the actual training
 conditions, unchanged task/reward, deterministic frozen policy, no updates.
 All three reached pose-task success in16 steps, none hit force/workspace limits.
 Material complete separation was false for all three.
+Added 2026-11-17: the same summary records mean speed error 0.073 m/s (targets
+0.031–0.046 m/s) and mean final XY error 22.7 mm; see the shared-run success
+audit entry below. Pose success here is not evidence of the intended cut.
 
 | Object | Return | Peak material force N | Peak limit ratio |
 |---|---:|---:|---:|
@@ -3361,3 +3364,48 @@ the GPU7 optional-MPPI environment, so collection/pass counts differ.
 First-party syntax:157 files; current-facing local-link check:30 documents,
 zero broken paths. Existing upstream AST deprecation warnings remain; no
 physics, learning efficacy or real-robot calibration claim follows from tests.
+
+## 2026-11-17 — Shared-run success audit (training logs, read-only)
+
+Source: episodes.jsonl of the live shared runs (frozen source 5ec9f85), read at
+GPU7 iteration 285 and A6000 iteration 849 (about 16:00 CET). Training-time
+stochastic episodes, not frozen deterministic evaluation. "First" = episode 0
+of every world. XY = median completion_xy_error_m over successes: robot-base
+planar end-effector distance to the prescribed target (tolerance <40 mm), not
+decomposed into along-blade and cut-normal components.
+
+| Run / object | First success | Recent success | XY first→recent mm | Steps first→recent | Separated among recent successes |
+|---|---:|---:|---:|---:|---:|
+| GPU7 DiSECt cucumber | 558/1024 | 1117/1117 | 2.3→4.7 | 128→20 | 160 |
+| GPU7 DiSECt half potato | 355/1024 | 1039/1039 | 3.8→19.2 | 139→20 | 0 |
+| GPU7 DiSECt prism | 537/1024 | 520/844 | 19.7→22.9 | 152→22 | 0 |
+| A6000 BladeMaster cucumber | 170/170 | 495/495 | 1.4→26.6 | 133→19 | not logged |
+| A6000 BladeMaster half potato | 42/170 | 503/503 | 2.0→26.0 | 165→19 | not logged |
+| A6000 BladeMaster prism | 170/170 | 502/502 | 1.3→26.9 | 128→19 | not logged |
+
+GPU7 "recent" = last 3000 episodes; A6000 = last 1500.
+
+First-episode meaning differs per run. GPU7's first policy update is at
+iteration 115; only 35 of its 3072 first episodes ended before it (about 3030
+after), so GPU7 "first" is NOT an untrained-policy rate. A6000's first policy
+update is at iteration 689 and all 510 first episodes ended before it: 382/510
+(75%) is the success rate of the not-yet-updated policy with training
+exploration.
+
+Measured: recent successes arrive in far fewer control steps than first
+episodes and end with larger planar XY offsets (about 19–27 mm except GPU7
+cucumber), inside the 40 mm tolerance. Among GPU7 recent successes, half potato
+and prism never completely separate; BladeMaster separation is not logged.
+The current +100 does not require separation or check the intended slice.
+
+Not established: whether the offset means the blade bypasses or skims the
+object (needs blade/cut-plane/object relative positions from trajectories);
+whether low peak force means no penetration; the actual descent speed (episode
+step counts alone do not give it); and BladeMaster separation. Exploitation of
+the permissive final-pose region is a hypothesis to test, not a finding. These
+pose-success rates must not be reported as cutting or separation success.
+
+Separately confirmed by code reading (both affect the live runs' imagination,
+size not measured): the physical board stop latches after contact while the WM
+board projection still allows later lateral/upward motion; the learned
+termination head reduces imagined survival without settling a terminal reward.

@@ -2,7 +2,10 @@
 
 ## Question and scope
 Can model-free SAC learn the current shared three-object pose task under the same
-physical-interaction cap as the WM+BPTT runs? This is a development training run,
+physical-interaction cap as the WM+BPTT runs? (Same cap, not the same actual
+interaction: SAC reached 1,281,024 transitions; the WM+BPTT runs are projected,
+as of 2026-11-17 ~16:00 CET, to stop at their 24-hour bound with fewer. Use
+recorded final counts and compare at equal transition counts.) This is a development training run,
 not a claim of algorithm superiority or full material separation.
 
 The user authorized GPU9 multi-environment SAC. GPU9 was idle at launch preparation.

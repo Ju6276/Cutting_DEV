@@ -108,9 +108,11 @@ checkpoint name/iteration match; open replay episodes are closed at restart.
 Named checkpoints from the 2026-11-14 restart retain a matching <stem>.replay.pt; last.pt uses replay.pt. Do not separate weights from their paired replay when resuming.
 
 With a restored replay, version-2 schedule state preserves the warmup origin and fractional update phase; no second warmup is inserted. Deliberately empty replay starts a refill warmup. Legacy schedule snapshots emit a migration warning. Use `--resume-without-replay` for old checkpoints
-without matching snapshots (the historical README command). One `replay.pt`
-is overwritten at every save: older checkpoints can be evaluated but cannot all
-resume with the latest replay. Empty-replay resume is not exact continuation.
+without matching snapshots (the historical README command). Before the 2026-11-14
+restart a single `replay.pt` was overwritten at every save, so those older
+checkpoints can be evaluated but cannot all resume exactly; newer named
+checkpoints keep their own `<stem>.replay.pt`. Empty-replay resume is not exact
+continuation.
 SIGUSR1 saves after the current iteration. Completion/SIGTERM writes
 `last.pt` and `progress.json`. Frozen evaluation performs zero optimizer updates.
 

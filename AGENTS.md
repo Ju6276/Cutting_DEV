@@ -28,7 +28,8 @@
 - Every paid run needs an approved plan first: question, hypothesis, setting,
   metric, decision rule and wall/GPU budget. Docs separate measured results from
   inferences; search the literature before claiming novelty.
-- Use the shared benchmark entries and task definitions (docs/BENCHMARK.md).
+- Use the current task definitions (docs/TASK_FREE_CUT.md, docs/SHARED_SCENE.md);
+  docs/BENCHMARK.md is the historical fixed-prism contract for old checkpoints.
   Frozen-controller comparisons may retain different training budgets and inputs
   when disclosed. Matched-data/sample-efficiency claims require their own
   budget and information-access protocol; they do not mandate retraining for
@@ -54,8 +55,9 @@
 
 - Development uses Remote SSH on GPU7. Keep project source, weights, datasets,
   caches and videos on the servers; do not download project copies to the Mac
-  unless explicitly requested. GPU9 was reauthorized on 2026-11-15 for the
-  BladeMaster three-object preflight and bounded long run; use tams61 as its SSH jump host.
+  unless explicitly requested. GPU9 was reauthorized on 2026-11-15 (BladeMaster
+  preflight/long run) and has since been used for the bounded SAC run and vision
+  work under their own plans; use tams61 as its SSH jump host.
 
 
 - Authorized physical correction (2026-11-12): contact search, interpolation and

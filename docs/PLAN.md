@@ -11,7 +11,11 @@ before reporting that it is still active.
 - GPU7: 3072-world WM+BPTT, DiSECt material backend.
 - A6000 GPU1: 510-world WM+BPTT, native BladeMaster material backend.
 - Both entered joint training. Each has a fixed 24-hour / 1,280,000-transition
-  budget; no automatic extension, restart or task changes.
+  budget (first bound reached stops); no automatic extension, restart or task
+  changes. The budget cap is the same; the actual interaction is not. Rates
+  measured 2026-11-17 ~16:00 CET project the 24-hour bound first for both
+  (roughly 1.0M transitions GPU7, 0.5M A6000); record the actual final counts.
+  Compare the backends and SAC (1,281,024) at equal transition counts.
 - GPU9 SAC finished its transition budget (1,281,024 transitions, vector-step
   granularity). Preserve its checkpoint and evaluate under the recorded task.
 - After completion, evaluate the frozen policies on identified development
@@ -37,14 +41,14 @@ task settings must not be edited independently for each backend.
 - User choice: final-position-only. Final EE XY radius<40mm; no particle-motion
   penalty, no extra path penalty. Optional path-and-final remains available but
   is not selected for these runs.
--180 control steps/9s, gamma1, componentwise simulated limits[50,50,50,5,5,5].
+- 180 control steps/9s, gamma1, componentwise simulated limits[50,50,50,5,5,5].
 - Start: each settled object's top plus paired5–30mm clearance, fixed per world.
   Each episode samples E(.5–2), density(.8–1.25), cut resistance(.5–2), speed
   (1–5cm/s), then settles for1s with that material. Same scale distributions do
   not make the native fracture laws or resulting forces identical.
--34 observations/frame including six-axis wrench;10-frame history.
+- 34 observations/frame including six-axis wrench;10-frame history.
   Real-data critic32, actor imagination8, BC.25; no risk-constraint variant.
--640 physical transitions per learning round;30720 warmup transitions,
+- 640 physical transitions per learning round;30720 warmup transitions,
   then500 WM-only rounds. WM/policy effective batches2048/4096;
   microbatches512/critic8192. Pending learning rounds are checkpointed.
 
@@ -59,7 +63,8 @@ Vision is pre-cut goal selection followed by motion/wrench feedback, not
 continuous visual servoing or a core RL contribution.
 [Vision protocol](VISION_ROUTE1.md) documents geometric midpoint and learned
 midpoint routes. Official DP3 XYZ encoder plus our regression head is the new
-default; the local encoder remains a named comparison.
+default; the local encoder remains a named comparison. This choice was made on
+a reused development test set (RESULTS 2026-11-17), not a fresh final evaluation.
 
 Completed: known-shape visual-data pilot, three-seed encoder comparison,
 requested policy videos and nominal native-BladeMaster DP3 controller videos.

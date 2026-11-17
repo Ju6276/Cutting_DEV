@@ -1,4 +1,4 @@
-# Server data and checkpoint index — 2026-11-16
+# Server data and checkpoint index — 2026-11-17
 
 This is the current location/recovery index, not an authorization to launch.
 All paths are on servers. No project source, weights or datasets were copied
@@ -25,17 +25,18 @@ All runs use online W&B; physical snapshots and recovery data stay on servers.
 
 | Host | Checkout | Role / frozen code |
 |---|---|---|
-| GPU7 (tamsGPU7) | /dataHDD/dong/Projects/Cutting_DEV_board | Development follows origin/main (working branch codex/visual-cut-route1) |
+| GPU7 (tamsGPU7) | /dataHDD/dong/Projects/Cutting_DEV_board | Development checkout; development is consolidated on origin/main (checkout branch codex/visual-cut-route1 tracks it) |
 | GPU7 | /dataHDD/dong/Projects/Cutting_DEV_pose_long_20261114 | Budget-complete DiSECt main run, 02203b1 |
 | GPU9 (tamsGPU9) | /dataHDD/dong/Projects/Cutting_DEV_bm_long_20261115 | SIGILL-interrupted BladeMaster run, 931e2b5 |
-| A6000 (tamsGPU5) | /dataHDD/dong/Projects/Cutting_DEV_pose_scale_20261114 | Development mirror; no active cutting training |
+| A6000 (tamsGPU5) | /dataHDD/dong/Projects/Cutting_DEV_pose_scale_20261114 | Development mirror; no training in this checkout (the active shared run uses Cutting_DEV_shared_long_20261116) |
 
 GPU9 is reached through tams61. GPU7 and A6000 local SSH aliases are
 cutting-gpu7 and cutting-a6000. Server names do not imply exclusive GPU access.
 Active runs stay on their frozen checkouts; syncing development docs does not
 replace their loaded code.
 
-Both training outputs are under /dataHDD/dong/Experiments/Cutting_DEV/runs:
+The two historical 2026-11-14/15 training outputs are under
+/dataHDD/dong/Experiments/Cutting_DEV/runs (not the current shared runs):
 
 - GPU7: pose_wrench6_3072_20261114/training, 3072 worlds (1024/object).
   Online history forwarding resumes the existing
@@ -44,7 +45,7 @@ Both training outputs are under /dataHDD/dong/Experiments/Cutting_DEV/runs:
 - GPU9: bm_gpu9_20261115/training, 256 worlds (86/85/85).
   Native online [W&B run](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/sliceit-supermimic/runs/aqoyihk2).
 - Each is bounded by 24 hours or 1,280,000 new physical transitions.
-  All current checkpoints and paired replay files are protected.
+  Their checkpoints and paired replay files are protected.
 - Earlier A6000 192-world and GPU7 three-world runs are stopped historical
   launches; their final recovery files are retained. They are not active jobs.
 
@@ -202,7 +203,7 @@ must use the commit below when the historical revision matters.
 | codex/residual-spring-debug | 1c4a217d12609b33fd5cede5e093a08ad456a281 |
 | codex/transition-schedule-20261114 | 3738271127e232363e628e1a72579c19c72b6a28 |
 
-Preserved: codex/visual-cut-route1 (current development), codex/free-cut-v1
+Preserved: codex/visual-cut-route1 (development checkout tracking origin/main), codex/free-cut-v1
 (existing GPU7 worktree), codex/bm-gpu9-online-20261115 (historical frozen
 GPU9 worktree). Unmerged branches codex/blademaster-batched,
 codex/docs-cleanup-20261113, codex/free-cut-infra, codex/free-cut-mppi and
