@@ -32,10 +32,12 @@ six-axis wrench observations, fixed knife heading, and final-position-only
 constraints. Material parameters and simulated limits are not real-robot
 calibration. See SHARED_SCENE for exact values instead of duplicated launch recipes.
 
-Visual selection currently executes only a frozen WM+BPTT policy. SAC and the
-two planners have independent current-task evaluators; their visual handoffs
-are not implemented. Method 2 now has a trained fixed-heading center predictor and a frozen-policy
-physical trial; neither visual route's latest trial achieved pose completion.
+DP3 midpoint selection now executes frozen WM+BPTT, paired frozen WM+MPPI,
+and nonlearned FDCC+MPPI in a one-world native-BladeMaster prototype. In one
+nominal cucumber case each, the old policy66 and WM566 planner timed out;
+nonlearned MPC reached the pose goal. These are interface illustrations, not
+an algorithm ranking or validated slice separation. SAC visual handoff remains
+unimplemented; see docs/VISION_ROUTE1.md for exact scope and commands.
 
 ## Repository map
 

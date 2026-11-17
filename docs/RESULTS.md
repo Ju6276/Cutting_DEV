@@ -3253,3 +3253,62 @@ DP3 comparison W&B: all six remote runs verified finished at120epochs:
 - [57gbfk7p](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/Cutting_DEV/runs/57gbfk7p)
 - [8duewbr9](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/Cutting_DEV/runs/8duewbr9)
 - [cj4mrcsu](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/Cutting_DEV/runs/cj4mrcsu)
+
+## 2026-11-17 — DP3 goals to RL, paired WM+MPPI and nonlearned MPC
+
+User requested videos for all three. Kept native-BladeMaster nominal cucumber,
+force limits/task/reward/horizon and DP3 seed20261117 weights unchanged.
+The RL episode is the existing old policy66 execution (not policy527).
+WM checkpoint128 contains exactly its actor tensors; WM566, source5ec9f85.
+Both learned controllers are explicit DiSECt-to-BladeMaster inference transfers.
+The nonlearned FDCC approximation holds measured wrench over its horizon;
+it has no learned model, critic, material parameters or fracture predictor.
+Both planners use pinned pytorch_mppi, horizon8,samples512,one refinement,
+gamma1,no terminal critic; analytic5substeps. No retuning after results.
+
+The three condition dictionaries and DP3 model hashes match. Each selector
+observes its separately settled initial scene; the largest target spread is
+0.02435mm in Y (X0.00115mm,Z0.000009mm). Therefore these are matched nominal
+cases, not bit-identical physical resets or a common cached target.
+
+| Controller | Outcome | Steps | Return | Peak material N | Max force-limit ratio | Material components |
+|---|---|---:|---:|---:|---:|---:|
+| DP3 + old RL66 | timeout |180|-7.007|10.844|0.2513|1|
+| DP3 + paired WM566 + MPPI | timeout |180|-6.329|10.622|0.2543|1|
+| DP3 + nonlearned FDCC MPC | pose success |105|101.452|10.808|0.2749|2|
+
+No force/workspace failure. Final target-height errors2.913/1.771/1.527mm.
+WM+MPPI first entered the2mm height band atstep176: only5qualifying samples
+before timeout, insufficient for the task's >10 arrival counter. Analytic MPC
+entered at95 and succeeded at105 (11samples). Do not infer that extending
+the horizon necessarily fixes WM, or that analytic control is generally better.
+Two material components can include fragments; no new intended-slice integrity
+claim. One trial per method, reused RL run, no success-rate significance.
+
+Planning time WM mean0.4691s,p950.6281s; analytic mean0.4597s,p950.5052s.
+These exceed50ms control period and were measured alongside CPU rendering.
+They are offline receding-horizon demonstrations, not real-time execution.
+
+Execution found and fixed target_speed shape N vs N-by1 before any scored
+planner step. First failed runs preserved as *.failed_speed_shape. A separate
+render-watcher accidentally pre-created the analytic output directory; that
+attempt did not start physics and is preserved separately. Corrected watcher
+creates its staging directory only after evaluation. Restart changed no task
+or planner settings. WM and analytic completed with frozen-weight checks.
+
+Verification: root605passed/6skipped, backend41passed; GPU9 optional planner/SAC
+plus transfer-contract tests14passed; visual/transfer targeted36passed.
+Active long training source/checkpoints were unchanged.
+
+Recording-label correction after execution: planner snapshot policy_updates66
+was inherited from the reference checkpoint, not a trained MPC actor.
+New captures put null there and record reference_policy_updates66 separately.
+The scored trajectories remain unchanged; video titles identify actual methods.
+
+Approved shared studio render uses recorded blade/original handle, scan-based
+color transfer, no blue proxy/cut-face highlighting/fabricated connector.
+Delivery movies start with the actual pre-cut camera image and DP3 selection,
+then the full1x episode plus synchronized20Hz filtered force/torque endpoint
+charts. Those charts are not the500Hz peak-limit measurement. Images were
+inspected for all three controllers. Delivery filenames are dp3_rl.mp4,
+dp3_wm_mppi.mp4 and dp3_analytic_mpc.mp4 under the DATA paths.

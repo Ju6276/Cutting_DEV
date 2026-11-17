@@ -1,4 +1,4 @@
-"""One frozen-policy cutting episode following a depth-selected mid-section.
+"""One frozen-controller cutting episode following a depth-selected mid-section.
 
 Bounded development demonstration: optional explicit cross-backend policy transfer,
 simulation reset to pre-cut start; optional frozen learned perception, no policy optimization.
@@ -93,7 +93,7 @@ def main():
         progress(phase="camera_capture")
         pre=a.output/"perception_source"
         capture_training_environment(env,ROOT/"backends/mujoco",pre/"geometry/0000",
-             dict(iteration=0,policy_updates=data["identity"]["policy_updates"],training_stage="visual_pre_cut",ee_pose_base=frame["ee_pose"].cpu().tolist()))
+             dict(iteration=0,policy_updates=data["identity"]["policy_updates"] if policy is not None else None,reference_policy_updates=data["identity"]["policy_updates"],training_stage="visual_pre_cut",ee_pose_base=frame["ee_pose"].cpu().tolist()))
         geometry=env.metadata["board_pose_geometry"]
         camera=front_camera(geometry["board_origin_base"])
         write("camera.json",camera.to_dict())
@@ -152,7 +152,7 @@ def main():
         conditions=env.conditions([0]);write("cases.json",[dict(case=0,group=env.object_names[0],condition=conditions[0])])
         def capture(step):
             capture_training_environment(env,ROOT/"backends/mujoco",a.output/"geometry"/("%04d"%step),
-                dict(iteration=step,policy_updates=data["identity"]["policy_updates"],training_stage="frozen_visual_evaluation",ee_pose_base=frame["ee_pose"].cpu().tolist()))
+                dict(iteration=step,policy_updates=data["identity"]["policy_updates"] if policy is not None else None,reference_policy_updates=data["identity"]["policy_updates"],training_stage="frozen_visual_evaluation",ee_pose_base=frame["ee_pose"].cpu().tolist()))
         history=frame["observation"].float()[None].repeat(10,1,1)
         acc={k:torch.zeros(1,device=env.device) for k in ["return","steps","force","ratio","impulse","speed"]}
         capture(0);progress(state="running",phase="policy",step=0)

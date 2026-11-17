@@ -108,8 +108,8 @@ It is not continuous visual tracking. Vision is a task-interface demonstration,
 not an adopted core RL contribution. See [VISION_ROUTE1](VISION_ROUTE1.md)
 and the dated RESULTS entry for commands, budgets, provenance and limitations.
 
-Remaining visual work is explicitly separate: visual handoffs for SAC/WM+MPPI/
-analytic MPC are not implemented; new shapes, rotations and real depth are
+Remaining visual work is explicitly separate: the SAC visual handoff is not
+implemented; new shapes, rotations and real depth are
 deferred. A new DiSECt cut plane still requires prepared topology or a native
 BladeMaster execution backend. Do not silently move the baked interface.
 
@@ -178,3 +178,8 @@ blade/board geometry. Record source/execution backends and planning time.
 Horizon8,samples512,one refinement,no terminal critic; analytic substeps5.
 Shared camera/DP3 seed20261117,material/conditions. One episode is illustrative,
 not an algorithm ranking. The existing RL trial is reused, not cherry-picked.
+
+Completed controller execution: RL180-step timeout; paired WM+MPPI180-step
+timeout; analytic MPC105-step pose success. All use the same DP3 checkpoint
+and matched nominal conditions; neither learned model was retrained. The
+planner transfer/target-speed shape fix and result scope are in METHOD/RESULTS.

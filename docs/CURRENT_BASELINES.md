@@ -179,3 +179,14 @@ A mixed-generation snapshot is rejected instead of silently resumed. This is
 detection, not automatic rollback to the previous generation. Legacy smoke
 snapshots without hashes emit an explicit warning. A regression corrupts replay
 after a valid save and verifies rejection.
+
+## DP3 pre-cut visual handoff — 2026-11-17
+
+WM+MPPI and nonlearned FDCC+MPPI now have actual one-world native-BladeMaster
+visual execution through evaluate_visual_cut.py. DP3 selects the midpoint from
+visible depth; the planner is initialized after visual placement and updated
+from robot/wrench feedback each step. No continual visual tracking.
+SAC visual execution remains unimplemented. See VISION_ROUTE1 and RESULTS.
+The WM trial explicitly transfers the exact policy66-paired WM566 from DiSECt;
+nonlearned planning uses no learned weights. This demonstration is not a
+matched-backend algorithm benchmark or calibrated material-aware MPC.

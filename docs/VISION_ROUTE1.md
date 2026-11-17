@@ -129,13 +129,13 @@ without force-limit failure. It demonstrates execution, not task success.
 |---|---|---|
 | Frozen WM+BPTT policy | Implemented | Implemented for geometric and learned selectors in one BladeMaster world; both latest trials timed out |
 | Vector SAC | Implemented; bounded training launched separately | Not implemented |
-| Frozen WM+MPPI | Implemented | Not implemented |
-| Nonlearned approximate FDCC+MPPI | Implemented | Not implemented |
+| Frozen WM+MPPI | Implemented | DP3 goal executed in native BladeMaster; one paired WM566 transfer trial timed out |
+| Nonlearned approximate FDCC+MPPI | Implemented | DP3 goal executed; one nominal case reached pose goal in105steps |
 
-evaluate_visual_cut.py currently loads SliceItPolicy; it is not a general
-controller dispatcher. evaluate_pose_policy.py supports the four controller
-types but does not consume visual plans. Shared 8D goal semantics alone do
-not establish tested visual integration.
+evaluate_visual_cut.py dispatches --method wm_policy|wm_mppi|analytic_mpc.
+Its current physical adapter is one native-BladeMaster world. SAC remains
+available only in evaluate_pose_policy.py, without a visual-goal handoff.
+There is no arbitrary DiSECt topology re-export or real-robot approach planner.
 
 ## Method 2: fixed-heading learned midpoint
 
@@ -231,3 +231,31 @@ PYTHONPATH=. /dataHDD/dong/Envs/cutting-mppi-20261108/bin/python scripts/compare
 Existing plan_visual_cut/evaluate_visual_cut commands accept the new center.pt
 without changing the policy or goal interface. Do not load DP3 weights into the
 legacy local network; architecture dispatch is explicit in the checkpoint.
+
+## DP3 controller video commands and result
+
+Use the same --policy goal-convention reference, --backend-checkpoint,
+--center-checkpoint, --render-python and --selection learned-midpoint arguments
+as the frozen RL trial. For WM planning add:
+
+~~~bash
+--method wm_mppi --model-checkpoint FULL_MATCHING_POLICY66_CHECKPOINT --allow-backend-transfer --planner-horizon 8 --planner-samples 512 --planner-refinements 1
+~~~
+
+For nonlearned control add --method analytic_mpc --analytic-substeps 5.
+It uses the reference checkpoint only for goal convention/task metadata;
+learned weights are not used for action prediction. Both planners use MPPI
+with no terminal critic. Do not call it a reproduced cutting-paper MPC.
+
+GPU9 runs/dp3_controllers_20261117 retains full runs/frames/force traces.
+The RL video reuses runs/dp3_center_closedloop_20261117/episode (policy66).
+Both RL and WM planning explicitly transfer DiSECt-trained weights to native
+BladeMaster; this is not the newer policy527 and not matched training across
+backends. DP3 is the pinned point encoder plus our midpoint head.
+
+One case per controller: RL and WM+MPPI timed out at180steps; analytic MPC
+reached pose success at105steps. Peak material forces10.84/10.62/10.81N.
+The analytic case has two material components; this count alone is not a
+validated intact intended-slice metric. Planning averaged0.469/0.460s per
+step, exceeding the50ms physical control period. Offline simulation videos do
+not demonstrate real-time control. See RESULTS for full limitations.

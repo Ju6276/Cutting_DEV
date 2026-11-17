@@ -253,3 +253,13 @@ GPU7 runs/policy_video_20261117: failed first initialization preserved, successf
 evaluation_current and shared studio clips/wrench panels for three objects.
 Mac contains only requested MP4/PNG previews in
 /Users/judong/Downloads/cutting_policy527_20261117; no source/dataset/checkpoints.
+
+## DP3 controller videos — 2026-11-17
+
+GPU9 development checkout runs/dp3_controllers_20261117:
+assets/paired_policy66.pt, wm_mppi/, analytic_mpc/, rl/ studio export of the
+existing DP3+RL episode, comparison.json, planning histories and failed-attempt
+logs. source_at_trial preserves the modified sources before Git synchronization.
+delivery/ contains approved-studio movies with pre-cut visual-selection intro
+and synchronized force/torque panels. All physics trajectories/weights stay
+on servers; requested videos/previews go to Mac Downloads/dp3_controllers_20261117.
