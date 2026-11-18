@@ -4,6 +4,11 @@ Run from the repository root. [PLAN](../docs/PLAN.md) selects current work;
 [RUNNING](../docs/RUNNING.md) gives environments and commands.
 An available script does not authorize another experiment.
 
+All four controllers already coexist on main. Select the controller with
+--method and the material backend with --conditions / --blademaster-config;
+do not switch to an old controller worktree. The [controller ledger](../docs/methods/CURRENT_BASELINES.md)
+distinguishes interface support from tested task-version/backend combinations.
+
 ## Current task and training
 
 | Purpose | Entry / protocol |

@@ -1,204 +1,176 @@
-# Current-task baselines — 2026-11-16
+# Current controllers and baseline status — 2026-11-19
 
-## SAC provenance and search
+This is the single controller/version/coverage ledger, including WM+BPTT.
+[PLAN](../PLAN.md) selects work and budgets; [SHARED_SCENE](../SHARED_SCENE.md)
+defines the scene; [TASK_FREE_CUT](../TASK_FREE_CUT.md) defines the task.
+Historical detail is in [the 11-16–18 baseline record](../archive/BASELINES_20261116_20261118.md).
+Do not infer a completed experiment from an available CLI or current config.
 
-The user recalled a PyTorch parallel SAC and requested reuse if available, with
-Stable-Baselines3 as the fallback. No cutting-connected PyTorch multi-environment
-SAC trainer was located in the inspected branches, server working directories,
-archived cutting checkouts or run records on GPU7, GPU9 and A6000.
+## One code line, one current task, two material backends
 
-Concrete findings:
-- `62feee8` changes only `evaluate_perturbed.py`: parallel deterministic actor
-  evaluation, not multi-environment learning.
-- `21ffc54` and GPU9's uncommitted `Cutting_DEV_sac` changes add restoration
-  to the original single-world TensorFlow/tf2rl trainer. Preserve those changes.
-- `a130a48` explicitly lists parallel SAC as future work.
-- Research-source archives contain generic PyTorch SAC implementations; no
-  evidence connected them to this cutting environment or a cutting training run.
-This is a search result, not proof that no other copy ever existed.
+- Current code for ALL four controllers is on main in Cutting_DEV. No controller
+  requires switching to a method-specific development branch.
+- Current task is pose_depth_v3. Users do not select v2 as an algorithm variant.
+  v2 is retained only to reproduce old checkpoints/results; v2 training is refused.
+- DiSECt and BladeMaster are material physics backends, not two RL algorithms.
+  Either backend is selectable through the same current interfaces. Interface
+  availability is not evidence of measured performance on both backends.
+- Frozen worktrees retain old run source/data. They are not alternative current
+  launch entries. A6000 Cutting_DEV_mppi_v3 contains historical unmerged commits;
+  preserve it for provenance, but use main's shared evaluator for current MPPI.
+- No old checkpoint, replay or result is relabelled as v3.
 
-Per the user's explicit fallback, the current parallel baseline uses
-[Stable-Baselines3 SAC](https://stable-baselines3.readthedocs.io/en/master/modules/sac.html)
-2.7.0, a PyTorch implementation. The original SliceIt/tf2rl runner is retained for
-historical reproduction; these are separately identified implementations.
+| Controller / CLI name | What is learned? | Execution | Current source / entry |
+|---|---|---|---|
+| WM+BPTT / wm_policy | WM, critic and policy | Policy inference then FDCC | cutting_world_model/trainer.py; scripts/train_gpu.py |
+| SB3 SAC / sac | Policy and Q functions; no learned dynamics | Policy inference then FDCC | cutting_world_model/sac_vector.py; scripts/train_sac_multi.py |
+| Frozen WM+MPPI / wm_mppi | Reuses a compatible trained WM; optional paired critic; no optimization of weights at evaluation | Online MPPI over the frozen WM then FDCC | cutting_world_model/shared_baselines.py and mpc.py |
+| Nonlearned FDCC+MPPI / analytic_mpc | None | Online MPPI over an approximate FDCC/kinematic model then FDCC | cutting_world_model/shared_baselines.py |
 
-## Shared task and inputs
+MPC is the receding-horizon control framework; MPPI is the optimizer used by
+both of our planners. Nonlearned does not mean model-free or calibration-free.
+The original SliceIt TensorFlow/tf2rl runner is historical reproduction, not the
+current SB3 baseline. Its source search/provenance is preserved in the archive.
 
-All new entry points consume the current shared `pose_depth_v3` config (the
-pose_depth_v2 task rules plus the software board-stop consistency fix):
-same robot, finite mounted blade, FDCC action mapping, force limits, rewards,
-board boundary, randomized episode conditions and final-position rule.
-Success is pose-task completion, not proof of material separation.
-No task thresholds are changed to make a baseline succeed.
+## v2 versus v3: fixes, not different research methods
 
-SAC receives the same ten observable 34-dimensional frames and eight-dimensional
-commanded goal as the main policy (348 values). It outputs six bounded actions.
-It receives no particle state or material labels. Its actor/critic are SB3
-two-layer 256-unit MLPs, not the SliceIt TensorFlow Wave/TCN architecture.
-Learning rate defaults to 3e-4, automatic entropy coefficient, gamma from the
-task. These are explicit baseline settings, not a claim of published SliceIt
-hyperparameter reproduction.
+| Item | Historical pose_depth_v2 | Current pose_depth_v3 |
+|---|---|---|
+| Pose success +100, failure precedence, geometric-depth shaping, speed cost, task tolerances | Recorded old rules | Same intended rules and weights |
+| Board stop in the physical environment | Software latch | Software latch, explicitly represented in WM state |
+| WM state after the stop | Could continue moving | board_contact and last_wrench represent the stop; analytic held-state transition |
+| Imagined survival | Learned terminal probability could reduce survival without matching settlement | Analytic success/failure/timeout absorption, aligned with settlement |
+| Post-latch peak | Backend disagreement | Both use absolute frozen last reading after the latch interval |
+| Within-step sensor sampling | DiSECt could count the carried sample again | Each new 2 ms sample enters that step's checks once |
+| Use now | Read/evaluate old runs only | All new training and comparisons |
 
-The vector bridge saves terminal observations before independently resetting
-ended worlds. Timeouts are genuine task terminals, with no timeout bootstrap.
-Optimizer cadence is expressed as physical transitions per gradient (default 1);
-environment count does not silently multiply the data/update ratio.
-The interval is configurable and must be fixed before a formal comparison.
-Model, optimizers, replay and update credits resume; physical episodes restart.
-This is not exact restoration of the simulator or RNG state.
+WM state dimensions changed; do not transplant a v2 WM/replay into v3.
+The policy's observable input format did not change solely because of these
+fixes. Material separation remains an independent diagnostic, not pose success.
+The current code also retains historical free_cut_v3; that older separation task
+is NOT pose_depth_v3. Use the full task name in logs and comparison tables.
 
-## Frozen WM + MPPI
+## Measured coverage by task version
 
-`evaluate_pose_policy.py --method wm_mppi` uses the pinned upstream
-[UM-ARM-Lab/pytorch_mppi](https://github.com/UM-ARM-Lab/pytorch_mppi)
-optimizer and a compatible frozen checkpoint. Optional terminal critic comes
-from that same checkpoint. Task, observation, geometry and model-layout metadata
-are checked; learned parameters must remain unchanged.
+This table distinguishes recorded physical tests from implemented interfaces.
+It is not a performance ranking. Operational run status changes separately;
+consult each run's progress/manifest rather than this table to see whether it
+is still running.
 
-Each world has its own receding-horizon plan. Plans are evaluated sequentially
-with shared model weights. Absorption, terminal reward, survival and discount use
-the retained model-rollout implementation. Geometric depth is derived from
-kinematics; no cut-spring progress is supplied. The planner receives joint state
-and controller/history state as well as force history, so its information access
-is not identical to the deployed policy's observation.
+| Controller | Recorded v3 evidence through 11-18 | Historical physical outcomes (v2 only) | Remaining current-task comparison work |
+|---|---|---|---|
+| WM+BPTT | Each backend: short collect/update/episode/reset/save/resume pipeline at 4dfbc0c | Two 11-16 long runs; unequal achieved interaction budgets | Evaluate the newly authorized v3 run at identified checkpoints; no mature v3 result claimed here |
+| SB3 SAC | GPU9, both main b2b3ea6 and 8f0a517: 6 worlds, 240 transitions; latest smoke saved model/replay with 216 updates | Separate bounded v2 SAC run; early 264-transition smoke scored 1/3 in the old comparison | v3 smoke is not a trained baseline or matched-budget comparison |
+| WM+MPPI | Compatible v3 state/analytic survival implemented and regression-covered | DiSECt 3/3 pose successes, 0/3 separated; one native-BladeMaster visual example timed out | No completed v3 physical evaluation established in the audited records; needs compatible v3 WM |
+| Nonlearned FDCC+MPPI | v3 task/board-state branch implemented | DiSECt 2/3 pose successes, 0/3 separated; one native-BladeMaster visual example reached pose goal | No completed v3 physical evaluation established in the audited records |
 
-This is an adaptation of an open-source optimizer to our learned model, not a
-reproduction of a particular published cutting-MPC method. A compatible
-checkpoint is required; an early pretraining checkpoint only verifies interfaces.
+Old comparison source:
+GPU9 /dataHDD/dong/Projects/Cutting_DEV_baselines_20261116/runs/baseline_validation_20261116/.
+Its analytic_mpc_eval/manifest.json explicitly records pose_depth_v2.
+It completed half potato in 151 steps, prism in 137, and timed out on cucumber
+at 180. Planner: horizon 4, 32 candidates, one refinement, no terminal critic.
+Mean planning cost ~0.134 s/world exceeds the 0.05 s control interval.
 
-## Nonlearned MPC
+The old WM comparison used an early checkpoint with WM105/policy0/critic0,
+not a mature trained WM. Native-BladeMaster visual examples are under the same
+checkout's runs/dp3_controllers_20261117; their manifests also record v2.
+The analytic example completed one cucumber pose case at step 105.
+The current header/default config must never imply these records were v3 tests.
 
-`--method analytic_mpc` uses the same MPPI optimizer without loading any network.
-Its approximate dynamics use robot kinematics, the existing FDCC and action
-mapping, coarse ideal joint-command tracking, and constant wrench over the
-planning horizon. The wrench is the last sample in the supplied observation
-history; the inherited history extraction is not the newest full sensor-queue
-sample. The controller's internal state is reconstructed from measured q/qd at
-each model step. Replanning uses new physical measurements every control step.
+## Inputs, outputs and model limitations
 
-It does not model changing food contact, fracture or unknown material properties.
-It cannot forecast contact-force spikes or claim constraint satisfaction.
-Measured physical forces still trigger exactly the common task's force limits.
-This baseline answers what this simple nonlearned receding-horizon approximation
-can do; it is not a validated cutting-force model or a published algorithm replica.
-Analytic substeps, horizon, candidates, refinements and wall cost are recorded.
+Policy and SAC receive 10 observable frames x 34 values plus the 8D commanded
+goal (pose + speed). All four controllers use the shared six-action mapper:
+two stiffness channels, two control-gain channels, blade-direction offset and
+optional pitch. Pitch is disabled in the selected scene (five effective channels).
+FDCC translates these actions into robot commands. No controller directly
+outputs the predicted sensor wrench as its actuator command.
+
+Planners receive q, qd, signed six-axis wrench history and controller/task history,
+known target, step/arrival counters and board state. They have more state access
+than the policy observation; disclose this information difference. Geometric
+depth comes from kinematics, not privileged spring-break progress.
+
+Frozen WM+MPPI uses the pinned upstream pytorch_mppi optimizer and a compatible
+frozen checkpoint. Optional critic must be paired with that checkpoint. Metadata
+checks cover task, robot/tool/observation/model layout. No learned weights change.
+
+Nonlearned FDCC+MPPI uses robot kinematics, the shared mapper and FDCC, coarse
+ideal joint-command tracking and constant wrench within the planning horizon.
+It holds the last provided history sample, which may lag the newest sensor
+sample; do not describe it as zero-delay sensing or a calibrated contact model.
+It reconstructs controller state from q/qd at each surrogate step and replans
+from new measurements each actual control step. It predicts neither changing
+food forces nor fracture; measured physical force limits still apply. It cannot
+claim predictive force safety or faithful reproduction of a cutting-MPC paper.
 
 ## Commands
 
-Use an isolated environment with `requirements-baselines.txt`, current prepared
-assets, `PYTHONPATH=.:backends/mujoco` and the backend runtime setup.
-Keep active training environments/checkouts unchanged.
+All commands run from main with an explicitly generated CURRENT v3 config.
+Generate both backend configs from configs/shared/scene_v1.json using the
+[shared-scene procedure](../SHARED_SCENE.md). Environment count comes from the
+generated config; historical launch recipes are not the current config.
 
-Environment: `CUTTING_ENV=sac source scripts/env/cutting_env.sh` in the `main`
-checkout; create `.venv-sac` once per server with `scripts/env/make_sac_env.sh`
-([RUNNING](../RUNNING.md#remote-only-development-and-storage)).
-Checked 2026-11-18: the integration test below passed on GPU9 `main` b2b3ea6
-(pose_depth_v3, 2 worlds per object = 6, 240 transitions, completed, model and
-replay saved, clean source commit), and again at 8f0a517 with the tracked
-`CUTTING_ENV=sac` environment. It is an interface test, not a trained comparator.
+    CUTTING_ENV=sac source scripts/env/cutting_env.sh
+    python scripts/evaluate_pose_policy.py --method wm_policy --checkpoint V3.pt --conditions V3_DISECT.json --output OUT
+    python scripts/evaluate_pose_policy.py --method sac --checkpoint SAC_V3/model.zip --conditions V3_DISECT.json --output OUT
+    python scripts/evaluate_pose_policy.py --method wm_mppi --checkpoint V3.pt --conditions V3_DISECT.json --output OUT
+    python scripts/evaluate_pose_policy.py --method analytic_mpc --conditions V3_DISECT.json --output OUT
 
-```bash
-# Small integration test; not a formal trained SAC comparator.
-python scripts/train_sac_multi.py --conditions CONFIG.json \
-  --worlds-per-object 2 --learning-starts 24 --batch-size 32 \
-  --buffer-size 2048 --max-transitions 240 --max-hours 1 --smoke --output OUT
+For native BladeMaster replace --conditions with --blademaster-config V3_BM.json.
+Each OUT is a different run directory. Analytic MPC has no checkpoint.
+Training: [WM+BPTT recipe](../RUNNING.md#current-wmbptt-training-command-pose_depth_v3);
+SAC: scripts/train_sac_multi.py with an explicit plan/budget and online W&B.
+Historical smoke recipes and exact resume/integrity coverage remain in the archive.
+These templates do not launch or authorize an additional experiment.
 
-python scripts/evaluate_pose_policy.py --method sac \
-  --checkpoint OUT/model.zip --conditions CONFIG.json --output SAC_EVAL
-python scripts/evaluate_pose_policy.py --method wm_mppi \
-  --checkpoint CURRENT.pt --conditions CONFIG.json --output WM_MPPI_EVAL
-python scripts/evaluate_pose_policy.py --method analytic_mpc \
-  --conditions CONFIG.json --output ANALYTIC_EVAL
-```
+## Cutting MPC literature and our provenance
 
-All support the backend-selecting `--blademaster-config` alternative. A code
-interface is not evidence of a completed physical test on both backends; see
-the measured coverage below. Non-smoke SAC launches require online W&B, an
-approved budget and comparison settings. No formal SAC long run is launched by
-these commands; the separate bounded GPU9 run is recorded in
-[TRAINING_SAC](../archive/TRAINING_SAC_20261116.md).
+Primary sources checked 2026-11-19:
+- [DeepMPC, RSS 2015](https://www.roboticsproceedings.org/rss11/p12.html):
+  learned dynamics with online predictive control, evaluated in real robotic
+  food cutting. Not a no-learning controller.
+- [Mitsioni et al., Data-Driven MPC for Food-Cutting, 2019](https://arxiv.org/abs/1903.03831):
+  a recurrent learned dynamics model, force/torque feedback and MPC for
+  velocity-controlled robots, including unseen-object evaluation.
+- [Modelling and Learning Dynamics for Robotic Food-Cutting](https://arxiv.org/abs/2003.09179):
+  learned dynamics with multistep training inside MPC (2020 preprint, 2021
+  conference version; see the [reading note](../literature/mitsioni_2021.md)).
+- Our optimizer is [UM-ARM-Lab/pytorch_mppi](https://github.com/UM-ARM-Lab/pytorch_mppi).
+  It is a general-purpose optimizer, not those papers' cutting-controller code.
+  No author implementation of those three papers was verified in this audit;
+  do not claim that a same-named third-party repository is their release.
 
-## Validation record
+No-learning MPC can use an analytical/identified model; neural-network training
+is optional, but the model, parameters, objective and constraints are still
+needed. Online optimization of actions is not the same as learning model weights.
 
-Workspace: GPU9 `/dataHDD/dong/Projects/Cutting_DEV_baselines_20261116`.
-Outputs: `runs/baseline_validation_20261116/`. Source and data stay on servers.
-The bounded validation is separate from GPU7/A6000 active long runs.
+Real deployment is possible in principle: retain the planner/control structure,
+replace simulated feedback by measured robot/sensor state and match robot/tool/
+board frames, filtering and timing. That is a deployment plan, not an already
+validated result. Our current nonlearned baseline still needs model/FDCC tracking
+validation and acceptable planning latency; a simulated frozen board wrench must
+not replace live real-sensor readings. Learned WM+MPPI additionally needs its
+predictions checked on real transitions. Replanning does not eliminate model error.
 
-GPU9 physical validation completed on the three matched first-episode cases
-(seed20261116, one world per object), with the unchanged180-step task:
+## Pre-cut vision
 
-| Controller | Pose successes / cases | Timeouts | Mean return | Physically separated |
-|---|---:|---:|---:|---:|
-| SB3 SAC smoke checkpoint,264 transitions |1/3|2|25.62|0/3|
-| Frozen WM+MPPI |3/3|0|98.10|0/3|
-| Nonlearned FDCC+MPPI |2/3|1|60.06|0/3|
+The visual module selects a goal before control, then motion/wrench feedback
+closes the execution loop. Historical DP3 examples connect wm_policy, wm_mppi
+and analytic_mpc on native BladeMaster. SAC visual handoff is not implemented.
+This is separate from task-version coverage and is not a core learning claim.
+See [VISION_ROUTE1](VISION_ROUTE1.md) for exact source identities and scope.
 
-These are integration outcomes, not algorithm performance comparisons.
-All nine episodes finished with complete records; there were no force-limit or
-workspace failures. The `cases.json` files are identical across controllers.
-SAC trained on6worlds (2/object),240transitions/216updates, then restored and
-added24transitions/24updates, yielding264transitions/240updates.
-The SAC terminal observation, independent reset, timeout and replay semantics
-also passed targeted tests.
+## Ledger audit — 2026-11-19
 
-Both planners used horizon4,32candidates,one refinement,no terminal critic.
-The WM checkpoint filename `checkpoint_00000032.pt` encodes iteration32:
-actual WM updates105 (1050optimizer steps),policy0,critic0. This is an early
-pretraining checkpoint, not a mature policy model. Its weights remained frozen.
-WM-MPPI finished potato/prism/cucumber at100/100/124steps, with324plans.
-Nonlearned MPC used2analytic substeps, completed potato/prism at151/137steps
-and timed out on cucumber at180steps, with468plans. Ended worlds stopped planning.
-Mean planning times were0.1525s and0.1335s per world respectively, exceeding
-the50ms control interval. Do not present these as real-time controllers.
-Some regression tests overlapped the evaluation period, so wall-clock episode
-times are not isolated throughput benchmarks.
+Checked against main 6d109cd, including the check_pose_depth board-state input
+fix. All four evaluator CLI choices and the two backend config switches were
+verified from source. On GPU9: root 672 passed / 5 legacy checks skipped,
+backend 41 passed. 119 Markdown files / 417 relative links and fragments checked,
+no broken targets detected. Logs:
+ /dataHDD/dong/Experiments/Cutting_DEV/runs/controller_docs_20261119/.
 
-The optional learned-critic MPPI path exposed a compatibility bug: pose error
-received the eight-dimensional pose-plus-speed goal. It now receives only the
-seven pose coordinates, matching the actor-training code. Targeted tests cover
-current8D goals, critic evaluation and frozen critic weights. No separate
-physical episode with the terminal critic was run.
-
-Independent reviews of both planner paths found no additional blocking issue.
-This validation itself ran all three methods on the current DiSECt-material task
-only. Later one-world native-BladeMaster executions of WM+MPPI and nonlearned
-FDCC+MPPI are recorded in the DP3 section below; they are single illustrations,
-not a bounded BladeMaster evaluation.
-
-
-
-SAC wall-budget probe: the first probe exposed that changing SB3's schedule
-horizon does not stop its local learning-loop budget. The runner now raises a
-dedicated stop at the next complete rollout/update boundary and saves normally.
-A regression verifies that all counted transitions are inserted and their
-scheduled updates finish. A physical expired-budget restore (`sac_wall_stop_v2`)
-kept240transitions/216updates/replay240 and stopped with `wall_budget`, adding
-no data. Initialization and an indivisible physics/update round are not forcibly
-interrupted by this deadline. These are engineering budget semantics, not a
-hard real-time process watchdog.
-
-Final GPU9 regression: root577passed/3skipped; bundled backend41passed.
-The three skips are optional original TensorFlow checkpoint/bridge/learner
-checks, not the new SB3 or MPPI paths. First attempts in the isolated worktree
-lacked historical test fixtures; those assets were copied before the final
-full run. Active GPU7/A6000 training code and Python environments were unchanged.
-
-
-Interrupted-save guard: model/replay payloads are first fully written to a
-temporary directory, then individually replaced, with the checksum metadata
-replaced last. Resume checks both payload hashes; evaluation checks the model.
-A mixed-generation snapshot is rejected instead of silently resumed. This is
-detection, not automatic rollback to the previous generation. Legacy smoke
-snapshots without hashes emit an explicit warning. A regression corrupts replay
-after a valid save and verifies rejection.
-
-## DP3 pre-cut visual handoff — 2026-11-17
-
-WM+MPPI and nonlearned FDCC+MPPI now have actual one-world native-BladeMaster
-visual execution through evaluate_visual_cut.py. DP3 selects the midpoint from
-visible depth; the planner is initialized after visual placement and updated
-from robot/wrench feedback each step. No continual visual tracking.
-SAC visual execution remains unimplemented. See VISION_ROUTE1 and RESULTS.
-The WM trial explicitly transfers the exact policy66-paired WM566 from DiSECt;
-nonlearned planning uses no learned weights. This demonstration is not a
-matched-backend algorithm benchmark or calibrated material-aware MPC.
+This documentation reorganization did not run new MPC episodes or alter
+training/task code. GPU7's ongoing 3072-world capacity/memory check was not
+interrupted or used for these tests. Historical controller notes remain in the
+archive, and all checkpoints, buffers and frozen worktrees are retained.

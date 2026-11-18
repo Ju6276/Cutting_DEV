@@ -8,7 +8,7 @@ software board-stop consistency fix and analytic imagined survival; v2 is kept
 only for the 2026-11-16 runs): prescribed final pose without failure,
 with a board execution boundary. Pose success is not proof of material separation.
 
-## Current entry points — 2026-11-18
+## Current entry points — 2026-11-19
 
 | Purpose | Source |
 |---|---|
@@ -17,13 +17,19 @@ with a board execution boundary. Pose success is not proof of material separatio
 | Completion, rewards and constraints | [TASK_FREE_CUT](docs/TASK_FREE_CUT.md) |
 | Learning implementation | [METHOD](docs/METHOD.md) |
 | Ended 2026-11-16 launches (pose_depth_v2): WM+BPTT and GPU9 SAC | [Shared training](docs/archive/TRAINING_SHARED_20261116.md), [SAC training](docs/archive/TRAINING_SAC_20261116.md) |
-| SAC, WM+MPPI and nonlearned MPC coverage | [CURRENT_BASELINES](docs/methods/CURRENT_BASELINES.md) |
+| All four controllers: current code, task versions and tested coverage | [CURRENT_BASELINES](docs/methods/CURRENT_BASELINES.md) |
 | Vision implementation and fixed-heading method-2 pilot | [VISION_ROUTE1](docs/methods/VISION_ROUTE1.md) |
 | Measured outcomes and limits | [RESULTS](docs/RESULTS.md) |
 | Installation, tests, training/evaluation commands, recording and shared renderer | [RUNNING](docs/RUNNING.md) |
 | Server data and preserved run provenance | [DATA](docs/DATA.md) |
 | UR10e + ATI: first FDCC hardware setup | [Chinese setup handoff](docs/hardware/UR10E_FDCC_SETUP_ZH.md) |
 | Full documentation index | [docs](docs/README.md) |
+
+**One current task, not one task per algorithm:** all four controllers use
+pose_depth_v3 on main. v2 is historical replay/evaluation compatibility.
+DiSECt/BladeMaster select material physics; they do not select an RL algorithm.
+[The controller ledger](docs/methods/CURRENT_BASELINES.md) separates current
+implementation from the task versions of measured results.
 
 Development is consolidated on GitHub main. Every server (GPU7, GPU9, A6000) runs
 from /dataHDD/dong/Projects/Cutting_DEV on `main` with the tracked environment

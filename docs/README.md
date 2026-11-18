@@ -20,7 +20,8 @@ experiment or archived launch is not a new training instruction.
 ## Subfolders
 
 - [methods/](methods/): [CURRENT_BASELINES](methods/CURRENT_BASELINES.md) (SAC, frozen
-  WM+MPPI and nonlearned FDCC+MPPI: provenance, inputs, tested coverage);
+  WM+MPPI and nonlearned FDCC+MPPI, plus WM+BPTT: one current code line,
+  version-specific evidence, inputs and provenance);
   [VISION_ROUTE1](methods/VISION_ROUTE1.md) (pre-cut visual goal selection, DP3
   midpoint predictor and physical handoffs).
 - [hardware/](hardware/): [REAL2SIM](hardware/REAL2SIM.md) (real-robot interface and
@@ -44,6 +45,9 @@ Archived files are evidence, not current instructions.
   [RESULTS 2026-11-11 … 15](archive/RESULTS_20261111_20261115.md),
   [METHOD historical sections](archive/METHOD_historical_20261118.md),
   [RUNNING historical commands](archive/RUNNING_historical_20261118.md).
+- [11-16–18 baseline detail](archive/BASELINES_20261116_20261118.md):
+  historical controller implementations and tests; three-controller physical
+  outcomes were v2, whereas the 11-18 SAC smoke was v3.
 - 2026-11-16 launches (pose_depth_v2, ended):
   [shared WM+BPTT runs](archive/TRAINING_SHARED_20261116.md),
   [GPU9 vector SAC](archive/TRAINING_SAC_20261116.md),
