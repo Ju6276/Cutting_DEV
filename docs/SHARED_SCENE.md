@@ -72,6 +72,96 @@ configuration has no particle-displacement penalty: fragment opening is not char
 Tool distance is measured from the prescribed goal in robot-base XY, not from a
 moving object or from the rendered board edge. Both modes retain force/workspace/board limits.
 
+## Shared physical knife and mounting
+
+Merged from the former SHARED_KNIFE.md on 2026-11-18. Revision
+`disect_knife_rigid_mount_v1`: the knife of this shared scene (introduced with
+pose_depth_v2, unchanged in pose_depth_v3).
+The reference is the **actual main DiSECt contact blade**, not the URDF appearance mesh.
+
+### Common geometry and installation
+
+The finite blade is 150.000006 mm long, 59.040001 mm high and 3.500000 mm thick at
+the spine. Its cross-section has a thin 0.080 mm shoulder 0.040 mm above the edge
+and a long taper to the spine. Both backends use the same ten physical vertices.
+
+The BladeMaster blade frame is right-handed, z up and y along the edge.
+Its conversion to the DiSECt blade frame is
+`(x_D,y_D,z_D)=(x_B,z_B,-y_B)+(0,center_y,0)`.
+A canonical source UR5e configuration determines a single EE-to-blade mounting,
+then ordinary FK moves the blade. Tests compare the transformed vertices at
+several joint configurations, not just one initial image. The along-edge axis
+matches the source sawing direction in robot-base X.
+
+- BladeMaster: a new optional two-slope signed-distance profile replaces the
+  old vertical broad faces. Contact normals, contact points, broad-face transport
+  constraints and board vertices all use this profile. Changing only the mesh
+  or bounding-box dimensions would leave inconsistent physical contact.
+- DiSECt: the new tool revision follows the rigid EE mount, interpolated over
+  material substeps. It removes accumulated tool/robot pose drift from the old
+  velocity-only, plane-projected coupling. The finite-tool swept joint-path
+  board interlock remains active.
+- Force and moment transformations continue to use the actual tool/material and
+  sensor origins. There is no display-only translation masquerading as a fix.
+
+The BladeMaster profile implementation is in the separately versioned
+`BladeMaster-Warp-shared-knife-20261116` worktree. It is a change to our
+reproduction, not an official upstream release.
+
+### What remains intentionally different
+
+FEM cutting springs versus TLMPM side labels/contact work, material
+discretization, constitutive and fracture parameters, and material substep
+integration remain backend-specific. DiSECt interpolates the tool over 2 ms;
+the BladeMaster external-tool port holds its supplied tool pose over the
+2 ms material exchange. Those coupling approximations have not been made
+identical by this knife change.
+
+The existing frozen policies were trained with different original knives,
+task progress signals, conditions and interaction budgets. They are historical
+results. This change neither retrains them nor converts their old results into
+a controlled backend comparison. New training must use an explicit shared-tool
+configuration and new run identity.
+
+The renderer draws recorded physical blade vertices and the retained original
+URDF handle. The previously invented cylindrical shank and collar have been
+removed: neither had measured CAD provenance or user authorization. No
+replacement connector or visual blade displacement is introduced. A measured
+adapter mesh remains unavailable; rigid-transform checks do not validate real
+hardware mounting. No second blue blade is displayed.
+
+### Knife commands
+
+Use the shared contract preparation and replay commands in
+[Preparation and replay](#preparation-and-replay). They generate both backend
+inputs from `configs/shared/scene_v1.json` and verify their manifest hashes.
+The former `shared_knife_check.json` inputs now live in
+`configs/archive/scene_checks_20261116/`; they describe historical probes, not
+current launch instructions. Numeric probe results remain in RESULTS.
+
+Material mechanisms and arrival-counter semantics: [CUTTING_MECHANISMS](reference/CUTTING_MECHANISMS.md).
+
+### Historical scene alignment audit (superseded reset settings)
+
+Condensed; the full text is in
+[SHARED_KNIFE.md at 4dfbc0c](https://github.com/Ju6276/Cutting_DEV/blob/4dfbc0c/docs/SHARED_KNIFE.md).
+Earlier 2026-11-16 captures, before the shared reset contract (nominal materials,
+one world/object, requested 5 mm clearance, 30 mm/s feed, no policy, no control
+step). They are evidence of the mismatch, not current settings. Actual lowest
+blade height above the topmost material sample after settling:
+
+| Object | DiSECt (mm) | BladeMaster (mm) |
+|---|---:|---:|
+| Cucumber | 5.52 | 17.45 |
+| Half potato | 4.47 | 29.45 |
+| Prism | 4.71 | 5.59 |
+
+The historical BladeMaster implementation computed the initial height from the
+maximum object height across its groups; DiSECt used each group's scene/start
+lift. The shared reset contract above supersedes this. Outputs:
+runs/shared_scene_views_20261116/{disect,blademaster}/ (close views, cucumber_wide.png,
+recorded geometry, camera metadata, render_audit.json).
+
 ## Explicit differences and remaining work
 
 - Native BladeMaster preset provenance: all three geometries start from
