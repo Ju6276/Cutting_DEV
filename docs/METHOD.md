@@ -856,7 +856,7 @@ top and supplies base-frame EE pose plus commanded speed. It does not change
 the policy observation or learning algorithm. This describes the original
 prescribed-plane mode; the visible-midpoint selector and tested physical
 handoffs below supersede its initial untested-execution status.
-See [VISION_ROUTE1](VISION_ROUTE1.md).
+See [VISION_ROUTE1](methods/VISION_ROUTE1.md).
 
 
 ### Visual goal selector and physical handoff (2026-11-17)
@@ -880,7 +880,7 @@ WM/BPTT/controller. Training supervision uses full surface bounds offline.
 Both learned and geometric fixed-heading selectors call the same board/tool
 goal converter, then the existing frozen-policy handoff. Camera and data
 protocol, current test errors and failed physical trials are in
-[VISION_ROUTE1](VISION_ROUTE1.md). This is a modular task-input demonstration,
+[VISION_ROUTE1](methods/VISION_ROUTE1.md). This is a modular task-input demonstration,
 not an adopted algorithmic novelty claim.
 
 ## Visual midpoint DP3 encoder adapter (2026-11-17)

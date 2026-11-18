@@ -9,8 +9,8 @@ provisional exclusions in PAPER.
 
 Paper/source review through 2026-11-10; contact-dynamics source inspection
 included. Literature evidence and candidate gaps only; it does not add
-development tasks. The research scope is in [PAPER](PAPER.md) (open since 2026-11-12);
-current work is in [PLAN](PLAN.md). The setting chosen by the user is one shared WM
+development tasks. The research scope is in [PAPER](../PAPER.md) (open since 2026-11-12);
+current work is in [PLAN](../PLAN.md). The setting chosen by the user is one shared WM
 and policy trained across materials and prepared geometries.
 The question remains how learning robot/force response helps physical cutting
 control. Multiple objects do not by themselves establish novelty. Action-noise
@@ -21,12 +21,12 @@ Labels: **T** paper text; **C** code; **I** inference; **A/S** abstract or searc
 snippet only. Claims marked "spot-checked" were re-read in the source by the
 main session. Current reviewed texts and source snapshots stay on GPU7 (not in Git):
 `/dataHDD/dong/Research/cutting_literature_20261110/`.
-Individual scopes and code pins are indexed in [literature/README](literature/README.md).
+Individual scopes and code pins are indexed in [literature/README](../literature/README.md).
 Code findings below name the inspected functions and link to pinned revisions.
-**C** records source inspection; execution results belong in [RESULTS](RESULTS.md).
+**C** records source inspection; execution results belong in [RESULTS](../RESULTS.md).
 
 > 2026-11-12: the problem statement this review served is retired (PAPER §1). Prior art for the
-> candidate topic is in [literature/force_adaptive_search_20261112](literature/force_adaptive_search_20261112.md).
+> candidate topic is in [literature/force_adaptive_search_20261112](../literature/force_adaptive_search_20261112.md).
 > The per-paper evidence below stays valid.
 
 ## 1. SliceIt (ICRA 2024, [2404.02569](https://arxiv.org/abs/2404.02569); code omron-sinicx/sliceit)
@@ -208,7 +208,7 @@ cutting experiment. Details and versions are in the individual reading records.
   surroundings so joint position/velocity can represent state [T]. It motivates
   separating timing error from response error; applying the same state
   assumption to deforming, damaged material would omit history [I]. Author implementation is now inspected; see
-  [the hybrid GP record](literature/hybrid_contact_gp.md) for its pin and scope.
+  [the hybrid GP record](../literature/hybrid_contact_gp.md) for its pin and scope.
 
 ## 8. Our own implementation, for comparison with the above
 
@@ -229,7 +229,7 @@ cutting experiment. Details and versions are in the individual reading records.
   physics-linked state/contact predictions. These general ideas already exist;
   the candidate contribution concerns their effect on compliant cutting and
   BPTT policy learning [T/I].
-- The A comparison in [RESULTS](archive/RESULTS_20261102_20261110.md)
+- The A comparison in [RESULTS](RESULTS_20261102_20261110.md)
   separates two observations: removing BCE gradients from dynamics improves
   position prediction, while force-limit misses remain. The fixed-fit training
   split contains no force-limit failures. Current evidence leaves both coverage
@@ -250,7 +250,7 @@ cutting experiment. Details and versions are in the individual reading records.
 
 ## 9. Deep-reading update: what constrains route B
 
-Updated 2026-11-10. [Individual records](literature/README.md) replace the
+Updated 2026-11-10. [Individual records](../literature/README.md) replace the
 earlier abstract-only B survey. Each gives the retrieved paper version, actual
 read scope, algorithm, data/metrics, relevant limitation, code provenance and
 inspected implementation paths. Code reading is not an executed reproduction.
@@ -283,13 +283,13 @@ Third-party Dalal and SuperMimic implementations are separately labeled.
 The T-RO final cutting section remains a coverage limitation; its pendulum
 preprint and SafeDDC release cannot stand in for it.
 
-Two resource corrections also matter. [Sashimi-Bot](literature/sashimi_bot.md)
+Two resource corrections also matter. [Sashimi-Bot](../literature/sashimi_bot.md)
 uses RL for shape manipulation; its cutting is a geometry-based planner with
-tactile board-contact correction. [CulinaryCut](literature/culinarycut.md)
+tactile board-contact correction. [CulinaryCut](../literature/culinarycut.md)
 has materially different manuscript/project versions and a currently
 inaccessible advertised code link; public samples do not establish access to
 the algorithm. Its older force-response speed limiter is relevant prior art.
-[Playing with Food](literature/playing_with_food.md) provides real multimodal
+[Playing with Food](../literature/playing_with_food.md) provides real multimodal
 interaction data, not just visual objects.
 
 The earlier general claim that other papers do not use perturbation evaluations
@@ -303,7 +303,7 @@ not reactivate it.
 the problem is solved. Each precedent is judged by its setting, assumptions and
 measured results (e.g. the visuotactile WM's BPTT agent underperformed IQL;
 Dalal's sensitivity layer was shown on toy position constraints). Where the
-precedents stop is summarized in [PAPER](PAPER.md) section 3; precedent
+precedents stop is summarized in [PAPER](../PAPER.md) section 3; precedent
 approaches become baselines when the paper claims to do better. The text below
 is the earlier synthesis and keeps its evidence; read its "not new" wording
 through this rule.
@@ -353,7 +353,7 @@ benefit. This review does not authorize a new run.
   planning comparison is unsupported [I].
 - **TD3+BC**, [official repository](https://github.com/sfujim/TD3_BC):
   its actor implementation and training entry document weighted behavior cloning
-  and state normalization [C; see the pinned [TD3+BC record](literature/td3_bc.md)]. Our METHOD already attributes the
+  and state normalization [C; see the pinned [TD3+BC record](../literature/td3_bc.md)]. Our METHOD already attributes the
   replay-action regularizer to this work. We use it during online continuation;
   that does not turn the procedure into the original offline-RL algorithm [I].
 
@@ -364,7 +364,7 @@ new generic algorithm. See PAPER's evidence table and review questions.
 
 ## Candidate comparisons (depend on the final claim; not current tasks)
 
-Current tasks are only those in [PLAN](PLAN.md). Candidates, each needing its own
+Current tasks are only those in [PLAN](../PLAN.md). Candidates, each needing its own
 plan and an estimate of integration and validation cost:
 
 - SAC with the SliceIt code reward (state any multi-material randomization that

@@ -4,8 +4,8 @@
 
 Runtime status is a timestamped observation, not inferred from this plan.
 Frozen launch protocol, budgets and W&B links:
-[shared WM+BPTT runs](TRAINING_SHARED_20261116.md),
-[vector SAC](TRAINING_SAC_20261116.md). Read each run's progress and process
+[shared WM+BPTT runs](archive/TRAINING_SHARED_20261116.md),
+[vector SAC](archive/TRAINING_SAC_20261116.md). Read each run's progress and process
 before reporting that it is still active.
 
 - GPU7: 3072-world WM+BPTT, DiSECt material backend.
@@ -60,14 +60,14 @@ task settings must not be edited independently for each backend.
 
 ## Current baseline and vision status
 
-[CURRENT_BASELINES](CURRENT_BASELINES.md) is the implementation/coverage ledger.
+[CURRENT_BASELINES](methods/CURRENT_BASELINES.md) is the implementation/coverage ledger.
 Current entries are vector SB3 SAC, frozen WM+MPPI and approximate nonlearned
 FDCC+MPPI. The original TensorFlow SliceIt SAC remains historical reproduction.
 No claim of matched-budget superiority follows from integration tests.
 
 Vision is pre-cut goal selection followed by motion/wrench feedback, not
 continuous visual servoing or a core RL contribution.
-[Vision protocol](VISION_ROUTE1.md) documents geometric midpoint and learned
+[Vision protocol](methods/VISION_ROUTE1.md) documents geometric midpoint and learned
 midpoint routes. Official DP3 XYZ encoder plus our regression head is the new
 default; the local encoder remains a named comparison. This choice was made on
 a reused development test set (RESULTS 2026-11-17), not a fresh final evaluation.
@@ -84,7 +84,7 @@ remain deferred; no additional visual tuning or training is scheduled.
 
 The user selected UR10e + ATI Mini45-E (SI-580-20). First validate driver,
 motion and FDCC wrench feedback on the control PC without a knife, RL, MPC
-or vision. Follow [the Chinese handoff](UR10E_FDCC_SETUP_ZH.md). The Mech-Mind
+or vision. Follow [the Chinese handoff](hardware/UR10E_FDCC_SETUP_ZH.md). The Mech-Mind
 camera and tool/mount CAD are later inputs. Hardware installation, calibration
 and tests remain pending; this does not alter frozen simulations or authorize
 a new training run. No additional near-board controller handover is selected.

@@ -66,7 +66,7 @@ It copies the input capture and exported scene, and builds the MuJoCo robot
 from the resolved ROS meshes. It refuses to replace existing assets.
 
 For a new machine, restore and build the pinned SliceIt sources first
-([source checkout](SOURCES.md)). Place the official
+([source checkout](reference/SOURCES.md)). Place the official
 [DiSECt dataset](https://github.com/NVlabs/DiSECt/tree/main/dataset) under
 `external/SliceIt/disect/dataset`, following its download instructions.
 

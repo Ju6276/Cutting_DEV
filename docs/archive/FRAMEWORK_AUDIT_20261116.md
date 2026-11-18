@@ -58,7 +58,7 @@ preflights do not certify those alternatives for the newest shared task.
 
 Exact active values and commands: [SHARED_SCENE](../SHARED_SCENE.md),
 [scene_v1.json](../../configs/shared/scene_v1.json). Source revisions:
-[SOURCES](../SOURCES.md). Task equations: [TASK_FREE_CUT](../TASK_FREE_CUT.md).
+[SOURCES](../reference/SOURCES.md). Task equations: [TASK_FREE_CUT](../TASK_FREE_CUT.md).
 
 ## Corrections in this audit
 

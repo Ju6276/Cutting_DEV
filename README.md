@@ -16,14 +16,14 @@ with a board execution boundary. Pose success is not proof of material separatio
 | Scene, robot, knife, reset distribution and cut locations | [SHARED_SCENE](docs/SHARED_SCENE.md) |
 | Completion, rewards and constraints | [TASK_FREE_CUT](docs/TASK_FREE_CUT.md) |
 | Learning implementation | [METHOD](docs/METHOD.md) |
-| GPU7 / A6000 frozen launch protocol | [Shared training](docs/TRAINING_SHARED_20261116.md) |
-| GPU9 SAC launch protocol | [SAC training](docs/TRAINING_SAC_20261116.md) |
-| SAC, WM+MPPI and nonlearned MPC coverage | [CURRENT_BASELINES](docs/CURRENT_BASELINES.md) |
-| Vision implementation and fixed-heading method-2 pilot | [VISION_ROUTE1](docs/VISION_ROUTE1.md) |
+| GPU7 / A6000 frozen launch protocol | [Shared training](docs/archive/TRAINING_SHARED_20261116.md) |
+| GPU9 SAC launch protocol | [SAC training](docs/archive/TRAINING_SAC_20261116.md) |
+| SAC, WM+MPPI and nonlearned MPC coverage | [CURRENT_BASELINES](docs/methods/CURRENT_BASELINES.md) |
+| Vision implementation and fixed-heading method-2 pilot | [VISION_ROUTE1](docs/methods/VISION_ROUTE1.md) |
 | Measured outcomes and limits | [RESULTS](docs/RESULTS.md) |
 | Installation, tests, recording and shared renderer | [RUNNING](docs/RUNNING.md) |
 | Server data and preserved run provenance | [DATA](docs/DATA.md) |
-| UR10e + ATI: first FDCC hardware setup | [Chinese setup handoff](docs/UR10E_FDCC_SETUP_ZH.md) |
+| UR10e + ATI: first FDCC hardware setup | [Chinese setup handoff](docs/hardware/UR10E_FDCC_SETUP_ZH.md) |
 | Full documentation index | [docs](docs/README.md) |
 
 Development is consolidated on GitHub main. Running jobs retain their frozen
@@ -54,12 +54,12 @@ unimplemented; see docs/VISION_ROUTE1.md for exact scope and commands.
 ## Historical reproduction
 
 The original fixed-prism contract and commands are in
-[BENCHMARK](docs/BENCHMARK.md); v1-v3 and old pose-v1 results retain their original
+[BENCHMARK](docs/archive/BENCHMARK.md); v1-v3 and old pose-v1 results retain their original
 task definitions. [Archived records](docs/README.md#historical-records) are
 evidence, not the current training recipe. Historical README recipes remain at
 [4653d10](https://github.com/Ju6276/Cutting_DEV/blob/4653d10/README.md).
 Never bypass physics/task metadata to present old weights as current-task results.
 
-[Paper scope](docs/PAPER.md) · [Literature](docs/NOVELTY.md) ·
-[Real robot draft](docs/REAL2SIM.md) · [Sources](docs/SOURCES.md) ·
+[Paper scope](docs/PAPER.md) · [Literature](docs/archive/NOVELTY.md) ·
+[Real robot draft](docs/hardware/REAL2SIM.md) · [Sources](docs/reference/SOURCES.md) ·
 [Licenses](NOTICE.md)

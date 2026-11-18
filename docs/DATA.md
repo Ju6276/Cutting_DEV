@@ -90,7 +90,7 @@ comparisons, not the active potato asset.
 - BladeMaster-derived DiSECt candidates: /dataHDD/dong/Assets/Cutting_DEV/blademaster_disect_20261114;
   prepared/sweep/bm_{banana,cake,tofu,luncheon}_20261114.
   Evidence: runs/bm_disect_assets_20261114 and runs/ground_contact_20261114.
-  These are not added to main training. See [asset provenance](BLADEMASTER_DISECT_ASSETS.md).
+  These are not added to main training. See [asset provenance](archive/BLADEMASTER_DISECT_ASSETS.md).
 
 ## Historical checkpoints and research evidence
 

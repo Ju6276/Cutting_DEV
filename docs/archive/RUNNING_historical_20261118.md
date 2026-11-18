@@ -8,7 +8,7 @@ Original intro of docs/RUNNING.md (2026-11-17):
 
 > Historical fixed-prism/source commands below are reproduction entries, not
 > instructions to restart S3. Current long-run settings and frozen launch records
-> are in [TRAINING_SHARED_20261116](TRAINING_SHARED_20261116.md). The versioned opt-in free-cut contract is in [TASK_FREE_CUT](TASK_FREE_CUT.md); follow [PLAN](PLAN.md).
+> are in [TRAINING_SHARED_20261116](TRAINING_SHARED_20261116.md). The versioned opt-in free-cut contract is in [TASK_FREE_CUT](../TASK_FREE_CUT.md); follow [PLAN](../PLAN.md).
 > Commands run from the repository root. The GPU backend is bundled at
 > `backends/mujoco`; `--backend-root` can select a separate prepared checkout.
 

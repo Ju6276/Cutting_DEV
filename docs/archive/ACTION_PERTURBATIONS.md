@@ -1,7 +1,7 @@
 # Archived action-perturbation evaluation
 
 Historical reproducibility only. This is not a current task or manuscript protocol.
-Current task definitions: [BENCHMARK](../BENCHMARK.md).
+Current task definitions: [BENCHMARK](BENCHMARK.md).
 
 ## Archived action-perturbation protocol — excluded from the paper
 

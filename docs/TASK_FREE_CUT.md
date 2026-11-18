@@ -193,7 +193,7 @@ configs/archive/scene_checks_20261116/free_cut/depth_three_object_check.json and
 configs/archive/scene_checks_20261116/blademaster/depth_three_object_check.json.
 
 The optional tool revision `disect_knife_rigid_mount_v1` now unifies physical
-blade geometry and the rigid UR5e mount; see [SHARED_KNIFE](SHARED_KNIFE.md).
+blade geometry and the rigid UR5e mount; see [shared knife](SHARED_SCENE.md#shared-physical-knife-and-mounting).
 In that revision the DiSECt physical knife follows robot FK through substep
 interpolation, and the two backends share the finite-tool board interlock.
 Material laws, settling and sampling distributions remain separate. Existing

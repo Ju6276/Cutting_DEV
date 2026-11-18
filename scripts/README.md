@@ -9,8 +9,8 @@ An available script does not authorize another experiment.
 | Purpose | Entry / protocol |
 |---|---|
 | Shared scene inputs for both material backends | `prepare_shared_scenes.py`; [SHARED_SCENE](../docs/SHARED_SCENE.md) |
-| WM+BPTT training | `train_gpu.py`; explicit generated config and approved [launch settings](../docs/TRAINING_SHARED_20261116.md) |
-| Batched PyTorch SAC | `train_sac_multi.py`; [SAC protocol](../docs/TRAINING_SAC_20261116.md) |
+| WM+BPTT training | `train_gpu.py`; explicit generated config and approved [launch settings](../docs/archive/TRAINING_SHARED_20261116.md) |
+| Batched PyTorch SAC | `train_sac_multi.py`; [SAC protocol](../docs/archive/TRAINING_SAC_20261116.md) |
 | Frozen RL, SAC, WM+MPPI, analytic MPC | `evaluate_pose_policy.py --method wm_policy|sac|wm_mppi|analytic_mpc` |
 | Actual collection/update/reset/replay capacity | `check_training_capacity.py` |
 | Task/reward equations and optional tool-position rule | `check_pose_depth.py`; [SHARED_SCENE](../docs/SHARED_SCENE.md) |
@@ -18,7 +18,7 @@ An available script does not authorize another experiment.
 Do not launch `train_gpu.py` with bare defaults as the current task: defaults
 retain the historical fixed-prism source variant. Current task is pose_depth_v3 (v2 training refused);
 material separation is diagnostic. The optional risk variant is not selected.
-[CURRENT_BASELINES](../docs/CURRENT_BASELINES.md) records tested backend coverage,
+[CURRENT_BASELINES](../docs/methods/CURRENT_BASELINES.md) records tested backend coverage,
 input contracts, SAC provenance and analytic-model limitations.
 
 ## Approved visualization
@@ -52,7 +52,7 @@ WM+MPPI requires a full model checkpoint paired by exact actor tensors with
 the goal-convention policy checkpoint. Cross-backend inference is explicit
 and still checks robot/task/tool contracts. Analytic MPC loads no learned
 control weights. SAC visual execution is not implemented.
-[Vision protocol](../docs/VISION_ROUTE1.md) specifies scope, flags and budgets.
+[Vision protocol](../docs/methods/VISION_ROUTE1.md) specifies scope, flags and budgets.
 
 ## Assets and diagnostic tools
 
@@ -76,7 +76,7 @@ versions and [RESULTS](../docs/RESULTS.md).
 - `train_coupled*.py`, `train_sac.py`, `run_sac_training.py` and Gazebo
   collection bridges retain independent upstream reproduction.
 - `train_official_supermimic.py`: separate official adaptation; see
-  [OFFICIAL_SUPERMIMIC](../docs/OFFICIAL_SUPERMIMIC.md).
+  [OFFICIAL_SUPERMIMIC](../docs/archive/OFFICIAL_SUPERMIMIC.md).
 - `legacy/`: retired perturbation, B1 and model-fit diagnostics.
 
 Historical commands and detailed diagnostic provenance remain in the

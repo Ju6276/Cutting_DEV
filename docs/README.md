@@ -6,26 +6,26 @@ locations. A dated experiment or archived launch is not a new training instructi
 | Document | Role |
 |---|---|
 | [PLAN](PLAN.md) | Current decisions, GPU7/A6000 deployments, fixed budgets and next work |
-| [SAC training](TRAINING_SAC_20261116.md) | GPU9 bounded vector SAC launch |
-| [Shared training](TRAINING_SHARED_20261116.md) | Current task launch protocol, verification and online run records |
-| [Shared scene](SHARED_SCENE.md), [knife](SHARED_KNIFE.md) | Authoritative shared settings, physical geometry and backend differences |
+| [SAC training](archive/TRAINING_SAC_20261116.md) | GPU9 bounded vector SAC launch |
+| [Shared training](archive/TRAINING_SHARED_20261116.md) | Current task launch protocol, verification and online run records |
+| [Shared scene](SHARED_SCENE.md), [knife](SHARED_SCENE.md#shared-physical-knife-and-mounting) | Authoritative shared settings, physical geometry and backend differences |
 | [TASK_FREE_CUT](TASK_FREE_CUT.md) | Pose completion, board boundary, running rewards and diagnostic labels |
 | [RUNNING](RUNNING.md) | Installation, tests and online W&B requirement |
 | [DATA](DATA.md) | Current server paths, checkpoints, preserved evidence and cleanup ledger |
-| [Current baselines](CURRENT_BASELINES.md) | SAC source search, current vector SAC and two model-based planners |
-| [Vision](VISION_ROUTE1.md) | Route1 implementation, method2 fixed-heading pilot, controller integration status |
+| [Current baselines](methods/CURRENT_BASELINES.md) | SAC source search, current vector SAC and two model-based planners |
+| [Vision](methods/VISION_ROUTE1.md) | Route1 implementation, method2 fixed-heading pilot, controller integration status |
 | [METHOD](METHOD.md) | Implemented learning methods and physical interfaces |
 | [RESULTS](RESULTS.md) | Dated measurements and limitations, including failed runs |
 | [PAPER](PAPER.md) | Research scope and claims still requiring evidence |
-| [BENCHMARK](BENCHMARK.md) | Historical fixed-prism contract, not the active multi-object task |
-| [OFFICIAL_SUPERMIMIC](OFFICIAL_SUPERMIMIC.md) | Official implementation adaptation and deviations |
-| [BladeMaster backend](BLADEMASTER_BACKEND_REVIEW.md) | Initial integration history; current contract is SHARED_SCENE |
-| [BladeMaster assets](BLADEMASTER_DISECT_ASSETS.md) | Candidate objects converted to prescribed-interface DiSECt |
-| [NOVELTY](NOVELTY.md), [READING_LIST](READING_LIST.md) | Literature evidence and entry points |
+| [BENCHMARK](archive/BENCHMARK.md) | Historical fixed-prism contract, not the active multi-object task |
+| [OFFICIAL_SUPERMIMIC](archive/OFFICIAL_SUPERMIMIC.md) | Official implementation adaptation and deviations |
+| [BladeMaster backend](archive/BLADEMASTER_BACKEND_REVIEW.md) | Initial integration history; current contract is SHARED_SCENE |
+| [BladeMaster assets](archive/BLADEMASTER_DISECT_ASSETS.md) | Candidate objects converted to prescribed-interface DiSECt |
+| [NOVELTY](archive/NOVELTY.md), [READING_LIST](literature/README.md#reading-list) | Literature evidence and entry points |
 | [Literature search](literature/force_adaptive_search_20261112.md) | Candidate topic search and evidence levels |
-| [UR10e + ATI FDCC setup](UR10E_FDCC_SETUP_ZH.md) | Chinese handoff for the control PC: installation, interfaces and first hardware tests |
-| [REAL2SIM](REAL2SIM.md) | Real-robot plan; UR10e hardware facts and conditional later work |
-| [SOURCES](SOURCES.md) | Upstream revisions and provenance |
+| [UR10e + ATI FDCC setup](hardware/UR10E_FDCC_SETUP_ZH.md) | Chinese handoff for the control PC: installation, interfaces and first hardware tests |
+| [REAL2SIM](hardware/REAL2SIM.md) | Real-robot plan; UR10e hardware facts and conditional later work |
+| [SOURCES](reference/SOURCES.md) | Upstream revisions and provenance |
 
 [Script map](../scripts/README.md) identifies execution and diagnostic entry points.
 

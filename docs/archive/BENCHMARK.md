@@ -4,15 +4,15 @@
 
 > 2026-11-12: this file defines the **fixed prism** benchmark. Its success rule (knife at the goal
 > pose) and reward are not valid for the multi-object task (RESULTS 2026-11-12); that task's
-> definition is being revised in [PLAN](PLAN.md). `RESULTS <date>` references up to 2026-11-10 are in
-> [archive/RESULTS_20261102_20261110](archive/RESULTS_20261102_20261110.md).
+> definition is being revised in [PLAN](../PLAN.md). `RESULTS <date>` references up to 2026-11-10 are in
+> [archive/RESULTS_20261102_20261110](RESULTS_20261102_20261110.md).
 
 The contract and numerical tables below describe historical scalar-feedback runs.
 Current main also has optional net feedback and contact revision
 `edge_coordinate_consistent_v2`; these do not retroactively change the old
 benchmark results. Reproduction uses the recorded run revision/configuration and
 an isolated kernel cache, not an arbitrary current checkout. See
-[METHOD](METHOD.md#contact-coordinate-consistency-correction--2026-11-12).
+[METHOD](../METHOD.md#contact-coordinate-consistency-correction--2026-11-12).
 
 Every method executes in **UR5e + MuJoCo Warp + the SliceIt compliance controller
 + DiSECt**, using `GPUEnvironment`. The current case is
@@ -128,7 +128,7 @@ different claims. Grouping/randomization exist in old S0, whose task failed diag
 
 Action-perturbation evaluations are retired and excluded from the paper.
 Their definitions and reproduction entry live in
-[archive/ACTION_PERTURBATIONS.md](archive/ACTION_PERTURBATIONS.md).
+[archive/ACTION_PERTURBATIONS.md](ACTION_PERTURBATIONS.md).
 Current task evaluation and recording use the unperturbed task.
 
 
@@ -266,7 +266,7 @@ support resume from the final save in `result.json`.
 
 ## Evaluate
 
-Set the CUDA/cache variables in [RUNNING](RUNNING.md) first. Each command writes
+Set the CUDA/cache variables in [RUNNING](../RUNNING.md) first. Each command writes
 to a new output directory. Start with one complete episode; increasing `--episodes`
 checks repeatability of the same fixed task. Exploration noise and optimizer updates are zero.
 
@@ -394,4 +394,4 @@ Inference: even a converged DiSECt solution targets blade bottom at the board
 (knife y about 0.030 m) rather than the SliceIt goal pose; comparing it on task
 success needs that difference stated.
 
-Current work is listed in [PLAN](PLAN.md).
+Current work is listed in [PLAN](../PLAN.md).

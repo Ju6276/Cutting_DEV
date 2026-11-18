@@ -16,12 +16,12 @@ their original version.
 
 
 > 2026-11-12: `RESULTS <date>` references up to 2026-11-10 point to
-> [archive/RESULTS_20261102_20261110](archive/RESULTS_20261102_20261110.md). The risk penalty
+> [archive/RESULTS_20261102_20261110](RESULTS_20261102_20261110.md). The risk penalty
 > and the official SuperMimic adaptation failed their first runs and are retained historical variants, not the active route.
 
 Source revision: SuperMimic-Reproduced `ba610534`; SliceIt `1e79abad`;
 robot utilities `ddc85eca`; DiSECt `db7de0f`. Complete dependency pins and
-source patches are listed in [SOURCES](SOURCES.md). Method and baseline names used
+source patches are listed in [SOURCES](../reference/SOURCES.md). Method and baseline names used
 in results are defined in [BENCHMARK](BENCHMARK.md) ("Method names").
 
 | Module | Source design | Cutting implementation |
@@ -172,7 +172,7 @@ under the previous terminal rule retain the existing rejection.
 ## Multi-condition task (`--conditions`)
 
 Implemented, retired S0, not a validated new task. Keep numerical settings for
-reproduction; see [configuration status](../configs/multi_condition/README.md).
+reproduction; see [configuration status](../../configs/multi_condition/README.md).
 
 `cutting_world_model/multi_env.py`. A JSON config lists object groups (exported
 scene, worlds, start-clearance range, material-scale ranges, target-speed range),
@@ -244,8 +244,8 @@ cleanup, not a physics timeout or a changed task termination rule.
 ## Historical opt-in free-object task (2026-11-12)
 
 The historical pose task above is unchanged. The user-authorized implementation
-free_cut_v1 is described in [TASK_FREE_CUT](TASK_FREE_CUT.md); source and verification
-entry points are in [FREE_CUT_REVIEW](archive/FREE_CUT_REVIEW_20261112.md). Its compact WM adds
+free_cut_v1 is described in [TASK_FREE_CUT](../TASK_FREE_CUT.md); source and verification
+entry points are in [FREE_CUT_REVIEW](FREE_CUT_REVIEW_20261112.md). Its compact WM adds
 cut_progress and deterministic step_count; completion supervision uses physical
 separation, not pose success or failure labels. Force/workspace/deadline endings
 absorb imagined trajectories. The policy inputs remain unchanged. This is a new
@@ -254,8 +254,8 @@ task/head interface, not evidence of successful training or a new method claim.
 
 ### Free-cut review revision v2 (2026-11-12)
 
-See [TASK_FREE_CUT](TASK_FREE_CUT.md) for the exact versioned contract and
-[FREE_CUT_REPAIR](archive/FREE_CUT_REPAIR_20261113.md) for bounded evidence. Changes are gamma=1 across
+See [TASK_FREE_CUT](../TASK_FREE_CUT.md) for the exact versioned contract and
+[FREE_CUT_REPAIR](FREE_CUT_REPAIR_20261113.md) for bounded evidence. Changes are gamma=1 across
 actor/critic/planning, policy-observable remaining time (25 observations, goal dimension 8),
 an explicit EE XYZ workspace, a .001 initial fraction-of-remaining-progress output,
 and physical-label completion diagnostics. The progress initialization is not a separation
@@ -278,4 +278,4 @@ This task-specific reward/parameterization is not evidence of a new algorithm or
 
 ## 2026-11-13 — Opt-in board-path physical task
 
-The free_cut_v4 physical environment adds a finite-knife swept stop at the DiSECt ground plane and projected interface coverage. Physical separation is separately logged; path completion does not assert all material connections vanish. This is an execution interlock, not a board contact-force model. Source v1-v3 dynamics and task conditions remain the defaults. Full definition, tolerance provenance, frozen-policy transfer and training incompatibility are in [BOARD_CUT_REVIEW](archive/BOARD_CUT_REVIEW.md).
+The free_cut_v4 physical environment adds a finite-knife swept stop at the DiSECt ground plane and projected interface coverage. Physical separation is separately logged; path completion does not assert all material connections vanish. This is an execution interlock, not a board contact-force model. Source v1-v3 dynamics and task conditions remain the defaults. Full definition, tolerance provenance, frozen-policy transfer and training incompatibility are in [BOARD_CUT_REVIEW](BOARD_CUT_REVIEW.md).

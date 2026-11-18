@@ -729,7 +729,7 @@ all scanned local Markdown targets now exist. No active training code was edited
 
 ## 2026-11-16 — Current-task SAC and two MPC adapters
 
-See [CURRENT_BASELINES](CURRENT_BASELINES.md) for the SAC source search, explicit
+See [CURRENT_BASELINES](methods/CURRENT_BASELINES.md) for the SAC source search, explicit
 SB3 fallback, commands and limitations. GPU9 completed identical three-object
 first-episode cases: smoke-trained SAC1/3 pose success, frozen early WM+MPPI3/3,
 nonlearned FDCC+MPPI2/3; all other outcomes were timeout, and all9 episodes
@@ -764,7 +764,7 @@ normal cleanup. Total475.37s including439.94s initialization; this is not a
 measurement of complete-episode or sustained training throughput.
 The authorized fresh SAC run then started from5be7d90 on GPU9, same current
 three-object distribution and1,280,000-transition/24h cap as documented in
-[TRAINING_SAC_20261116](TRAINING_SAC_20261116.md). Online W&B i00yr0fg authenticated
+[TRAINING_SAC_20261116](archive/TRAINING_SAC_20261116.md). Online W&B i00yr0fg authenticated
 and its first3072-transition history row was independently read through the API.
 Local6144 transitions and zero updates are expected during30720 warmup.
 GPU7/A6000 running checkouts were not changed. No new SAC success-rate claim.
@@ -785,7 +785,7 @@ goal compatible with frozen checkpoint128 and its actual mounted blade.
 No policy inference or physical cutting episode was executed from these plans.
 No RL retraining, changed reward, new cut plane or modified running job.
 The end-to-end physical handoff remains unverified. See
-[VISION_ROUTE1](VISION_ROUTE1.md) for inputs, commands and limitations.
+[VISION_ROUTE1](methods/VISION_ROUTE1.md) for inputs, commands and limitations.
 Evidence is on GPU7 under runs/vision_route1_20261117; no Mac project copy.
 GPU9 regression: root589 passed/3 skipped; bundled backend41 passed.
 

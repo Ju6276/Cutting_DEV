@@ -27,7 +27,7 @@ it excludes controller and material integration.
 
 The source pins are MuJoCo/MuJoCo Warp 3.16.0 and Warp 1.18.0, matching the
 SuperMimic-Reproduced backend revision recorded in
-[SOURCES](../../docs/SOURCES.md).
+[SOURCES](../../docs/reference/SOURCES.md).
 
 [Implementation](docs/METHOD.md) · [Historical measurements](docs/RESULTS.md) ·
 [Third-party licenses](../../NOTICE.md)

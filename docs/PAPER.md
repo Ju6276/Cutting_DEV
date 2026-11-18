@@ -36,7 +36,7 @@ existing shapes and connected to the frozen policy, as a process pilot. Its held
 but both RL physical trials timed out. Later DP3 controller clips also include
 a paired WM+MPPI timeout and one analytic-MPC pose completion. These are
 single-case illustrations, not a controller ranking. This is not evidence of new-object visual
-generalization or a paper contribution by itself. See [VISION_ROUTE1](VISION_ROUTE1.md).
+generalization or a paper contribution by itself. See [VISION_ROUTE1](methods/VISION_ROUTE1.md).
 
 ## Comparisons and evidence still needed
 
@@ -54,7 +54,7 @@ generalization or a paper contribution by itself. See [VISION_ROUTE1](VISION_ROU
 
 No new superiority, safety or novelty claim follows from current integration.
 [PLAN](PLAN.md) is the only task list; [RESULTS](RESULTS.md) holds measurements.
-Prior-art evidence remains in [NOVELTY](NOVELTY.md) and [READING_LIST](READING_LIST.md).
+Prior-art evidence remains in [NOVELTY](archive/NOVELTY.md) and [reading list](literature/README.md#reading-list).
 The task/force-spike discussion from November12 is historical:
 [previous paper scope](https://github.com/Ju6276/Cutting_DEV/blob/4653d10/docs/PAPER.md).
 The force-spike premise and risk-head method are not the selected main route.

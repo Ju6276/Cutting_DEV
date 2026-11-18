@@ -12,7 +12,7 @@ The main branch retains both original histories through a two-parent merge:
   `requirements-mpc.txt`. Its sampling and update code is unchanged.
 
 The exact SliceIt and nested repository versions are in
-[`sources.json`](../integrations/sliceit/patches/sources.json). Each entry records
+[`sources.json`](../../integrations/sliceit/patches/sources.json). Each entry records
 the public base commit, original local revision and expected Git tree, with a
 binary-capable source patch where needed. The checkout script verifies that
 applying each patch reproduces its source tree. These patches include the

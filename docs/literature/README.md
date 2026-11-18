@@ -3,7 +3,7 @@
 This is the per-paper evidence ledger requested by the user, produced by Codex
 with one literature subagent. It covers the named method papers in the reading list below
 and archived NOVELTY, with separately identified simulator and data references.
-[Synthesis](../NOVELTY.md), [paper argument](../PAPER.md) and
+[Synthesis](../archive/NOVELTY.md), [paper argument](../PAPER.md) and
 [current task list](../PLAN.md) have different roles.
 
 Each record states **what was actually read**, method and data, relevant
@@ -187,7 +187,7 @@ alone therefore do not define a DiSECt food.
 | SliceIt OSX dataset (link in `SliceIt/disect/README.md`, CC BY-NC 4.0) | Real knife-force profiles (`calibrated/*.npy`) referenced by `examples/config/osx/` for cucumber (E 2.6 MPa), potato (2.0 MPa) and tomato (40 kPa). The three configs share default cut-spring parameters (ke 200, softness 200, surface softness 300), so they are not fitted DiSECt materials. | Google Drive link returned "page not found" on 2026-11-07; ask the authors. A cucumber mesh is in `catkin_ws/src/o2ac_gazebo/models/cucumber`. |
 | Sawhney et al. *Playing with Food*. [arXiv:2101.02252](https://arxiv.org/abs/2101.02252) Note: [playing_with_food](playing_with_food.md). | Real robot cutting of multiple foods with force, audio, images and proprioception; publicly downloadable. | See the data/module review in the note; dataset access and task labels differ from our online transitions. |
 | Luo, Yuan (robocutting). [arXiv:2607.04367](https://arxiv.org/abs/2607.04367) Note: [robocutting](robocutting.md). | Force, velocity and displacement from trial cuts on 14 foods with a UR5e. | Release not confirmed. |
-| Lenz et al. *DeepMPC*. RSS 2015 Note: [deepmpc](deepmpc.md). | 1488 PR2 cutting examples over 20 materials. | Release and modalities not confirmed. |
+| Lenz et al. *DeepMPC*. RSS 2015. Note: [deepmpc](deepmpc.md). | 1488 PR2 cutting examples over 20 materials. | Release and modalities not confirmed. |
 | Zhang et al. *Leveraging Multimodal Haptic Sensory Data for Robust Cutting*. [arXiv:1909.12460](https://arxiv.org/abs/1909.12460) Note: [zhang_multimodal_cutting](zhang_multimodal_cutting.md). | 25 materials/conditions, force and audio fusion for six cutting phases; DMP execution. | Release not confirmed. |
 | *CulinaryCut-VLAP*. [arXiv:2601.06451](https://arxiv.org/abs/2601.06451) Note: [culinarycut](culinarycut.md). | Simulation cutting demonstrations and force annotations; versions differ. | See the note for v1 versus current project release, and actual code/data accessibility. |
 | Jia lab, Iowa State (via DiSECt) | Real apple and potato knife forces with laser-scanned meshes. | Provided to DiSECt; not public. |

@@ -108,7 +108,7 @@ interface is not evidence of a completed physical test on both backends; see
 the measured coverage below. Non-smoke SAC launches require online W&B, an
 approved budget and comparison settings. No formal SAC long run is launched by
 these commands; the separate bounded GPU9 run is recorded in
-[TRAINING_SAC](TRAINING_SAC_20261116.md).
+[TRAINING_SAC](../archive/TRAINING_SAC_20261116.md).
 
 ## Validation record
 

@@ -145,7 +145,7 @@ A new 3 s nominal tofu reset gave -4.702 mm for all FEM nodes, but only
 points. Every node below -1 mm was a ghost. No ground stiffness, material,
 knife limit, reward or task condition was changed. Clamping ghosts or increasing
 ground stiffness to fix the old diagnostic would impose unwarranted forces.
-See [GROUND_CONTACT_REVIEW](archive/GROUND_CONTACT_REVIEW.md) for the complete reference
+See [GROUND_CONTACT_REVIEW](GROUND_CONTACT_REVIEW.md) for the complete reference
 and regression evidence. Candidates remain uncalibrated development assets;
 pose completion still does not imply material separation.
 
@@ -204,4 +204,4 @@ Follow-up ground-contact correction: the new 3 s tofu reference completed at
 70 steps, with actual contact geometry sampled no lower than -0.309 mm, while
 ghosts reached -10.396 mm. The historical all-node counts above must not be
 read as physical material penetration. Full evidence and limitations are in
-[GROUND_CONTACT_REVIEW](archive/GROUND_CONTACT_REVIEW.md).
+[GROUND_CONTACT_REVIEW](GROUND_CONTACT_REVIEW.md).

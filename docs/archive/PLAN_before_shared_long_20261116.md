@@ -121,7 +121,7 @@ BladeMaster banana and four native preset probes are interface/trajectory tests,
 not learned policies. Banana/tofu/luncheon split into two components in the
 latest probe; cake remained connected.
 See [RESULTS](../RESULTS.md), [task](../TASK_FREE_CUT.md),
-[assets](../BLADEMASTER_DISECT_ASSETS.md) and [backend](../BLADEMASTER_BACKEND_REVIEW.md).
+[assets](BLADEMASTER_DISECT_ASSETS.md) and [backend](BLADEMASTER_BACKEND_REVIEW.md).
 Do not wait to explain every residual cutting spring before progressing with
 the selected pose task. Keep all assets/checkpoints on servers.
 
@@ -238,7 +238,7 @@ Budget: CPU analysis of existing 96 episodes; bounded tool probes up to 20 minut
 each, sequential on GPU7, plus regression tests. No policy updates.
 
 Frozen-policy plots and the limits of their interpretation are in
-[POLICY_MECHANICS_20261116](../POLICY_MECHANICS_20261116.md). Force-history changes
+[POLICY_MECHANICS_20261116](POLICY_MECHANICS_20261116.md). Force-history changes
 affect raw outputs; clipping suppresses most executed-action changes in the main
 policy. Existing clusters do not establish material identification. No new
 training was launched.

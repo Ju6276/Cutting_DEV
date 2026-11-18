@@ -16,4 +16,4 @@ histories. Vendored and patched dependencies retain their upstream licenses:
 
 The public DiSECt dataset is distributed separately under CC BY-NC 4.0.
 Robot meshes, datasets, generated scenes and trained weights are prepared
-outside Git. Source links and revisions are in [SOURCES](docs/SOURCES.md).
+outside Git. Source links and revisions are in [SOURCES](docs/reference/SOURCES.md).
