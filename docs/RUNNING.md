@@ -1,8 +1,11 @@
 # Running Cutting DEV
 
-Historical fixed-prism/source commands below are reproduction entries, not
-instructions to restart S3. Current long-run settings and frozen launch records
-are in [TRAINING_SHARED_20261116](TRAINING_SHARED_20261116.md). The versioned opt-in free-cut contract is in [TASK_FREE_CUT](TASK_FREE_CUT.md); follow [PLAN](PLAN.md).
+Current task: pose_depth_v3 ([TASK_FREE_CUT](TASK_FREE_CUT.md), scene in
+[SHARED_SCENE](SHARED_SCENE.md)); follow [PLAN](PLAN.md). Every paid/long run
+needs an approved plan and online W&B. Historical fixed-prism/Gazebo reproduction
+commands moved to [archive/RUNNING_historical_20261118](archive/RUNNING_historical_20261118.md);
+the 2026-11-16 launch records are in
+[archive/TRAINING_SHARED_20261116](archive/TRAINING_SHARED_20261116.md).
 Commands run from the repository root. The GPU backend is bundled at
 `backends/mujoco`; `--backend-root` can select a separate prepared checkout.
 
@@ -87,6 +90,33 @@ Assets are stored under `backends/mujoco/runs/`:
 `source/`, `model_coupled/`, `controller_source/` and `disect_source_v4/`.
 They remain outside Git.
 
+## Current WM+BPTT training command (pose_depth_v3)
+
+Template with the selected settings (PLAN, METHOD active configuration); the
+flags mirror the 2026-11-16 launch_plan.json, whose task is now pose_depth_v3.
+Bare `train_gpu.py` defaults are the historical `source` variant, so pass every
+setting explicitly. Budget, world count and output come from the approved plan.
+The GPU memory defaults (cache release, expandable segments, headroom guard) are
+on without flags; see [Online W&B](#online-wb-for-long-training-required-since-2026-11-15).
+
+```bash
+source runs/sac_env.sh
+export PYTHONPATH=.:backends/mujoco NETRC=/dataHDD/dong/.config/wandb/netrc
+.venv/bin/python scripts/train_gpu.py \
+  --conditions PREPARED/disect.json --worlds 3072 --output RUN/disect_training \
+  --schedule transitions --warmup-transitions 30720 --transitions-per-update 640 \
+  --wm-only-updates 500 --microbatch 512 --critic-microbatch 8192 \
+  --critic-target real --actor-horizon 8 --actor-bc-alpha 0.25 \
+  --max-transitions BUDGET_TRANSITIONS --max-hours BUDGET_HOURS \
+  --checkpoint-every 32 --seed 0 --wandb-mode online --wandb-project sliceit-supermimic
+```
+
+PREPARED is the output of `prepare_shared_scenes.py` (SHARED_SCENE). For native
+BladeMaster replace `--conditions PREPARED/disect.json` with
+`--blademaster-config PREPARED/blademaster.json`. Check capacity first with
+`check_training_capacity.py --backend disect|blademaster --config ...`
+([Shared randomized scene inputs](#shared-randomized-scene-inputs-2026-11-16)).
+
 ## Unified GPU training and evaluation
 
 The commands for the historical working baseline (resumed from policy62/WM562 with
@@ -116,45 +146,12 @@ continuation.
 SIGUSR1 saves after the current iteration. Completion/SIGTERM writes
 `last.pt` and `progress.json`. Frozen evaluation performs zero optimizer updates.
 
-The shared fixed-environment evaluation commands are in [BENCHMARK](BENCHMARK.md).
+The historical fixed-environment evaluation commands are in [BENCHMARK](archive/BENCHMARK.md).
 The current task list is in [PLAN](PLAN.md).
 The absorbing-terminal repair permits older checkpoints in frozen evaluation only
 when the environment/physics metadata also match. Training additionally requires
 compatible terminal-rule metadata. This does not override the contact-revision
 requirement above.
-
-## Independent Gazebo reproduction
-
-These commands require a built SliceIt ROS Noetic checkout and its Python 3.8
-environment. Export `CUTTING_LOGGER_PYTHON` to the modern environment above.
-Use an absolute project path when sourcing `public_env.sh`, which changes cwd.
-
-```bash
-export CUTTING_DEV_ROOT="$PWD"
-export CUTTING_LOGGER_PYTHON="$PWD/.venv/bin/python"
-export SLICEIT_ROOT=/dataHDD/dong/Projects/SliceIt
-source "$SLICEIT_ROOT/scripts/public_env.sh"
-cd "$CUTTING_DEV_ROOT"
-python scripts/run_coupled_collection.py --sliceit-root "$SLICEIT_ROOT" \
-  --mode collect --episodes 1 --wall-seconds 600 --output runs/capture
-python scripts/run_coupled_collection.py --sliceit-root "$SLICEIT_ROOT" \
-  --mode train --model-state control-history --wm-only-updates 500 \
-  --max-hours 6 --wall-seconds 22200 --output runs/gazebo_wm
-```
-
-SAC uses its source settings. Create `runs/sac/run_config.json` as `{}`
-for a fresh run, or include a `resume` path for existing weights/replay.
-Its original endpoint is 100100 environment steps.
-
-```bash
-mkdir -p runs/sac
-printf '{}\n' > runs/sac/run_config.json
-python scripts/run_sac_training.py --sliceit-root "$SLICEIT_ROOT" \
-  --output runs/sac
-```
-
-SAC uses ROS/Gazebo ports 11321/11355; Gazebo WM uses 11322/11356.
-Keep current running SliceIt processes on their original checkouts.
 
 ## Checks
 
@@ -222,7 +219,7 @@ They are not the approved current video pipeline.
 
 Open GPU7 in VS Code Remote SSH and use /dataHDD/dong/Projects/Cutting_DEV_board
 (current development follows origin/main). GPU7/A6000 frozen training
-checkouts are recorded in [TRAINING_SHARED_20261116](TRAINING_SHARED_20261116.md).
+checkouts are recorded in [TRAINING_SHARED_20261116](archive/TRAINING_SHARED_20261116.md).
 The Mac holds only explicitly requested exported previews/videos, not project
 source, training data or checkpoints.
 GPU9 was reauthorized on2026-11-15 for BladeMaster; access it through tams61.
@@ -523,8 +520,9 @@ it does not validate a newly trained policy or replace that movie's old physics.
 ## Actual all-world training snapshot
 
 Use the dedicated VTK environment and resolve both SliceIt and ROS mesh packages.
-This reads the geometry recorded by the active trainer; display grid offsets do
-not change the physical environment.
+This reads the geometry recorded by a trainer snapshot (`--snapshot-at`); display
+grid offsets do not change the physical environment. The example path is the
+ended 2026-11-16 GPU7 run.
 
 ~~~bash
 PYTHONPATH=.:backends/mujoco /dataHDD/dong/Envs/render-20261108/bin/python scripts/render_training_snapshot.py \
