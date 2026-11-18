@@ -8,7 +8,7 @@ normalizers are updated from the collected frames; then ``Ratio(num_envs / num_b
 batch_size / horizon * replay_ratio)`` times: one WM update (10 windows of 8 frames x 2048) and
 one actor-critic policy update (4096 imagined starts, horizon 32). No WM-only pre-training stage.
 Components and every adaptation: cutting_world_model/official/components.py and
-docs/OFFICIAL_SUPERMIMIC.md.
+docs/archive/OFFICIAL_SUPERMIMIC.md.
 """
 import argparse
 from dataclasses import asdict
