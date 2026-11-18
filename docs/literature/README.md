@@ -122,9 +122,10 @@ limitations. Current pages can differ from an older manuscript.
   tracing are not marked complete. These gaps do not authorize new training
   jobs or an indefinite review queue.
 
-## Reading list (merged from READING_LIST.md, 2026-11-18)
+## Reading list
 
-Literature and data entry points for the RA-L paper (research question in
+Merged from the former READING_LIST.md on 2026-11-18. Literature and data entry
+points for the RA-L paper (research question in
 [PLAN](../PLAN.md)). Each entry says why it matters here and links its
 per-paper record above when one exists. The 2026-11-10 review distinguishes
 retrieved versions, author code, community implementations and unavailable
