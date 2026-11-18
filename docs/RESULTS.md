@@ -1221,8 +1221,10 @@ follows almost one-to-one (relative drift 5–8 mm). Early training (snapshots a
 iteration 1 vs 120, worlds still in their first episode, both backends): median
 x offset ~0 mm, object displacement < 1 mm. Measured: the drag-along-edge
 behaviour appears with training; the pose success region admits it.
-Not measured yet: late-training episodes (no per-step geometry was recorded; a
-frozen evaluation with --record-geometry of the final checkpoints is running).
+Not measured yet: late-training episodes (no per-step geometry was recorded).
+The frozen evaluation of the final checkpoints with --record-geometry has
+completed (runs/final_eval_20261117/{disect,blademaster,analysis}); its summary
+statistics are not yet verified and are not recorded here.
 
 BladeMaster separation: material_components counts code-compatible grid
 connectivity components (blademaster_backend.py, topology.components) at

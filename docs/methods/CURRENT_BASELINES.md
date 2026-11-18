@@ -94,7 +94,8 @@ checkout; create `.venv-sac` once per server with `scripts/env/make_sac_env.sh`
 ([RUNNING](../RUNNING.md#remote-only-development-and-storage)).
 Checked 2026-11-18: the integration test below passed on GPU9 `main` b2b3ea6
 (pose_depth_v3, 2 worlds per object = 6, 240 transitions, completed, model and
-replay saved, clean source commit). It is an interface test, not a trained comparator.
+replay saved, clean source commit), and again at 8f0a517 with the tracked
+`CUTTING_ENV=sac` environment. It is an interface test, not a trained comparator.
 
 ```bash
 # Small integration test; not a formal trained SAC comparator.
