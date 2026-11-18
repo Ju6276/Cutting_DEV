@@ -103,7 +103,7 @@ on without flags; see [Online W&B](#online-wb-for-long-training-required-since-2
 source runs/sac_env.sh
 export PYTHONPATH=.:backends/mujoco NETRC=/dataHDD/dong/.config/wandb/netrc
 .venv/bin/python scripts/train_gpu.py \
-  --conditions PREPARED/disect.json --worlds 3072 --output RUN/disect_training \
+  --conditions PREPARED/disect.json --output RUN/disect_training \
   --schedule transitions --warmup-transitions 30720 --transitions-per-update 640 \
   --wm-only-updates 500 --microbatch 512 --critic-microbatch 8192 \
   --critic-target real --actor-horizon 8 --actor-bc-alpha 0.25 \
@@ -116,6 +116,27 @@ BladeMaster replace `--conditions PREPARED/disect.json` with
 `--blademaster-config PREPARED/blademaster.json`. Check capacity first with
 `check_training_capacity.py --backend disect|blademaster --config ...`
 ([Shared randomized scene inputs](#shared-randomized-scene-inputs-2026-11-16)).
+
+**Environment count comes from the prepared JSON, not from `--worlds`.** With
+`--conditions` the trainer sets the count to the sum of the group `worlds`; with
+`--blademaster-config` to the file's `worlds`. Either overwrites `--worlds`, so
+changing that flag does not scale a run. The preparer writes
+`common.worlds_per_object` from the contract into every group. The default
+[scene_v1.json](../configs/shared/scene_v1.json) has 3, which gives
+3 objects x 3 = **9 worlds**. To run the approved scale:
+
+1. Copy the contract and change only `common.worlds_per_object`. The 2026-11-16
+   run used 1024 per object, 3072 in total; its copy, written for
+   pose_depth_v2, is runs/long_readiness_20261116/contract.json in
+   Cutting_DEV_board.
+2. Run `prepare_shared_scenes.py --contract COPY` and the
+   `check_pose_depth.py` checks on that copy.
+3. Before launch, confirm the per-group and total `worlds` in the generated
+   disect.json/blademaster.json and in the `check_training_capacity.py` report.
+   After start, confirm `worlds` in the run's progress.json/manifest.json.
+
+The trainer rejects `--warmup-transitions` below worlds x 9 (WM window + 1). 30720
+covers at most 3413 worlds; a larger count needs a larger warmup.
 
 ## Unified GPU training and evaluation
 
@@ -217,8 +238,12 @@ They are not the approved current video pipeline.
 
 ## Remote-only development and storage
 
-Open GPU7 in VS Code Remote SSH and use /dataHDD/dong/Projects/Cutting_DEV_board
-(current development follows origin/main). GPU7/A6000 frozen training
+Open GPU7 in VS Code Remote SSH. **No GPU7 checkout currently follows origin/main**
+(checked 2026-11-18, main = 4dfbc0c): Cutting_DEV_board is at 3680f35
+(codex/visual-cut-route1, 21 commits behind, no pose_depth_v3) and Cutting_DEV is
+at 1c4a217 (codex/free-cut-v1, 84 behind). Running commands there executes old
+code. Before any run, check out or create a worktree at the intended commit and
+confirm it with `git rev-parse HEAD`; the run's provenance records that commit. GPU7/A6000 frozen training
 checkouts are recorded in [TRAINING_SHARED_20261116](archive/TRAINING_SHARED_20261116.md).
 The Mac holds only explicitly requested exported previews/videos, not project
 source, training data or checkpoints.
@@ -227,8 +252,8 @@ Historical checkouts remain untouched; see PLAN for its isolated deployment.
 
 GPU7 storage:
 
-- Current development: /dataHDD/dong/Projects/Cutting_DEV_board.
-- Historical checkout: /dataHDD/dong/Projects/Cutting_DEV.
+- /dataHDD/dong/Projects/Cutting_DEV_board: 3680f35, codex/visual-cut-route1 (behind main; see above).
+- /dataHDD/dong/Projects/Cutting_DEV: 1c4a217, codex/free-cut-v1 (behind main).
 - Runs: /dataHDD/dong/Experiments/Cutting_DEV/runs; the checkout's runs links here.
 - Prepared robot/material assets: /dataHDD/dong/Assets/Cutting_DEV/prepared;
   backends/mujoco/runs links here.

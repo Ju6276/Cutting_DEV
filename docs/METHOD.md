@@ -55,12 +55,30 @@ Source revisions and patches: [SOURCES](reference/SOURCES.md).
 provides full-update equivalence checks, independent physical evaluation and
 500 world-model-only iterations; all three are applied here. Its RunningNorm
 critic and analytic soft termination are separate method choices, not adopted.
-The current implementation keeps the Cuboi learned terminal head and static
-scales; SliceIt physical thresholds and reward stay fixed. Analytic termination
+The implementation keeps static scales and still fits the Cuboi learned terminal
+head; since pose_depth_v3 imagined survival is analytic and the head is only logged.
+ndm-gym's soft termination is not used. SliceIt physical thresholds stay fixed. Analytic termination
 alone cannot restore a force-limit event that the dynamics model failed to
 predict.
 
 ## Control-history candidate
+
+**Current dimensions (pose_depth_v3; from the spec and the 2026-11-18 v3
+integration run's task.json/manifest.json).** One frame has 107 coordinates:
+42 predicted physical ones (joint position/velocity 12, three-sample wrench
+history 18, interval peak wrench 6, `last_wrench` 6) and 65 derived ones (motion
+command, previous pose/velocity/acceleration, the 34-wide observation, success
+counter, step count, depth progress, depth span, completion XY error and
+`board_contact`). Ten frames give 1070 state coordinates. The dynamics input takes
+54 coordinates per frame, 540 in total: joints 12, wrench history/peak/last 30,
+motion command 6, previous action 6. The model predicts a 42-wide delta. The
+policy sees 34 observations x 10 frames plus an 8D goal. The WM fits 8-step
+windows, the actor imagines 8 steps (`--actor-horizon 8`) and the real-data critic
+uses 32-step recorded windows. Imagined survival is analytic.
+
+*Historical layout.* The rest of this section gives the original numbers of the
+fixed-prism SliceIt task. The field roles and history mechanism still apply; the
+numbers do not.
 
 The user-approved control predictor (`prediction_layout=control_history_v2`)
 learns 36 next-state coordinates: robot joint position/velocity (12), the exact
@@ -82,7 +100,7 @@ physical recordings but are absent from model inputs and prediction targets.
 
 This changes the state representation and supervised targets of the pinned
 SuperMimic residual MLP. Its widths, normalized squared-error form, terminal BCE,
-optimizer, effective batches, eight-step fitting and 32-step BPTT remain intact.
+optimizer, effective batches, eight-step fitting and (in that version) 32-step BPTT remained intact.
 Physical/task equations and policy observations are unchanged. The finite history
 approximates unobserved material and controller memory. Evaluation separates
 reset-first transitions, held-out full episodes, force-limit termination and
@@ -127,26 +145,37 @@ initial policy plus the existing 0.1 action noise continues collecting data.
 The change addresses policy optimization through an insufficiently fitted
 predictor; its effect is measured by force/terminal errors and physical episodes.
 
-Cuboi's vector-step collection schedule remains warmup 40 and UTD 0.4, replay
-1000 rows per world, with the same loss, effective batches, learning rates,
+*Historical vector-step schedule:* Cuboi's vector-step collection schedule used
+warmup 40 and UTD 0.4, replay 1000 rows per world, with the same loss, effective batches, learning rates,
 networks, reward and physical thresholds. NDM uses 64 initial collection steps
 and indexes its LR by learner iteration; those changes are not adopted. The
 500-update stage adds 5000 world-model optimizer steps before policy learning.
-At this cadence, WM-only finishes at vector step 1289 and the first joint update
-occurs at 1292. Environment count does not rescale either counter.
+At that cadence, WM-only finished at vector step 1289 and the first joint update
+occurred at 1292. Current runs use `--schedule transitions`
+(`physical_transitions_v2`): 30720 warmup transitions, one learning round per 640
+physical transitions. LR and the schedule endpoint are indexed by physical
+transitions / 256 (`lr_reference_worlds`). The vector-step figures above do not
+apply.
 
 Checkpoints store completed WM rounds, policy rounds, actual Adam step counts,
 stage length and training configuration. Resuming refills replay while retaining
 these counters. `--wm-only-updates 0` selects the original immediate joint-update
 behavior. Frozen evaluation loads model weights independently of training-stage
-metadata. Analytic soft termination and RunningNorm remain separate method
-choices; the candidate retains the Cuboi learned head and static input scales.
+metadata. RunningNorm is not adopted; static input scales are retained. The learned
+head is still fitted. Since pose_depth_v3, imagined survival is analytic and the
+head's probabilities are only logged ([Active configuration](#active-configuration--pose_depth_v3-updated-2026-11-18)).
 
 ## Connected trainer mapping
 
+This section maps the original fixed-prism SliceIt task onto the trainer. Current
+task equations are in [TASK_FREE_CUT](TASK_FREE_CUT.md); current dimensions and
+horizons are in [Control-history candidate](#control-history-candidate).
+
 The connected candidate keeps the source MLP, eight-step autoregressive loss
 (sum over state coordinates, mean over batch and time), learned terminal head,
-32-step survival-weighted actor objective and GAE critic updates. A 4090 uses
+survival-weighted actor objective and GAE critic updates. The actor objective
+spans 32 steps in the source and 8 with `--actor-horizon 8`. Its survival weight
+is learned up to pose_depth_v2 and analytic from pose_depth_v3. A 4090 uses
 microbatch gradient accumulation for the original effective batch sizes (2048
 world model, 4096 actor); optimizer steps and gradient clipping occur after
 accumulation. This changes storage/scheduling, not the loss or update ratio.
@@ -168,7 +197,8 @@ height/tilt. Force history is decoded as component-major in both the corrected N
 and the Torch reward. Existing component scales, averaging, reward weights and
 thresholds are retained. Reward retains SliceIt's discrete collision/success bonuses and
 continuous distance/force/jerk terms; gradients through the discrete bonus tests
-are piecewise, while learned termination supplies the source survival gradient.
+are piecewise, while learned termination supplied the source survival gradient
+(pose_depth_v3 uses analytic survival instead).
 
 Only SliceIt's existing observation noise/randomization is used; humanoid sensor
 noise magnitudes do not apply to the cutting observations. The fixed target
@@ -189,31 +219,40 @@ matching the rotation alone is insufficient for matching its velocity history.
 | Item | Existing source behavior | GPU collection |
 |---|---|---|
 | Physical backend | Gazebo/ROS robot and single DiSECt instance | MuJoCo Warp UR5e/FDCC plus packed DiSECt worlds; equations and source clocks retained, details in CuttingGpuBackend METHOD |
-| Replay and updates | 4096 worlds × 1000 rows; one source step collects 4096 transitions; 40-step warmup, UTD 0.4 | 1000 rows per world; schedule advances once per completed vector step; asynchronous terminal rows and resets |
+| Replay and updates | 4096 worlds × 1000 rows; one source step collects 4096 transitions; 40-step warmup, UTD 0.4 | 1000 rows per world; asynchronous terminal rows and resets; schedule historically advanced per completed vector step, now counts physical transitions (below) |
 | Reset observation | Corrected ROS task returns an observation sampled after physical reset | GPU reset already uses the restored pose and zero derivative histories; the shared corrected reward head applies to physical steps and model imagination |
 | Wrench samples | Oldest three entries of a 25-entry sensor queue, appended at filter callbacks | Same queue ordering at the deterministic 500 Hz exchange; initialize queue from the reset sensor baseline |
 | Initial condition | ROS moves the arm to its start pose before resetting DiSECt | Restore the exported start and initialized controller/filter snapshot per world; shared public material configuration and prescribed cut topology |
 
-`train_gpu.py` uses the same `control_history_v2` candidate as the ROS entry and
-reuses OnlineLearner, policy/critic networks, objectives,
-learning rates, effective batches and the 320000-vector-step schedule. Environment count
-changes the number of physical transitions collected per vector step. It does
-not change the eight-step world-model loss or 32-step actor BPTT horizon.
-`--max-hours` and `--max-iterations` bound wall time and physical vector steps.
-LR and the step endpoint use vector steps. Checkpoints record
-`vector_steps_v1` and the environment count. Resume loads colocated replay only
-when checkpoint name/iteration match, closes open episodes and restarts physics
-with source warmup. `--resume-without-replay` starts empty explicitly. There is one
-overwritten `replay.pt`, not one per checkpoint. Transition-rescaled schedule
-units require conversion.
+`train_gpu.py` uses the same `control_history_v2` layout as the ROS entry and
+reuses OnlineLearner, policy/critic networks, objectives, learning rates and
+effective batches.
+
+Schedule (current): `--schedule transitions` (`physical_transitions_v2`), where
+warmup and update cadence count physical transitions. Checkpoints record the
+schedule state and environment count, and a resume with a different count is
+rejected. `--max-hours`, `--max-transitions` and `--max-iterations` bound a run.
+Environment count does not change the eight-step WM loss, the actor horizon (8
+with the current flags) or the 32-step critic windows.
+
+Resume (current): the replay paired with the checkpoint is restored: `last.pt`
+with `replay.pt`, a named checkpoint with `<stem>.replay.pt`. Name and iteration
+must match. Open episodes are closed and every world restarts. The saved warmup
+origin, transition credit and pending learning rounds are kept, so no new warmup
+runs. Only `--resume-without-replay` starts from an empty replay, and then warmup
+restarts at the current transition count.
+
+*Historical:* the vector-step schedule (`vector_steps_v1`, 320000-step endpoint)
+used one overwritten `replay.pt`, and a resume repeated the source warmup.
 
 The GPU physical snapshot layout `coupled_recurrent_v1` has 8944 coordinates. It includes
 FDCC integration velocity/error/position-command history, cached tip pose, the
 200-sample filter window and IIR state, 25-sample sensor queue, MuJoCo warm start
 and previous coupling pose. Filter tare and controller compensation remain
 constant snapshot coordinates. These values affect the next transition even when
-particle and joint states match. The predictor uses the 860-coordinate control
-history described above and predicts its 36 physical coordinates. Tensor batch
+particle and joint states match. The predictor uses the control history described
+above: 1070 coordinates with 42 predicted for pose_depth_v3, 860 with 36 in the
+historical source layout. Tensor batch
 packing shifts each world's history independently; a reset repeats that world's
 new initial frame and preserves every other world's history. GPU checkpoints
 record `prediction_layout=control_history_v2`; full-physical-state checkpoints
@@ -278,7 +317,7 @@ objective, its BPTT through the WM and its `gamma^H * survival_H * V(s_H)`
 bootstrap are unchanged. Each critic update draws episode-bounded H=32 windows
 from the real `SequenceReplay` (`sample_windows`: recorded reward, terminal
 label and valid-step mask) and applies the source GAE recursion
-(`gamma 0.99, lambda 0.95`) per window: a window with L recorded steps uses
+(source `gamma 0.99, lambda 0.95`; current pose task `gamma 1.0`, `lambda 0.95`) per window: a window with L recorded steps uses
 `R_L = V(s_L)`, as the source uses `R_H = V_H`. A natural terminal (`done=1`)
 on the entering transition keeps that reward once and removes all later value
 (absorbing); a time truncation bootstraps from the recorded truncation state.
@@ -288,7 +327,7 @@ valid the recursion is bit-identical to `gae_targets` (`masked_gae_targets`).
 Data size: the source fits each update on `batch_size x horizon = 4096 x 32 =
 131072` imagined states. Recorded windows stop at episode ends (a successful
 cut lasts 20 steps), so batches of 4096 windows are drawn until their valid steps
-reach 131072, and a uniform subset of exactly 131072 (state, goal, target)
+reach 131072 (the 20-step figure is the fixed-prism task), and a uniform subset of exactly 131072 (state, goal, target)
 triples is kept. Critic network, inputs, Adam (lr 2e-4), 5 epochs x 4 shuffled
 minibatches and grad clip 1.0 are the source settings. `--critic-microbatch`
 only chunks the gradient accumulation of a minibatch (default `--microbatch`).
@@ -310,8 +349,8 @@ In this variant, `policy/critic_target_*`, `critic_value_mean` and
 `critic_value_target_mae` describe the real targets; imagined-target means are
 logged as `policy/imag_critic_*` diagnostics only.
 
-Every GPU checkpoint also rewrites `replay.pt` atomically with the complete
-replay ring (states, actions, rewards, labels, episode ids, pointers; unwritten
+Every GPU checkpoint also writes the complete replay ring atomically (`last.pt`
+with `replay.pt`, named checkpoints with `<stem>.replay.pt`) (states, actions, rewards, labels, episode ids, pointers; unwritten
 rows are omitted while no world has wrapped), so online data survive the run.
 `BatchedOnlineReplay.load_state_dict` restores it exactly.
 
@@ -375,16 +414,20 @@ optimizer (revision in SOURCES) to `CuttingWorldModel.predict`. The optimizer
 samples normalized six-dimensional actions in [-1, 1], mapped affinely to the
 task's original bounds. Candidate rollouts use the checkpoint's motion/force
 history, goal, analytic reward and task predicates. No particle or damage fields
-enter the planner. The WM dynamics receives ten frames of 48 control features
-(joints, wrench samples, interval peak wrench, motion command and previous action).
-The rollout additionally carries derived pose/velocity/acceleration, observation
-and success-counter history. The policy receives ten frames of 24 observations
-and the target pose. These are different information interfaces.
+enter the planner. For a pose_depth_v3 checkpoint the WM dynamics receives ten
+frames of 54 control features: joints, wrench samples, interval peak wrench,
+`last_wrench`, motion command and previous action. Fixed-prism checkpoints used
+48, without `last_wrench`. The rollout additionally carries derived
+pose/velocity/acceleration, observation, success-counter and board-latch history.
+The policy receives ten frames of 34 observations and the 8D goal; fixed-prism
+checkpoints used 24 observations and the target pose. These are different
+information interfaces.
 
 The accumulated task cost is the negative discounted survival-weighted reward.
 Hard task endings absorb the rollout, keeping the terminal transition's reward
-once; learned terminal probabilities supply the same survival weighting as
-`OnlineLearner.imagine`. `--mpc-terminal-value none` uses the finite-horizon
+once. Survival weighting is the same as in `OnlineLearner.imagine`. It is analytic
+for pose_depth_v3 checkpoints, where learned terminal probabilities are only
+logged, and comes from the learned terminal probabilities for earlier checkpoints. `--mpc-terminal-value none` uses the finite-horizon
 reward alone. `critic` adds `gamma**H * survival_H * V(state_H, goal)`, with
 the checkpoint's frozen critic, canonical state scaling and pose-error inputs
 used by `OnlineLearner.critic_values`. Absorbed candidates do not query the
@@ -722,8 +765,9 @@ The canonical entry and commands are in RUNNING.
 
 Knife vertices, body poses and material coordinates are recorded physics data.
 The original handle remains visible; the historical mismatched visual blade is
-removed. BladeMaster's visible shank illustrates its fixed EE transform and is
-not a hardware design or additional simulated contact shape. The URDF cable
+removed. No shank, collar or other connector is drawn for either backend. The
+earlier display shank and collar were invented geometry and were removed (see
+above); do not restore them. The URDF cable
 envelope (30 x 30 x 55 mm) is hidden in studio views, without modifying physics.
 
 Cucumber FEM scan appearance is reused only after topology equality and rigid

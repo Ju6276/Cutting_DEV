@@ -193,7 +193,9 @@ recorded geometry, camera metadata, render_audit.json).
 
 ## Preparation and replay
 
-Run on GPU7 in /dataHDD/dong/Projects/Cutting_DEV_board; keep assets on servers.
+Run on GPU7 in a checkout at the intended commit (confirm `git rev-parse HEAD`;
+Cutting_DEV_board is at 3680f35 and predates pose_depth_v3, see [DATA](DATA.md));
+keep assets on servers.
 The preparer preserves original scenes, exports CUDA-resident variants with shared
 friction coefficients, records scene/geometry checksums, and writes the two backend
 configs. Hash checks reject edits to prepared assets or a mismatched contract.
