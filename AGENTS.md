@@ -9,14 +9,14 @@
   from Git. Document source modifications in METHOD and preserve licenses.
 
 - Current phase (2026-11-17): bounded multi-object pose-task engineering training
-  after platform checks, plus problem-led literature review. Current authorized GPU7/A6000 shared-task launches are recorded in PLAN and TRAINING_SHARED_20261116. Historical
+  after platform checks, plus problem-led literature review. Current authorized GPU7/A6000 shared-task launches are recorded in PLAN and archive/TRAINING_SHARED_20261116. Historical
   GPU7/GPU9 runs and their frozen versions are recorded in archive/TRAINING_SCALE_20261114; archive/TRAINING_20261114 is the stopped historical launch. The force-spike premise and first S3 comparison are retired. Historical
   pose success is not validated separation; scalar material feedback is not a
   Mini45 contact wrench. Do not restart S3 from a reproduction command. Sawing and
   geometry input are directions chosen or favoured by the user (PLAN); start work on
   them from PLAN, not because old code remains runnable. Follow PLAN.
 - Retained implementation: SuperMimic-Reproduced `ba610534` adapted to the SliceIt UR5e +
-  FDCC + DiSECt task in the unified MuJoCo Warp environment (`docs/BENCHMARK.md`).
+  FDCC + DiSECt task in the unified MuJoCo Warp environment (`docs/archive/BENCHMARK.md`).
   The original SliceIt SAC in Gazebo stays an independent baseline. PLAN is the
   single current task list; BENCHMARK defines the historical fixed-prism contract.
   The current opt-in task is defined in TASK_FREE_CUT. On 2026-11-16 the user requested shared BladeMaster-style geometric depth shaping (pose_depth_v2), removing spring-release reward dependence; preserve pose-based +100, failure precedence and the board boundary. Old pose-v1 runs retain their recorded rewards. On 2026-11-17 pose_depth_v3 became the single current version: the same task rules plus a software board-stop consistency fix (board_contact/last_wrench state, post-latch peak rule) and analytic imagined survival; pose_depth_v2 is read/evaluate-only for the 2026-11-16 runs and new v2 training is refused. Long-training budgets still require a concrete plan.
@@ -29,7 +29,7 @@
   metric, decision rule and wall/GPU budget. Docs separate measured results from
   inferences; search the literature before claiming novelty.
 - Use the current task definitions (docs/TASK_FREE_CUT.md, docs/SHARED_SCENE.md);
-  docs/BENCHMARK.md is the historical fixed-prism contract for old checkpoints.
+  docs/archive/BENCHMARK.md is the historical fixed-prism contract for old checkpoints.
   Frozen-controller comparisons may retain different training budgets and inputs
   when disclosed. Matched-data/sample-efficiency claims require their own
   budget and information-access protocol; they do not mandate retraining for

@@ -8,7 +8,7 @@ software board-stop consistency fix and analytic imagined survival; v2 is kept
 only for the 2026-11-16 runs): prescribed final pose without failure,
 with a board execution boundary. Pose success is not proof of material separation.
 
-## Current entry points — 2026-11-17
+## Current entry points — 2026-11-18
 
 | Purpose | Source |
 |---|---|
@@ -16,18 +16,17 @@ with a board execution boundary. Pose success is not proof of material separatio
 | Scene, robot, knife, reset distribution and cut locations | [SHARED_SCENE](docs/SHARED_SCENE.md) |
 | Completion, rewards and constraints | [TASK_FREE_CUT](docs/TASK_FREE_CUT.md) |
 | Learning implementation | [METHOD](docs/METHOD.md) |
-| GPU7 / A6000 frozen launch protocol | [Shared training](docs/archive/TRAINING_SHARED_20261116.md) |
-| GPU9 SAC launch protocol | [SAC training](docs/archive/TRAINING_SAC_20261116.md) |
+| Ended 2026-11-16 launches (pose_depth_v2): WM+BPTT and GPU9 SAC | [Shared training](docs/archive/TRAINING_SHARED_20261116.md), [SAC training](docs/archive/TRAINING_SAC_20261116.md) |
 | SAC, WM+MPPI and nonlearned MPC coverage | [CURRENT_BASELINES](docs/methods/CURRENT_BASELINES.md) |
 | Vision implementation and fixed-heading method-2 pilot | [VISION_ROUTE1](docs/methods/VISION_ROUTE1.md) |
 | Measured outcomes and limits | [RESULTS](docs/RESULTS.md) |
-| Installation, tests, recording and shared renderer | [RUNNING](docs/RUNNING.md) |
+| Installation, tests, training/evaluation commands, recording and shared renderer | [RUNNING](docs/RUNNING.md) |
 | Server data and preserved run provenance | [DATA](docs/DATA.md) |
 | UR10e + ATI: first FDCC hardware setup | [Chinese setup handoff](docs/hardware/UR10E_FDCC_SETUP_ZH.md) |
 | Full documentation index | [docs](docs/README.md) |
 
-Development is consolidated on GitHub main. Running jobs retain their frozen
-checkouts and recorded revisions; updating main does not update those jobs.
+Development is consolidated on GitHub main. Training runs retain their frozen
+checkouts and recorded revisions; updating main does not update those runs.
 All long runs require online W&B and a recorded budget.
 
 The selected scene uses freely placed cucumber003, half potato and prism, full
@@ -40,7 +39,7 @@ and nonlearned FDCC+MPPI in a one-world native-BladeMaster prototype. In one
 nominal cucumber case each, the old policy66 and WM566 planner timed out;
 nonlearned MPC reached the pose goal. These are interface illustrations, not
 an algorithm ranking or validated slice separation. SAC visual handoff remains
-unimplemented; see docs/VISION_ROUTE1.md for exact scope and commands.
+unimplemented; see docs/methods/VISION_ROUTE1.md for exact scope and commands.
 
 ## Repository map
 
@@ -55,11 +54,11 @@ unimplemented; see docs/VISION_ROUTE1.md for exact scope and commands.
 
 The original fixed-prism contract and commands are in
 [BENCHMARK](docs/archive/BENCHMARK.md); v1-v3 and old pose-v1 results retain their original
-task definitions. [Archived records](docs/README.md#historical-records) are
+task definitions. [Archived records](docs/README.md#archive) are
 evidence, not the current training recipe. Historical README recipes remain at
 [4653d10](https://github.com/Ju6276/Cutting_DEV/blob/4653d10/README.md).
 Never bypass physics/task metadata to present old weights as current-task results.
 
-[Paper scope](docs/PAPER.md) · [Literature](docs/archive/NOVELTY.md) ·
+[Paper scope](docs/PAPER.md) · [Literature](docs/literature/README.md) ·
 [Real robot draft](docs/hardware/REAL2SIM.md) · [Sources](docs/reference/SOURCES.md) ·
 [Licenses](NOTICE.md)
