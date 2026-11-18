@@ -32,16 +32,21 @@ before reporting that it is still active.
 - Keep the frozen training checkouts unchanged. Development cleanup and offline
   rendering changes do not replace their code. All long runs require online W&B.
 
-## Open decisions before the next pose_depth_v3 long run (2026-11-18)
+## Follow-up before the next pose_depth_v3 long run (2026-11-18)
 
-Not decided; the user decides before a run plan is written.
+Existing user decisions remain in effect: final-position-only, particle-slip and
+optional path penalties disabled. This is not a request to decide those again.
 
-- Final success region along the blade edge: frozen pose_depth_v2 policies reach
-  the pose by dragging potato and prism ~20 mm along +x (RESULTS policy527
-  geometry check), which the 40 mm XY radius admits.
-- Whether `task.object_slip` (planar mass RMS) is enabled as a constraint.
-- Whether a speed cost is added (descent ~0.43 m/s vs 0.03–0.046 m/s targets).
-- GPU-memory behaviour over hours with resets (see above) still needs a bounded check.
+- Check the existing final region against the recorded blade/object geometry.
+  Historical v2 policies drag potato and prism ~20 mm along +x within the current
+  40 mm XY radius. Any proposed change to this radius is a separate task change;
+  no new radius is selected here.
+- Speed cost already exists (weight 20, progress- and time-weighted components).
+  Analyse its effect and the observed fast descent before proposing a change to
+  that existing cost; do not describe speed cost as absent.
+- GPU-memory behaviour over hours with repeated resets still needs a bounded
+  check before setting the long-run capacity and budget. Short regression tests
+  do not establish long-run memory stability.
 
 Unified run entry: /dataHDD/dong/Projects/Cutting_DEV on main on every server,
 environment from scripts/env (RUNNING).

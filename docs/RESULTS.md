@@ -1302,3 +1302,41 @@ margin over Warp high-water, armed after the first joint round; METHOD). In
 the verification run the guard required 1865 MiB with 6992-7118 MiB free.
 Not established: behaviour over hours, under resets and with episode-dependent
 critic windows; 3072-world long runs remain unverified for memory.
+
+## 2026-11-18 — Review follow-up: runtime, diagnostic validity and retention
+
+Based on main 6176012. No reward, task rule, physics, model architecture, update
+cadence or training budget changed; no training or data deletion was performed.
+
+- Runtime script now respects explicit CUDA/cache/dependency/logger paths,
+  preserves extra PYTHONPATH entries behind the selected checkout and keeps an
+  explicitly empty CUDA_VISIBLE_DEVICES empty. Default GPU IDs are not resource
+  reservations. Fake-host tests exercise all three hosts and both env choices.
+- Pose diagnostic statistics no longer discard NaN/Inf. Non-finite predictions,
+  critic values or objective values invalidate the diagnostic; JSON refuses
+  unexpected non-finite values. Missing separation measurements remain explicit
+  null, distinct from numerical failure.
+- PLAN retains final-position-only with no particle-slip penalty. Speed penalty
+  already exists (weight 20); its adjustment is not described as adding a
+  previously absent term.
+- DATA records the inspected worktrees, actual run locations and retained data.
+  A6000 _mppi_v3 has two commits with no ancestry/patch-equivalent match in main
+  (5f6df09, 866c20f); it must not be deleted under an all-merged assumption.
+
+Validation on GPU7 through the tracked SAC environment:
+- Focused runtime/diagnostic suite: 13 passed.
+- Root CUDA-enabled suite: 672 passed, 5 skipped, zero failures (244.14 s).
+  Skips: two old gym bridge checks (gym missing), source TF checkpoint,
+  explicit single-world bridge, source tf2rl/Python3.8 check.
+- Backend suite: 41 passed (5.65 s).
+- Shell syntax and git diff whitespace checks passed. 118 tracked Markdown
+  files / 393 relative file-path links checked, no missing targets; this count
+  excludes fragment-only links and is not an independent anchor audit.
+
+Logs on GPU7:
+ /dataHDD/dong/Experiments/Cutting_DEV/runs/codex_review_fixes_20261118/{root.log,backend.log}
+
+No claim of long-runtime memory stability follows from this regression.
+The bounded repeated-reset memory check and reconciliation of historical final
+evaluation statistics remain outstanding. Frozen training worktrees were not
+advanced.

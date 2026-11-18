@@ -5,7 +5,8 @@ import torch
 from test_pose_depth_v3 import survival_fixture
 from scripts.diagnose_pose_predictions import (check_version,
                                                compare_first, confusion, discounted_return_to_go,
-                                               event_flags, first_step, replay_rollout, wrench_errors)
+                                               event_flags, first_step, replay_rollout, wrench_errors,
+                                               stats, finite_json, require_finite)
 
 
 def test_replay_uses_training_absorption_and_stops_after_it():
@@ -68,3 +69,20 @@ def test_only_pose_depth_v3_checkpoints_are_read():
         check_version({**good, 'free_cut_task': {'version': 'free_cut_v3'}})
     with pytest.raises(ValueError, match='backend'):
         check_version({**good, 'physical_backend': 'gazebo'})
+
+
+@pytest.mark.parametrize("bad", [float('nan'), float('inf'), -float('inf')])
+def test_nonfinite_diagnostic_values_are_not_silently_dropped(bad):
+    with pytest.raises(FloatingPointError, match='1/2 non-finite'):
+        stats(torch.tensor([1., bad]))
+    with pytest.raises(FloatingPointError, match='replayed states'):
+        require_finite('replayed states', torch.tensor([bad]))
+    with pytest.raises(FloatingPointError, match='refusing to write'):
+        finite_json({'prediction_error': bad})
+
+
+def test_missing_measurement_is_distinct_from_invalid_prediction():
+    assert finite_json({'physical_separation': None, 'mean_error': 0.}) == {
+        'physical_separation': None, 'mean_error': 0.}
+    assert stats(torch.tensor([])) == {'count': 0}
+    assert stats(torch.tensor([1., 3.]))['mean'] == 2.

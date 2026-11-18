@@ -105,9 +105,16 @@ def wrench_errors(pred, true):
     return diff[..., :3].mean((-1, -2)), diff[..., 3:].mean((-1, -2))
 
 
+def require_finite(name, value):
+    invalid = int((~torch.isfinite(value)).sum())
+    if invalid:
+        raise FloatingPointError(
+            f'{name}: {invalid}/{value.numel()} non-finite values; diagnostic is invalid')
+
+
 def stats(x):
     x = x.detach().double().flatten()
-    x = x[torch.isfinite(x)]
+    require_finite('statistics input', x)
     if not x.numel():
         return {'count': 0}
     return {'count': int(x.numel()), 'mean': float(x.mean()), 'median': float(x.median()),
@@ -322,11 +329,15 @@ def analyse(learner, rec, k, chunk=512):
     for lo in range(0, N, chunk):
         sl = slice(lo, min(lo + chunk, N))
         ro = replay_rollout(learner, S[sl], Hs[:, sl], G[sl], actions[:, sl])
+        for name in ('states', 'rewards', 'dhat', 'survival'):
+            require_finite('replayed ' + name, getattr(ro, name))
         parts['states'].append(ro.states)
         parts['rewards'].append(ro.rewards)
         parts['dhat'].append(ro.dhat)
         # One-step logits on the same batch (terminal head read as a predictor only).
         one, _, logits = wm.predict(S[sl], actions[0, sl], G[sl])
+        require_finite('one-step state', one)
+        require_finite('terminal logits', logits)
         parts['logits'].append(logits)
         # Consistency of the replay's first step with world_model.predict, in the WM's own
         # normalized error units (spec.error_vector); exact up to GPU kernel nondeterminism.
@@ -416,12 +427,16 @@ def analyse(learner, rec, k, chunk=512):
     gamma = learner.pcfg.gamma
     rtg = discounted_return_to_go(rec['reward'].double(), valid, gamma)[t_of, w_of]
     value = learner.critic_values(S, G).double()
+    require_finite('critic values', value)
     def imagined(sl):
         ro = learner.imagine(S[sl], Hs[:, sl], G[sl])
+        for name in ('states', 'rewards', 'dhat', 'survival'):
+            require_finite('imagined ' + name, getattr(ro, name))
         terminal = learner.critic_values(ro.states[-1], G[sl]) if learner.pcfg.use_critic else None
         J = (discount_weights(ro, gamma) * ro.rewards).sum(0)
         if terminal is not None:
             J = J + gamma ** ro.rewards.shape[0] * ro.survival[-1] * terminal
+        require_finite('imagined objective', J)
         if not math.isclose(float(J.mean()), float(policy_objective(ro, terminal, gamma)),
                             rel_tol=1e-4, abs_tol=1e-4):
             raise AssertionError('Per-start objective differs from policy_objective')
@@ -492,7 +507,7 @@ def file_hash(path):
 
 
 def finite_json(value):
-    """JSON-ready copy: numpy scalars to Python, non-finite floats to None (not measured)."""
+    """JSON-ready copy; unknown measurements must be explicit None, never NaN/Inf."""
     if isinstance(value, dict):
         return {key: finite_json(v) for key, v in value.items()}
     if isinstance(value, (list, tuple)):
@@ -500,7 +515,7 @@ def finite_json(value):
     if isinstance(value, np.generic):
         value = value.item()
     if isinstance(value, float) and not math.isfinite(value):
-        return None
+        raise FloatingPointError('Non-finite diagnostic summary; refusing to write a misleading report')
     return value
 
 
@@ -590,10 +605,16 @@ def main():
         separation = {}
         for key in ('separation_progress', 'separated'):
             if 'physical_' + key in rec:
-                separation['final_' + key] = float(rec['physical_' + key][e, w])
+                measurement = float(rec['physical_' + key][e, w])
+                # NaN is the collection sentinel for an unavailable separation diagnostic.
+                # It is allowed only here; infinite values remain errors.
+                separation['final_' + key] = None if math.isnan(measurement) else measurement
         for key in ('material_components', 'damage_saturated_fraction'):
             if 'physical_' + key in rec:
-                separation['terminal_' + key] = float(rec['physical_' + key][e, w])
+                measurement = float(rec['physical_' + key][e, w])
+                # NaN is the collection sentinel for an unavailable separation diagnostic.
+                # It is allowed only here; infinite values remain errors.
+                separation['terminal_' + key] = None if math.isnan(measurement) else measurement
         row['physical_separation'] = separation or 'not logged'
         worlds.append(row)
     episodes = lambda sel: {'episodes': len(sel), **{event: sum(x[event] for x in sel) for event in EVENTS}}

@@ -246,9 +246,12 @@ Environment, the same tracked files on every server (scripts/env/):
 
 - `source scripts/env/cutting_env.sh`: base `.venv` (torch 2.4.1, warp 1.18.0,
   mujoco 3.16.0 on all three servers) for WM+BPTT, evaluation and tests.
-  Host defaults: A6000 uses GPU1 and CUDA arch 8.6 (GPU0 belongs to another
-  user); GPU7/GPU9 use GPU0 and 8.9. `MAX_JOBS` defaults to 1 (parallel builds
-  hit a gcc internal compiler error on GPU9). Exported values override defaults.
+  Host defaults: A6000 uses GPU1 and CUDA arch 8.6; GPU7/GPU9 use GPU0 and 8.9. `MAX_JOBS` defaults to 1 (parallel builds
+  hit a gcc internal compiler error on GPU9). Nonempty exported CUDA/cache/tool
+  paths override defaults. An explicitly empty CUDA_VISIBLE_DEVICES remains
+  CPU-only. The selected checkout and backend are prepended to PYTHONPATH while
+  preserving extra module paths. GPU defaults do not reserve a card: check its
+  current owner/processes before launching (including A6000 GPU1).
 - `CUTTING_ENV=sac source scripts/env/cutting_env.sh`: `.venv-sac` for
   `train_sac_multi.py`. Create it once per server with `scripts/env/make_sac_env.sh`
   (a venv over the base packages plus requirements-baselines.txt; the base

@@ -986,3 +986,16 @@ the progress state failed when the filesystem permits writing; a failed error
 log does not hide the original persistence exception. The pose evaluator
 already closed unconditionally and now also marks persistence failure.
 Task rules, checkpoints and controller/model outputs are unchanged.
+
+## Pose prediction diagnostic validity (2026-11-18)
+
+scripts/diagnose_pose_predictions.py reuses the training rollout without
+optimization. It now rejects non-finite replayed/imagined states, rewards,
+survival, logits, critic values and objective values before reporting them as
+normal predictions. Statistics reject NaN/Inf instead of silently dropping
+samples; JSON export also rejects unexpected non-finite values. Only unavailable
+physical-separation measurements convert their collection NaN sentinel to
+explicit null. An empty selected cohort is still valid and has count zero.
+
+This changes diagnostic failure reporting only. It does not change the WM,
+policy, replay, reward, task version or optimization schedule.

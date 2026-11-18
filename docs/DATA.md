@@ -1,8 +1,62 @@
-# Server data and checkpoint index — 2026-11-17
+# Server data and checkpoint index — 2026-11-18
 
 This is the current location/recovery index, not an authorization to launch.
 All paths are on servers. No project source, weights or datasets were copied
 to the Mac during this cleanup. See [PLAN](PLAN.md) for decisions and budgets.
+
+## Worktree and result retention audit — 2026-11-18
+
+Read-only inventory against main 6176012; no worktrees, refs or run data were
+deleted in this audit. "Historical" means unsuitable as current pose_depth_v3
+evidence, not disposable. Directory sizes below are rounded du measurements.
+
+All checkout paths below are under /dataHDD/dong/Projects/. Before any later
+removal, recheck status, ignored/untracked files, process references and external
+symlink targets; merged HEAD and a small runs directory alone are not sufficient.
+
+| Host | Checkout suffix after Cutting_DEV | Classification / evidence |
+|---|---|---|
+| GPU7 | _board, _pose_long_20261114 | Superseded development/source checkouts; clean, HEAD ancestors of main; runs links to shared Experiments. Removal candidates after dependency check, not a reason to delete shared results |
+| GPU7 | _ur10e_docs | Superseded docs checkout; clean, merged, no runs directory |
+| A6000 | _board | Superseded checkout; clean, merged; runs contains 12 KB operations records |
+| A6000 | _pose_scale_20261114 | Superseded checkout; clean, merged; runs links to _pose_train_20261114/runs |
+| GPU9 | _ur10e_docs_check | Superseded docs checkout; clean, merged; 16 KB validation records |
+| GPU9 | _bm_long_20261115 | Superseded source checkout; clean, merged, no local runs; historical experiment is indexed separately below |
+| A6000 | _mppi_v3 | **Retain.** HEAD has two commits absent from main ancestry and patch-equivalence: 5f6df09 and 866c20f (git cherry marks both +). Also contains 140 MB early free-cut MPPI results. The claim that all remaining worktrees are merged is incorrect |
+| GPU7 | _shared_long_20261116 | Frozen v2 run and recovery evidence: 27 GB, retain |
+| A6000 | _shared_long_20261116, _pose_train_20261114 | Frozen historical runs: 10 GB and 1.1 GB, retain |
+| GPU9 | _sac_long_20261116, _baselines_20261116 | Historical SAC (2.7 GB) and baseline/vision evidence (5.4 GB), retain |
+
+Current main is the only remote branch, but that does not establish that every
+local worktree commit is merged. No historical MPPI commits are automatically
+cherry-picked into the current implementation.
+
+A6000 main also has 39 GB in its own real runs directory (earlier fixed-benchmark
+and critic experiments), and an untracked 26 MB backup
+backends/mujoco/runs.pre_unify_20261118. The latter is intentional retained asset
+history, so that checkout is not wholly clean. Neither is a disposable cache.
+GPU9 additionally has independent old clones Cutting_DEV_apple and
+Cutting_DEV_reference (not entries in the main repository's worktree list).
+Their runs contain 16 KB and 11 MB respectively; they are not deletion-approved
+by the worktree audit and need their own ref/dependency checks.
+
+GPU9 main has a real runs directory too (215 MB), including the current SAC smoke;
+only GPU7 main's runs is a link to the central Experiments directory.
+
+Result scope:
+- Old fixed-prism/S3/perturbation, free_cut_*, pose-v1 and pose_depth_v2 results
+  are historical only; do not mix their rewards/success rates with v3.
+- The 11-16 WM and SAC runs, their final_eval_20261117 outputs, paired replay,
+  checkpoints, source/config manifests and W&B identities remain protected.
+  Final-evaluation statistics still need independent reconciliation.
+- 11-18 v3 integration and SAC smoke records are current interface evidence,
+  not learned baseline performance or long-runtime memory validation.
+- Earlier visual previews and capacity/reward checks may be superseded as
+  demonstrations; retain raw trajectories and provenance. No duplicate video
+  or buffer was declared safe to delete merely from its date or name.
+- Five old training entry scripts (train_coupled, train_coupled_tracked,
+  train_official_supermimic, train_sac, train_sac_gpu) are legacy audit candidates,
+  not deleted here; dependency/caller checks are required before archival.
 
 ## Current shared-task deployments
 
