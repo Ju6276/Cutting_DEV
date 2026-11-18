@@ -193,7 +193,7 @@ recorded geometry, camera metadata, render_audit.json).
 
 ## Preparation and replay
 
-Run on GPU7 in /dataHDD/dong/Projects/Cutting_DEV on `main` (confirm
+Run in /dataHDD/dong/Projects/Cutting_DEV on `main` on any server (confirm
 `git rev-parse HEAD`; other worktrees hold older code, see [DATA](DATA.md));
 keep assets on servers.
 The preparer preserves original scenes, exports CUDA-resident variants with shared
@@ -201,7 +201,7 @@ friction coefficients, records scene/geometry checksums, and writes the two back
 configs. Hash checks reject edits to prepared assets or a mismatched contract.
 
 ~~~bash
-source runs/sac_env.sh
+source scripts/env/cutting_env.sh
 export PYTHONPATH=.:backends/mujoco
 PY=/dataHDD/dong/Envs/cutting-mppi-20261108/bin/python
 $PY scripts/prepare_shared_scenes.py --contract configs/shared/scene_v1.json --output runs/NEW_SHARED_SCENE/assets
@@ -281,7 +281,7 @@ does not autonomously choose a center. Object placement and knife trajectory
 determine the plane before export. A visual goal cannot relocate that topology.
 
 Evidence on GPU7:
-runs/cut_plane_audit_20261117/current_planes.json in Cutting_DEV_board.
+/dataHDD/dong/Experiments/Cutting_DEV/runs/cut_plane_audit_20261117/current_planes.json.
 Loaded files under
 /dataHDD/dong/Experiments/Cutting_DEV/runs/long_readiness_20261116/prepared/:
 

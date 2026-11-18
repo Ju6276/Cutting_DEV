@@ -8,9 +8,10 @@ An available script does not authorize another experiment.
 
 | Purpose | Entry / protocol |
 |---|---|
+| Server runtime environment (base / SAC) | `source scripts/env/cutting_env.sh`, `CUTTING_ENV=sac`; create the SAC env with `env/make_sac_env.sh` |
 | Shared scene inputs for both material backends | `prepare_shared_scenes.py`; [SHARED_SCENE](../docs/SHARED_SCENE.md) |
 | WM+BPTT training | `train_gpu.py`; explicit generated config and the pose_depth_v3 command in [RUNNING](../docs/RUNNING.md#current-wmbptt-training-command-pose_depth_v3); 2026-11-16 [launch record](../docs/archive/TRAINING_SHARED_20261116.md) |
-| Batched PyTorch SAC | `train_sac_multi.py`; 2026-11-16 [SAC protocol](../docs/archive/TRAINING_SAC_20261116.md) (archived) |
+| Batched SB3 SAC baseline | `train_sac_multi.py` in the SAC env; [CURRENT_BASELINES](../docs/methods/CURRENT_BASELINES.md#commands); 2026-11-16 [SAC protocol](../docs/archive/TRAINING_SAC_20261116.md) (archived) |
 | Frozen RL, SAC, WM+MPPI, analytic MPC | `evaluate_pose_policy.py --method wm_policy|sac|wm_mppi|analytic_mpc` |
 | Actual collection/update/reset/replay capacity | `check_training_capacity.py` |
 | Task/reward equations and optional tool-position rule | `check_pose_depth.py`; [SHARED_SCENE](../docs/SHARED_SCENE.md) |

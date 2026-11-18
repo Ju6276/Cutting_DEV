@@ -27,7 +27,7 @@ All runs use online W&B; physical snapshots and recovery data stay on servers.
 
 | Host | Checkout | Role / frozen code |
 |---|---|---|
-| GPU7 (tamsGPU7) | /dataHDD/dong/Projects/Cutting_DEV | **Current development and run entry, branch `main`** (since 2026-11-18). Confirm `git rev-parse HEAD` before a run |
+| GPU7 (tamsGPU7), GPU9 (tamsGPU9), A6000 (tamsGPU5) | /dataHDD/dong/Projects/Cutting_DEV | **Current development and run entry on every server, branch `main`** (unified 2026-11-18). Confirm `git rev-parse HEAD` before a run |
 | GPU7 | /dataHDD/dong/Projects/Cutting_DEV_board | Former development checkout, 3680f35 (codex/visual-cut-route1), no pose_depth_v3; not a run entry |
 | GPU7 | /dataHDD/dong/Projects/Cutting_DEV_pose_long_20261114 | Budget-complete DiSECt main run, 02203b1 |
 | GPU9 (tamsGPU9) | /dataHDD/dong/Projects/Cutting_DEV_bm_long_20261115 | SIGILL-interrupted BladeMaster run, 931e2b5 |
@@ -206,12 +206,21 @@ must use the commit below when the historical revision matters.
 | codex/residual-spring-debug | 1c4a217d12609b33fd5cede5e093a08ad456a281 |
 | codex/transition-schedule-20261114 | 3738271127e232363e628e1a72579c19c72b6a28 |
 
-Preserved: codex/visual-cut-route1 (development checkout tracking origin/main), codex/free-cut-v1
-(existing GPU7 worktree), codex/bm-gpu9-online-20261115 (historical frozen
-GPU9 worktree). Unmerged branches codex/blademaster-batched,
-codex/docs-cleanup-20261113, codex/free-cut-infra, codex/free-cut-mppi and
-feat/apple-cutting-adapter are not deleted: unique commits have not been
-fully reconciled. Local branches attached to any worktree are also retained.
+2026-11-18 cleanup (user-confirmed): GitHub keeps only `main`. Deleted after
+merging into main: codex/free-cut-v1, codex/visual-cut-route1,
+codex/bm-gpu9-online-20261115, codex/blademaster-batched (its two commits are
+in main as equivalent patches) and claude/docs-reorg-20261118. Branches with
+unmerged commits were tagged before deletion; restore with `git checkout -b NAME TAG`:
+
+| Deleted branch | Archive tag | Commit |
+|---|---|---|
+| codex/docs-cleanup-20261113 | archive/codex-docs-cleanup-20261113 | a254def |
+| codex/free-cut-infra | archive/codex-free-cut-infra | b1bcb92 |
+| codex/free-cut-mppi | archive/codex-free-cut-mppi | 3635dab |
+| feat/apple-cutting-adapter | archive/feat-apple-cutting-adapter | 6a453fa |
+
+Local branches still attached to a worktree are kept until those worktrees are
+removed.
 
 Historical batching, scale/launch and framework audits moved into docs/archive
 with rebased links. The old README recipes and PAPER narrative remain at

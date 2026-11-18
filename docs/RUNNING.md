@@ -100,9 +100,8 @@ The GPU memory defaults (cache release, expandable segments, headroom guard) are
 on without flags; see [Online W&B](#online-wb-for-long-training-required-since-2026-11-15).
 
 ```bash
-source runs/sac_env.sh
-export PYTHONPATH=.:backends/mujoco NETRC=/dataHDD/dong/.config/wandb/netrc
-.venv/bin/python scripts/train_gpu.py \
+source scripts/env/cutting_env.sh
+python scripts/train_gpu.py \
   --conditions PREPARED/disect.json --output RUN/disect_training \
   --schedule transitions --warmup-transitions 30720 --transitions-per-update 640 \
   --wm-only-updates 500 --microbatch 512 --critic-microbatch 8192 \
@@ -127,8 +126,8 @@ changing that flag does not scale a run. The preparer writes
 
 1. Copy the contract and change only `common.worlds_per_object`. The 2026-11-16
    run used 1024 per object, 3072 in total; its copy, written for
-   pose_depth_v2, is runs/long_readiness_20261116/contract.json in
-   Cutting_DEV_board.
+   pose_depth_v2, is
+   /dataHDD/dong/Experiments/Cutting_DEV/runs/long_readiness_20261116/contract.json.
 2. Run `prepare_shared_scenes.py --contract COPY` and the
    `check_pose_depth.py` checks on that copy.
 3. Before launch, confirm the per-group and total `worlds` in the generated
@@ -208,9 +207,8 @@ Run both suites separately to preserve their module resolution. Use a card
 with headroom for the multi-process CUDA tests; the November17 audit hit OOM
 when sharing GPU7 with its 3072-world long run and moved validation to idle GPU9.
 Do not stop a training job or turn an OOM into a passing test.
-On the prepared
-GPU7 checkout, first source runs/sac_env.sh; this sets CUDA_HOME and
-TORCH_EXTENSIONS_DIR as well as the source/asset paths. An empty shell does not
+In a server checkout, first `source scripts/env/cutting_env.sh` (tracked;
+sets CUDA_HOME, TORCH_EXTENSIONS_DIR, caches, PYTHONPATH and the host's GPU). An empty shell does not
 have a working DiSECt kernel environment.
 
 For full optional-MPPI coverage on GPU7, use
@@ -218,7 +216,7 @@ For full optional-MPPI coverage on GPU7, use
 the backend suite uses the base environment as below.
 
 ```bash
-source runs/sac_env.sh
+source scripts/env/cutting_env.sh
 CUTTING_BACKEND_ROOT="$PWD/backends/mujoco" PYTHONPATH=.:backends/mujoco \
   .venv/bin/python -m pytest tests -q
 (cd backends/mujoco && PYTHONPATH=. ../../.venv/bin/python -m pytest tests -q)
@@ -238,12 +236,28 @@ They are not the approved current video pipeline.
 
 ## Remote-only development and storage
 
-Open GPU7 in VS Code Remote SSH and use **/dataHDD/dong/Projects/Cutting_DEV on
-branch `main`** (switched 2026-11-18). Before a run, `git pull --ff-only` and confirm
-the commit with `git rev-parse HEAD`; the run's provenance records it. Other GPU7
-worktrees hold older code and are not run entries: Cutting_DEV_board is at
-3680f35 (codex/visual-cut-route1, no pose_depth_v3), and frozen run checkouts
-are listed in DATA. GPU7/A6000 frozen training
+**Run entry on every server: /dataHDD/dong/Projects/Cutting_DEV on branch `main`**
+(GPU7, GPU9 and A6000, unified 2026-11-18). Before a run, `git pull --ff-only` and
+confirm the commit with `git rev-parse HEAD`; the run's provenance records it.
+Other worktrees are frozen run records or old code and are not run entries
+(DATA); Cutting_DEV_board on GPU7/A6000 is at 3680f35 without pose_depth_v3.
+
+Environment, the same tracked files on every server (scripts/env/):
+
+- `source scripts/env/cutting_env.sh`: base `.venv` (torch 2.4.1, warp 1.18.0,
+  mujoco 3.16.0 on all three servers) for WM+BPTT, evaluation and tests.
+  Host defaults: A6000 uses GPU1 and CUDA arch 8.6 (GPU0 belongs to another
+  user); GPU7/GPU9 use GPU0 and 8.9. `MAX_JOBS` defaults to 1 (parallel builds
+  hit a gcc internal compiler error on GPU9). Exported values override defaults.
+- `CUTTING_ENV=sac source scripts/env/cutting_env.sh`: `.venv-sac` for
+  `train_sac_multi.py`. Create it once per server with `scripts/env/make_sac_env.sh`
+  (a venv over the base packages plus requirements-baselines.txt; the base
+  `.venv` is not modified).
+- Assets: backends/mujoco/runs must contain
+  sweep/{free_cucumber_003,free_potato_half_20261114,free_prism}, the source
+  scenes of configs/shared/scene_v1.json. GPU7 links the directory to
+  /dataHDD/dong/Assets/Cutting_DEV/prepared; GPU9 and A6000 keep local copies
+  (checksums equal to GPU7, checked 2026-11-18). GPU7/A6000 frozen training
 checkouts are recorded in [TRAINING_SHARED_20261116](archive/TRAINING_SHARED_20261116.md).
 The Mac holds only explicitly requested exported previews/videos, not project
 source, training data or checkpoints.
@@ -270,7 +284,7 @@ GPU7 storage:
   including the 2026-11-04 video renderers): /dataHDD/dong/Archive/gpu9_20261110.
   All of that code is superseded by main; no merge needed. GPU9 run data stays on GPU9.
 
-Source the existing runs/sac_env.sh before GPU commands. For MPC commands
+Source scripts/env/cutting_env.sh before GPU commands. For MPC commands
 above, use the planner Python explicitly. Machine addresses, protected active
 paths and the migration inventory are in the server's runs/operations/MACHINES.md.
 Machine notes are timestamped observations, not proof that a job is still active.

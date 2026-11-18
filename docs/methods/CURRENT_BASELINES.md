@@ -89,12 +89,12 @@ Use an isolated environment with `requirements-baselines.txt`, current prepared
 assets, `PYTHONPATH=.:backends/mujoco` and the backend runtime setup.
 Keep active training environments/checkouts unchanged.
 
-Environment (checked 2026-11-18): the GPU7 `.venv` used by `train_gpu.py` has no
-stable_baselines3, so `train_sac_multi.py` cannot start there. The existing SAC
-environment is on GPU9: /dataHDD/dong/Envs/cutting-baselines-20261116/bin/python.
-GPU9 has no checkout on `main` yet (Cutting_DEV_baselines_20261116 is at 3680f35).
-A current SAC run therefore needs a GPU9 checkout at the intended main commit, or
-an approved install of `requirements-baselines.txt` in a separate GPU7 environment.
+Environment: `CUTTING_ENV=sac source scripts/env/cutting_env.sh` in the `main`
+checkout; create `.venv-sac` once per server with `scripts/env/make_sac_env.sh`
+([RUNNING](../RUNNING.md#remote-only-development-and-storage)).
+Checked 2026-11-18: the integration test below passed on GPU9 `main` b2b3ea6
+(pose_depth_v3, 2 worlds per object = 6, 240 transitions, completed, model and
+replay saved, clean source commit). It is an interface test, not a trained comparator.
 
 ```bash
 # Small integration test; not a formal trained SAC comparator.

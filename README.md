@@ -25,7 +25,10 @@ with a board execution boundary. Pose success is not proof of material separatio
 | UR10e + ATI: first FDCC hardware setup | [Chinese setup handoff](docs/hardware/UR10E_FDCC_SETUP_ZH.md) |
 | Full documentation index | [docs](docs/README.md) |
 
-Development is consolidated on GitHub main. Training runs retain their frozen
+Development is consolidated on GitHub main. Every server (GPU7, GPU9, A6000) runs
+from /dataHDD/dong/Projects/Cutting_DEV on `main` with the tracked environment
+`source scripts/env/cutting_env.sh` (SAC: `CUTTING_ENV=sac`; see
+[RUNNING](docs/RUNNING.md#remote-only-development-and-storage)). Training runs retain their frozen
 checkouts and recorded revisions; updating main does not update those runs.
 All long runs require online W&B and a recorded budget.
 

@@ -180,7 +180,7 @@ Run from the prepared GPU7 development checkout, preserving the source assets:
 
 ~~~bash
 PYTHONPATH=.:scripts /dataHDD/dong/Envs/render-20261108/bin/python scripts/generate_visual_center_data.py --scenes runs/shared_scene_views_20261116/disect --output runs/NEW_CENTER/dataset --wall-seconds 1800
-source runs/sac_env.sh
+source scripts/env/cutting_env.sh
 PYTHONPATH=. /dataHDD/dong/Envs/cutting-mppi-20261108/bin/python scripts/train_visual_center.py --data runs/NEW_CENTER/dataset --output runs/NEW_CENTER/learning --epochs 120 --wall-seconds 900 --wandb-mode online
 PYTHONPATH=. .venv/bin/python scripts/plan_visual_cut.py --selection learned-midpoint --center-checkpoint runs/NEW_CENTER/learning/center.pt --depth RUN/depth.npz --camera RUN/camera.json --config RUN/visual_config.json --output RUN/learned_plan.json
 ~~~
@@ -224,7 +224,7 @@ The seed20261117 frozen-policy66 physical handoff still timed out; plane error
 better control. See RESULTS for the complete negative outcome and limits.
 
 ~~~bash
-source runs/sac_env.sh
+source scripts/env/cutting_env.sh
 PYTHONPATH=. /dataHDD/dong/Envs/cutting-mppi-20261108/bin/python scripts/train_visual_center.py --data runs/visual_center_20261117/dataset --output runs/NEW_DP3 --architecture dp3_xyz_v1 --seed 20261117 --epochs 120 --wall-seconds 900 --wandb-mode online
 PYTHONPATH=. /dataHDD/dong/Envs/cutting-mppi-20261108/bin/python scripts/compare_visual_centers.py --runs runs/dp3_center_20261117
 ~~~
