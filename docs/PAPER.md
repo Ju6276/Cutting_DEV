@@ -16,7 +16,8 @@ established novel algorithm.
 
 ## Task and claim boundaries
 
-Current pose_depth_v2 rewards reaching the prescribed final pose without
+Current pose_depth_v3 (pose_depth_v2 rules plus software board-stop consistency
+and analytic imagined survival) rewards reaching the prescribed final pose without
 higher-priority failure. Geometric maximum-depth progress replaces the old
 spring-release reward. Material separation is reported independently.
 The board stop is a software execution boundary; force thresholds and material

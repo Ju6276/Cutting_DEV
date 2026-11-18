@@ -55,7 +55,8 @@ branch `codex/shared-disect-knife`. GPU7 checkout:
 `/dataHDD/dong/Projects/BladeMaster-Warp-shared-knife-20261116`.
 This supplies the two-slope finite blade contact/constraint kernels; Cutting_DEV
 supplies the common UR5e rigid mount. The task identity is
-`disect_knife_rigid_mount_v1`; see SHARED_KNIFE for geometry and commands.
+`disect_knife_rigid_mount_v1`; see the shared-knife section of
+[SHARED_SCENE](../SHARED_SCENE.md#shared-physical-knife-and-mounting) for geometry and commands.
 
 
 2026-11-16 current BladeMaster integration source: commit

@@ -242,7 +242,7 @@ before the horizon gives timeout, not a successful cut.
 With path control on, each 50 ms endpoint subtracts
 20/180 * clamp((distance-.025)/(.060-.025),0,1)^2.
 Above 60 mm the task ends with failure -100 once; exactly 60 mm remains inside.
-These are configurable engineering settings. Current shared long runs use final-only; their launch records do not establish
+These are configurable engineering settings. The 2026-11-16 shared long runs used final-only; their launch records do not establish
 that optional path constraints improve learned behavior.
 
 Reward-equation audit: append --tool-reward-audit to either check_pose_depth.py

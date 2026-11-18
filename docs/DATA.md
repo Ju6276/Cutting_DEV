@@ -2,16 +2,18 @@
 
 This is the current location/recovery index, not an authorization to launch.
 All paths are on servers. No project source, weights or datasets were copied
-to the Mac during this cleanup. See [PLAN](PLAN.md) for active budgets.
+to the Mac during this cleanup. See [PLAN](PLAN.md) for decisions and budgets.
 
 ## Current shared-task deployments
 
+Both 2026-11-16 runs (pose_depth_v2, now read/evaluate-only) ended on 2026-11-17
+(PLAN); these checkouts are frozen evidence, not running jobs.
 GPU7 and A6000 each use an isolated checkout at
 /dataHDD/dong/Projects/Cutting_DEV_shared_long_20261116.
 Their checked source is5ec9f85; native material source is
 /dataHDD/dong/Projects/BladeMaster-Warp-shared-knife-20261116 atc51ef73.
 Robot model, source task/reset, FDCC parameters and three intact geometry assets
-match byte-for-byte. Authoritative status/URLs are in TRAINING_SHARED_20261116;
+match byte-for-byte. Authoritative status/URLs are in [TRAINING_SHARED_20261116](archive/TRAINING_SHARED_20261116.md);
 do not infer a launched run merely from the checkout's existence.
 
 Run files under each checkout: runs/shared_long_20261116.
@@ -28,7 +30,7 @@ All runs use online W&B; physical snapshots and recovery data stay on servers.
 | GPU7 (tamsGPU7) | /dataHDD/dong/Projects/Cutting_DEV_board | Development checkout; development is consolidated on origin/main (checkout branch codex/visual-cut-route1 tracks it) |
 | GPU7 | /dataHDD/dong/Projects/Cutting_DEV_pose_long_20261114 | Budget-complete DiSECt main run, 02203b1 |
 | GPU9 (tamsGPU9) | /dataHDD/dong/Projects/Cutting_DEV_bm_long_20261115 | SIGILL-interrupted BladeMaster run, 931e2b5 |
-| A6000 (tamsGPU5) | /dataHDD/dong/Projects/Cutting_DEV_pose_scale_20261114 | Development mirror; no training in this checkout (the active shared run uses Cutting_DEV_shared_long_20261116) |
+| A6000 (tamsGPU5) | /dataHDD/dong/Projects/Cutting_DEV_pose_scale_20261114 | Development mirror; no training in this checkout (the ended 2026-11-16 shared run used Cutting_DEV_shared_long_20261116) |
 
 GPU9 is reached through tams61. GPU7 and A6000 local SSH aliases are
 cutting-gpu7 and cutting-a6000. Server names do not imply exclusive GPU access.

@@ -19,14 +19,17 @@ before reporting that it is still active.
   counts only.
 - Before any next long run: GPU-memory headroom for 3072 DiSECt worlds on a
   24 GB card must be fixed and verified (the GPU7 run grew from 16.7 to 23.8 GB
-  and failed on an 8 MB Warp allocation).
+  and failed on an 8 MB Warp allocation). Status: trainer defaults now release
+  Torch cache before physics/reset, use expandable segments and guard headroom
+  (METHOD); verified only on a short 3072-world run without resets (RESULTS
+  2026-11-17). Behaviour over hours with resets remains unverified.
 - GPU9 SAC finished its transition budget (1,281,024 transitions, vector-step
   granularity). Preserve its checkpoint and evaluate under the recorded task.
 - After completion, evaluate the frozen policies on identified development
   conditions: per-object pose completion, failures/timeouts, return, speed
   error, wrench utilization and independent material-separation diagnostics.
   Record checkpoint identities, conditions, timing and source versions.
-- Keep active training checkouts frozen. Development cleanup and offline
+- Keep the frozen training checkouts unchanged. Development cleanup and offline
   rendering changes do not replace their code. All long runs require online W&B.
 
 ## Fixed task and algorithm

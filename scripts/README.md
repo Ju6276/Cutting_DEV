@@ -9,11 +9,12 @@ An available script does not authorize another experiment.
 | Purpose | Entry / protocol |
 |---|---|
 | Shared scene inputs for both material backends | `prepare_shared_scenes.py`; [SHARED_SCENE](../docs/SHARED_SCENE.md) |
-| WM+BPTT training | `train_gpu.py`; explicit generated config and approved [launch settings](../docs/archive/TRAINING_SHARED_20261116.md) |
-| Batched PyTorch SAC | `train_sac_multi.py`; [SAC protocol](../docs/archive/TRAINING_SAC_20261116.md) |
+| WM+BPTT training | `train_gpu.py`; explicit generated config and the pose_depth_v3 command in [RUNNING](../docs/RUNNING.md#current-wmbptt-training-command-pose_depth_v3); 2026-11-16 [launch record](../docs/archive/TRAINING_SHARED_20261116.md) |
+| Batched PyTorch SAC | `train_sac_multi.py`; 2026-11-16 [SAC protocol](../docs/archive/TRAINING_SAC_20261116.md) (archived) |
 | Frozen RL, SAC, WM+MPPI, analytic MPC | `evaluate_pose_policy.py --method wm_policy|sac|wm_mppi|analytic_mpc` |
 | Actual collection/update/reset/replay capacity | `check_training_capacity.py` |
 | Task/reward equations and optional tool-position rule | `check_pose_depth.py`; [SHARED_SCENE](../docs/SHARED_SCENE.md) |
+| pose_depth_v3 WM/terminal-head/critic prediction diagnostic on frozen-policy trajectories | `diagnose_pose_predictions.py`; [RUNNING](../docs/RUNNING.md#pose_depth_v3-wm-prediction-diagnostic) |
 
 Do not launch `train_gpu.py` with bare defaults as the current task: defaults
 retain the historical fixed-prism source variant. Current task is pose_depth_v3 (v2 training refused);
@@ -72,7 +73,8 @@ versions and [RESULTS](../docs/RESULTS.md).
   `render_episode.py` reads the historical recording format and is also
   imported by shared export utilities; it is not the default studio video entry.
 - `evaluate_multi.py`: old free-cut task; rejects current pose tasks.
-- `compare_free_cut_references.py`: v3 reward decomposition, not pose_depth_v2.
+- `compare_free_cut_references.py`: free_cut_v3 reward decomposition, not the pose tasks.
+- `diagnose_free_cut_predictions.py`: free_cut_v3 separation diagnostic; refuses pose tasks.
 - `train_coupled*.py`, `train_sac.py`, `run_sac_training.py` and Gazebo
   collection bridges retain independent upstream reproduction.
 - `train_official_supermimic.py`: separate official adaptation; see
