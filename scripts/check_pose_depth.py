@@ -226,6 +226,10 @@ def main():
             fields['depth_span']=sp.field(state,'depth_span')
             fields['cut_progress']=depth_progress(sp.fk(fields['joint_q']),sp.board_geometry,
                 fields['depth_span'],sp.field(state,'cut_progress'))
+            if 'board_contact' in sp.history_fields:
+                # pose_depth_v3: the latch flag is observed from the physical step, as in
+                # recorded training transitions (pose_depth.observe_board_latch).
+                fields['board_contact']=frame['board_contact'].double()
             nxt,model_reward,model_done=sp.derive(state,fields,action,goal)
             error=float((model_reward-reward).abs().max());maximum_error=max(maximum_error,error)
             assert error<1e-3, error
