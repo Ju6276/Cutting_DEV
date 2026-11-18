@@ -1,3 +1,5 @@
+> Historical — superseded by [CURRENT_BASELINES](../methods/CURRENT_BASELINES.md) and [PLAN](../PLAN.md), kept for traceability.
+
 # GPU9 current-task parallel SAC — 2026-11-16
 
 ## Question and scope

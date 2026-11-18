@@ -1,3 +1,5 @@
+> Historical — superseded by the shared task in [TASK_FREE_CUT](../TASK_FREE_CUT.md) and [SHARED_SCENE](../SHARED_SCENE.md), kept for traceability.
+
 # Fixed cutting benchmark
 
 > 2026-11-12: this file defines the **fixed prism** benchmark. Its success rule (knife at the goal

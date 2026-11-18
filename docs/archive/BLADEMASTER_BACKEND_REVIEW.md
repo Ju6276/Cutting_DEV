@@ -1,3 +1,5 @@
+> Historical — superseded by [SHARED_SCENE](../SHARED_SCENE.md) and [METHOD](../METHOD.md), kept for traceability.
+
 # BladeMaster UR5e backend integration review
 
 Historical initial integration review. The current batched three-object scene,

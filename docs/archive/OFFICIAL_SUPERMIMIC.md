@@ -1,3 +1,5 @@
+> Historical — superseded by the retained WM+BPTT implementation in [METHOD](../METHOD.md), kept for traceability.
+
 # Official SuperMimic on the cutting prism
 
 > Status 2026-11-12: retained adaptation, not a successful reproduction result.

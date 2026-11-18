@@ -1,3 +1,5 @@
+> Historical — superseded by [literature/README](../literature/README.md) and [PAPER](../PAPER.md), kept for traceability.
+
 # Literature evidence and historical candidate assessments
 
 Status update 2026-11-12: the force-spike premise and S3 task claims are retired.

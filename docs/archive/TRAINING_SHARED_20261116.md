@@ -1,3 +1,5 @@
+> Historical — superseded by [PLAN](../PLAN.md) and [RUNNING](../RUNNING.md) (pose_depth_v3), kept for traceability.
+
 # Shared-task engineering training — 2026-11-16
 
 ## Authorization and question

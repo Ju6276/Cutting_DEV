@@ -1,3 +1,5 @@
+> Historical — superseded by the pose_depth_v3 task ([TASK_FREE_CUT](../TASK_FREE_CUT.md)) and [RESULTS](../RESULTS.md), kept for traceability.
+
 # Frozen policy mechanics and representation analysis — 2026-11-16
 
 This is a descriptive analysis of two existing policies on their **recorded original physics**.

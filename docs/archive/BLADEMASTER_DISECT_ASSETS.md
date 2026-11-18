@@ -1,3 +1,5 @@
+> Historical — superseded by the shared three-object scene in [SHARED_SCENE](../SHARED_SCENE.md), kept for traceability.
+
 # BladeMaster geometry and elastic parameters in DiSECt
 
 Implemented on 2026-11-14. This path retains DiSECt's pre-generated cutting
