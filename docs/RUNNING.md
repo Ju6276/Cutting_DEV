@@ -238,12 +238,12 @@ They are not the approved current video pipeline.
 
 ## Remote-only development and storage
 
-Open GPU7 in VS Code Remote SSH. **No GPU7 checkout currently follows origin/main**
-(checked 2026-11-18, main = 4dfbc0c): Cutting_DEV_board is at 3680f35
-(codex/visual-cut-route1, 21 commits behind, no pose_depth_v3) and Cutting_DEV is
-at 1c4a217 (codex/free-cut-v1, 84 behind). Running commands there executes old
-code. Before any run, check out or create a worktree at the intended commit and
-confirm it with `git rev-parse HEAD`; the run's provenance records that commit. GPU7/A6000 frozen training
+Open GPU7 in VS Code Remote SSH and use **/dataHDD/dong/Projects/Cutting_DEV on
+branch `main`** (switched 2026-11-18). Before a run, `git pull --ff-only` and confirm
+the commit with `git rev-parse HEAD`; the run's provenance records it. Other GPU7
+worktrees hold older code and are not run entries: Cutting_DEV_board is at
+3680f35 (codex/visual-cut-route1, no pose_depth_v3), and frozen run checkouts
+are listed in DATA. GPU7/A6000 frozen training
 checkouts are recorded in [TRAINING_SHARED_20261116](archive/TRAINING_SHARED_20261116.md).
 The Mac holds only explicitly requested exported previews/videos, not project
 source, training data or checkpoints.
@@ -252,8 +252,8 @@ Historical checkouts remain untouched; see PLAN for its isolated deployment.
 
 GPU7 storage:
 
-- /dataHDD/dong/Projects/Cutting_DEV_board: 3680f35, codex/visual-cut-route1 (behind main; see above).
-- /dataHDD/dong/Projects/Cutting_DEV: 1c4a217, codex/free-cut-v1 (behind main).
+- Current development and run entry: /dataHDD/dong/Projects/Cutting_DEV (`main`).
+- /dataHDD/dong/Projects/Cutting_DEV_board: 3680f35, codex/visual-cut-route1 (old code; not a run entry).
 - Runs: /dataHDD/dong/Experiments/Cutting_DEV/runs; the checkout's runs links here.
 - Prepared robot/material assets: /dataHDD/dong/Assets/Cutting_DEV/prepared;
   backends/mujoco/runs links here.

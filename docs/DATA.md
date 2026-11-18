@@ -27,8 +27,8 @@ All runs use online W&B; physical snapshots and recovery data stay on servers.
 
 | Host | Checkout | Role / frozen code |
 |---|---|---|
-| GPU7 (tamsGPU7) | /dataHDD/dong/Projects/Cutting_DEV_board | Former development checkout, at 3680f35 (codex/visual-cut-route1) as of 2026-11-18: 21 commits behind origin/main 4dfbc0c, no pose_depth_v3. It does not follow main; confirm `git rev-parse HEAD` before running anything |
-| GPU7 | /dataHDD/dong/Projects/Cutting_DEV | At 1c4a217 (codex/free-cut-v1) as of 2026-11-18, 84 commits behind main |
+| GPU7 (tamsGPU7) | /dataHDD/dong/Projects/Cutting_DEV | **Current development and run entry, branch `main`** (since 2026-11-18). Confirm `git rev-parse HEAD` before a run |
+| GPU7 | /dataHDD/dong/Projects/Cutting_DEV_board | Former development checkout, 3680f35 (codex/visual-cut-route1), no pose_depth_v3; not a run entry |
 | GPU7 | /dataHDD/dong/Projects/Cutting_DEV_pose_long_20261114 | Budget-complete DiSECt main run, 02203b1 |
 | GPU9 (tamsGPU9) | /dataHDD/dong/Projects/Cutting_DEV_bm_long_20261115 | SIGILL-interrupted BladeMaster run, 931e2b5 |
 | A6000 (tamsGPU5) | /dataHDD/dong/Projects/Cutting_DEV_pose_scale_20261114 | Development mirror; no training in this checkout (the ended 2026-11-16 shared run used Cutting_DEV_shared_long_20261116) |
