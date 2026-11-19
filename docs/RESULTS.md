@@ -7,6 +7,67 @@ task, free_cut_v1–v4, pose-v1 runs, including the 2026-11-14 evidence index) a
 [PLAN](PLAN.md) says what happens next; old next-step prose in entries is not a plan.
 
 
+## 2026-11-19 — V3 board continuation revision project_continue_v2
+
+Three review findings on `project_continue_v1` (f12ca04) were fixed on branch
+`claude/board-contact-fixes`; the public task stays `pose_depth_v3`, the
+machine-checked `task.board.motion` is now `project_continue_v2`. v1 checkpoints,
+replay and configs stay evaluable with their recorded rules but are refused for
+training and resume (metadata differs; `refuse_retired_training`).
+
+1. `board_contact` is now a property of the end-of-step pose (rigid-blade
+   clearance <= 10 um), computed by the same function in DiSECt, BladeMaster and
+   the WM/analytic MPC. In v1 the WM set it only when its own proposal was
+   projected, so a recorded resting state (already projected) was 1 in physics
+   and 0 in imagination.
+2. The physical adapters' continuation now has pytest coverage
+   (tests/test_board_adapters.py): reverting environment.py, knife_board.py and
+   blademaster_backend.py to 6ec9f34 fails all six cases (worlds freeze at contact).
+3. The projection removes only a pure normal end-effector translation
+   (TASK_FREE_CUT). v1's minimum-norm joint correction slid and rotated the blade.
+
+Physical probe, `scripts/check_board_continue.py` on GPU7, two cucumber worlds per
+backend, normal force limits, explicit FDCC targets: press to the board, hold,
+then 20 steps (1 s) of pure inward target motion at each speed, then a 10 mm
+lateral target slide, lift and partial reset. Both trees were clean checkouts
+(`git status` empty): **after** = 08bb59f (this branch), **before** = f12ca04, run
+with the same probe file via `--repo-root`. EE tangential drift and rotation over
+each 1 s phase (both worlds; DiSECt / BladeMaster):
+
+| Speed | f12ca04 drift | f12ca04 rotation | 08bb59f drift | 08bb59f rotation |
+|---:|---:|---:|---:|---:|
+| 0.5 cm/s | 0.80–0.81 mm / 0.80 mm | 0.0122–0.0123 rad / 0.0122 rad | 0.068–0.070 mm / 0.069–0.070 mm | 0.84–1.17 mrad / 0.61 mrad |
+| 2 cm/s | 4.44–4.46 mm / 4.42 mm | 0.047 rad / 0.047 rad | 0.26–0.27 mm / 0.30–0.31 mm | 1.4–1.9 mrad / 2.4 mrad |
+| 5 cm/s | 17.9 mm / 17.9 mm | 0.110–0.111 rad / 0.111 rad | 0.74–0.76 mm / 1.01–1.04 mm | 5.1–6.1 mrad / 6.1 mrad |
+
+The probe also wraps the adapters' projection call (read-only) and sums the EE
+displacement between each substep's proposed and executed pose. At f12ca04 the
+projection itself moved the EE tangentially 7.6–8.9 / 34–35 / 80–81 mm (path
+length) and rotated it 0.03–0.04 / 0.14 / 0.34 rad over the three phases. At
+08bb59f this was <= 3.5e-12 m and <= 5.6e-13 rad. The remaining 0.07–1.0 mm and
+0.6–6 mrad at 08bb59f are therefore in the FDCC proposals themselves (controller
+response to the unreachable target and material wrench), not added by the board
+projection; this attribution is from the audit, the controller mechanism itself
+was not separately analysed. Final gaps stayed 1.17–1.53 um, no force-limit event.
+The 10 mm lateral target slide gave 26.3–26.4 mm at f12ca04 (projection-induced
+slide added to the commanded one) and 9.0–9.7 mm at 08bb59f. Hold, lift (contact
+cleared) and partial reset passed for all four runs. First boundary step: DiSECt
+38–39, BladeMaster 36. Wall time 588–630 s per probe.
+Evidence: GPU7 `runs/board_normal_20261119/audited/{after,before}_{disect,blademaster}/`
+(report.json, transitions.json), `*_tree_status.txt`, `*_prepared/` (freshly
+prepared from each tree's contract). An earlier un-audited 08bb59f-predecessor
+run (f9f7b37, DiSECt only, plus an interrupted BladeMaster run) is in
+`runs/board_normal_20261119/after_*`; its DiSECt drift agreed within GPU run-to-run
+variation (0.066/0.26–0.27/0.73–0.88 mm).
+
+Kinematic test (no controller/material; synthetic 10 cm edge on the UR5e source
+chain, 10 ms command steps): v1 drift 2.0/8.0/19.8 mm and 0.010/0.040/0.100 rad;
+v2 < 1e-12 m and < 2e-13 rad (tests/test_board_normal_projection.py).
+Cost: one v2 projection + velocity projection on the UR5e chain on the 4090 took
+55 ms vs 44 ms for v1 (2 or 64 worlds), using the chain's analytic Jacobian in the
+adapters. Validation at 08bb59f: root 755 passed / 5 skipped, backend 44 passed.
+Scope: interfaces and kinematics only; no training was launched.
+
 ## 2026-11-19 — Current V3: continue after the board boundary, without permanent freezing
 
 User-authorized change: keep cumulative arrival >10, 2 mm tolerance, +100 and

@@ -84,7 +84,8 @@ Revisions of `task.board.motion` (machine-checked; the task name stays v3):
   no controller or material): v1 drifted 2.0/8.0/19.8 mm tangentially and rotated
   0.010/0.040/0.100 rad at 0.5/2/5 cm/s; the current projection gives
   <1e-12 m and <2e-13 rad (test bound 1e-9 m / 1e-9 rad). See RESULTS for the
-  physical probe with FDCC and material.
+  physical probe with FDCC and material (projection-induced EE motion
+  <= 3.5e-12 m / 5.6e-13 rad at 08bb59f vs up to 81 mm / 0.34 rad at f12ca04).
 - Every 2 ms material interval and sensor/filter update continues at the
   boundary. Force violations and evaluation pause still stop their own worlds.
   No board-contact flag prevents the next action from executing.
