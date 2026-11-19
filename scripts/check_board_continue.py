@@ -49,6 +49,30 @@ def main():
             from cutting_world_model.blademaster_backend import BladeMasterEnvironment
             env=BladeMasterEnvironment(root/'backends/mujoco',cfg);group=env
         ph=group.physics
+        # Read-only instrumentation of the projection itself: EE displacement between
+        # each substep's proposed and executed joints (wraps the adapters' call).
+        import cutting_gpu_backend.tool_mount as mount
+        from cutting_gpu_backend.controller.fdcc import quat_inverse,quat_mul
+        def angle(a,b):
+            r=quat_mul(quat_inverse(a[:,3:]),b[:,3:])
+            return 2*torch.atan2(r[:,:3].norm(dim=-1),r[:,3].abs())
+        audit={}
+        def reset_audit():
+            z=torch.zeros(ph.worlds,device=ph.device,dtype=torch.float64)
+            audit.update(tangential=z.clone(),rotation=z.clone(),net=torch.zeros(ph.worlds,3,device=ph.device,
+                         dtype=torch.float64),hits=z.clone(),calls=0)
+        reset_audit()
+        original_step=mount.continuing_joint_step
+        def audited_step(old_q,proposed,fk,geometry,reach_bound,active,**kw):
+            out,hit=original_step(old_q,proposed,fk,geometry,reach_bound,active,**kw)
+            a,b=fk(proposed).double(),fk(out).double()
+            n=a.new_tensor(geometry['board_normal_base']);n=n/n.norm()
+            d=b[:,:3]-a[:,:3];t=d-(d*n).sum(-1,keepdim=True)*n
+            m=active.double()
+            audit['tangential']+=t.norm(dim=-1)*m;audit['net']+=t*m[:,None]
+            audit['rotation']+=angle(a,b)*m;audit['hits']+=hit.double();audit['calls']+=1
+            return out,hit
+        mount.continuing_joint_step=audited_step
         action=torch.zeros(ph.worlds,6,device=ph.device)
         # Use the original FDCC, sensors, limits and material. Only its commanded
         # target is controlled explicitly to exercise contact, slide and release.
@@ -102,7 +126,7 @@ def main():
             normal=normal/normal.norm()
             report['inward_press']={}
             for speed in DRIFT_SPEEDS:
-                start=f['ee_pose'].clone();target=start.clone();ticks=time.monotonic()
+                start=f['ee_pose'].clone();target=start.clone();ticks=time.monotonic();reset_audit()
                 collided=torch.zeros(ph.worlds,dtype=torch.bool,device=start.device)
                 for k in range(20):
                     target=start.clone();target[:,:3]-=(k+1)*speed*.05*normal
@@ -117,7 +141,11 @@ def main():
                     normal_motion_m=along.tolist(),rotation_rad=rotation.tolist(),
                     final_gap_m=f['knife_board_gap'].flatten().tolist(),
                     contact=f['knife_board_contact'].flatten().tolist(),
-                    force_limit_event=collided.tolist(),seconds=time.monotonic()-ticks)
+                    force_limit_event=collided.tolist(),seconds=time.monotonic()-ticks,
+                    projection_tangential_path_m=audit['tangential'].tolist(),
+                    projection_tangential_net_m=audit['net'].norm(dim=-1).tolist(),
+                    projection_rotation_path_rad=audit['rotation'].tolist(),
+                    projected_substeps=audit['hits'].tolist(),projection_calls=audit['calls'])
                 (a.output/'report.json').write_text(json.dumps(report,indent=2)+'\n')
                 if bool(collided.any()):
                     raise AssertionError(('Force limit during inward press; drift phase incomplete',speed))
