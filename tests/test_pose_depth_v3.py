@@ -130,6 +130,29 @@ def test_first_contact_latches_with_physical_criterion():
         assert out['board_contact'].item() == expected
 
 
+def test_first_contact_peak_covers_the_frozen_reading():
+    # Mirrors latched_interval_peak in both adapters: at the latch interval the peak is at
+    # least |frozen reading|, so a reading over the limit fails on the contact step itself.
+    wm, s, g = model()
+    sp = wm.spec
+    base = sp.integrate_physical(s, torch.zeros(1, sp.delta_dim, dtype=s.dtype))
+    base['peak_wrench'] = torch.tensor([[1., 2., 45., .1, .2, .3]], dtype=s.dtype)
+    base['last_wrench'] = torch.tensor([[-3., .5, -52., .4, -.1, 0.]], dtype=s.dtype)
+    gap = torch.tensor([1e-6], dtype=s.dtype)
+    arrived = sp.apply_board_latch(s, dict(base), torch.tensor([True]), gap)
+    expected = torch.maximum(base['peak_wrench'], base['last_wrench'].abs())
+    assert arrived['board_contact'].item() == 1
+    torch.testing.assert_close(arrived['peak_wrench'], expected)
+    assert (arrived['peak_wrench'].abs() > sp.force_limits).any()   # z exceeds the 50 N limit now
+    # No contact: peak and last stay independent WM outputs (rule applies only at the latch).
+    free = sp.apply_board_latch(s, dict(base), torch.tensor([False]), gap)
+    torch.testing.assert_close(free['peak_wrench'], base['peak_wrench'])
+    # Already latched: the held rule (peak = |previous frozen reading|) is unchanged.
+    held_state = latched_state(sp, s)
+    held = sp.apply_board_latch(held_state, dict(base), torch.tensor([True]), gap)
+    torch.testing.assert_close(held['peak_wrench'], sp.field(held_state, 'last_wrench').abs())
+
+
 def latched_state(sp, s, last=(5., -1., 0., 0., .1, 0.)):
     pose = sp.fk(sp.field(s, 'joint_q'))
     return put(sp, s, board_contact=[1.], last_wrench=list(last), peak_wrench=[20., 0, 0, 0, 0, 0],

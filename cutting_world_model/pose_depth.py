@@ -175,6 +175,13 @@ class PoseDepthV3StateSpec(PoseDepthStateSpec):
         fields['wrench_history'] = torch.where(held[..., None], self.field(state, 'wrench_history'),
                                                fields['wrench_history'])
         fields['last_wrench'] = torch.where(held, last, fields['last_wrench'])
+        # First-contact interval: the frozen reading is one of the interval's samples, so the
+        # interval peak is at least |reading|, exactly as latched_interval_peak applies in both
+        # physical adapters. Peak and last reading are separate WM outputs; without this an
+        # imagined force-limit event could appear one held step late (2026-11-19 review).
+        fresh = arrived & ~held
+        fields['peak_wrench'] = torch.where(fresh, torch.maximum(fields['peak_wrench'], fields['last_wrench'].abs()),
+                                            fields['peak_wrench'])
         fields['peak_wrench'] = torch.where(held, last.abs(), fields['peak_wrench'])
         fields['cut_progress'] = torch.where(held, self.field(state, 'cut_progress'), fields['cut_progress'])
         if 'object_slip' in fields:
