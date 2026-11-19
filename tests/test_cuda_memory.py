@@ -83,6 +83,16 @@ def test_phase_peaks_are_attributed_per_phase_and_run():
     assert metrics['gpu_mem/world_model/reserved_peak_mib'] == 12
 
 
+def test_run_peak_includes_the_open_phase():
+    cuda = FakeCuda()
+    memory = cuda_memory.PhaseMemory(cuda)
+    memory.enter('physics'); cuda.set(7, 4)
+    memory.enter('policy'); cuda.set(12, 11)   # policy phase still open
+    assert memory.run_peak_allocated_mib == 11
+    memory.close()
+    assert memory.run_peak_allocated_mib == 11
+
+
 def test_phase_memory_disabled_without_cuda():
     cuda = SimpleNamespace(is_available=lambda: False)
     memory = cuda_memory.PhaseMemory(cuda)

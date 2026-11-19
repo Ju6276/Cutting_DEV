@@ -115,7 +115,11 @@ class PhaseMemory:
 
     @property
     def run_peak_allocated_mib(self):
-        return max((row['allocated_peak_mib'] for row in self.run.values()), default=0.)
+        peaks = [row['allocated_peak_mib'] for row in self.run.values()]
+        if self.enabled and self.current is not None:
+            # The open phase (e.g. the round's last learning phase) is not in self.run yet.
+            peaks.append(self.cuda.max_memory_allocated() / MIB)
+        return max(peaks, default=0.)
 
     def summary(self):
         result = {phase: dict(row) for phase, row in self.run.items()}

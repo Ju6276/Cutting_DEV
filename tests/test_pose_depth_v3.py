@@ -417,6 +417,9 @@ def test_dynamics_loss_masks_latched_starts_and_keeps_first_contact():
     changed = states.clone()
     changed[2, 1, sp.layout['joint_q']] += .5   # world 1 first contact at t=1
     assert wm.window_loss(changed, actions, goal, done, valid)[0] != loss
+    # Error metrics average predicted transitions only: here every t=2 start is latched, so a
+    # last-valid-step average would be exactly 0 although both worlds were predicted earlier.
+    assert metrics['nse_kstep'].item() > 0 and metrics['nse_1step'].item() > 0
     # The terminal BCE term is unchanged by masking (same as with every start unlatched).
     free = transitions(sp, s, [(0, 0)] * 4)
     assert torch.equal(wm.window_loss(free, actions, goal, done, valid)[1]['term_bce'], metrics['term_bce'])

@@ -185,6 +185,10 @@ class CuttingWorldModel(nn.Module):
                               ('completion_brier_physical', 'completion_probability_excess')}
         completion_counts = {key: correct.clone() for key in RATE_COUNTS if key != 'term_acc'}
         last_error = states.new_zeros(states.shape[1])
+        # Prediction-error metrics average only predicted (fit) transitions; latched starts
+        # are rule-frozen with error 0 and would otherwise dilute them (v3). Without a latch
+        # fit == valid, so the values equal the previous valid-window averages.
+        has_fit = torch.zeros(states.shape[1], dtype=torch.bool, device=states.device)
         for t in range(len(actions)):
             valid = valid_steps[t]
             # Inactive rows use a finite recorded start, avoiding extrapolation past termination.
@@ -222,14 +226,16 @@ class CuttingWorldModel(nn.Module):
                     valid & (probability < .5) & labels.bool()).sum()
                 completion_counts['completion_positive_fraction'] += (valid & labels.bool()).sum()
             error = sq.detach().mean(-1)
-            last_error = torch.where(valid, error, last_error)
+            last_error = torch.where(fit, error, last_error)
+            has_fit = has_fit | fit
             if t == 0:
-                first_error = error.mean()
+                first_error = torch.where(fit, error, 0.).sum() / fit.sum().clamp_min(1)
             state = torch.where(valid[:, None], predicted, state)
         loss = (loss_state + loss_term) / count
         return loss, {'state_loss': loss_state.detach() / count,
                       'term_bce': loss_term.detach() / count,
-                      'nse_1step': first_error, 'nse_kstep': last_error.mean(),
+                      'nse_1step': first_error,
+                      'nse_kstep': torch.where(has_fit, last_error, 0.).sum() / has_fit.sum().clamp_min(1),
                       'term_acc': correct / count, 'term_correct_count': correct,
                       'metric_transition_count': count,
                       **({'dynamics_fit_count': dynamics_count,
