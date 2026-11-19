@@ -1,4 +1,4 @@
-# Current plan — 2026-11-18
+# Current plan — 2026-11-19
 
 ## Authorized runs and next actions
 
@@ -31,6 +31,16 @@ before reporting that it is still active.
   Record checkpoint identities, conditions, timing and source versions.
 - Keep the frozen training checkouts unchanged. Development cleanup and offline
   rendering changes do not replace their code. All long runs require online W&B.
+
+## Current verification status — 2026-11-19
+
+The a1852dc review confirmed the explicit-reference fix and its limited call
+scope. The dbdddf6 training/evaluation/resume evidence remains applicable to
+unchanged action-driven code. Its temporary verification scripts had two
+false-pass holes (missing stages, omitted world_model tensors); maintained
+checkers now live in scripts and the actual stored runs were rechecked.
+See RESULTS and RUNNING for evidence and commands. Current development remains
+on main; no new long training was launched during this review.
 
 ## Follow-up before the next pose_depth_v3 long run (2026-11-18)
 

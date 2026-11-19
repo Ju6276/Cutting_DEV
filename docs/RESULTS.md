@@ -1340,3 +1340,72 @@ No claim of long-runtime memory stability follows from this regression.
 The bounded repeated-reset memory check and reconciliation of historical final
 evaluation statistics remain outstanding. Frozen training worktrees were not
 advanced.
+
+
+## 2026-11-19 — Independent a1852dc review and evidence-validator fixes
+
+Scope: dbdddf6..a1852dc, actual entry/resume/reward outputs on GPU7 and A6000,
+and selected v3 state/latch, analytical survival, WM loss/metrics, critic/replay
+and evaluation paths. This is not a claim that every repository line was reviewed.
+
+Confirmed implementation:
+- Explicit DiSECt reference trajectories take precedence over shared descent.
+  Constructor and setter paths set the flag; setting None restores the default.
+  Both setter-before-speed and speed-before-setter orders have regressions.
+  Training, vector SAC, current controller evaluation and pose diagnostics
+  use action-driven steps, not reference=True. Their dbdddf6 evidence is
+  applicable to those unchanged paths. Reference tools still need their own
+  supported configuration; the priority fix is not a blanket upgrade of every
+  historical entry to the current task.
+- Audit finite-value checks and post-step command checks now catch the reported
+  NaN and shared-reference replacement failures.
+- Source-URDF test skip is appropriate for missing source meshes on A6000's
+  current absolute-path export. It is not a passing source-export test.
+- v3 board-contact/last-wrench packing, first-contact peak floor and held fields,
+  analytic survival in trainer/MPPI, WM fit-mask/metric pooling, real-critic
+  targets and replay episode-boundary handling were inspected. No additional
+  training-logic defect was confirmed in these paths during this review.
+
+Two P2 evidence-verification defects were reproduced and fixed:
+1. /dataHDD/dong/tmp/verify_entry.py conditionally omitted missing artifacts,
+   wrote an empty report for an empty directory and exited 0. It also exited 0
+   when an existing stage was reported BAD; diagnostics only needed summary.json.
+   scripts/verify_entry.py now requires explicitly selected stages, checks
+   diagnostic completion/content and artifacts, and exits nonzero on failure.
+2. /dataHDD/dong/tmp/resume_check.py filtered learner keys using wm, policy and
+   critic, but the saved network is called world_model. In-memory injection of
+   NaN into dynamics.mlp.net.0.weight still passed all eight old checks.
+   scripts/verify_resume.py checks the full learner tree, requires all three
+   saved networks, compares all recorded replay row fields, and rejects wrapped
+   rings outside its short-run prefix-check scope. The injected sample now fails.
+   Original checkpoints/replay were never modified.
+
+The replacement validators are maintained in Git and run without simulation.
+Both real resume pairs still pass after checking WM tensors and optimizer state.
+All required stages were reconciled across GPU7 and A6000; moved DiSECt policy,
+SAC and diagnostic outputs live on A6000, as noted in the original logs.
+Diagnostic summaries contain three completed episodes and 540 transitions each;
+null statistics for events that never occurred are not finite-value failures.
+The pending-round path still was not exercised in the physical resume pairs.
+
+DiSECt audit: 30/30 cases terminated, command checks distinguish the references,
+and both reported maximum equation errors are at most 3.7509e-6. Stall times out
+on all three objects; normal press scores 107.98–108.47, fast press 105.26–105.83.
+The prism force_attempt actually triggers a force failure (return about -99.46).
+This is nominal-material reference evidence, not learned-policy performance,
+complete material separation, randomized coverage or BladeMaster reward auditing.
+
+Independent GPU7 regression on the review code:
+- Root, planner environment: 698 passed, 5 skipped, 244.24 s.
+- Backend, base environment: 43 passed, 5.66 s.
+- Targeted audit/evidence tests: 17 passed.
+Evidence: runs/review_a1852dc_20261119/ on GPU7, including root.log, backend.log,
+suite.status and negative_reproductions.json. A6000's same-named run directory
+contains the replacement-validator source snapshots and content rechecks.
+No training, task, reward, force limit, success tolerance or update schedule changed.
+
+Cleanup/remaining limits: DATA records archive moves, cache deletion and preserved
+literature edits. GPU9 was unreachable and was not synchronized. Multi-hour memory
+behaviour with repeated resets remains unverified; a short suite is not that check.
+BladeMaster's ten-trajectory audit and real-physics pending-round resume remain
+coverage gaps. No new long run was started.

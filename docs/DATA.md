@@ -1,62 +1,54 @@
-# Server data and checkpoint index — 2026-11-18
+# Server data and checkpoint index — 2026-11-19
 
 This is the current location/recovery index, not an authorization to launch.
 All paths are on servers. No project source, weights or datasets were copied
 to the Mac during this cleanup. See [PLAN](PLAN.md) for decisions and budgets.
 
-## Worktree and result retention audit — 2026-11-18
+## Current workspace and retention status — 2026-11-19
 
-Read-only inventory against main 6176012; no worktrees, refs or run data were
-deleted in this audit. "Historical" means unsuitable as current pose_depth_v3
-evidence, not disposable. Directory sizes below are rounded du measurements.
+Use /dataHDD/dong/Projects/Cutting_DEV on main for current code and run
+commands on GPU7 and A6000. GPU9 is unreachable via tams61 as of this check;
+its synchronization and cleanup are not verified.
 
-All checkout paths below are under /dataHDD/dong/Projects/. Before any later
-removal, recheck status, ignored/untracked files, process references and external
-symlink targets; merged HEAD and a small runs directory alone are not sufficient.
+The old 11-18 inventory is preserved at
+[the recorded revision](https://github.com/Ju6276/Cutting_DEV/blob/a1852dc/docs/DATA.md).
+It is not a list of worktrees that still exist.
 
-| Host | Checkout suffix after Cutting_DEV | Classification / evidence |
-|---|---|---|
-| GPU7 | _board, _pose_long_20261114 | Superseded development/source checkouts; clean, HEAD ancestors of main; runs links to shared Experiments. Removal candidates after dependency check, not a reason to delete shared results |
-| GPU7 | _ur10e_docs | Superseded docs checkout; clean, merged, no runs directory |
-| A6000 | _board | Superseded checkout; clean, merged; runs contains 12 KB operations records |
-| A6000 | _pose_scale_20261114 | Superseded checkout; clean, merged; runs links to _pose_train_20261114/runs |
-| GPU9 | _ur10e_docs_check | Superseded docs checkout; clean, merged; 16 KB validation records |
-| GPU9 | _bm_long_20261115 | Superseded source checkout; clean, merged, no local runs; historical experiment is indexed separately below |
-| A6000 | _mppi_v3 | **Retain.** HEAD has two commits absent from main ancestry and patch-equivalence: 5f6df09 and 866c20f (git cherry marks both +). Also contains 140 MB early free-cut MPPI results. The claim that all remaining worktrees are merged is incorrect |
-| GPU7 | _shared_long_20261116 | Frozen v2 run and recovery evidence: 27 GB, retain |
-| A6000 | _shared_long_20261116, _pose_train_20261114 | Frozen historical runs: 10 GB and 1.1 GB, retain |
-| GPU9 | _sac_long_20261116, _baselines_20261116 | Historical SAC (2.7 GB) and baseline/vision evidence (5.4 GB), retain |
+- GPU7: superseded _board, _pose_long_20261114, _ur10e_docs and temporary
+  review/audit checkouts were removed after preserving unique files. The
+  _shared_long_20261116 checkout remains frozen with its v2 run data.
+- A6000: _board, _pose_scale_20261114 and _mppi_v3 were removed. MPPI's
+  two historical commits were not merged into the current controller. Its Git
+  bundle, 44 hashed files (152414594 bytes), asset/run records and symlink
+  inventory are in
+  /dataHDD/dong/Experiments/Cutting_DEV/maintenance/mppi_v3_retirement_20261119T004826Z/.
+  _pose_train_20261114 and _shared_long_20261116 remain frozen evidence.
+- GitHub retains main; archive tags preserve unmerged historical work.
+  A local branch attached to a frozen historical checkout is not a current
+  training entry. Never advance those checkouts to synchronize current code.
+- GPU7's 20 modified literature notes and new untracked literature archive are
+  ongoing user work. They were not committed, reverted or deleted by this review.
 
-Current main is the only remote branch, but that does not establish that every
-local worktree commit is merged. No historical MPPI commits are automatically
-cherry-picked into the current implementation.
+Cleanup receipts:
+ /dataHDD/dong/Experiments/Cutting_DEV/maintenance/cleanup_20261119_tamsGPU7/manifest.json
+and cleanup_20261119_tamsGPU5/manifest.json on their respective servers.
+Only rebuildable Python caches were deleted. Superseded/aborted 11-19 audit
+outputs moved out of GPU7's active runs directory into that maintenance archive;
+A6000's old backends/mujoco/runs.pre_unify_20261118 asset backup moved there too.
+Moves preserve unique data. Receipts resolve the current location of old paths.
 
-A6000 main also has 39 GB in its own real runs directory (earlier fixed-benchmark
-and critic experiments), and an untracked 26 MB backup
-backends/mujoco/runs.pre_unify_20261118. The latter is intentional retained asset
-history, so that checkout is not wholly clean. Neither is a disposable cache.
-GPU9 additionally has independent old clones Cutting_DEV_apple and
-Cutting_DEV_reference (not entries in the main repository's worktree list).
-Their runs contain 16 KB and 11 MB respectively; they are not deletion-approved
-by the worktree audit and need their own ref/dependency checks.
+Current verification evidence:
+- GPU7: runs/entry_check_dbdddf6_20261119/ (DiSECt learning/resume and planners).
+- A6000: the same directory name (BladeMaster checks, plus DiSECt policy/SAC
+  evaluation and diagnostics moved from GPU7 after resource contention).
+- A6000: runs/audit_pose_reward_362d15e_20261119/ (complete DiSECt 30-case audit).
+- Both hosts: runs/review_a1852dc_20261119/ (independent content rechecks;
+  GPU7 also holds before/after negative reproductions and full suite logs).
 
-GPU9 main has a real runs directory too (215 MB), including the current SAC smoke;
-only GPU7 main's runs is a link to the central Experiments directory.
-
-Result scope:
-- Old fixed-prism/S3/perturbation, free_cut_*, pose-v1 and pose_depth_v2 results
-  are historical only; do not mix their rewards/success rates with v3.
-- The 11-16 WM and SAC runs, their final_eval_20261117 outputs, paired replay,
-  checkpoints, source/config manifests and W&B identities remain protected.
-  Final-evaluation statistics still need independent reconciliation.
-- 11-18 v3 integration and SAC smoke records are current interface evidence,
-  not learned baseline performance or long-runtime memory validation.
-- Earlier visual previews and capacity/reward checks may be superseded as
-  demonstrations; retain raw trajectories and provenance. No duplicate video
-  or buffer was declared safe to delete merely from its date or name.
-- Five old training entry scripts (train_coupled, train_coupled_tracked,
-  train_official_supermimic, train_sac, train_sac_gpu) are legacy audit candidates,
-  not deleted here; dependency/caller checks are required before archival.
+Historical free_cut, pose-v1/v2, fixed-prism and visual records are retained
+under their original task/version. They are not current v3 learning evidence.
+Do not delete checkpoints, paired replay, scans or frozen sources based on age.
+The full earlier worktree cleanup manifests remain under maintenance/.
 
 ## Current shared-task deployments
 
@@ -82,10 +74,10 @@ All runs use online W&B; physical snapshots and recovery data stay on servers.
 | Host | Checkout | Role / frozen code |
 |---|---|---|
 | GPU7 (tamsGPU7), GPU9 (tamsGPU9), A6000 (tamsGPU5) | /dataHDD/dong/Projects/Cutting_DEV | **Current development and run entry on every server, branch `main`** (unified 2026-11-18). Confirm `git rev-parse HEAD` before a run |
-| GPU7 | /dataHDD/dong/Projects/Cutting_DEV_board | Former development checkout, 3680f35 (codex/visual-cut-route1), no pose_depth_v3; not a run entry |
-| GPU7 | /dataHDD/dong/Projects/Cutting_DEV_pose_long_20261114 | Budget-complete DiSECt main run, 02203b1 |
+| GPU7 | Former Cutting_DEV_board | Removed; source preserved in Git, never a current run entry |
+| GPU7 | Former Cutting_DEV_pose_long_20261114 | Checkout removed; 02203b1 and shared Experiments run data retained |
 | GPU9 (tamsGPU9) | /dataHDD/dong/Projects/Cutting_DEV_bm_long_20261115 | SIGILL-interrupted BladeMaster run, 931e2b5 |
-| A6000 (tamsGPU5) | /dataHDD/dong/Projects/Cutting_DEV_pose_scale_20261114 | Development mirror; no training in this checkout (the ended 2026-11-16 shared run used Cutting_DEV_shared_long_20261116) |
+| A6000 (tamsGPU5) | Former Cutting_DEV_pose_scale_20261114 | Removed development mirror; its linked training data was not deleted |
 
 GPU9 is reached through tams61. GPU7 and A6000 local SSH aliases are
 cutting-gpu7 and cutting-a6000. Server names do not imply exclusive GPU access.
@@ -120,8 +112,8 @@ The two historical 2026-11-14/15 training outputs are under
 | Earlier metrics | /dataHDD/dong/Experiments/Cutting_DEV/legacy_metrics |
 
 Base Cutting_DEV directories hold Git worktree metadata and/or runtime links.
-A6000 Cutting_DEV_pose_train_20261114 and Cutting_DEV_mppi_v3 also retain actual
-runtime assets/data; do not remove them merely because their jobs ended.
+A6000 Cutting_DEV_pose_train_20261114 retains actual runtime assets/data.
+The old MPPI assets/data have moved to the maintenance archive listed above.
 SliceIt/ROS sources and shared environments remain dependencies.
 
 Current DiSECt scenes under prepared/sweep are free_cucumber_003, free_prism

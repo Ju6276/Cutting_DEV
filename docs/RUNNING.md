@@ -34,7 +34,7 @@ export TORCHINDUCTOR_CACHE_DIR="$XDG_CACHE_HOME/torchinductor_cutting"
 export TRITON_CACHE_DIR="$XDG_CACHE_HOME/triton_cutting"
 export WARP_CACHE_PATH="$XDG_CACHE_HOME/warp/cutting_gpu_backend"
 export TORCH_CUDA_ARCH_LIST=8.6  # A6000; use 8.9 on RTX 4090
-export MAX_JOBS=2
+export MAX_JOBS=1
 mkdir -p "$TMPDIR" "$XDG_CACHE_HOME"
 ```
 
@@ -70,8 +70,8 @@ For a new machine, restore and build the pinned SliceIt sources first
 [DiSECt dataset](https://github.com/NVlabs/DiSECt/tree/main/dataset) under
 `external/SliceIt/disect/dataset`, following its download instructions.
 
-1. Collect a reset and physical episode using the Gazebo collection command
-   below. Its `data/` directory supplies `task.json` and `episode_000.npz`.
+1. Collect a reset and physical episode using the Gazebo collection command in
+   [the historical reproduction guide](archive/RUNNING_historical_20261118.md). Its `data/` directory supplies `task.json` and `episode_000.npz`.
 2. Export the material in the built SliceIt Python environment. Set
    `CUTTING_DEV_ROOT` to this repository's absolute path before sourcing:
    `source external/SliceIt/scripts/public_env.sh`. Then run:
@@ -604,3 +604,34 @@ PYTHONPATH=.:backends/mujoco .venv-render/bin/python scripts/render_training_sna
 The 3072-world first-step output is an initialization/recording check, not an
 example of learned cutting. The optional MPPI Python lacks VTK and should not
 be substituted for this command.
+
+## Validate recorded entry and resume evidence
+
+All controllers use the current entries above; no controller-specific worktree
+or /dataHDD/dong/tmp checker is needed. From the main checkout, source
+scripts/env/cutting_env.sh, then run:
+
+    CUDA_VISIBLE_DEVICES='' python -m scripts.verify_entry RUN_DIR review --backends disect
+    CUDA_VISIBLE_DEVICES='' python -m scripts.verify_resume PRE_DIR POST_DIR OUT_JSON
+
+verify_entry defaults to all nine stages for the selected backend(s) and fails
+on missing evidence or a failed check. For deliberately split-host evidence,
+explicitly select --checks pose_check train_wm train_sac ... and record which
+host supplies the remaining stages. This is a content check, not a training job.
+verify_resume checks all saved learner networks/optimizer tensors for finite
+values, replay contents and a new episode boundary. It is a short-run,
+non-wrapped replay-prefix check; a full/wrapped ring is rejected as unsupported.
+A pending-learning-round count of zero means that restoration path was not
+exercised, even when the other checks pass.
+
+For a reference reward audit, use a generated current DiSECt config explicitly:
+
+    python scripts/audit_pose_reward.py --configs PREPARED/disect.json --output runs/UNIQUE_REWARD_AUDIT --wall-seconds 5400
+
+This audits ten prescribed trajectories per object at nominal material,
+10 mm clearance and 3 cm/s target speed. It checks finite rewards, reward
+decomposition, reward equations on recorded physical transitions, and the
+commanded reference paths. It does not validate learned WM prediction accuracy,
+all material randomizations or BladeMaster reference trajectories.
+The source-URDF mesh test needs the original meshes (available on GPU7); its
+absence on A6000 is an explicit skip, not validation of source-scene export.
