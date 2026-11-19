@@ -166,6 +166,11 @@ class PoseDepthV3StateSpec(PoseDepthStateSpec):
         self.board_latch = not continuing_board(metadata['free_cut_task']['board'])
         # False only for read/evaluate-only project_continue_v1 checkpoints.
         self.current_continuation = current_board(metadata['free_cut_task']['board'])
+        if self.current_continuation:
+            # Joint limits re-applied after board projection, as the physical adapters do.
+            from cutting_gpu_backend.tool_mount import joint_limits
+            self.joint_limits = joint_limits(metadata['robot_xml'], metadata['robot_base'],
+                                             metadata['robot_tip'], metadata['joint_names'])
         self.fk.second_order_safe = not self.board_latch
 
     def contact(self, state):

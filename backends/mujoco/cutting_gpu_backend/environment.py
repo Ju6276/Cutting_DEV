@@ -380,9 +380,12 @@ class CuttingBatch:
                     reach=self.rigid_tool_reach_bound
                     fk=lambda q:self.chain(q.to(self.dtype),mass_matrix=False)[0][self.chain.tip]
                     if continuing:
-                        from .tool_mount import continuing_joint_step
+                        from .tool_mount import board_projection, chain_pose_jacobian, continuing_joint_step
+                        endpoint,project_velocity=board_projection(getattr(self.board,'current_continuation',True))
+                        jacobian=chain_pose_jacobian(self.chain)
                         corrected_q,board_hit=continuing_joint_step(old_q.double(),self.robot.q.double(),
-                            fk,self.rigid_tool_geometry,reach,active)
+                            fk,self.rigid_tool_geometry,reach,active,endpoint=endpoint,
+                            limits=(self.chain.lower,self.chain.upper),jacobian=jacobian)
                         fraction=torch.ones_like(board_hit,dtype=self.dtype)
                     else:
                         fraction,board_hit=swept_joint_fraction(old_q,self.robot.q,fk,self.rigid_tool_geometry,reach,active)
@@ -397,9 +400,8 @@ class CuttingBatch:
                     with wp.ScopedStream(self.robot.stream):
                         self.robot.q.copy_(q)
                         if continuing:
-                            from .tool_mount import project_joint_velocity
-                            velocity=project_joint_velocity(q.double(),self.robot.qd.double(),fk,
-                                                            self.rigid_tool_geometry,board_hit)
+                            velocity=project_velocity(q.double(),self.robot.qd.double(),fk,
+                                                      self.rigid_tool_geometry,board_hit,jacobian=jacobian)
                             self.robot.qd.copy_(velocity.to(self.robot.qd))
                         else:
                             self.robot.qd[board_hit] = 0

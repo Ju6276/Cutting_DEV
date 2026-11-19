@@ -39,14 +39,15 @@ class Mapper:
 class Chain:
     tip = TIP
 
-    def __init__(self, fk, key):
-        self.fk, self.key = fk, key
-        self.lower = torch.full((6,), -6.2832, dtype=torch.double)
-        self.upper = torch.full((6,), 6.2832, dtype=torch.double)
+    def __init__(self, chain, key):
+        """Real backend SerialChain; frames keyed as the adapter expects."""
+        self.chain, self.key = chain, key
+        self.lower, self.upper, self.origin_position = chain.lower, chain.upper, chain.origin_position
 
     def __call__(self, q, mass_matrix=False):
-        pose = self.fk(q.double())
-        return {self.key: pose, 'sensor': pose}, None, None
+        frames, jacobian, _ = self.chain(q.double(), mass_matrix=False)
+        pose = frames[self.chain.tip]
+        return {self.key: pose, 'sensor': pose}, jacobian, None
 
 
 class Proposal:
@@ -134,7 +135,7 @@ def identity(n=None):
     return pose if n is None else pose.expand(n, -1).clone()
 
 
-def disect(sp, fk, q0, monkeypatch):
+def disect(sp, fk, serial, q0, monkeypatch):
     import mujoco_warp
     from cutting_gpu_backend.knife_board import KnifeBoard
     monkeypatch.setattr(mujoco_warp, 'forward', lambda *a: None)
@@ -163,10 +164,10 @@ def disect(sp, fk, q0, monkeypatch):
             return {'knife_board_contact': self.contacted[:, None].clone(), 'knife_board_gap': self.gap()[:, None]}
 
     sensor, proposal, robot = Sensor(), Proposal(fk), Robot(q0)
-    chain = Chain(fk, TIP)
+    chain = Chain(serial, TIP)
     p = SimpleNamespace(device=torch.device('cpu'), dtype=torch.float64, worlds=N, robot=robot,
                         peak=torch.zeros(N, 6, dtype=torch.double), metrics=Metrics(), mapper=Mapper(),
-                        target=None, chain=chain, knife_chain=Chain(fk, 'b_bot_knife_sim'),
+                        target=None, chain=chain, knife_chain=Chain(serial, 'b_bot_knife_sim'),
                         task={'environment': {'agent_control_dt': .05, 'wrench_hist_size': 3}},
                         fresh_sample_peak=True, force_model='net', evaluation_paused=None,
                         force_limits=torch.full((N, 6), LIMIT, dtype=torch.double),
@@ -203,10 +204,10 @@ def disect(sp, fk, q0, monkeypatch):
                            reset=lambda mask: CuttingBatch.reset(p, mask), contacted=lambda: p.board.contacted)
 
 
-def blademaster(sp, fk, q0, monkeypatch):
+def blademaster(sp, fk, serial, q0, monkeypatch):
     from cutting_world_model.blademaster_backend import BladeMasterBatch
     sensor, proposal, robot = Sensor(), Proposal(fk), Robot(q0)
-    chain = Chain(fk, TIP)
+    chain = Chain(serial, TIP)
     advanced = []
 
     def advance(pose, linear, angular, active):
@@ -247,9 +248,9 @@ def blademaster(sp, fk, q0, monkeypatch):
 def rig(request, monkeypatch):
     wm, s, g = continuing()
     sp = wm.spec
-    fk = physical_chain(sp)
+    fk, serial = physical_chain(sp, with_chain=True)
     q0 = sp.field(s, 'joint_q').expand(N, -1).clone()
-    r = (disect if request.param == 'disect' else blademaster)(sp, fk, q0, monkeypatch)
+    r = (disect if request.param == 'disect' else blademaster)(sp, fk, serial, q0, monkeypatch)
     r.spec, r.state, r.fk = sp, s, fk
     return r
 

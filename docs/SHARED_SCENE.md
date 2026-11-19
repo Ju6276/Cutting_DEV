@@ -46,7 +46,7 @@ fails rather than expanding the workspace silently.
 | Start | Per-object settled top + uniform 5–30 mm; paired explicit cases |
 | Settling | 1.0 s simulated time with that episode's actual material parameters |
 | Goal | Shared board-aligned prescribed pose, final XY radius plus z/pitch tolerances and arrival counter |
-| Board | Height 0; positive endpoint gap 1 micrometre; per-substep geometric projection, no permanent freeze or board reaction; support plane has no finite edge |
+| Board | Height 0; positive endpoint gap 1 micrometre; per-substep geometric projection (pure normal EE translation, no tangential slide or rotation), no permanent freeze or board reaction; support plane has no finite edge |
 | Workspace | EE in robot-base frame: x[.038,.238], y[.405,.605], z[.096,.269] m |
 | Force / torque limits | [50,50,50,5,5,5], componentwise; simulation settings, not Mini45 calibration |
 | Observations | 34 values per frame, full six-component sensor wrench; history length is learner configuration |

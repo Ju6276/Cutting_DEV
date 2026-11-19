@@ -487,8 +487,12 @@ class BladeMasterBatch(CuttingBatch):
                 fk=lambda q:self.chain(q,mass_matrix=False)[0][self.chain.tip]
                 continuing=getattr(self,'board_continuing',False)
                 if continuing:
-                    from cutting_gpu_backend.tool_mount import continuing_joint_step
-                    corrected,hit=continuing_joint_step(old_q,new_q,fk,self.board_geometry,self.reach_bound,moving)
+                    from cutting_gpu_backend.tool_mount import board_projection, chain_pose_jacobian, continuing_joint_step
+                    endpoint,project_velocity=board_projection(getattr(self,'board_current_continuation',True))
+                    jacobian=chain_pose_jacobian(self.chain)
+                    corrected,hit=continuing_joint_step(old_q,new_q,fk,self.board_geometry,self.reach_bound,moving,
+                                                        endpoint=endpoint,limits=(self.chain.lower,self.chain.upper),
+                                                        jacobian=jacobian)
                 else:
                     fraction,hit=swept_joint_fraction(old_q,new_q,fk,self.board_geometry,
                                                        self.reach_bound,moving)
@@ -498,8 +502,8 @@ class BladeMasterBatch(CuttingBatch):
                         alpha=(fraction-1e-5).clamp_min(0)
                         corrected=torch.where(hit[:,None],old_q+alpha[:,None]*(new_q-old_q),new_q)
                     if continuing:
-                        from cutting_gpu_backend.tool_mount import project_joint_velocity
-                        velocity=project_joint_velocity(corrected,self.robot.qd.double(),fk,self.board_geometry,hit)
+                        velocity=project_velocity(corrected,self.robot.qd.double(),fk,self.board_geometry,hit,
+                                                  jacobian=jacobian)
                         self.robot.set_joint_positions(corrected,mask=hit,velocity=velocity)
                     else:
                         self.robot.set_joint_positions(corrected,mask=hit)

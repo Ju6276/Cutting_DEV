@@ -190,14 +190,15 @@ def at_gap(sp, s, clearance):
     return s
 
 
-def physical_chain(sp):
+def physical_chain(sp, with_chain=False):
     """Backend SerialChain of the same fixture robot (the backend parser needs joint limits)."""
     from cutting_gpu_backend.controller.fdcc import SerialChain
     m = sp.metadata
     xml = m['robot_xml'].replace('<axis xyz="0 0 1"/>',
                                  '<axis xyz="0 0 1"/><limit lower="-6.2832" upper="6.2832" velocity="3.14"/>')
     chain = SerialChain(xml, m['robot_base'], m['robot_tip'], m['joint_names']).double()
-    return lambda q: chain(q, mass_matrix=False)[0][chain.tip]
+    fk = lambda q: chain(q, mass_matrix=False)[0][chain.tip]
+    return (fk, chain) if with_chain else fk
 
 
 CLEARANCES = (2e-6, 9e-6, 1.1e-5, 2e-5, 5e-4)

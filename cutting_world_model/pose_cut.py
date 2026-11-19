@@ -115,7 +115,9 @@ class PoseCutStateSpec(FreeCutStateSpec):
 def project_board(self, state, fields, with_contact=False):
     """Apply the task-recorded finite-blade board boundary to an imagined endpoint.
 
-    Current continuation projects inward endpoints; historical paths shorten motion.
+    Current continuation (project_continue_v2) translates an inward endpoint along the
+    board normal only (no tangential slide, no rotation); project_continue_v1 used a
+    minimum-norm joint correction; historical latch paths shorten motion.
     ``with_contact`` additionally returns (limited, end_gap) for the pose_depth_v3
     software latch; the projected fields are identical either way.
     """
@@ -123,10 +125,12 @@ def project_board(self, state, fields, with_contact=False):
     proposed = fields['joint_q']
     from cutting_gpu_backend.tool_mount import continuing_board
     if continuing_board(self.metadata.get('free_cut_task',{}).get('board',{})):
-        from cutting_gpu_backend.tool_mount import project_joint_endpoint, project_joint_velocity
-        q,limited=project_joint_endpoint(proposed,self.fk,self.board_geometry)
+        # Same endpoint/velocity projection functions as both physical adapters.
+        from cutting_gpu_backend.tool_mount import board_projection
+        endpoint,project_velocity=board_projection(getattr(self,'current_continuation',True))
+        q,limited=endpoint(proposed,self.fk,self.board_geometry,limits=getattr(self,'joint_limits',None))
         fields['joint_q']=q
-        fields['joint_qd']=project_joint_velocity(q,fields['joint_qd'],self.fk,self.board_geometry,limited)
+        fields['joint_qd']=project_velocity(q,fields['joint_qd'],self.fk,self.board_geometry,limited)
         end_gap=gap_from_pose(self.fk(q),self.board_geometry)
         return (fields,limited,end_gap) if with_contact else fields
     start_gap = gap_from_pose(self.fk(old_q), self.board_geometry)

@@ -52,19 +52,39 @@ Revisions of `task.board.motion` (machine-checked; the task name stays v3):
 |---|---|---|---|---|
 | absent | b367fcd–6ec9f34 | absorbing latch | shortened swept step, then frozen | refused; evaluate only |
 | `project_continue_v1` | f12ca04 | projected AND clearance <= 10 um | minimum-norm clearance-gradient correction | refused; evaluate only |
-| `project_continue_v2` | current | clearance <= 10 um (state property) | see below | current |
+| `project_continue_v2` | current | clearance <= 10 um (state property) | pure normal EE translation (below) | current |
 
 
 - Success is unchanged: cumulative arrival count >10, 2 mm height tolerance,
   final XY region, no higher-priority failure, +100 once. Board contact itself
   is neither success nor a new failure. Horizon remains 500 steps / 25 s.
-- Both backends correct an inward proposed joint endpoint using the finite
-  blade clearance Jacobian (minimum joint correction). A conservative swept
-  curvature check can further shorten the motion to prevent crossing the
-  physical plane. The configured positive endpoint gap is 1 micrometre.
-  This is a geometric execution constraint, **not** a knife-board force model.
-  Projection can change joint direction; it is not an exact Cartesian friction
-  or sliding model. Material-ground and blade-material contacts remain active.
+- Both backends correct an inward proposed joint endpoint so that the removed
+  end-effector displacement is a pure translation along the board normal: the
+  corrected end-effector pose is the proposed pose shifted along the normal by
+  exactly the clearance deficit plus a 0.2 um float32 margin, with zero rotation
+  and zero tangential displacement (`tool_mount.project_joint_endpoint`, Newton
+  on the 6-D pose residual with the full end-effector Jacobian; minimum joint
+  norm among exact solutions for redundant chains). Joint limits are re-applied
+  afterwards; if a limit binds, the clamped pose is kept only if it still clears
+  the stop (its correction is then not purely normal), otherwise projection
+  raises. A Jacobian too singular to realise the normal translation (more than
+  1e3 rad joint correction per metre of lift, or an unreachable normal direction)
+  raises instead of returning a drifted pose. The inward normal EE velocity is
+  removed the same way (tangential and angular EE velocity unchanged). The
+  configured positive endpoint gap is 1 micrometre. This is a geometric
+  execution constraint, **not** a knife-board force or friction model.
+  Material-ground and blade-material contacts remain active.
+- After the projection, the conservative swept-curvature check (unchanged) can
+  shorten a substep whose joint increment is large relative to the clearance;
+  shortening scales the whole substep, so it reduces (never redirects) that
+  substep's lateral motion. f12ca04's minimum-norm joint correction
+  (`project_continue_v1`) instead redirected pressing into tangential slide and
+  rotation. Kinematic check (tests/test_board_normal_projection.py; 1 s of pure
+  inward commands in 10 ms steps, synthetic 10 cm edge on the UR5e source chain,
+  no controller or material): v1 drifted 2.0/8.0/19.8 mm tangentially and rotated
+  0.010/0.040/0.100 rad at 0.5/2/5 cm/s; the current projection gives
+  <1e-12 m and <2e-13 rad (test bound 1e-9 m / 1e-9 rad). See RESULTS for the
+  physical probe with FDCC and material.
 - Every 2 ms material interval and sensor/filter update continues at the
   boundary. Force violations and evaluation pause still stop their own worlds.
   No board-contact flag prevents the next action from executing.
@@ -76,7 +96,9 @@ Revisions of `task.board.motion` (machine-checked; the task name stays v3):
   A recorded state resting on the board therefore has contact 1 in both, and a
   blade hovering more than 10 um above has 0. It is not an absorbing latch.
   `last_wrench` remains the newest filtered sensor sample, never a held old reading.
-- WM uses the same finite-blade endpoint projection and fresh field prediction.
+- WM, analytic MPC and MPPI call the same endpoint/velocity projection functions
+  (autograd Jacobian, differentiable for BPTT; the physical adapters use the
+  chain's analytic Jacobian, same residual and tolerance) and fresh field prediction.
   Its discrete transition does not resolve the physical substep swept trajectory;
   that remains a model approximation. Peak is at least the predicted absolute
   last reading. Contact-start transitions contribute to dynamics loss normally;
