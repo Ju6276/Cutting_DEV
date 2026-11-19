@@ -179,7 +179,7 @@ These numbers do not demonstrate novel geometry reasoning or real localization.
 Run from the prepared GPU7 development checkout, preserving the source assets:
 
 ~~~bash
-PYTHONPATH=.:scripts /dataHDD/dong/Envs/render-20261108/bin/python scripts/generate_visual_center_data.py --scenes runs/shared_scene_views_20261116/disect --output runs/NEW_CENTER/dataset --wall-seconds 1800
+PYTHONPATH=.:scripts .venv-render/bin/python scripts/generate_visual_center_data.py --scenes runs/shared_scene_views_20261116/disect --output runs/NEW_CENTER/dataset --wall-seconds 1800
 source scripts/env/cutting_env.sh
 PYTHONPATH=. .venv-sac/bin/python scripts/train_visual_center.py --data runs/NEW_CENTER/dataset --output runs/NEW_CENTER/learning --epochs 120 --wall-seconds 900 --wandb-mode online
 PYTHONPATH=. .venv/bin/python scripts/plan_visual_cut.py --selection learned-midpoint --center-checkpoint runs/NEW_CENTER/learning/center.pt --depth RUN/depth.npz --camera RUN/camera.json --config RUN/visual_config.json --output RUN/learned_plan.json

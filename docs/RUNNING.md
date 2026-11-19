@@ -280,7 +280,12 @@ GPU7 storage:
   base packages; it contains every package of the former GPU7-only
   /dataHDD/dong/Envs/cutting-mppi-20261108 (same names and versions, checked
   2026-11-19), which is kept only for historical runs.
-- Rendering Python: /dataHDD/dong/Envs/render-20261108/bin/python.
+- Renderer environment on every server: the checkout's `.venv-render`
+  (`CUTTING_ENV=render`), built by scripts/env/make_render_env.sh from
+  requirements-render-lock.txt, the exact package set of the former GPU7-only
+  /dataHDD/dong/Envs/render-20261108 (kept for historical runs). Blender for
+  render_episode_still.py: 2.82 on GPU7 and GPU9 (the version the script targets;
+  export + still render checked on GPU9 2026-11-19); A6000 has 3.4.1, not validated.
 - Archived experiment checkouts:
   /dataHDD/dong/Archive/cutting_cleanup_20261109/code.
 - Migrated Mac files and uncommitted BladeMaster work:
@@ -373,7 +378,7 @@ Frozen evaluation videos use the same studio appearance as the November 14
 stills, with actual physical blade geometry:
 
 ```bash
-/dataHDD/dong/Envs/render-20261108/bin/python scripts/export_evaluation_scene.py   --evaluation RUN --group 0 --backend DiSECt   --source-root /opt/ros/noetic/share   --source-root /dataHDD/dong/Projects/SliceIt/catkin_ws/src   --source-root /dataHDD/dong/Projects/SliceIt/underlay_ws/src   --output RUN/studio_scene.npz
+.venv-render/bin/python scripts/export_evaluation_scene.py   --evaluation RUN --group 0 --backend DiSECt   --source-root /opt/ros/noetic/share   --source-root /dataHDD/dong/Projects/SliceIt/catkin_ws/src   --source-root /dataHDD/dong/Projects/SliceIt/underlay_ws/src   --output RUN/studio_scene.npz
 blender -b -t 12 --python-exit-code 1 -P scripts/render_episode_still.py --   --scene RUN/studio_scene.npz --output RUN/video.mp4 --video --preview --samples 16 --fps 10 --speed 1
 # Remove --preview to encode the complete clip; --view wide gives the robot view.
 ```
@@ -571,7 +576,7 @@ grid offsets do not change the physical environment. The example path is the
 ended 2026-11-16 GPU7 run.
 
 ~~~bash
-PYTHONPATH=.:backends/mujoco /dataHDD/dong/Envs/render-20261108/bin/python scripts/render_training_snapshot.py \
+PYTHONPATH=.:backends/mujoco .venv-render/bin/python scripts/render_training_snapshot.py \
   --recording /dataHDD/dong/Projects/Cutting_DEV_shared_long_20261116/runs/shared_long_20261116/disect_training/snapshot_00000001 \
   --source-root /dataHDD/dong/Projects/SliceIt \
   --source-root /opt/ros/noetic/share \
