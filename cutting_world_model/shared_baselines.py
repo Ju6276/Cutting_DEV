@@ -108,8 +108,8 @@ class AnalyticFDCCModel:
         fields['joint_qd'] = ((q-q0)/spec.dt).to(state)
         fields['peak_wrench'] = wrench.abs().to(state)
         fields['wrench_history'] = wrench.to(state)[:, None].expand_as(fields['wrench_history']).clone()
-        latch = getattr(spec, 'board_latch', False)
-        if latch:
+        v3 = 'last_wrench' in fields
+        if v3:
             # v3: the held wrench is also the predicted last force-limit reading.
             fields['last_wrench'] = wrench.to(state)
             fields, limited, end_gap = project_board(spec, state, fields, with_contact=True)
@@ -117,7 +117,7 @@ class AnalyticFDCCModel:
             fields = project_board(spec, state, fields)
         fields['cut_progress'] = depth_progress(spec.fk(fields['joint_q']),
             spec.board_geometry, fields['depth_span'], spec.field(state, 'cut_progress'))
-        if latch:
+        if v3:
             fields = spec.apply_board_latch(state, fields, limited, end_gap)
         predicted, reward, done = spec.derive(state, fields, action, goal)
         # Analytic task terminal, no learned survival/head or critic.

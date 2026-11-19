@@ -67,14 +67,20 @@ def test_sac_updates_and_resume_preserve_physical_transition_credit(tmp_path):
     env.close()
 
 
+@pytest.mark.parametrize('continuation',[False,True])
 @pytest.mark.parametrize('flat_speed',[False,True])
-def test_current_mppi_independent_world_plans_and_gamma_guard(tmp_path,monkeypatch,flat_speed):
+def test_current_mppi_independent_world_plans_and_gamma_guard(tmp_path,monkeypatch,flat_speed,continuation):
     pytest.importorskip('pytorch_mppi')
     from test_pose_depth import model
     from cutting_world_model.world_model import CuttingWorldModel
     from cutting_world_model.shared_baselines import SharedMPPIPolicy
     from cutting_world_model.mpc import MPPIConfig
-    wm,state,goal=model();wm=wm.float();state=state.float()
+    if continuation:
+        from test_board_continue import continuing
+        wm,state,goal=continuing()
+    else:
+        wm,state,goal=model()
+    wm=wm.float();state=state.float()
     sp=wm.spec
     frame={name:sp.field(state,name).repeat(2,*([1]*(sp.field(state,name).ndim-1)))
            for name in sp.base_fields}
@@ -107,11 +113,16 @@ def test_current_mppi_independent_world_plans_and_gamma_guard(tmp_path,monkeypat
     from cutting_world_model.shared_baselines import validate_current_interface
     with pytest.raises(ValueError,match='tool_revision'):validate_current_interface(bad,sp.metadata)
 
-def test_analytic_model_uses_measured_wrench_without_material_or_fitted_weights():
+@pytest.mark.parametrize('continuation',[False,True])
+def test_analytic_model_uses_measured_wrench_without_material_or_fitted_weights(continuation):
     from test_pose_depth import model
     from cutting_world_model.shared_baselines import AnalyticFDCCModel
     from cutting_world_model.pose_cut import gap_from_pose
-    wm,state,goal=model()
+    if continuation:
+        from test_board_continue import continuing
+        wm,state,goal=continuing()
+    else:
+        wm,state,goal=model()
     meta=copy.deepcopy(wm.spec.metadata)
     meta['robot_xml']=meta['robot_xml'].replace('</joint>','<limit lower="-3" upper="3" velocity="2"/></joint>')
     labels=['trans_x','trans_y','trans_z','rot_x','rot_y','rot_z']

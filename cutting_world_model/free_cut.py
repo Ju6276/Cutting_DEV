@@ -9,9 +9,9 @@ import torch
 
 REVISION = 'free_cut_v3'
 SUPPORTED_REVISIONS = ('free_cut_v1', 'free_cut_v2', REVISION, 'free_cut_v4', 'free_cut_pose_v1', 'blademaster_pose_v1', 'pose_depth_v2', 'pose_depth_v3')
-# pose_depth_v3 inherits every pose_depth_v2 rule and adds only a software board-stop
-# boundary consistency fix (latched-state fields, post-latch peak rule, loss masking,
-# analytic imagined survival). Checks of the shared semantics use this family.
+# pose_depth_v3 retains the pose reward and analytic survival. Current board.motion
+# project_continue_v1 removes the physical latch; absent motion metadata preserves
+# the historical latch fields/masking for checkpoint evaluation.
 POSE_DEPTH_VERSIONS = ('pose_depth_v2', 'pose_depth_v3')
 # The single current task version. pose_depth_v2 remains readable/evaluable only, for
 # traceability of the 2026-11-16 runs; it is not a separate task choice.
@@ -28,6 +28,11 @@ def refuse_retired_training(task):
     version = (task or {}).get('version')
     if version in RETIRED_TRAINING:
         raise ValueError(RETIRED_TRAINING[version])
+    if (version == CURRENT_POSE_DEPTH and 'board' in task
+            and task['board'].get('motion') != 'project_continue_v1'):
+        raise ValueError('Historical pose_depth_v3 board latch is read/evaluate-only. '
+                         'Regenerate configs from configs/shared/scene_v1.json '
+                         '(board.motion=project_continue_v1); do not resume old replay.')
 WEIGHTS = ('progress', 'speed', 'load', 'jerk', 'success', 'failure')
 
 
@@ -99,9 +104,15 @@ def validate_task(config):
         expected = {'height_m', 'stop_gap_m'}
         if config['version'] == 'free_cut_v4':
             expected.add('coverage_tolerance_m')
+        if 'motion' in board:
+            if config['version'] != 'pose_depth_v3' or board['motion'] != 'project_continue_v1':
+                raise ValueError('Unknown board motion semantics')
+            if config.get('tool_revision') != 'disect_knife_rigid_mount_v1':
+                raise ValueError('Continuing board needs the shared rigid knife')
+            expected.add('motion')
         if set(board) != expected:
             raise ValueError('Board fields do not match task version')
-        if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in board.values()):
+        if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for k, v in board.items() if k != 'motion'):
             raise ValueError('Board settings must be finite')
         tolerance = board.get('coverage_tolerance_m', .001)
         if board['height_m'] != 0 or not 0 < board['stop_gap_m'] < tolerance <= .001:

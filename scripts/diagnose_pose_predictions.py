@@ -311,7 +311,7 @@ def collect(env, learner, horizon):
 def analyse(learner, rec, k, chunk=512):
     wm = learner.wm
     spec = wm.spec
-    if not getattr(spec, 'board_latch', False):
+    if spec.metadata.get('free_cut_task',{}).get('version') != 'pose_depth_v3':
         raise ValueError('pose_depth_v3 spec required')
     T, n = rec['alive'].shape
     device = rec['alive'].device
@@ -398,8 +398,9 @@ def analyse(learner, rec, k, chunk=512):
     wm_contact = spec.contact(P)[..., 0]  # frozen after absorption, like every field
     unlatched = ~contact_start
     latch = {
-        'definition': ('physical knife_board_contact (software board-stop latch, recorded frame) vs the '
-                       'WM board_contact state field of the predicted state'),
+        'definition': ('physical knife_board_contact vs WM board_contact; historical latch' if spec.board_latch
+                       else 'physical current boundary projection vs WM endpoint projection; NOT a latch'),
+        'persistent_latch': spec.board_latch,
         'first_contact_one_step': confusion(real_contact[0], wm_contact[0], unlatched),
         'first_contact_k_window': compare_first(first_step(real_contact, jvalid),
                                                 first_step(wm_contact, jvalid), unlatched),
@@ -644,8 +645,9 @@ def main():
                        'spec.hard_termination the WM state is frozen and later steps add nothing; a window '
                        'ends at k or at the physical episode end (no recorded actions beyond it); '
                        'k_step_at_k uses full windows only'),
-            'pre_latch_starts': 'recorded start state not physically latched at the board stop',
-            'post_latch_starts': 'recorded start state physically latched (knife_board_contact)',
+            'pre_latch_starts': 'recorded start without board boundary flag',
+            'post_latch_starts': ('recorded start state physically latched (historical)' if learner.wm.spec.board_latch
+                                  else 'recorded start with board boundary flag; dynamics continue'),
             'events': ('physical flags from the environment info; WM flags from spec.hard_events/'
                        'pose_success/hard_termination of the predicted state; timeout = deadline without '
                        'success/failure (physical precedence)'),

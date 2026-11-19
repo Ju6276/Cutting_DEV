@@ -105,7 +105,8 @@ def test_source_adjacent_collision_exclusion():
     np.testing.assert_array_equal(model.geom_pos, original.geom_pos)
 
 
-def test_masked_joint_placement_preserves_other_world_velocity_and_derived_state():
+@pytest.mark.parametrize('moving',[False,True])
+def test_masked_joint_placement_preserves_other_world_velocity_and_derived_state(moving):
     import pytest
     import torch
     import warp as wp
@@ -121,7 +122,8 @@ def test_masked_joint_placement_preserves_other_world_velocity_and_derived_state
     fields=('qpos','qvel','xpos','xquat','cvel','qfrc_bias')
     before={k:wp.to_torch(getattr(robot.data,k))[1].clone() for k in fields}
     pose=robot.q.clone();pose[0,0]+=.02;pose[1,0]+=1
-    robot.set_joint_positions(pose,mask=torch.tensor([True,False],device=robot.q.device))
+    velocity=torch.full_like(robot.qd,.03) if moving else None
+    robot.set_joint_positions(pose,mask=torch.tensor([True,False],device=robot.q.device),velocity=velocity)
     for k,v in before.items():
         torch.testing.assert_close(wp.to_torch(getattr(robot.data,k))[1],v,atol=1e-10,rtol=1e-10)
-    assert robot.qd[0].eq(0).all()
+    assert robot.qd[0].eq(.03 if moving else 0).all()

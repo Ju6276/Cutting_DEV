@@ -102,7 +102,7 @@ def latched_interval_peak(peak, reading, latched, collision, limits):
 
 
 def observe_board_latch(env, frame):
-    """pose_depth_v3 frame fields: the latch flag (0/1) and the force-limit signal at the
+    """pose_depth_v3 frame fields: the board projection flag (legacy: latch) and force signal at the
     last 2 ms sample of the interval (frozen reading for latched worlds; the initialised
     reading after reset). This is a software board-stop flag, not a board contact force."""
     physics = env.physics
@@ -121,7 +121,11 @@ def observe_board_latch(env, frame):
 
 
 class PoseDepthV3StateSpec(PoseDepthStateSpec):
-    """pose_depth_v2 plus a software board-stop boundary consistency fix.
+    """Current V3 uses project_continue_v1; absent motion metadata means legacy latch.
+
+    Current contact is a per-transition projection flag. Dynamics, material and
+    sensors continue; all valid transitions are fitted. The description below
+    specifies historical latch checkpoints only.
 
     The physical adapters stop stepping a world once the software board stop latches;
     its pose, recurrence and force reading stay frozen while the task clock continues.
@@ -150,6 +154,9 @@ class PoseDepthV3StateSpec(PoseDepthStateSpec):
             raise ValueError('pose_depth_v3 state needs last_wrench[6] and board_contact[1]; '
                              'pose_depth_v2 replay/WM/critic data cannot be loaded')
         super().__init__(metadata)
+        from cutting_gpu_backend.tool_mount import continuing_board
+        self.board_latch = not continuing_board(metadata['free_cut_task']['board'])
+        self.fk.second_order_safe = not self.board_latch
 
     def contact(self, state):
         return self.field(state, 'board_contact') > .5
@@ -166,7 +173,11 @@ class PoseDepthV3StateSpec(PoseDepthStateSpec):
         return self.apply_board_latch(state, fields, limited, end_gap)
 
     def apply_board_latch(self, state, fields, limited, end_gap):
-        """Latch update and frozen physical fields; history fields are derived as usual."""
+        """Current projection observation, or frozen fields for historical latch metadata."""
+        if not self.board_latch:
+            fields['board_contact'] = (limited & (end_gap <= BOARD_LATCH_GAP_M))[...,None].to(fields['joint_q'])
+            fields['peak_wrench'] = torch.maximum(fields['peak_wrench'].abs(),fields['last_wrench'].abs())
+            return fields
         held = self.contact(state)
         arrived = (limited & (end_gap <= BOARD_LATCH_GAP_M))[..., None]
         last = self.field(state, 'last_wrench')

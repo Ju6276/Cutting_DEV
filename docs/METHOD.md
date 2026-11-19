@@ -6,15 +6,18 @@ Current task version: **pose_depth_v3** in both material backends
 ([scene_v1.json](../configs/shared/scene_v1.json)): the pose_depth_v2 task rules
 (shared analytic maximum blade-depth progress in both backends and the WM, no
 spring-release shaping or learned release-progress head, pose +100 and failure
-precedence) plus the software board-stop consistency fix and analytic imagined
-survival. Exact equations: [TASK_FREE_CUT](TASK_FREE_CUT.md#pose_depth_v3--software-board-stop-consistency-2026-11-17).
+precedence) plus analytic imagined survival. Current `board.motion=project_continue_v1`
+removes permanent freezing while retaining a geometric board boundary.
+Exact equations: [TASK_FREE_CUT](TASK_FREE_CUT.md).
 pose_depth_v2 is read/evaluate-only for the 2026-11-16 runs; `train_gpu.py` and
 `train_sac_multi.py` refuse it. No pose_depth_v3 long training run has been launched.
 
 - WM state (v3): adds `last_wrench` (6, predicted, scaled by the force limits)
-  and `board_contact` (latch flag, derived, not predicted). Transitions whose
-  recorded start state is latched are zero-weighted in the dynamics loss.
-  Since 2026-11-19, dynamics error is averaged over valid unlatched starts and
+  and `board_contact` (current projection flag, derived, not predicted). Historical transitions whose
+  recorded start state is latched were zero-weighted in the old dynamics loss.
+  Current `project_continue_v1` predicts and fits contact-start transitions normally;
+  it has no persistent physical latch or latch-based loss mask.
+  For historical latch metadata only, dynamics error is averaged over valid unlatched starts and
   terminal BCE over all valid transitions, with independent full-batch denominators
   during microbatch accumulation (separate_fit_valid_v1). This corrects the earlier
   v3 loss dilution; it does not change rewards or evaluation. Old v3 resume warns
@@ -24,7 +27,8 @@ pose_depth_v2 is read/evaluate-only for the 2026-11-16 runs; `train_gpu.py` and
   still fitted and logged, not used as survival.
 - Force sampling (v3): every new 2 ms filtered reading of a control step enters
   the component-wise peak, force-limit check and safety margin exactly once;
-  latched worlds report the frozen reading.
+  current worlds continue sampling after board projection; frozen-reading rules
+  apply only when evaluating historical latch metadata.
 - Policy input: 34 observations per frame (full six-axis sensor wrench) x10
   frames plus an 8D goal; six outputs, pitch disabled.
 - Learner settings (selected, passed explicitly): real-data critic with 32-step
@@ -423,7 +427,7 @@ enter the planner. For a pose_depth_v3 checkpoint the WM dynamics receives ten
 frames of 54 control features: joints, wrench samples, interval peak wrench,
 `last_wrench`, motion command and previous action. Fixed-prism checkpoints used
 48, without `last_wrench`. The rollout additionally carries derived
-pose/velocity/acceleration, observation, success-counter and board-latch history.
+pose/velocity/acceleration, observation, success-counter and board-boundary history (persistent only for historical latch metadata).
 The policy receives ten frames of 34 observations and the 8D goal; fixed-prism
 checkpoints used 24 observations and the target pose. These are different
 information interfaces.

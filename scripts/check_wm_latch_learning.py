@@ -1,4 +1,4 @@
-"""Bounded v3 loss check on real controller transitions, including board latch and reset.
+"""Historical V3 latch loss check (requires metadata without board.motion).
 
 Uses fixed valid six-channel actions, not reference=True with invented replay actions.
 A missing physical latch is a failed coverage check, never a pass. No policy updates.
@@ -40,6 +40,8 @@ def main():
     torch.set_num_threads(2);torch.manual_seed(17)
     cfg=json.loads(args.config.read_text())
     assert cfg['task']['version']=='pose_depth_v3'
+    if cfg['task']['board'].get('motion') == 'project_continue_v1':
+        raise ValueError('Historical latch-only probe; current V3 uses check_board_continue.py')
     # Bounded single-object coverage probe, not a multi-object training result.
     cfg['groups']=cfg['groups'][:1]
     cfg['groups'][0]['worlds']=3

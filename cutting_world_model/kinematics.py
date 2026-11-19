@@ -27,6 +27,23 @@ def quat_exp(v):
     return torch.cat((v * .5 * torch.sinc(angle / (2 * math.pi)), torch.cos(angle / 2)), -1)
 
 
+
+def quat_exp_second_order(v):
+    """SO(3) exponential with its analytic second derivative at zero.
+
+    norm(v) itself has no Hessian at zero. Express the small-angle branch in
+    squared angle so differentiating the board projection's FK Jacobian is
+    finite. Historical FK keeps quat_exp for bitwise checkpoint provenance.
+    """
+    square=v.square().sum(-1,keepdim=True)
+    small=square < 1e-8
+    angle=torch.sqrt(torch.where(small,torch.ones_like(square),square))
+    scale=torch.where(small,.5-square/48+square.square()/3840,
+                       .5*torch.sinc(angle/(2*math.pi)))
+    scalar=torch.where(small,1-square/8+square.square()/384,
+                        torch.cos(angle/2))
+    return torch.cat((v*scale,scalar),-1)
+
 def quat_log(q):
     q = torch.nn.functional.normalize(q, dim=-1)
     q = torch.where(q[..., 3:] < 0, -q, q)
@@ -102,7 +119,8 @@ class SerialKinematics(nn.Module):
                 identity = torch.cat((zero, torch.ones_like(displacement[..., :1])), -1)
                 motion = torch.cat((displacement, identity), -1)
             else:
-                motion = torch.cat((zero, quat_exp(displacement)), -1)
+                motion = torch.cat((zero, (quat_exp_second_order(displacement)
+                    if getattr(self,'second_order_safe',False) else quat_exp(displacement))), -1)
             pose = pose_compose(pose, motion)
         q = pose[..., 3:]
         square = q.square()

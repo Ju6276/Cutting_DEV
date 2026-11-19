@@ -6,6 +6,80 @@ task, free_cut_v1–v4, pose-v1 runs, including the 2026-11-14 evidence index) a
 [2026-11-02 … 2026-11-10](archive/RESULTS_20261102_20261110.md) (fixed prism development).
 [PLAN](PLAN.md) says what happens next; old next-step prose in entries is not a plan.
 
+
+## 2026-11-19 — Current V3: continue after the board boundary, without permanent freezing
+
+User-authorized change: keep cumulative arrival >10, 2 mm tolerance, +100 and
+existing failure rules; remove permanent cross-step freezing. The public task
+name remains `pose_depth_v3`; current shared configuration explicitly records
+`board.motion=project_continue_v1`. The already-aligned 500-step horizon is
+unchanged by this fix. No first-arrival terminal or board-hit failure was added.
+
+Both physical adapters now execute a fresh motion proposal after every boundary
+contact. Inward endpoint proposals are geometrically projected using the finite
+blade clearance Jacobian, followed by the physical swept clearance check.
+Material, controller/filter recurrence and fresh 2 ms readings continue; lateral
+and lift commands are not suppressed by an old contact flag. This is **not**
+physical knife-board compliance or a simulated board reaction. WM, analytic
+MPC and WM+MPPI use the new state semantics; the WM endpoint projection is still
+a discrete approximation to the physics substeps. Arrival and failure
+settlement remain analytic and unchanged.
+
+Two implementation errors found during this change were corrected before the
+passing probes:
+- Using position-command displacement/dt as MuJoCo generalized velocity injected
+  artificial inertial response (a 6.99 Nm sample in the first ramp probe).
+  Source position hardware preserves generalized velocity. The correction now
+  removes only its inward component; it does not synthesize velocity from the
+  position command.
+- Differentiating the clearance projection needs a second derivative of FK.
+  The norm-based zero-angle quaternion expression produced NaN gradients.
+  Current V3 uses its analytic squared-angle series near zero; legacy FK keeps
+  its original path. Gradient/second-gradient tests cover this case.
+
+`scripts/check_board_continue.py` was run on GPU7, with **two cucumber worlds per
+backend**, the normal force/torque limits, and explicit bounded FDCC targets:
+press → remain at boundary → move laterally 10 mm → lift 5 mm → partial reset.
+It calls physics directly so episode success cannot hide the post-board phase.
+These trajectories are diagnostics, not policy trajectories or replay data.
+
+| Backend | First boundary step | Lateral motion | Final blade gap | Minimum recorded gap | Maximum component/limit |
+|---|---:|---:|---:|---:|---:|
+| DiSECt | 39 | 10.162–10.168 mm | 4.730–4.965 mm | 1.131 μm | 0.442 |
+| BladeMaster | 36 | 10.123–10.130 mm | 4.968 mm | 1.146 μm | 0.101 |
+
+In both probes, the material particles and sensor queue changed during the
+0.15 s boundary hold; simulation time advanced for both worlds. Contact flags
+cleared after lift, no force-limit event occurred in the passing probes, and
+partial reset preserved the unselected world's joint configuration.
+Evidence under GPU7 `runs/v3_unfreeze_20261119/`:
+`physical_disect_velocity/report.json`, `physical_blademaster/report.json`,
+and their `transitions.json`. Earlier failed probe folders are retained,
+not presented as passes.
+
+Current contact-start samples are fitted normally; the historical latch mask is
+disabled and logs report zero masked transitions. The learned termination head
+still does not control imagined survival. Old checkpoint metadata without the
+motion field retains historical latch interpretation; it cannot be mixed with
+the new task through the metadata checks. WM+BPTT and SAC entry points also reject
+starting/resuming historical latch V3 configurations before constructing physics.
+
+Validation on the final source tree: root suite **732 passed / 5 skipped**
+(`root_final.log`; skips belong to the optional historical TensorFlow bridge);
+backend suite **44 passed** (`backend.log`). New tests cover release/lateral
+motion, finite FK and BPTT derivatives, contact-start loss fitting, cumulative
+arrival/failure precedence, historical metadata, current MPPI/analytic MPC and
+diagnostic replay, and WM/SAC rejection of old latch training configs.
+Re-enabling the old latch in the negative check makes both the release and
+contact-start-fitting tests fail (`negative_latch.log`). A synthetic
+microbatch optimizer check fitted all four contact-start transitions, masked
+zero, changed dynamics weights, and retained finite parameters
+(`contact_optimizer.json`); this is not a physical training run.
+
+Scope: this verifies continuation and interfaces, not learned policy quality,
+three-object long-training throughput, calibrated knife-board reaction, or
+multi-hour memory stability. No new training run was launched.
+
 ## 2026-11-16 — Shared geometric depth reward (pose_depth_v2)
 
 User request: remove dependence on DiSECt spring release in progress reward and

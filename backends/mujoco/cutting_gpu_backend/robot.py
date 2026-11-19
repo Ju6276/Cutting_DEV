@@ -35,19 +35,19 @@ class Robot:
         self.qd = wp.to_torch(self.data.qvel)
 
     @torch.no_grad()
-    def set_joint_positions(self, q, mask=None):
-        """Place selected worlds at rest; preserve all other q/qd before forward."""
+    def set_joint_positions(self, q, mask=None, velocity=None):
+        """Place selected worlds (at rest unless velocity is supplied); preserve others."""
         with wp.ScopedStream(self.stream):
             q=torch.as_tensor(q, device=self.q.device, dtype=self.q.dtype)
             if mask is None:
                 self.q.copy_(q)
-                self.qd.zero_()
+                self.qd.zero_() if velocity is None else self.qd.copy_(velocity.to(self.qd))
             else:
                 mask=torch.as_tensor(mask,device=self.q.device,dtype=torch.bool)
                 if mask.shape != self.q.shape[:1]:
                     raise ValueError('Joint-placement mask must select worlds')
                 self.q[mask]=q[mask]
-                self.qd[mask]=0
+                self.qd[mask]=0 if velocity is None else velocity[mask].to(self.qd)
             mjw.forward(self.gpu_model, self.data)
 
     def save_reset_state(self):

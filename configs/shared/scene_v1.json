@@ -43,7 +43,8 @@
       },
       "board": {
         "height_m": 0.0,
-        "stop_gap_m": 1e-06
+        "stop_gap_m": 1e-06,
+        "motion": "project_continue_v1"
       },
       "tool_revision": "disect_knife_rigid_mount_v1",
       "pitch_control": {

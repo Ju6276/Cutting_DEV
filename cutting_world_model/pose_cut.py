@@ -113,12 +113,21 @@ class PoseCutStateSpec(FreeCutStateSpec):
         return torch.cat((force,workspace,target,counter,remaining),-1)
 
 def project_board(self, state, fields, with_contact=False):
-    """Shorten the penetrating part of an imagined step to the board stop.
+    """Apply the task-recorded finite-blade board boundary to an imagined endpoint.
+
+    Current continuation projects inward endpoints; historical paths shorten motion.
     ``with_contact`` additionally returns (limited, end_gap) for the pose_depth_v3
     software latch; the projected fields are identical either way.
     """
     old_q = self.field(state,'joint_q')
     proposed = fields['joint_q']
+    if self.metadata.get('free_cut_task',{}).get('board',{}).get('motion') == 'project_continue_v1':
+        from cutting_gpu_backend.tool_mount import project_joint_endpoint, project_joint_velocity
+        q,limited=project_joint_endpoint(proposed,self.fk,self.board_geometry)
+        fields['joint_q']=q
+        fields['joint_qd']=project_joint_velocity(q,fields['joint_qd'],self.fk,self.board_geometry,limited)
+        end_gap=gap_from_pose(self.fk(q),self.board_geometry)
+        return (fields,limited,end_gap) if with_contact else fields
     start_gap = gap_from_pose(self.fk(old_q), self.board_geometry)
     end_gap = gap_from_pose(self.fk(proposed), self.board_geometry)
     stop = self.board_geometry['stop_gap_m']

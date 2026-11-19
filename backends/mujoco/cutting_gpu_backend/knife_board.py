@@ -29,6 +29,8 @@ class KnifeBoard:
         self.enforce = enforce
         self.material = material
         self.config = dict(config)
+        from .tool_mount import continuing_board
+        self.continuing = continuing_board(config)
         self.y = float(config['height_m'])
         self.stop_gap = float(config['stop_gap_m'])
         self.tolerance = float(config.get('coverage_tolerance_m', .0005))
@@ -141,11 +143,17 @@ class KnifeBoard:
         if self.enforce and bool((gap[active] < -2e-6).any()):
             raise FloatingPointError('Knife penetrated board despite execution interlock')
 
-    def register_stop(self, limited):
+    def register_stop(self, limited, active=None):
         # A conservative rotation bound can shorten a step before actual contact.
         # Only actual clearance <=10 um counts as board arrival; otherwise the
         # next safe interval may continue approaching.
-        self.contacted |= limited & (self.gap() <= 1e-5)
+        current = limited & (self.gap() <= 1e-5)
+        if getattr(self, 'continuing', False):
+            if active is not None:
+                current = torch.where(active, current, self.contacted)
+            self.contacted.copy_(current)
+        else:
+            self.contacted |= current
 
     def frame(self):
         return {'knife_board_contact': self.contacted[:, None].clone(),

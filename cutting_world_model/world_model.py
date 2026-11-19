@@ -256,8 +256,9 @@ class CuttingWorldModel(nn.Module):
                       'nse_kstep_count': has_fit.sum(),
                       'term_acc': correct / count, 'term_correct_count': correct,
                       'metric_transition_count': count,
-                      **({'dynamics_fit_count': dynamics_count,
-                          'dynamics_masked_count': count - dynamics_count} if latch else {}),
+                      **({'dynamics_fit_count': dynamics_count if latch else count,
+                          'dynamics_masked_count': count - dynamics_count if latch else count*0}
+                         if hasattr(self.spec, 'board_latch') else {}),
                       **({key: value.detach() / count for key, value in completion_metrics.items()}
                          if hasattr(self.spec, 'free_task') and not hasattr(self.spec, 'pose_success') else {}),
                       **({key: value / count for key, value in completion_counts.items()}

@@ -263,7 +263,9 @@ class BladeMasterBatch(CuttingBatch):
         self.depth_task = config['task']['version'] in POSE_DEPTH_VERSIONS
         # pose_depth_v3 software board-stop consistency: post-latch samples report the
         # frozen reading (as the DiSECt adapter does), instead of contributing nothing.
-        self.board_latch_v3 = config['task']['version'] == 'pose_depth_v3'
+        from cutting_gpu_backend.tool_mount import continuing_board
+        self.board_continuing = continuing_board(config['task']['board'])
+        self.board_latch_v3 = config['task']['version'] == 'pose_depth_v3' and not self.board_continuing
         if not bool((torch.isfinite(self.reward_depth_span) & (self.reward_depth_span > 0)).all()):
             raise ValueError('Reset blade must start above its board stopping height')
         self.target = self.initial_pose.clone()
@@ -471,27 +473,42 @@ class BladeMasterBatch(CuttingBatch):
         collision=torch.zeros(self.worlds,device=self.device,dtype=torch.bool)
         peak_force=torch.zeros(self.worlds,device=self.device,dtype=self.dtype)
         for _ in range(round(self.task['environment']['agent_control_dt']/.002)):
-            active=~(collision|self.contacted)
+            active=~collision if getattr(self,'board_continuing',False) else ~(collision|self.contacted)
             if not bool(active.any()):break
             old_tool=self.tool_pose()
             for _ in range(2):
-                moving=active & ~self.contacted
+                moving=active if getattr(self,'board_continuing',False) else active & ~self.contacted
                 if not bool(moving.any()):break
                 old_q=self.robot.q.double().clone()
                 command=self.controller_command(arguments,moving)
                 self.robot.step(command,active=moving)
                 new_q=self.robot.q.double().clone()
                 fk=lambda q:self.chain(q,mass_matrix=False)[0][self.chain.tip]
-                fraction,hit=swept_joint_fraction(old_q,new_q,fk,self.board_geometry,
-                                                   self.reach_bound,moving)
+                continuing=getattr(self,'board_continuing',False)
+                if continuing:
+                    from cutting_gpu_backend.tool_mount import continuing_joint_step
+                    corrected,hit=continuing_joint_step(old_q,new_q,fk,self.board_geometry,self.reach_bound,moving)
+                else:
+                    fraction,hit=swept_joint_fraction(old_q,new_q,fk,self.board_geometry,
+                                                       self.reach_bound,moving)
                 if bool(hit.any()):
                     # Robot uses float32; retain positive numerical clearance.
-                    alpha=(fraction-1e-5).clamp_min(0)
-                    corrected=torch.where(hit[:,None],old_q+alpha[:,None]*(new_q-old_q),new_q)
-                    self.robot.set_joint_positions(corrected,mask=hit)
+                    if not continuing:
+                        alpha=(fraction-1e-5).clamp_min(0)
+                        corrected=torch.where(hit[:,None],old_q+alpha[:,None]*(new_q-old_q),new_q)
+                    if continuing:
+                        from cutting_gpu_backend.tool_mount import project_joint_velocity
+                        velocity=project_joint_velocity(corrected,self.robot.qd.double(),fk,self.board_geometry,hit)
+                        self.robot.set_joint_positions(corrected,mask=hit,velocity=velocity)
+                    else:
+                        self.robot.set_joint_positions(corrected,mask=hit)
                 self.frames=self.chain(self.robot.q.double(),mass_matrix=False)[0]
                 gap=gap_from_pose(self.frames[self.chain.tip],self.board_geometry)
-                self.contacted |= hit & (gap<=1e-5)
+                current=hit & (gap<=1e-5)
+                if continuing:
+                    self.contacted=torch.where(moving,current,self.contacted)
+                else:
+                    self.contacted |= current
             tool_pose=self.tool_pose()
             linear=(tool_pose[:,:3]-old_tool[:,:3])/.002
             angular=quat_log(quat_mul(tool_pose[:,3:],quat_inverse(old_tool[:,3:])))/.002

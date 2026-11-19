@@ -448,7 +448,8 @@ or at the physical episode end. Compared: EE position (mm), max joint error (rad
 wrench_history / |peak_wrench| / last_wrench (force N, torque Nm, separately), depth
 progress (fraction and mm), events (success, force, workspace, object slip, tool motion,
 timeout: one-step confusion and first-step timing in the window), board latch (first
-contact on unlatched starts reported separately from post-latch consistency). The
+contact on previously unflagged starts reported separately from contact-start
+transitions; persistent freezing applies only to historical latch metadata). The
 terminal head is scored only as a predictor of the analytic termination label (v3
 survival is analytic). Critic and imagined objective are reported as gaps to the
 realised discounted return-to-go. Physical separation (DiSECt separation_progress /

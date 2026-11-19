@@ -1,15 +1,18 @@
 # Free-object single cut — shared geometric-progress pose task
 
-Updated 2026-11-19. The currently implemented task version is **pose_depth_v3**:
-the pose_depth_v2 task plus the software board-stop consistency fix and analytic
-imagined survival below. It is not a new cutting task. pose_depth_v2 is kept only
-to read/evaluate the 2026-11-16 runs; new training on it is refused.
+Updated 2026-11-19. The current task is **pose_depth_v3**, with explicit
+`task.board.motion = project_continue_v1`. Permanent cross-step freezing is
+removed; the cumulative arrival rule is retained. Historical V3 metadata without
+this field retains its old latch interpretation for evaluation. Do not mix its
+replay/checkpoints with the current task; metadata compatibility checks apply.
+pose_depth_v2 remains read/evaluate-only. Training entry points also reject old
+V3 configurations without the continuation field; regenerate from the shared contract.
 Origin (2026-11-16): the depth-progress pose task is shared by
 DiSECt and BladeMaster. The user requested removing spring-release shaping and
 using BladeMaster-style downward progress. Previously trained checkpoints retain
 free_cut_pose_v1 / blademaster_pose_v1; their results have not been relabelled.
 
-## Rule provenance and pending latch revision (2026-11-19)
+## Rule provenance and implemented continuation (2026-11-19)
 
 This table separates upstream rules, **implemented behaviour**, and proposed changes.
 It is not authorization to silently change a task while documenting it.
@@ -28,7 +31,7 @@ Source snapshots and the reproduction diff are recorded on GPU7 in
 | Time and step cost | Configured 500 steps, passed to the environment loader. Configured step cost -1 is part of the normalized continuous reward; with the listed equal weights its contribution is -0.25. | 500 steps / 25 s (aligned 2026-11-19); timeout is terminal with no bootstrap. No separate fixed per-step -1. | Horizon aligned by user request. Continuous rewards and timeout/bootstrap semantics remain our task design. |
 | Continuous rewards | Normalized distance, force and jerk terms, plus normalized step cost. | Historical maximum geometric-depth increment, target-speed deviation, normalized six-axis load and jerk costs; formulas below. | Our motion and speed objectives, not the full SliceIt reward. Spring-release shaping has been removed from the current task. |
 | Board geometry and reaction | Official scene contains a board collision mesh. Task code has no permanent board latch or special board-hit failure. Geometry alone does not validate the executed contact response. | Finite-blade software boundary; no calibrated blade-board reaction model in the formal task. | Boundary was added here to prevent penetration after migration; do not describe missing board physics as an upstream requirement. |
-| After software board stop | No corresponding permanent freeze in SliceIt task code. | Robot/material/sensor state remains latched until episode end; counter and time continue. WM reproduces that rule. | Our implementation, introduced in b367fcd, not a requested SliceIt rule. User requests removing cross-step freezing; **not yet removed in current main**. |
+| After software board stop | No corresponding permanent freeze in SliceIt task code. | Per-substep nonpenetration projection; material, controller and sensors continue. Lateral/lift proposals can execute. Arrival counter still accumulates. | Our geometric boundary, not a physical board reaction. The permanent latch introduced in b367fcd is historical only. |
 | Material separation | Not checked by the cited pose-success code. | Separate diagnostic only; never a success gate or reward. BladeMaster separated is unknown where no validated diagnostic exists. | Preserve pose success as the evaluation standard; do not relabel it as physical separation. |
 
 Official sources:
@@ -39,28 +42,50 @@ Official sources:
 [reward](https://github.com/omron-sinicx/ur_python_utilities/blob/7cd7cb8ce491b7953fce61ca891382e893e2ec43/ur3e_openai/src/ur3e_openai/cost_utils.py),
 [board collision geometry](https://github.com/omron-sinicx/sliceit/blob/3a6964862f1f135af9d98dd400efeb44ba394c15/catkin_ws/src/o2ac_scene_description/urdf/cooking_environment.xacro).
 
-**Current direction vs implementation:** the user prefers fixing the current v3
-rather than opening another named v4 task, and requests removing permanent
-cross-step freezing. This documentation change does not implement that removal.
-Retaining the cumulative arrival rule is compatible with that direction; removing
-the counter was a separate first-arrival-terminal proposal, not a necessary
-consequence of removing the latch. First-arrival success and board-hit/not-arrived
-failure (-100) remain proposals, not implemented or approved by this table.
+## Current V3 continuation (`project_continue_v1`)
 
-Without a blade-board force model, removing the latch while retaining the counter
-still requires an explicit nonpenetrating continuation rule. Merely deleting
-`board_contact` or unfreezing states does not specify that behaviour. The independent
-contact/FDCC experiment is not part of the production task. Any later rule change
-must update this table, physical/WM/planner/evaluation logic together, and record a
-machine-checked semantics revision even if the public task name remains v3.
-Existing v3 smoke checkpoints/replay still exist; they must not silently resume
-under different transition/termination semantics. Fixing v3 does not mean reverting
-to v2: analytic survival, corrected sampling and other applicable correctness
-fixes are retained.
+- Success is unchanged: cumulative arrival count >10, 2 mm height tolerance,
+  final XY region, no higher-priority failure, +100 once. Board contact itself
+  is neither success nor a new failure. Horizon remains 500 steps / 25 s.
+- Both backends correct an inward proposed joint endpoint using the finite
+  blade clearance Jacobian (minimum joint correction). A conservative swept
+  curvature check can further shorten the motion to prevent crossing the
+  physical plane. The configured positive endpoint gap is 1 micrometre.
+  This is a geometric execution constraint, **not** a knife-board force model.
+  Projection can change joint direction; it is not an exact Cartesian friction
+  or sliding model. Material-ground and blade-material contacts remain active.
+- Every 2 ms material interval and sensor/filter update continues at the
+  boundary. Force violations and evaluation pause still stop their own worlds.
+  No board-contact flag prevents the next action from executing.
+- `board_contact` now records whether the current boundary projection stopped
+  an inward proposal near the board, not an absorbing latch. `last_wrench`
+  remains the newest filtered sensor sample, never a held old reading.
+- WM uses the same finite-blade endpoint projection and fresh field prediction.
+  Its discrete transition does not resolve the physical substep swept trajectory;
+  that remains a model approximation. Peak is at least the predicted absolute
+  last reading. Contact-start transitions contribute to dynamics loss normally;
+  the historical latch mask/independent denominators only apply to old metadata.
+- Analytic survival, force sampling fixes, cumulative counting and the reward
+  formula/weights are retained. WM+MPPI and analytic MPC use this state spec;
+  SAC uses the same physical environment. Diagnostics accept either V3
+  interpretation and record which one was evaluated.
+- The independent blade-board force/FDCC prototype is not merged. There is
+  still no simulated board reaction in the sensor. No first-arrival terminal,
+  board-hit failure penalty or new V4 task has been introduced.
+
+Validation and limitations: see `RESULTS` entry for this change and
+`scripts/check_board_continue.py`. Old latch-specific probe
+`check_wm_latch_learning.py` explicitly refuses the current continuation mode.
+
+## Historical V3 latch semantics (2026-11-17 to 2026-11-19)
+
+The following description and measurements apply only to V3 records whose
+`task.board` has **no** `motion` field. They are retained for audit, not current
+training instructions.
 
 ## pose_depth_v3 — software board-stop consistency (2026-11-17)
 
-Current task version since 2026-11-17 (configs/shared/scene_v1.json, both
+Historical task semantics since 2026-11-17 (both
 backends; v2 copy in configs/archive/shared_scene_v1_pose_depth_v2_20261116).
 Users do not choose v2/v3: checkpoints, replay and manifests record the version
 and code checks compatibility. scripts/train_gpu.py and scripts/train_sac_multi.py

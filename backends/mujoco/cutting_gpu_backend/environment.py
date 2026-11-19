@@ -338,6 +338,7 @@ class CuttingBatch:
         peak_force = torch.zeros(self.worlds, device=self.device)
         intervals = round(self.task['environment']['agent_control_dt'] / .002)
         fresh_rule = getattr(self, 'fresh_sample_peak', False)
+        continuing = self.board is not None and getattr(self.board, 'continuing', False)
         for _ in range(intervals):
             if not fresh_rule:
                 observed = self.feedback['observation_wrench'].abs()
@@ -352,7 +353,7 @@ class CuttingBatch:
                         for k in current:
                             terminal[k][newly_done] = current[k][newly_done]
                     collision |= newly_done
-            stopped = collision if self.board is None else collision | self.board.contacted
+            stopped = collision if self.board is None or continuing else collision | self.board.contacted
             if self.evaluation_paused is not None:
                 stopped = stopped | self.evaluation_paused
             if stopped.all():
@@ -376,17 +377,30 @@ class CuttingBatch:
                     from .tool_mount import swept_joint_fraction
                     reach=self.rigid_tool_reach_bound
                     fk=lambda q:self.chain(q.to(self.dtype),mass_matrix=False)[0][self.chain.tip]
-                    fraction,board_hit=swept_joint_fraction(old_q,self.robot.q,fk,self.rigid_tool_geometry,reach,active)
+                    if continuing:
+                        from .tool_mount import continuing_joint_step
+                        corrected_q,board_hit=continuing_joint_step(old_q.double(),self.robot.q.double(),
+                            fk,self.rigid_tool_geometry,reach,active)
+                        fraction=torch.ones_like(board_hit,dtype=self.dtype)
+                    else:
+                        fraction,board_hit=swept_joint_fraction(old_q,self.robot.q,fk,self.rigid_tool_geometry,reach,active)
                 else:
                     fraction, board_hit = self.board.fraction(twist, .002, active)
                 twist = twist * fraction[:, None]
                 if bool(board_hit.any()):
-                    # The motion interlock terminates this cut; it is not a contact-force model.
+                    # Enforce the geometric boundary; this is not a contact-force model.
                     q = self.robot.q.clone()
-                    q[board_hit] = old_q[board_hit] + fraction[board_hit, None].to(q)*(q[board_hit]-old_q[board_hit])
+                    q[board_hit] = (corrected_q[board_hit].to(q) if continuing else
+                        old_q[board_hit] + fraction[board_hit, None].to(q)*(q[board_hit]-old_q[board_hit]))
                     with wp.ScopedStream(self.robot.stream):
                         self.robot.q.copy_(q)
-                        self.robot.qd[board_hit] = 0
+                        if continuing:
+                            from .tool_mount import project_joint_velocity
+                            velocity=project_joint_velocity(q.double(),self.robot.qd.double(),fk,
+                                                            self.rigid_tool_geometry,board_hit)
+                            self.robot.qd.copy_(velocity.to(self.robot.qd))
+                        else:
+                            self.robot.qd[board_hit] = 0
                         import mujoco_warp as mjw
                         mjw.forward(self.robot.gpu_model, self.robot.data)
                     self.frames = self.chain(self.robot.q.to(self.dtype), mass_matrix=False)[0]
@@ -412,7 +426,10 @@ class CuttingBatch:
                 self.material.set_motion(twist.float(),desired.float(),active=active)
             if self.board is not None:
                 self.board.observe(old_pos, old_rot, active)
-                self.board.register_stop(board_hit)
+                if continuing:
+                    self.board.register_stop(board_hit, active)
+                else:
+                    self.board.register_stop(board_hit)
             raw = -self.robot.sensor_wrench(self.config.sensor_ref_link).to(self.dtype)
             self.feedback = self._feedback(raw)
             work = {} if self.force_model == 'scalar' else {
@@ -423,7 +440,7 @@ class CuttingBatch:
             self.wrench_queue = torch.cat((self.wrench_queue[:, 1:], self.feedback['sensor_wrench'][:, None]), 1)
             peak_force = torch.where(collision, peak_force, torch.maximum(peak_force, self.feedback['force_magnitude'].float()))
             self.sim_time += active * .002
-            if self.board is not None:
+            if self.board is not None and not continuing:
                 newly_stopped = active & self.board.contacted
                 if bool(newly_stopped.any()):
                     self.material.set_motion(torch.zeros_like(twist).float(), active=newly_stopped)
@@ -447,7 +464,7 @@ class CuttingBatch:
             if sample_callback is not None:
                 # Read-only diagnostic at the 500 Hz coupling boundary, after feedback.
                 sample_callback(self, active)
-        if fresh_rule:
+        if fresh_rule and not continuing:
             # Board-latched worlds produce no new reading after the latch and report the frozen
             # reading (in the latch interval it was already counted at its own sample).
             from .knife_board import latched_interval_peak
@@ -456,7 +473,7 @@ class CuttingBatch:
             reading = self.feedback['observation_wrench']
             self.peak, collision = latched_interval_peak(self.peak, reading, latched, collision, self.force_limits)
             self.metrics.check_wrench(reading.abs(), self.force_limits, held)
-        elif self.force_model == 'net':
+        elif not fresh_rule and self.force_model == 'net':
             # Include the final 500 Hz sample before task heads can declare success.
             # The source scalar path retains its historical boundary convention.
             observed = self.feedback['observation_wrench'].abs()

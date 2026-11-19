@@ -46,7 +46,7 @@ fails rather than expanding the workspace silently.
 | Start | Per-object settled top + uniform 5–30 mm; paired explicit cases |
 | Settling | 1.0 s simulated time with that episode's actual material parameters |
 | Goal | Shared board-aligned prescribed pose, final XY radius plus z/pitch tolerances and arrival counter |
-| Board | Height 0; finite-blade stop at 1 micrometre; support plane has no finite edge |
+| Board | Height 0; positive endpoint gap 1 micrometre; per-substep geometric projection, no permanent freeze or board reaction; support plane has no finite edge |
 | Workspace | EE in robot-base frame: x[.038,.238], y[.405,.605], z[.096,.269] m |
 | Force / torque limits | [50,50,50,5,5,5], componentwise; simulation settings, not Mini45 calibration |
 | Observations | 34 values per frame, full six-component sensor wrench; history length is learner configuration |
@@ -54,7 +54,7 @@ fails rather than expanding the workspace silently.
 | Pitch option | Default off; when explicitly enabled, target angle ±5 degrees, rate ≤5 degrees/s |
 | Final position | Robot EE XY distance from prescribed target <40 mm, plus original height/pitch/arrival conditions |
 | Optional path constraint | task.tool_motion.enabled: false = final only (default); true = EE XY distance 25 mm free / 60 mm failure / weight 20 |
-| Task version | pose_depth_v3 = pose_depth_v2 task + software board-stop consistency + analytic imagined survival (TASK_FREE_CUT); v2 archived for the 2026-11-16 runs |
+| Task version | pose_depth_v3 with board.motion=project_continue_v1 and analytic survival; historical v2/V3 latch checkpoints keep their own metadata |
 | Reward | geometric maximum-depth progress 10, speed 20, load 1, jerk .1; success +100, failure −100 (unchanged from v2) |
 | Completion | Pose arrival without higher-priority failures; material separation recorded independently |
 | Episode / discount | 500 control steps / 25 s; gamma 1 (2026-11-19) |

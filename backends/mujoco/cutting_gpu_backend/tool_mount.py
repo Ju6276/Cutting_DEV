@@ -42,3 +42,96 @@ def swept_joint_fraction(old_q, new_q, fk, geometry, reach_bound, active):
             lo = torch.where(safe, mid, lo)
             hi = torch.where(safe, hi, mid)
     return torch.where(hit, lo, full), hit
+
+
+CONTINUE_BOARD = 'project_continue_v1'
+
+def continuing_board(config):
+    return config.get('motion') == CONTINUE_BOARD
+
+
+def project_joint_endpoint(proposed, fk, geometry):
+    """Unilateral joint-space projection of a finite blade, NOT a contact force.
+
+    Newton's minimum-norm joint correction removes inward clearance violations.
+    Outward and already safe proposals are unchanged. Differentiating the Newton
+    iterations retains the constrained-motion gradient for imagined rollouts.
+    A tiny positive roundoff margin is numerical clearance, not board compliance.
+    """
+    tracking = torch.is_grad_enabled()
+    stop = geometry['stop_gap_m']
+    with torch.enable_grad():
+        q = proposed if proposed.requires_grad else proposed.detach().requires_grad_(True)
+        limited = gap_from_pose(fk(q), geometry) < stop
+        if not bool(limited.any()):
+            return proposed, limited
+        for _ in range(12):
+            gap = gap_from_pose(fk(q), geometry)
+            violation = torch.where(limited, (stop + 2e-7 - gap).clamp_min(0), torch.zeros_like(gap))
+            if not bool((violation > 1e-10).any()):
+                break
+            normal = torch.autograd.grad(gap.sum(), q, create_graph=tracking, retain_graph=tracking)[0]
+            norm = normal.square().sum(-1)
+            if bool(((norm < 1e-14) & (violation > 1e-10)).any()):
+                raise FloatingPointError('Board projection has a singular clearance Jacobian')
+            q = q + (violation / norm.clamp_min(1e-14))[..., None] * normal
+        if bool((gap_from_pose(fk(q), geometry) < stop - 1e-9).any()):
+            raise FloatingPointError('Board endpoint projection did not converge')
+    return (q if tracking else q.detach()), limited
+
+
+@torch.no_grad()
+def continuing_joint_step(old_q, proposed, fk, geometry, reach_bound, active):
+    """Project an inward endpoint, then conservatively check its swept blade.
+
+    Unlike the historical latch, every substep starts a fresh motion proposal.
+    Chord-curvature bounds use the physical plane (gap=0); the endpoint retains
+    the configured positive stop gap. This permits release from the boundary
+    without accepting board penetration. Unsafe swept rotations are shortened.
+    """
+    projected, inward = project_joint_endpoint(proposed, fk, geometry)
+    projected = torch.where(active[..., None], projected, old_q)
+    delta = projected - old_q
+    start = gap_from_pose(fk(old_q), geometry)
+    stop = geometry['stop_gap_m']
+
+    def safe(f):
+        end = gap_from_pose(fk(old_q + f[..., None]*delta), geometry)
+        # Each vertex's signed clearance is bounded below by its endpoint chord
+        # minus C*t*(1-t); taking endpoint minima remains conservative.
+        c = reach_bound * (f*delta.abs().sum(-1)).square() / 2
+        t = ((c + start - end) / (2*c).clamp_min(1e-30)).clamp(0,1)
+        lower = (1-t)*start + t*end - c*t*(1-t)
+        return (end >= stop-1e-8) & (lower >= 0)
+
+    full = torch.ones_like(start)
+    shortened = active & ~safe(full)
+    fraction = full
+    if bool(shortened.any()):
+        lo, hi = torch.zeros_like(start), full.clone()
+        for _ in range(30):
+            mid = (lo+hi)/2
+            ok = safe(mid)
+            lo=torch.where(ok,mid,lo); hi=torch.where(ok,hi,mid)
+        fraction=torch.where(shortened,lo,full)
+    result=old_q+fraction[...,None]*delta
+    return result, active & (inward | shortened)
+
+
+def project_joint_velocity(q, velocity, fk, geometry, limited):
+    """Remove only inward generalized velocity at a limited endpoint.
+
+    Position-command differences are NOT joint velocity in the source hardware
+    model (SetPosition preserves velocity); synthesizing dq/dt injects inertia.
+    """
+    tracking=torch.is_grad_enabled()
+    if not bool(limited.any()):
+        return velocity
+    with torch.enable_grad():
+        point=q if q.requires_grad else q.detach().requires_grad_(True)
+        gap=gap_from_pose(fk(point),geometry)
+        normal=torch.autograd.grad(gap.sum(),point,create_graph=tracking,retain_graph=tracking)[0]
+        inward=(normal*velocity).sum(-1).clamp_max(0)
+        corrected=velocity-(inward/normal.square().sum(-1).clamp_min(1e-14))[...,None]*normal
+        result=torch.where(limited[...,None],corrected,velocity)
+    return result if tracking else result.detach()
