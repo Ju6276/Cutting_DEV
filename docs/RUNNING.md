@@ -96,6 +96,12 @@ Template with the selected settings (PLAN, METHOD active configuration); the
 flags mirror the 2026-11-16 launch_plan.json, whose task is now pose_depth_v3.
 Bare `train_gpu.py` defaults are the historical `source` variant, so pass every
 setting explicitly. Budget, world count and output come from the approved plan.
+`--max-transitions` and `--max-hours` are budgets of THIS launch (the help text says
+"additional"): `--max-transitions` counts new physical transitions after the checkpoint.
+On a resume pass the remaining budget (approved total minus the checkpoint's
+`transitions`), not the total; otherwise the run exceeds the approved budget. Final
+state `completed` means the transition budget was reached; `budget_complete` means
+the wall-clock bound stopped the launch.
 The GPU memory defaults (cache release, expandable segments, headroom guard) are
 on without flags; see [Online W&B](#online-wb-for-long-training-required-since-2026-11-15).
 
