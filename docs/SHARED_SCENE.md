@@ -54,7 +54,7 @@ fails rather than expanding the workspace silently.
 | Pitch option | Default off; when explicitly enabled, target angle ±5 degrees, rate ≤5 degrees/s |
 | Final position | Robot EE XY distance from prescribed target <40 mm, plus original height/pitch/arrival conditions |
 | Optional path constraint | task.tool_motion.enabled: false = final only (default); true = EE XY distance 25 mm free / 60 mm failure / weight 20 |
-| Task version | pose_depth_v3 with board.motion=project_continue_v1 and analytic survival; historical v2/V3 latch checkpoints keep their own metadata |
+| Task version | pose_depth_v3 with board.motion=project_continue_v2 and analytic survival; historical v2, V3 latch and project_continue_v1 checkpoints keep their own metadata (evaluate only) |
 | Reward | geometric maximum-depth progress 10, speed 20, load 1, jerk .1; success +100, failure −100 (unchanged from v2) |
 | Completion | Pose arrival without higher-priority failures; material separation recorded independently |
 | Episode / discount | 500 control steps / 25 s; gamma 1 (2026-11-19) |

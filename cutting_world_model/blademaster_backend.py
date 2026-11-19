@@ -263,8 +263,9 @@ class BladeMasterBatch(CuttingBatch):
         self.depth_task = config['task']['version'] in POSE_DEPTH_VERSIONS
         # pose_depth_v3 software board-stop consistency: post-latch samples report the
         # frozen reading (as the DiSECt adapter does), instead of contributing nothing.
-        from cutting_gpu_backend.tool_mount import continuing_board
+        from cutting_gpu_backend.tool_mount import continuing_board, current_board
         self.board_continuing = continuing_board(config['task']['board'])
+        self.board_current_continuation = current_board(config['task']['board'])
         self.board_latch_v3 = config['task']['version'] == 'pose_depth_v3' and not self.board_continuing
         if not bool((torch.isfinite(self.reward_depth_span) & (self.reward_depth_span > 0)).all()):
             raise ValueError('Reset blade must start above its board stopping height')
@@ -504,11 +505,14 @@ class BladeMasterBatch(CuttingBatch):
                         self.robot.set_joint_positions(corrected,mask=hit)
                 self.frames=self.chain(self.robot.q.double(),mass_matrix=False)[0]
                 gap=gap_from_pose(self.frames[self.chain.tip],self.board_geometry)
-                current=hit & (gap<=1e-5)
                 if continuing:
+                    # State property of the end pose (tool_mount.board_contact), as in DiSECt and
+                    # the WM; project_continue_v1 (evaluate-only) keeps its projected-AND-gap rule.
+                    from cutting_gpu_backend.tool_mount import board_contact
+                    current=board_contact(gap) if getattr(self,'board_current_continuation',True) else hit & (gap<=1e-5)
                     self.contacted=torch.where(moving,current,self.contacted)
                 else:
-                    self.contacted |= current
+                    self.contacted |= hit & (gap<=1e-5)
             tool_pose=self.tool_pose()
             linear=(tool_pose[:,:3]-old_tool[:,:3])/.002
             angular=quat_log(quat_mul(tool_pose[:,3:],quat_inverse(old_tool[:,3:])))/.002

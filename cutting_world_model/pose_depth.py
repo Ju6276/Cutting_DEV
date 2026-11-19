@@ -95,16 +95,22 @@ def pose_depth_spec_class(version):
 
 
 def latched_interval_peak(peak, reading, latched, collision, limits):
-    """Post-latch peak rule; one implementation shared with the DiSECt adapter
+    """Historical-latch post-latch peak rule; one implementation shared with the DiSECt adapter
     (cutting_gpu_backend.knife_board, which cannot import this package)."""
     from cutting_gpu_backend.knife_board import latched_interval_peak as rule
     return rule(peak, reading, latched, collision, limits)
 
 
 def observe_board_latch(env, frame):
-    """pose_depth_v3 frame fields: the board projection flag (legacy: latch) and force signal at the
-    last 2 ms sample of the interval (frozen reading for latched worlds; the initialised
-    reading after reset). This is a software board-stop flag, not a board contact force."""
+    """pose_depth_v3 frame fields ``board_contact`` and ``last_wrench``.
+
+    ``board_contact`` copies the adapter's knife_board_contact. Current continuing
+    board (project_continue_v2): the state property tool_mount.board_contact of the
+    end-of-step blade clearance (<= 10 um), recomputed every step. Historical latch
+    metadata: the absorbing software latch. ``last_wrench`` is the force-limit
+    reading at the last 2 ms sample of the interval: a fresh sample for continuing
+    boards, the frozen reading for historically latched worlds, the initialised
+    reading after reset. A software boundary flag, not a board contact force."""
     physics = env.physics
     if env.metadata['physical_backend'] == 'mujoco_warp_blademaster':
         reading = physics.feedback['sensor_wrench']
@@ -121,11 +127,13 @@ def observe_board_latch(env, frame):
 
 
 class PoseDepthV3StateSpec(PoseDepthStateSpec):
-    """Current V3 uses project_continue_v1; absent motion metadata means legacy latch.
+    """Current V3 uses board.motion project_continue_v2; absent motion means legacy latch,
+    project_continue_v1 the read/evaluate-only f12ca04 continuation.
 
-    Current contact is a per-transition projection flag. Dynamics, material and
-    sensors continue; all valid transitions are fitted. The description below
-    specifies historical latch checkpoints only.
+    Current ``board_contact`` is a state property: end-of-step blade clearance
+    <= 10 um after projection (tool_mount.board_contact), identical to the physical
+    adapters. Dynamics, material and sensors continue; all valid transitions are
+    fitted. The description below specifies historical latch checkpoints only.
 
     The physical adapters stop stepping a world once the software board stop latches;
     its pose, recurrence and force reading stay frozen while the task clock continues.
@@ -154,8 +162,10 @@ class PoseDepthV3StateSpec(PoseDepthStateSpec):
             raise ValueError('pose_depth_v3 state needs last_wrench[6] and board_contact[1]; '
                              'pose_depth_v2 replay/WM/critic data cannot be loaded')
         super().__init__(metadata)
-        from cutting_gpu_backend.tool_mount import continuing_board
+        from cutting_gpu_backend.tool_mount import continuing_board, current_board
         self.board_latch = not continuing_board(metadata['free_cut_task']['board'])
+        # False only for read/evaluate-only project_continue_v1 checkpoints.
+        self.current_continuation = current_board(metadata['free_cut_task']['board'])
         self.fk.second_order_safe = not self.board_latch
 
     def contact(self, state):
@@ -175,7 +185,12 @@ class PoseDepthV3StateSpec(PoseDepthStateSpec):
     def apply_board_latch(self, state, fields, limited, end_gap):
         """Current projection observation, or frozen fields for historical latch metadata."""
         if not self.board_latch:
-            fields['board_contact'] = (limited & (end_gap <= BOARD_LATCH_GAP_M))[...,None].to(fields['joint_q'])
+            # State property of the post-projection endpoint, identical to the physical
+            # adapters: resting within 10 um counts even if this step needed no projection.
+            from cutting_gpu_backend.tool_mount import board_contact
+            contact = (board_contact(end_gap) if getattr(self, 'current_continuation', True)
+                       else limited & (end_gap <= BOARD_LATCH_GAP_M))
+            fields['board_contact'] = contact[...,None].to(fields['joint_q'])
             fields['peak_wrench'] = torch.maximum(fields['peak_wrench'].abs(),fields['last_wrench'].abs())
             return fields
         held = self.contact(state)

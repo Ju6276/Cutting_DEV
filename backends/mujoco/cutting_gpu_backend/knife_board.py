@@ -8,14 +8,20 @@ from .controller.fdcc import quat_apply, quat_mul
 
 
 def latched_interval_peak(peak, reading, latched, collision, limits):
-    """Peak/force-limit rule for worlds held by the software board stop (pose_depth_v3).
+    """Peak/force-limit rule for worlds held by the historical software board latch.
+
+    Historical pose_depth_v3 latch metadata only (task.board without ``motion``).
+    Continuing boards (board.motion project_continue_v1/v2) never hold a world: every fresh 2 ms
+    sample enters peak and the force check in the substep loop, and this rule is
+    not called.
 
     Every 2 ms sample after the latch repeats the frozen force-limit reading. A world that
     latched during this interval already holds its true in-interval peak (the frozen
     reading is one of its samples); a world latched in an earlier interval reports
     |frozen reading|, never zero and never a peak carried from the latch interval.
     Collided worlds are unchanged. Both adapters apply it after the substeps of a
-    pose_depth_v3 step (DiSECt v2 sampled stopped worlds every substep instead).
+    historical-latch pose_depth_v3 step (DiSECt v2 sampled stopped worlds every
+    substep instead).
     """
     held = latched & ~collision
     observed = reading.abs()
@@ -29,8 +35,10 @@ class KnifeBoard:
         self.enforce = enforce
         self.material = material
         self.config = dict(config)
-        from .tool_mount import continuing_board
+        from .tool_mount import continuing_board, current_board
         self.continuing = continuing_board(config)
+        # False only for the read/evaluate-only project_continue_v1 flag rule.
+        self.current_continuation = current_board(config)
         self.y = float(config['height_m'])
         self.stop_gap = float(config['stop_gap_m'])
         self.tolerance = float(config.get('coverage_tolerance_m', .0005))
@@ -143,17 +151,31 @@ class KnifeBoard:
         if self.enforce and bool((gap[active] < -2e-6).any()):
             raise FloatingPointError('Knife penetrated board despite execution interlock')
 
-    def register_stop(self, limited, active=None):
-        # A conservative rotation bound can shorten a step before actual contact.
-        # Only actual clearance <=10 um counts as board arrival; otherwise the
-        # next safe interval may continue approaching.
-        current = limited & (self.gap() <= 1e-5)
+    def register_stop(self, limited, active=None, gap=None):
+        """Update the board-contact flag after a 2 ms interval.
+
+        Current continuing board (project_continue_v2): the flag is the state
+        property tool_mount.board_contact(gap) of the end-of-interval rigid-blade
+        clearance ``gap`` (from the same FK/geometry the WM uses), whether or not a
+        projection acted (``limited`` is ignored); inactive worlds keep their flag.
+        project_continue_v1 (read/evaluate-only): limited AND mesh clearance
+        <= 10 um, per interval. Historical latch: a conservative rotation bound can
+        shorten a step before actual contact, so only a limited step with
+        clearance <=10 um latches, absorbing until reset.
+        """
         if getattr(self, 'continuing', False):
+            from .tool_mount import board_contact
+            if not getattr(self, 'current_continuation', True):
+                current = limited & (self.gap() <= 1e-5)
+            elif gap is None:
+                raise ValueError('Continuing board contact needs the rigid-blade clearance')
+            else:
+                current = board_contact(gap)
             if active is not None:
                 current = torch.where(active, current, self.contacted)
             self.contacted.copy_(current)
         else:
-            self.contacted |= current
+            self.contacted |= limited & (self.gap() <= 1e-5)
 
     def frame(self):
         return {'knife_board_contact': self.contacted[:, None].clone(),

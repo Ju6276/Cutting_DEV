@@ -22,7 +22,8 @@ def main():
     signal.signal(signal.SIGALRM,timeout);signal.alarm(a.wall_seconds)
     torch.set_num_threads(2)
     cfg=json.loads(a.config.read_text())
-    assert cfg['task']['board']['motion']=='project_continue_v1'
+    from cutting_gpu_backend.tool_mount import CONTINUE_BOARD
+    assert cfg['task']['board']['motion']==CONTINUE_BOARD
     cfg['parallel']=False
     cfg['groups']=cfg['groups'][:1]
     cfg['groups'][0]['worlds']=2

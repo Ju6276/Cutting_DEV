@@ -121,7 +121,8 @@ def project_board(self, state, fields, with_contact=False):
     """
     old_q = self.field(state,'joint_q')
     proposed = fields['joint_q']
-    if self.metadata.get('free_cut_task',{}).get('board',{}).get('motion') == 'project_continue_v1':
+    from cutting_gpu_backend.tool_mount import continuing_board
+    if continuing_board(self.metadata.get('free_cut_task',{}).get('board',{})):
         from cutting_gpu_backend.tool_mount import project_joint_endpoint, project_joint_velocity
         q,limited=project_joint_endpoint(proposed,self.fk,self.board_geometry)
         fields['joint_q']=q

@@ -71,7 +71,7 @@ task settings must not be edited independently for each backend.
   allocation within a run. One shared policy per backend.
 - Same UR5e, FDCC, mounted finite blade, sensor frame and action meaning.
   Six output channels, pitch off; five effective controls.
-- Task pose_depth_v3 now uses `board.motion=project_continue_v1`: no permanent
+- Task pose_depth_v3 now uses `board.motion=project_continue_v2`: no permanent
   cross-step freeze; cumulative arrival >10, 2 mm tolerance and analytic survival
   retained. Board reaction physics remains outside this task. v2 kept only for
   traceability of the 2026-11-16 runs. Prescribed final pose gives+100 without higher-priority

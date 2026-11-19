@@ -10,8 +10,8 @@ import torch
 REVISION = 'free_cut_v3'
 SUPPORTED_REVISIONS = ('free_cut_v1', 'free_cut_v2', REVISION, 'free_cut_v4', 'free_cut_pose_v1', 'blademaster_pose_v1', 'pose_depth_v2', 'pose_depth_v3')
 # pose_depth_v3 retains the pose reward and analytic survival. Current board.motion
-# project_continue_v1 removes the physical latch; absent motion metadata preserves
-# the historical latch fields/masking for checkpoint evaluation.
+# project_continue_v2 removes the physical latch; project_continue_v1 (f12ca04) and
+# absent motion metadata (historical latch) are kept for checkpoint evaluation only.
 POSE_DEPTH_VERSIONS = ('pose_depth_v2', 'pose_depth_v3')
 # The single current task version. pose_depth_v2 remains readable/evaluable only, for
 # traceability of the 2026-11-16 runs; it is not a separate task choice.
@@ -28,11 +28,17 @@ def refuse_retired_training(task):
     version = (task or {}).get('version')
     if version in RETIRED_TRAINING:
         raise ValueError(RETIRED_TRAINING[version])
-    if (version == CURRENT_POSE_DEPTH and 'board' in task
-            and task['board'].get('motion') != 'project_continue_v1'):
+    from cutting_gpu_backend.tool_mount import CONTINUE_BOARD, CONTINUE_BOARD_V1
+    motion = task['board'].get('motion') if version == CURRENT_POSE_DEPTH and 'board' in task else CONTINUE_BOARD
+    if motion == CONTINUE_BOARD_V1:
+        raise ValueError('pose_depth_v3 board.motion=project_continue_v1 (f12ca04 continuation: '
+                         'projection-only contact flag, minimum-norm joint projection) is '
+                         'read/evaluate-only. Regenerate configs from configs/shared/scene_v1.json '
+                         f'(board.motion={CONTINUE_BOARD}); do not resume its checkpoints or replay.')
+    if motion != CONTINUE_BOARD:
         raise ValueError('Historical pose_depth_v3 board latch is read/evaluate-only. '
                          'Regenerate configs from configs/shared/scene_v1.json '
-                         '(board.motion=project_continue_v1); do not resume old replay.')
+                         f'(board.motion={CONTINUE_BOARD}); do not resume old replay.')
 WEIGHTS = ('progress', 'speed', 'load', 'jerk', 'success', 'failure')
 
 
@@ -105,7 +111,8 @@ def validate_task(config):
         if config['version'] == 'free_cut_v4':
             expected.add('coverage_tolerance_m')
         if 'motion' in board:
-            if config['version'] != 'pose_depth_v3' or board['motion'] != 'project_continue_v1':
+            from cutting_gpu_backend.tool_mount import CONTINUING_MOTIONS
+            if config['version'] != 'pose_depth_v3' or board['motion'] not in CONTINUING_MOTIONS:
                 raise ValueError('Unknown board motion semantics')
             if config.get('tool_revision') != 'disect_knife_rigid_mount_v1':
                 raise ValueError('Continuing board needs the shared rigid knife')

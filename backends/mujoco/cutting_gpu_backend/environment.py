@@ -339,6 +339,8 @@ class CuttingBatch:
         intervals = round(self.task['environment']['agent_control_dt'] / .002)
         fresh_rule = getattr(self, 'fresh_sample_peak', False)
         continuing = self.board is not None and getattr(self.board, 'continuing', False)
+        if continuing and not hasattr(self, 'rigid_tool_mount'):
+            raise ValueError('Continuing board needs the rigid knife mount and its geometry')
         for _ in range(intervals):
             if not fresh_rule:
                 observed = self.feedback['observation_wrench'].abs()
@@ -427,7 +429,9 @@ class CuttingBatch:
             if self.board is not None:
                 self.board.observe(old_pos, old_rot, active)
                 if continuing:
-                    self.board.register_stop(board_hit, active)
+                    from .tool_mount import gap_from_pose
+                    self.board.register_stop(board_hit, active,
+                        gap=gap_from_pose(self.frames[self.chain.tip], self.rigid_tool_geometry))
                 else:
                     self.board.register_stop(board_hit)
             raw = -self.robot.sensor_wrench(self.config.sensor_ref_link).to(self.dtype)

@@ -58,11 +58,12 @@ def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument("--objects",nargs="+",default=["banana","cake","tofu","luncheon"])
     p.add_argument("--output",type=Path,required=True)
-    p.add_argument("--max-steps",type=int,default=180)
+    p.add_argument("--max-steps",type=int,default=None,
+                   help="Default: each config's task horizon_steps (cap only when given)")
     p.add_argument("--wall-seconds",type=int,default=900)
     p.add_argument("--settle-trace-seconds",type=float,default=0.)
     a=p.parse_args()
-    if a.max_steps<1 or a.wall_seconds<1 or a.settle_trace_seconds<0:
+    if (a.max_steps is not None and a.max_steps<1) or a.wall_seconds<1 or a.settle_trace_seconds<0:
         raise ValueError("Budgets must be positive")
     a.output.mkdir(parents=True,exist_ok=False)
     torch.set_num_threads(2)
@@ -112,7 +113,8 @@ def main():
                 e.physics.set_reference_trajectory(KnifeTrajectory.constant([0.,-speed,0.],max(distance/speed,1e-6),kind="board_ending_press"))
                 rows=[]
                 record["rows"]=rows
-                for step in range(min(a.max_steps,cfg["task"]["horizon_steps"])):
+                horizon=cfg["task"]["horizon_steps"]
+                for step in range(horizon if a.max_steps is None else min(a.max_steps,horizon)):
                     frame,reward,done,trunc,info=e.step(torch.zeros(1,6,device=e.device),reference=True)
                     rows.append(dict(step=step+1,reward=float(reward[0]),success=bool(info["success"][0]),
                                      collision=bool(info["collision"][0]),outside=bool(info["outside"][0]),

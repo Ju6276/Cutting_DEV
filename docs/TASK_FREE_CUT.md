@@ -1,12 +1,14 @@
 # Free-object single cut — shared geometric-progress pose task
 
 Updated 2026-11-19. The current task is **pose_depth_v3**, with explicit
-`task.board.motion = project_continue_v1`. Permanent cross-step freezing is
+`task.board.motion = project_continue_v2`. Permanent cross-step freezing is
 removed; the cumulative arrival rule is retained. Historical V3 metadata without
-this field retains its old latch interpretation for evaluation. Do not mix its
-replay/checkpoints with the current task; metadata compatibility checks apply.
-pose_depth_v2 remains read/evaluate-only. Training entry points also reject old
-V3 configurations without the continuation field; regenerate from the shared contract.
+this field retains its old latch interpretation for evaluation, and
+`project_continue_v1` (f12ca04: projection-only contact flag) is evaluated with
+its recorded rules. Do not mix their replay/checkpoints with the current task;
+metadata compatibility checks apply. pose_depth_v2 remains read/evaluate-only.
+Training entry points reject V3 configurations whose `board.motion` is not
+`project_continue_v2`; regenerate from the shared contract.
 Origin (2026-11-16): the depth-progress pose task is shared by
 DiSECt and BladeMaster. The user requested removing spring-release shaping and
 using BladeMaster-style downward progress. Previously trained checkpoints retain
@@ -42,7 +44,16 @@ Official sources:
 [reward](https://github.com/omron-sinicx/ur_python_utilities/blob/7cd7cb8ce491b7953fce61ca891382e893e2ec43/ur3e_openai/src/ur3e_openai/cost_utils.py),
 [board collision geometry](https://github.com/omron-sinicx/sliceit/blob/3a6964862f1f135af9d98dd400efeb44ba394c15/catkin_ws/src/o2ac_scene_description/urdf/cooking_environment.xacro).
 
-## Current V3 continuation (`project_continue_v1`)
+## Current V3 continuation (`project_continue_v2`)
+
+Revisions of `task.board.motion` (machine-checked; the task name stays v3):
+
+| Value | Code | `board_contact` | Joint projection | Training |
+|---|---|---|---|---|
+| absent | b367fcd–6ec9f34 | absorbing latch | shortened swept step, then frozen | refused; evaluate only |
+| `project_continue_v1` | f12ca04 | projected AND clearance <= 10 um | minimum-norm clearance-gradient correction | refused; evaluate only |
+| `project_continue_v2` | current | clearance <= 10 um (state property) | see below | current |
+
 
 - Success is unchanged: cumulative arrival count >10, 2 mm height tolerance,
   final XY region, no higher-priority failure, +100 once. Board contact itself
@@ -57,9 +68,14 @@ Official sources:
 - Every 2 ms material interval and sensor/filter update continues at the
   boundary. Force violations and evaluation pause still stop their own worlds.
   No board-contact flag prevents the next action from executing.
-- `board_contact` now records whether the current boundary projection stopped
-  an inward proposal near the board, not an absorbing latch. `last_wrench`
-  remains the newest filtered sensor sample, never a held old reading.
+- `board_contact` is a property of the end-of-step pose: 1 iff the finite-blade
+  clearance above the board plane is <= 10 um (`tool_mount.board_contact`),
+  whether or not a projection acted in that step. DiSECt and BladeMaster evaluate
+  it on the rigid-blade FK clearance of the recorded joints; the WM, analytic
+  MPC and MPPI on the post-projection imagined joints, with the same function.
+  A recorded state resting on the board therefore has contact 1 in both, and a
+  blade hovering more than 10 um above has 0. It is not an absorbing latch.
+  `last_wrench` remains the newest filtered sensor sample, never a held old reading.
 - WM uses the same finite-blade endpoint projection and fresh field prediction.
   Its discrete transition does not resolve the physical substep swept trajectory;
   that remains a model approximation. Peak is at least the predicted absolute

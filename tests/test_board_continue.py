@@ -5,10 +5,10 @@ import torch
 from test_pose_depth_v3 import model, put, joints_for, joint_delta, gap
 from cutting_world_model.world_model import CuttingWorldModel
 
-def continuing():
+def continuing(motion='project_continue_v2'):
     old, state, goal = model()
     meta=copy.deepcopy(old.spec.metadata)
-    meta['free_cut_task']['board']['motion'] = 'project_continue_v1'
+    meta['free_cut_task']['board']['motion'] = motion
     meta['free_cut_task']['tool_revision'] = 'disect_knife_rigid_mount_v1'
     wm=CuttingWorldModel(meta, hidden=(12,12)).double()
     wm.load_state_dict(old.state_dict())
@@ -178,3 +178,122 @@ def test_current_diagnostic_replays_through_training_imagination():
         result=analyse(learner,rec,k=1)
     assert result['latch']['persistent_latch'] is False
     assert result['replay_first_step_max_normalized_gap'] < 1e-6
+
+
+# ---- board_contact is a state property (end-of-step clearance <= 10 um) ----
+
+def at_gap(sp, s, clearance):
+    """Fixture state whose blade rests `clearance` above the board (fixture EE starts 1 mm above)."""
+    q = joints_for(sp, sp.field(s, 'joint_q'), 0., -(1e-3 - clearance))
+    s = put(sp, s, joint_q=q[0])
+    assert gap(sp, s).item() == pytest.approx(clearance, abs=1e-12)
+    return s
+
+
+def physical_chain(sp):
+    """Backend SerialChain of the same fixture robot (the backend parser needs joint limits)."""
+    from cutting_gpu_backend.controller.fdcc import SerialChain
+    m = sp.metadata
+    xml = m['robot_xml'].replace('<axis xyz="0 0 1"/>',
+                                 '<axis xyz="0 0 1"/><limit lower="-6.2832" upper="6.2832" velocity="3.14"/>')
+    chain = SerialChain(xml, m['robot_base'], m['robot_tip'], m['joint_names']).double()
+    return lambda q: chain(q, mass_matrix=False)[0][chain.tip]
+
+
+CLEARANCES = (2e-6, 9e-6, 1.1e-5, 2e-5, 5e-4)
+EXPECTED = [True, True, False, False, False]
+
+
+def test_resting_state_with_zero_predicted_motion_reports_contact():
+    wm, s, g = continuing(); sp = wm.spec
+    zero = torch.zeros(1, sp.delta_dim, dtype=s.dtype)
+    for clearance, expected in zip(CLEARANCES, EXPECTED):
+        # Already on (or hovering above) the board and predicted not to move: no
+        # projection acts in this step, yet the flag describes the pose.
+        r = put(sp, at_gap(sp, s, clearance), board_contact=[float(not expected)])
+        fields = sp.integrate_physical(r, zero)
+        torch.testing.assert_close(fields['joint_q'], sp.field(r, 'joint_q'), atol=0, rtol=0)
+        assert bool(fields['board_contact'].item()) is expected, clearance
+
+
+def test_physics_and_wm_give_the_same_contact_flag_on_the_same_pose():
+    from cutting_gpu_backend.knife_board import KnifeBoard
+    from cutting_gpu_backend.tool_mount import BOARD_CONTACT_GAP_M, board_contact, gap_from_pose as physical_gap
+    from cutting_world_model.pose_depth import BOARD_LATCH_GAP_M
+    assert BOARD_CONTACT_GAP_M == BOARD_LATCH_GAP_M == 1e-5
+    wm, s, g = continuing(); sp = wm.spec
+    states = torch.cat([at_gap(sp, s, c) for c in CLEARANCES])
+    q = sp.field(states, 'joint_q')
+    fk = physical_chain(sp)
+    torch.testing.assert_close(fk(q)[:, :3], sp.fk(q)[:, :3], atol=1e-12, rtol=0)
+    # DiSECt adapter flag: KnifeBoard.register_stop with the adapter's rigid-blade
+    # clearance; stale previous flags and `limited` must not matter.
+    board = object.__new__(KnifeBoard)
+    board.continuing = True
+    board.contacted = torch.tensor([False, False, True, True, True])
+    n = len(CLEARANCES)
+    KnifeBoard.register_stop(board, torch.zeros(n, dtype=torch.bool), torch.ones(n, dtype=torch.bool),
+                             gap=physical_gap(fk(q), sp.board_geometry))
+    fields = sp.integrate_physical(states, torch.zeros(n, sp.delta_dim, dtype=s.dtype))
+    assert board.contacted.tolist() == fields['board_contact'][:, 0].bool().tolist() == EXPECTED
+    assert board_contact(physical_gap(fk(q), sp.board_geometry)).tolist() == EXPECTED
+    # Inactive worlds keep their flag; a missing clearance is an error, not a silent default.
+    KnifeBoard.register_stop(board, torch.ones(n, dtype=torch.bool), torch.zeros(n, dtype=torch.bool),
+                             gap=torch.zeros(n, dtype=torch.double))
+    assert board.contacted.tolist() == EXPECTED
+    with pytest.raises(ValueError, match='clearance'):
+        KnifeBoard.register_stop(board, torch.ones(n, dtype=torch.bool))
+
+
+def test_historical_latch_register_stop_is_unchanged():
+    from types import SimpleNamespace
+    from cutting_gpu_backend.knife_board import KnifeBoard
+    board = SimpleNamespace(contacted=torch.tensor([False, False, True, False]),
+                            gap=lambda: torch.tensor([5e-6, 5e-6, 1., 1.]))
+    # No `continuing` attribute / continuing False: absorbing latch, limited AND <= 10 um.
+    KnifeBoard.register_stop(board, torch.tensor([True, False, False, True]))
+    assert board.contacted.tolist() == [True, False, True, False]
+    board.continuing = False
+    KnifeBoard.register_stop(board, torch.tensor([False, False, False, False]), gap=torch.zeros(4))
+    assert board.contacted.tolist() == [True, False, True, False]
+
+
+# ---- semantics revision: f12ca04 continuation (project_continue_v1) is evaluate-only ----
+
+def test_f12ca04_continuation_keeps_its_flag_for_evaluation_but_not_training():
+    from cutting_world_model.checkpoint import check_checkpoint_pair
+    from cutting_world_model.free_cut import refuse_retired_training, validate_task
+    old, s, g = continuing('project_continue_v1'); new, _, _ = continuing()
+    validate_task(old.spec.metadata['free_cut_task'])
+    assert not old.spec.board_latch and not old.spec.current_continuation and new.spec.current_continuation
+    with pytest.raises(ValueError, match='project_continue_v1 .* read/evaluate-only'):
+        refuse_retired_training(old.spec.metadata['free_cut_task'])
+    refuse_retired_training(new.spec.metadata['free_cut_task'])
+    # Its checkpoints/replay cannot be paired with (or resumed under) current metadata.
+    with pytest.raises(ValueError, match='metadata differ'):
+        check_checkpoint_pair({'metadata': old.spec.metadata}, {'metadata': new.spec.metadata})
+    # Recorded v1 rule still evaluates as recorded: resting without projection -> 0.
+    r = at_gap(old.spec, s, 2e-6)
+    zero = torch.zeros(1, old.spec.delta_dim, dtype=s.dtype)
+    assert old.spec.integrate_physical(r, zero)['board_contact'].item() == 0
+    assert new.spec.integrate_physical(r, zero)['board_contact'].item() == 1
+
+
+def test_start_within_roundoff_below_plane_can_still_lift_and_move_laterally():
+    from cutting_gpu_backend.tool_mount import continuing_joint_step, gap_from_pose as physical_gap
+    def fk(q):
+        return torch.cat((q[..., :3], q[..., 3:] * 0, torch.ones_like(q[..., :1])), -1)
+    geometry = dict(vertices_in_ee=[[0., 0., 0.]], board_origin_base=[0., 0., 0.],
+                    board_normal_base=[0., 0., 1.], stop_gap_m=1e-6)
+    old = torch.zeros(3, 6, dtype=torch.double)
+    old[:, 2] = -1e-6  # float32 roundoff below the plane, inside the 2 um penetration tolerance
+    new = old.clone()
+    new[0, 2] += .002          # lift
+    new[1, 0] += .001          # lateral at the same height
+    new[2, 2] -= .001          # deeper: must still be stopped at the stop gap
+    out, hit = continuing_joint_step(old, new, fk, geometry, 1., torch.ones(3, dtype=torch.bool))
+    torch.testing.assert_close(out[0], new[0])
+    assert out[1, 0].item() == pytest.approx(.001, abs=1e-12)
+    end = physical_gap(fk(out), geometry)
+    assert (end >= geometry['stop_gap_m'] - 1e-9).all()
+    assert hit.tolist() == [False, True, True]

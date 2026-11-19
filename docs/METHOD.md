@@ -6,16 +6,16 @@ Current task version: **pose_depth_v3** in both material backends
 ([scene_v1.json](../configs/shared/scene_v1.json)): the pose_depth_v2 task rules
 (shared analytic maximum blade-depth progress in both backends and the WM, no
 spring-release shaping or learned release-progress head, pose +100 and failure
-precedence) plus analytic imagined survival. Current `board.motion=project_continue_v1`
+precedence) plus analytic imagined survival. Current `board.motion=project_continue_v2`
 removes permanent freezing while retaining a geometric board boundary.
 Exact equations: [TASK_FREE_CUT](TASK_FREE_CUT.md).
 pose_depth_v2 is read/evaluate-only for the 2026-11-16 runs; `train_gpu.py` and
 `train_sac_multi.py` refuse it. No pose_depth_v3 long training run has been launched.
 
 - WM state (v3): adds `last_wrench` (6, predicted, scaled by the force limits)
-  and `board_contact` (current projection flag, derived, not predicted). Historical transitions whose
+  and `board_contact` (current: end-of-step clearance <= 10 um, derived, not predicted). Historical transitions whose
   recorded start state is latched were zero-weighted in the old dynamics loss.
-  Current `project_continue_v1` predicts and fits contact-start transitions normally;
+  Current `project_continue_v2` (like f12ca04's v1) predicts and fits contact-start transitions normally;
   it has no persistent physical latch or latch-based loss mask.
   For historical latch metadata only, dynamics error is averaged over valid unlatched starts and
   terminal BCE over all valid transitions, with independent full-batch denominators

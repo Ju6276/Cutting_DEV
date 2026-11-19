@@ -21,7 +21,7 @@ def test_current_shared_scene_preserves_archive_except_version_and_authorized_ho
     assert current['common']['task']['horizon_steps'] == 500
     archived['common']['task']['version'] = 'pose_depth_v3'
     archived['common']['task']['horizon_steps'] = 500
-    archived['common']['task']['board']['motion'] = 'project_continue_v1'
+    archived['common']['task']['board']['motion'] = 'project_continue_v2'
     assert archived == current
     validate_task(current['common']['task'])
 
@@ -33,12 +33,17 @@ def test_v2_training_is_refused_and_v3_is_accepted():
         refuse_retired_training({'version': 'pose_depth_v2'})
 
 
-@pytest.mark.parametrize('retired',['pose_depth_v2','pose_depth_v3'])
+@pytest.mark.parametrize('retired',['pose_depth_v2','pose_depth_v3','pose_depth_v3_continue_v1'])
 def test_train_gpu_refuses_v2_config_before_building_physics(tmp_path, monkeypatch,retired):
     sys.path.insert(0, str(ROOT / 'scripts'))
     import train_gpu
     task = json.loads(ARCHIVE.read_text())['common']['task']
-    task['version']=retired
+    task['version']=retired[:len('pose_depth_vN')]
+    message={'pose_depth_v2':'pose_depth_v2 is kept only to read/evaluate',
+             'pose_depth_v3':'Historical pose_depth_v3 board latch is read/evaluate-only',
+             'pose_depth_v3_continue_v1':'project_continue_v1 .* read/evaluate-only'}[retired]
+    if retired.endswith('continue_v1'):
+        task['board']['motion']='project_continue_v1'
     config = tmp_path / 'v2.json'
     config.write_text(json.dumps({'task': task, 'groups': []}))
     built = []
@@ -47,11 +52,11 @@ def test_train_gpu_refuses_v2_config_before_building_physics(tmp_path, monkeypat
                         classmethod(lambda cls, *a, **k: built.append(1)))
     args = SimpleNamespace(backend_root=ROOT / 'backends/mujoco', seed=0, force_penalty='sliceit',
                            force_penalty_scale=50., blademaster_config=None, conditions=config)
-    with pytest.raises(ValueError, match='kept only|read/evaluate-only'):
+    with pytest.raises(ValueError, match=message):
         train_gpu.run(args, tmp_path, {}, 0.)
     bm = tmp_path / 'bm.json'
     bm.write_text(json.dumps({'task': task, 'worlds': 1}))
-    with pytest.raises(ValueError, match='kept only|read/evaluate-only'):
+    with pytest.raises(ValueError, match=message):
         train_gpu.run(SimpleNamespace(**{**vars(args), 'conditions': None, 'blademaster_config': bm}),
                       tmp_path, {}, 0.)
     assert not built
@@ -64,3 +69,11 @@ def test_training_guard_rejects_legacy_v3_but_accepts_current_contract():
         refuse_retired_training(old)
     current=json.loads(CURRENT.read_text())['common']['task']
     refuse_retired_training(current)
+    assert current['board']['motion']=='project_continue_v2'
+    # f12ca04 continuation (minimum-norm projection, projection-only contact flag):
+    # still a valid task for evaluation, but refused for training/resume.
+    v1=json.loads(CURRENT.read_text())['common']['task']
+    v1['board']['motion']='project_continue_v1'
+    validate_task(v1)
+    with pytest.raises(ValueError,match='project_continue_v1 .* read/evaluate-only'):
+        refuse_retired_training(v1)

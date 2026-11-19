@@ -44,10 +44,40 @@ def swept_joint_fraction(old_q, new_q, fk, geometry, reach_bound, active):
     return torch.where(hit, lo, full), hit
 
 
-CONTINUE_BOARD = 'project_continue_v1'
+# Machine-checked board-continuation semantics recorded in task.board.motion.
+# v1 (f12ca04): flag = projected AND clearance <= 10 um; minimum-norm joint
+# projection. Read/evaluate-only: kept so its checkpoints evaluate as recorded.
+# v2 (current): flag = clearance <= 10 um (state property, board_contact below).
+CONTINUE_BOARD_V1 = 'project_continue_v1'
+CONTINUE_BOARD = 'project_continue_v2'
+CONTINUING_MOTIONS = (CONTINUE_BOARD_V1, CONTINUE_BOARD)
+# Clearance band (m) above the physical board plane that counts as resting on it.
+BOARD_CONTACT_GAP_M = 1e-5
+# Float32 roundoff below the plane tolerated by the adapters' penetration checks.
+PENETRATION_TOLERANCE_M = 2e-6
 
 def continuing_board(config):
+    """Any non-latching board (current or the read/evaluate-only v1)."""
+    return config.get('motion') in CONTINUING_MOTIONS
+
+
+def current_board(config):
+    """The current continuation semantics (CONTINUE_BOARD)."""
     return config.get('motion') == CONTINUE_BOARD
+
+
+def board_contact(gap):
+    """Continuing-board contact flag: a property of the end-of-step pose alone.
+
+    True iff the finite-blade clearance above the board plane is <= 10 um. It does
+    not depend on whether a projection acted during the step, so recorded
+    (already projected) states and imagined states evaluate it identically. The
+    physical adapters (DiSECt, BladeMaster) and the WM all call this function on
+    gap_from_pose of the recorded joint configuration. Historical metadata keeps
+    its own rule: latch (projected/shortened AND gap <= 10 um, absorbing) and
+    project_continue_v1 (projected AND gap <= 10 um, per step).
+    """
+    return gap <= BOARD_CONTACT_GAP_M
 
 
 def project_joint_endpoint(proposed, fk, geometry):
@@ -95,6 +125,10 @@ def continuing_joint_step(old_q, proposed, fk, geometry, reach_bound, active):
     start = gap_from_pose(fk(old_q), geometry)
     stop = geometry['stop_gap_m']
 
+    # A recorded start may sit up to the float32 tolerance below the plane; then
+    # the swept path must only not go deeper than it starts (lift/lateral allowed).
+    floor = start.clamp(-PENETRATION_TOLERANCE_M, 0)
+
     def safe(f):
         end = gap_from_pose(fk(old_q + f[..., None]*delta), geometry)
         # Each vertex's signed clearance is bounded below by its endpoint chord
@@ -102,7 +136,7 @@ def continuing_joint_step(old_q, proposed, fk, geometry, reach_bound, active):
         c = reach_bound * (f*delta.abs().sum(-1)).square() / 2
         t = ((c + start - end) / (2*c).clamp_min(1e-30)).clamp(0,1)
         lower = (1-t)*start + t*end - c*t*(1-t)
-        return (end >= stop-1e-8) & (lower >= 0)
+        return (end >= stop-1e-8) & (lower >= floor)
 
     full = torch.ones_like(start)
     shortened = active & ~safe(full)

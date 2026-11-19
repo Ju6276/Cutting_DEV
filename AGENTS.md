@@ -79,7 +79,8 @@
 - Current development is consolidated on origin/main. Frozen training checkouts retain their recorded revisions. Vision method2 starts with centered cuts and fixed object headings; PLAN defines this pipeline pilot, not a generalization claim. Do not interpret legacy reproduction branches or archived plans as current launch instructions.
 
 - Authorized V3 correction (2026-11-19): current shared config records
-  `task.board.motion=project_continue_v1`. No permanent board latch: material,
+  `task.board.motion=project_continue_v2` (f12ca04's project_continue_v1 is
+  evaluate-only). No permanent board latch: material,
   controller and sensor continue after per-substep geometric nonpenetration
   projection. Keep cumulative arrival >10, 2 mm, +100, existing failure rules and
   500-step horizon. No first-arrival/V4 task or board reaction-force model.

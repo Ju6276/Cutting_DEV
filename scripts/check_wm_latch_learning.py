@@ -40,7 +40,8 @@ def main():
     torch.set_num_threads(2);torch.manual_seed(17)
     cfg=json.loads(args.config.read_text())
     assert cfg['task']['version']=='pose_depth_v3'
-    if cfg['task']['board'].get('motion') == 'project_continue_v1':
+    from cutting_gpu_backend.tool_mount import continuing_board
+    if continuing_board(cfg['task']['board']):
         raise ValueError('Historical latch-only probe; current V3 uses check_board_continue.py')
     # Bounded single-object coverage probe, not a multi-object training result.
     cfg['groups']=cfg['groups'][:1]
