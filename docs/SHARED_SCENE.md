@@ -202,8 +202,7 @@ configs. Hash checks reject edits to prepared assets or a mismatched contract.
 
 ~~~bash
 source scripts/env/cutting_env.sh
-export PYTHONPATH=.:backends/mujoco
-PY=/dataHDD/dong/Envs/cutting-mppi-20261108/bin/python
+PY=python
 $PY scripts/prepare_shared_scenes.py --contract configs/shared/scene_v1.json --output runs/NEW_SHARED_SCENE/assets
 $PY scripts/check_pose_depth.py --backend disect --shared-contract configs/shared/scene_v1.json --prepared runs/NEW_SHARED_SCENE/assets/manifest.json --output runs/NEW_SHARED_SCENE/disect.json --seconds 900
 $PY scripts/check_pose_depth.py --backend blademaster --shared-contract configs/shared/scene_v1.json --prepared runs/NEW_SHARED_SCENE/assets/manifest.json --output runs/NEW_SHARED_SCENE/blademaster.json --seconds 900

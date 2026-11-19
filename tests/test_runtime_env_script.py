@@ -20,7 +20,7 @@ def source_env(tmp_path, host, overrides=None, selected='base'):
     root = tmp_path / 'checkout'
     (root / 'scripts/env').mkdir(parents=True)
     shutil.copyfile(SCRIPT, root / 'scripts/env/cutting_env.sh')
-    for venv in ('.venv', '.venv-sac'):
+    for venv in ('.venv', '.venv-sac', '.venv-render'):
         (root / venv / 'bin').mkdir(parents=True)
         (root / venv / 'bin/python').symlink_to(sys.executable)
     (root / 'hostname').write_text('#!/bin/sh\nprintf "%s\n" "' + host + '"\n')
@@ -55,6 +55,22 @@ def test_explicit_paths_and_device_selection_survive_sourcing(tmp_path):
     for key, val in overrides.items():
         assert out[key] == (f'{root}:{root}/backends/mujoco:{val}' if key == 'PYTHONPATH' else val)
     assert out['PATH'].split(':')[0] == str(root / '.venv-sac/bin')
+
+
+@pytest.mark.parametrize('selected', ['sac', 'planner'])
+def test_baseline_and_planner_names_select_the_baselines_env(tmp_path, selected):
+    root, out = source_env(tmp_path, 'tamsGPU7', selected=selected)
+    assert out['PATH'].split(':')[0] == str(root / '.venv-sac/bin')
+
+
+def test_render_name_selects_the_render_env(tmp_path):
+    root, out = source_env(tmp_path, 'tamsGPU9', selected='render')
+    assert out['PATH'].split(':')[0] == str(root / '.venv-render/bin')
+
+
+def test_unknown_env_name_is_rejected(tmp_path):
+    with pytest.raises(subprocess.CalledProcessError):
+        source_env(tmp_path, 'tamsGPU7', selected='mppi')
 
 
 def test_explicit_cpu_only_selection_is_not_replaced_by_host_gpu(tmp_path):

@@ -113,7 +113,8 @@ The two historical 2026-11-14/15 training outputs are under
 | Experiments (repository runs symlink) | /dataHDD/dong/Experiments/Cutting_DEV/runs |
 | Prepared robot/material data (backend runs symlink) | /dataHDD/dong/Assets/Cutting_DEV/prepared |
 | Main Python environment | /dataHDD/dong/Projects/CuttingGpuBackend/.venv |
-| MPPI / renderer environments | /dataHDD/dong/Envs/cutting-mppi-20261108 / render-20261108 |
+| Planner/SAC environment (all servers) | checkout `.venv-sac` -> /dataHDD/dong/Envs/cutting-sac (scripts/env/make_sac_env.sh); GPU7 cutting-mppi-20261108 kept for historical runs |
+| Renderer environment | /dataHDD/dong/Envs/render-20261108 (GPU7) |
 | Earlier MPPI development | /dataHDD/dong/Experiments/Cutting_DEV/mpc_development_20261108 |
 | Earlier metrics | /dataHDD/dong/Experiments/Cutting_DEV/legacy_metrics |
 

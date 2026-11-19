@@ -211,9 +211,10 @@ In a server checkout, first `source scripts/env/cutting_env.sh` (tracked;
 sets CUDA_HOME, TORCH_EXTENSIONS_DIR, caches, PYTHONPATH and the host's GPU). An empty shell does not
 have a working DiSECt kernel environment.
 
-For full optional-MPPI coverage on GPU7, use
-`/dataHDD/dong/Envs/cutting-mppi-20261108/bin/python` for the root suite;
-the backend suite uses the base environment as below.
+For full optional-MPPI/SAC coverage, run the root suite after
+`CUTTING_ENV=planner source scripts/env/cutting_env.sh` with `python -m pytest`
+(`.venv-sac` has SB3 and the pinned pytorch_mppi on every server); the backend
+suite uses the base environment as below.
 
 ```bash
 source scripts/env/cutting_env.sh
@@ -274,9 +275,11 @@ GPU7 storage:
 - Runs: /dataHDD/dong/Experiments/Cutting_DEV/runs; the checkout's runs links here.
 - Prepared robot/material assets: /dataHDD/dong/Assets/Cutting_DEV/prepared;
   backends/mujoco/runs links here.
-- Planner Python: /dataHDD/dong/Envs/cutting-mppi-20261108/bin/python.
-  This environment imports the base GPU packages through its existing
-  cutting-base.pth; keep the main checkout's base .venv link.
+- Planner/SAC environment on every server: the checkout's `.venv-sac`
+  (`CUTTING_ENV=planner` or `sac`), built by scripts/env/make_sac_env.sh over the
+  base packages; it contains every package of the former GPU7-only
+  /dataHDD/dong/Envs/cutting-mppi-20261108 (same names and versions, checked
+  2026-11-19), which is kept only for historical runs.
 - Rendering Python: /dataHDD/dong/Envs/render-20261108/bin/python.
 - Archived experiment checkouts:
   /dataHDD/dong/Archive/cutting_cleanup_20261109/code.
@@ -287,8 +290,8 @@ GPU7 storage:
   including the 2026-11-04 video renderers): /dataHDD/dong/Archive/gpu9_20261110.
   All of that code is superseded by main; no merge needed. GPU9 run data stays on GPU9.
 
-Source scripts/env/cutting_env.sh before GPU commands. For MPC commands
-above, use the planner Python explicitly. Machine addresses, protected active
+Source scripts/env/cutting_env.sh before GPU commands. WM+MPPI and analytic MPC
+need `CUTTING_ENV=planner`; the base `.venv` has no pytorch_mppi. Machine addresses, protected active
 paths and the migration inventory are in the server's runs/operations/MACHINES.md.
 Machine notes are timestamped observations, not proof that a job is still active.
 A6000 keeps its existing checkouts and dependencies; inspect current process
@@ -539,7 +542,8 @@ without depending on an editable backend install.
 Keep the shared studio scene unchanged, then append synchronized charts:
 
 ~~~bash
-PYTHONPATH=. /dataHDD/dong/Envs/cutting-mppi-20261108/bin/python scripts/compose_wrench_video.py   --render RUN/studio/cucumber.mp4 --output RUN/studio/cucumber_wrench.mp4
+CUTTING_ENV=planner source scripts/env/cutting_env.sh
+python scripts/compose_wrench_video.py   --render RUN/studio/cucumber.mp4 --output RUN/studio/cucumber_wrench.mp4
 ~~~
 
 Requires the video's JSON sidecar and original evaluate_pose_policy recording,

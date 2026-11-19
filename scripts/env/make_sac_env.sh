@@ -17,4 +17,14 @@ if [ ! -x "$env_dir/bin/python" ]; then
 fi
 "$env_dir/bin/python" -m pip install -q -r requirements-baselines.txt
 ln -sfn "$env_dir" .venv-sac
-.venv-sac/bin/python -c "import torch, warp, stable_baselines3, pytorch_mppi; print('sac env ok', torch.__version__, warp.__version__, stable_baselines3.__version__)"
+.venv-sac/bin/python - <<'PY'
+import importlib.metadata as md, json, torch, warp, stable_baselines3, pytorch_mppi
+import re
+MPPI_REVISION = re.search(r"MPPI_REVISION = '([0-9a-f]{40})'",
+    open('cutting_world_model/shared_baselines.py').read()).group(1)
+vcs = json.loads(md.distribution('pytorch-mppi').read_text('direct_url.json') or '{}').get('vcs_info', {})
+if vcs.get('commit_id') != MPPI_REVISION:
+    raise SystemExit(f"pytorch_mppi revision {vcs.get('commit_id')} != pinned {MPPI_REVISION}")
+print('sac/planner env ok', torch.__version__, warp.__version__, stable_baselines3.__version__,
+      'pytorch_mppi', MPPI_REVISION[:7])
+PY

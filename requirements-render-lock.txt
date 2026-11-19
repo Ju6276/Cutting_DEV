@@ -1,0 +1,22 @@
+# Offline renderer environment (VTK studio, MuJoCo 4 studio, scan/collada, charts).
+# Exact freeze of GPU7 /dataHDD/dong/Envs/render-20261108 (2026-11-19). Separate from the
+# learning env: MuJoCo 4.0 here vs 3.16 in .venv. Build with scripts/env/make_render_env.sh.
+contourpy==1.4.0
+cycler==0.12.1
+fonttools==4.68.0
+glfw==2.11.0
+kiwisolver==1.5.1
+matplotlib==3.11.2
+mujoco==4.0.0
+mujoco-core==4.0.0
+mujoco-studio==4.0.0
+numpy==2.5.4
+packaging==26.3
+pillow==13.0.0
+pycollada==0.9.3
+PyOpenGL==3.1.10
+pyparsing==3.3.3
+python-dateutil==4.0.0
+tzdata==2026.6
+vtk==9.7.2
+websockets==17.4

@@ -1,8 +1,12 @@
 # Runtime environment for Cutting_DEV on the GPU servers. Source from the repository root:
 #   source scripts/env/cutting_env.sh          # WM+BPTT, evaluation, tests (.venv)
-#   CUTTING_ENV=sac source scripts/env/cutting_env.sh   # SAC baselines (.venv-sac)
+#   CUTTING_ENV=sac source scripts/env/cutting_env.sh      # SAC baseline (.venv-sac)
+#   CUTTING_ENV=planner source scripts/env/cutting_env.sh  # WM+MPPI / analytic MPC (.venv-sac)
+#   CUTTING_ENV=render source scripts/env/cutting_env.sh   # offline studio/VTK rendering (.venv-render)
 # .venv is the host's base GPU environment (torch/warp/mujoco); .venv-sac layers
-# requirements-baselines.txt on top of it (scripts/env/make_sac_env.sh).
+# requirements-baselines.txt on top of it (scripts/env/make_sac_env.sh). That file includes
+# requirements-mpc.txt, so the same env holds SB3 and the pinned pytorch_mppi; the base
+# .venv has neither (evaluate_pose_policy.py --method wm_mppi|analytic_mpc fails there).
 # Nonempty overrides take precedence over host defaults. An explicitly empty
 # CUDA_VISIBLE_DEVICES remains empty (CPU-only). GPU defaults are not reservations.
 _root="$(pwd)"
@@ -11,11 +15,12 @@ if [ ! -f "$_root/scripts/env/cutting_env.sh" ]; then
 fi
 case "${CUTTING_ENV:-base}" in
     base) _venv="$_root/.venv" ;;
-    sac)  _venv="$_root/.venv-sac" ;;
-    *) echo "cutting_env.sh: CUTTING_ENV must be base or sac" >&2; return 1 2>/dev/null || exit 1 ;;
+    sac|planner) _venv="$_root/.venv-sac" ;;
+    render) _venv="$_root/.venv-render" ;;
+    *) echo "cutting_env.sh: CUTTING_ENV must be base, sac, planner or render" >&2; return 1 2>/dev/null || exit 1 ;;
 esac
 if [ ! -x "$_venv/bin/python" ]; then
-    echo "cutting_env.sh: $_venv/bin/python missing (sac: run scripts/env/make_sac_env.sh)" >&2
+    echo "cutting_env.sh: $_venv/bin/python missing (sac/planner: scripts/env/make_sac_env.sh; render: scripts/env/make_render_env.sh)" >&2
     return 1 2>/dev/null || exit 1
 fi
 case "$(hostname -s)" in
