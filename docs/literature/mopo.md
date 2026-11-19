@@ -1,5 +1,8 @@
 # MOPO — pessimistic offline model-based policy optimization
 
+> Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
+> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
+
 Reviewed 2026-11-10. [Paper, 2005.13239](https://arxiv.org/abs/2005.13239).
 Read scope: §§3–6, assumptions, practical uncertainty estimator, main tables.
 Core author code inspected at
@@ -29,9 +32,6 @@ norms of each member's learned standard deviations. The diagnostic
 `step_ph` path does not apply the same penalty; it is not evidence of a ready
 differentiable constrained actor implementation.
 
-## Relevance
+## Relevance to the current method
 
-Pessimism against model exploitation is prior art. Route B must compare against
-a fairly calibrated ensemble and disclose distribution assumptions; adding
-an uncertainty penalty alone is not new. A statistically conservative force
-estimate and a return-error bound are different objects.
+Model pessimism is prior art, not a component of the selected main configuration. This paper is background for distinguishing model error from control performance; it does not establish a calibrated sensor-force bound for our task.

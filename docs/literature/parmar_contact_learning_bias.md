@@ -1,5 +1,8 @@
 # Fundamental Challenges in Deep Learning for Stiff Contact Dynamics
 
+> Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
+> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
+
 - Primary paper: [Parmar, Halm, Posa, arXiv:2103.15406v1](https://arxiv.org/abs/2103.15406v1), eight pages. Read on 2026-11-10: main Sections I–VI and Appendices I–III, including experimental definitions and recurrent/residual-model discussion. This note does not claim the proposed remedies were implemented by the authors.
 - Official code: [DAIRLab/ContactLearningBias](https://github.com/DAIRLab/ContactLearningBias), inspected commit `65d23dd0ef2e7c39f517cc771ea74ce7b968d6a2`.
 - Remote evidence: `/dataHDD/dong/Research/cutting_literature_20261110/contact_risk/2103.15406.pdf` and `code/contact_bias/`. No experiments were run.
@@ -30,13 +33,9 @@ Read the full executable logic of `RNNPredictor.py`, `train.py`, `learning_utils
 
 Static portability issues were also visible: the MLP training branch refers to `MLPPredictor` without the matching import in the inspected `train.py`, and scripts contain author-specific filesystem paths. These observations are not a runtime reproduction and do not invalidate the reported paper results.
 
-## Relation to Route B
+## Relevance to the current method
 
-This is strong evidence against treating our force-peak error as merely an insufficient loss weight or an MLP capacity issue. Contact-time uncertainty, partial observations and force filtering can matter before calibration is considered.
-
-Useful borrowing: report contact-onset timing and short recursive rollout behavior separately from aggregate one-step MSE. Do not soften our simulator or lower contact stiffness merely to improve the model fit.
-
-Not supplied by this work: a calibrated force bound, a safe policy update, or a proof that a particular cutting representation fixes the problem. It motivates examining whether the model gives the correct *action-dependent change* in force, rather than only the correct average force.
+The paper shows why contact timing, partial observations and filtering can affect learned dynamics. It does not diagnose the cause of this project's errors. Its relevant lesson is to compare contact-onset and multi-step predictions with actual execution, rather than infer policy quality from one-step MSE alone. No simulator softening or new force-risk mechanism is selected here.
 
 ## Remaining limits
 

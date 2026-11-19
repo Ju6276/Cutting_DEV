@@ -1,5 +1,8 @@
 # Cautious Model Predictive Control Using Gaussian Process Regression
 
+> Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
+> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
+
 - Primary paper: [Hewing, Kabzan, Zeilinger, arXiv:1705.10702v4](https://arxiv.org/abs/1705.10702v4), 12 pages. Read on 2026-11-10: all main Sections I–VI, derivations, experiments and implementation approximations. No separate appendix was present in the retrieved PDF.
 - Remote paper: `/dataHDD/dong/Research/cutting_literature_20261110/contact_risk/1705.10702.pdf`.
 - Code search: checked the paper/arXiv entry and exact-title GitHub searches. No author repository specifically reproducing this paper was verified. Third-party implementations are not counted as author code. Evidence is **paper only**.
@@ -28,13 +31,9 @@ This matters for our comparisons: practical learned-model MPC is not synonymous 
 
 These are navigation/dynamics tasks, not cutting, force-peak regression or BPTT-trained policy learning. The gains cannot be transferred numerically to our simulator.
 
-## Relation to Route B
+## Relevance to the current method
 
-Already established: learned dynamics + propagated model uncertainty + online optimization under chance constraints. Therefore simply putting an upper prediction bound into MPPI/MPC is not a new general principle.
-
-Useful borrowing: distinguish observation noise, model error and rollout uncertainty; state exactly which approximation is propagated; budget online compute; account for action-dependent uncertainty.
-
-What remains open for our implementation is not answered here: partially observed, irreversible cutting state; force maxima between control samples; and whether a model's action gradient points toward a physically lower-force action. Calibrating a marginal force bound is only one part of that control question.
+Learned dynamics, propagated uncertainty and chance-constrained MPC are prior art. The current method does not implement this GP controller or claim its guarantees. The reference motivates explicit online-compute accounting and separation of observation noise, model error and rollout uncertainty; its assumptions do not automatically transfer to irreversible cutting.
 
 ## Remaining limits
 

@@ -1,5 +1,8 @@
 # Constrained Policy Optimization
 
+> Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
+> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
+
 - Paper: [arXiv:1705.10528v1](https://arxiv.org/abs/1705.10528v1), ICML 2017. Read on 2026-11-10: full main Sections 1–9 and Appendix Sections 10.1–10.3, including performance-bound derivations, optimization solution and experiment details.
 - Official implementation: [jachiam/cpo](https://github.com/jachiam/cpo), linked by the [authors' BAIR article](https://bair.berkeley.edu/blog/2017/07/06/cpo/). Code pinned to `5c83925a84bc21dfc9f8bceb82f85daf2937e595`.
 - Remote paper/source: `/dataHDD/dong/Research/cutting_literature_20261110/contact_risk/1705.10528.pdf` and `contact_risk/code/cpo`.
@@ -35,10 +38,6 @@ At commit `5c83925a84bc21dfc9f8bceb82f85daf2937e595`:
 - `safety_constraints/predictor_bonus_base.py:ParameterizedBonusSafetyConstraint` fits a sigmoid network using squared error. `prepare_inputs` labels whether a violation occurs within `lag_time` future samples; `get_bonus` adds a scaled nonnegative prediction. It does not calibrate a physical force upper bound.
 - `experiments/CPO_point_gather.py` fixes one example's policy, reward/cost baselines, cost budget and training settings. Other paper tasks use their own settings; these values are not proposed replacements for the cutting configuration.
 
-## Implications for Route B
+## Relevance to the current method
 
-CPO is a relevant constrained-RL comparator or conceptual baseline, not a drop-in WM+MPC module. Constraining average cost is not equivalent to predicting and avoiding a peak force event.
-
-A method that replaces the CPO cost with force still needs to state whether it constrains expected accumulated cost, probability of any violation, a filtered sensor component, or an interval maximum. Conformal coverage does not turn CPO's expected constraint into a hard guarantee.
-
-A worthwhile cutting mechanism must address what the model knows about changing contact/material history and how its action sensitivity affects control. The existence of this paper rules out treating “separate safety cost plus policy optimization” as a new idea.
+CPO is a constrained-RL precedent, not a WM+MPC implementation used by this project. Expected accumulated cost, event probability and interval peak wrench are different constraint quantities. The current main method does not claim CPO's guarantees.

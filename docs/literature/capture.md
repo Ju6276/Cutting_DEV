@@ -1,4 +1,7 @@
 # CaPTURe：接触分层的共形粒子集合
+
+> Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
+> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
 核对日期：2026-11-10。证据：全文 T；没有取得作者算法代码，不能标 C。
 来源：[arXiv 2608.09166v1](https://arxiv.org/abs/2608.09166v1)；[作者项目页](https://um-arm-lab.github.io/capture/)。
 已读：全文 §§1–7、Appendix A/B，31 页；包括分层覆盖证明、两任务数据生成、规划配置与消融。原文件在服务器 research/contact_risk/2608.09166.*。
@@ -10,5 +13,6 @@
 ## 代码及可复现边界
 作者项目页可见 PDF、poster、交互图和结果；本轮没有发现算法 Code 链接。没有把页面可视化源码当成规划/校准算法源码，也没有运行实验。若作者另行发布代码需继续核对 commit。
 
-## 对我们 B 的影响
-“按接触阶段校准，而非全局固定余量”已有直接先例；不能据此独立声称方法新意。可借用其训练/分组/校准数据严格分离、候选未来模式求并集、按模式单独统计覆盖。不能照搬已知刚性几何层：切割中的损伤与再接触会改变未来动力学，并非固定 C-space 边界。要研究这一差别，必须先证明可观测历史对力风险存在额外信息。当前已有 peak_wrench 输出，因此新增峰值头也不是贡献。
+## 与当前研究的关系
+
+接触模式条件化校准已有先例。当前主线没有采用本文的校准机制；本文可用于区分预测覆盖和控制结果，也不能把已有 peak_wrench 输出本身当成方法新意。其已知刚性几何条件与可变形材料切割不同。

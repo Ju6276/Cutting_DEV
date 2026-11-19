@@ -1,5 +1,8 @@
 # SMBPO：Safe Reinforcement Learning by Imagining the Near Future
 
+> Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
+> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
+
 核对日期：2026-11-10。论文 [2202.07789v1](https://arxiv.org/abs/2202.07789v1)，已读 §§1–6、附录 A.1–A.3。官方 [gwthomas/Safe-MBPO](https://github.com/gwthomas/Safe-MBPO)，提交 416dd13b6d4eceec7ac89ece161627e166ea54d8；未运行。
 
 ## 论文与假设
@@ -14,8 +17,8 @@
 - BatchedGaussianEnsemble 学状态增量和奖励的高斯均值/方差；模型随机抽取，不做 conformal 校准。
 - 代码将整个违规转移 target 直接赋为吸收值，不能直接替换本项目只扣一次终止罚分的任务定义。
 
-## 对 B 的意义
+## 与当前研究的关系
 
-短视野预警、学习模型和失败罚项并不新。可借鉴“可恢复性”与“当下是否超限”分开：切割控制中的制动距离、柔顺内部速度可能使尚未超限的动作已经不可恢复。但这只是有依据的研究问题，不能据本文就证明我们的回合存在此机制。它的校准要求是所有状态动作上的集合包含真值，远强于分布边际 conformal 覆盖。
+本文提供基于学习模型的安全控制先例，但当前主线没有采用其可恢复性判定或安全保证。实际力限事件、预测误差和策略执行结果需要分别报告；本文不能证明当前切割任务存在不可恢复动作。
 
 资料：服务器 contact_risk/2202.07789.* 与 code/smbpo/。未阅读其他基线库；未进行实验复现。

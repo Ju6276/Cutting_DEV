@@ -1,5 +1,8 @@
 # Chee 等：Conformal Prediction Robustification（L4DC 2024）
 
+> Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
+> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
+
 核对日期：2026-11-10。[会议全文与来源](https://proceedings.mlr.press/v242/chee24a.html)，13 页全部正文、理论、算法和实验已读，无独立附录。
 
 ## 方法
@@ -13,10 +16,10 @@
 2. 从观测真状态起点的一步误差，不能直接等同从预测状态递推的多步误差；需显式误差传播或对完整 rollout 校准。
 3. 作者说闭环性能依赖下层跟踪，不在该理论保证内。不能将其直接称作整个机器人闭环安全证明。
 
-## 代码与对 B 的关系
+## 代码可得性与当前研究的关系
 
-论文、PMLR 页面及精确标题+作者+GitHub 检索未发现该篇独立官方代码；CasADi/IPOPT 是依赖，不能标成方法代码已开源。暂记“未发现可核对实现”，不是永久无代码。
+2026-11-10 的论文、PMLR 及精确标题检索未找到可核对的独立作者实现；CasADi/IPOPT 只是依赖。这不是永久无代码的断言。
 
-“校准预测 + 约束收紧 + 控制”已有明确先例。本项目若仅给预测力加校准余量再优化，不足以成为新的校准控制机制。能借鉴的是将模型覆盖、参考可行性和闭环结果分开报告；不能照搬边际覆盖到自适应策略下每步 force-limit。
+校准预测、约束收紧与控制已有先例。当前主线没有采用该校准机制；相关工作应区分预测覆盖、参考可行性和闭环表现，不把边际覆盖当作逐步力限保证。
 
 资料：服务器 contact_risk/chee24a.pdf 与文本。未逐篇阅读引用工作；未运行其控制实验。

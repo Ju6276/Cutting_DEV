@@ -1,4 +1,7 @@
 # AHAC：接触刚性引起的梯度问题与自适应展开长度
+
+> Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
+> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
 核对日期：2026-11-10。证据：全文 T + 作者核心代码 C；没有复现实验。
 来源：[arXiv 2405.17784v2](https://arxiv.org/abs/2405.17784v2)；[官方项目](https://adaptive-horizon-actor-critic.github.io/)。
 已读全文 §§1–7、Appendix A–I（20 页），包括假设、理论推导、单环境与并行版本、完整消融。
@@ -15,5 +18,6 @@
 - 当前 `DoubleCriticMLP` 用同一个 modules 列表建立两次 Sequential，模块对象因此共享。这是静态代码发现，未执行验证；不能直接宣称这份当前实现有两个独立 critic。
 - 当前并行归一化把负 acceleration 也用 maximum(negative,1)，与 AHAC-1 的保留符号截断不同。需先查版本才能拿它作严格实现模板。
 
-## 对 B 的意义
-短视野和接触处分段求导已有清晰先例；“动态缩短 rollout”不能直接当新意。AHAC 处理已知物理梯度的接触刚性，B 处理学到的模型的力误差，二者问题不同。若模型数值校准很好而动作梯度仍错误，应研究决策相关的梯度可靠性，不能仅用误差大小决定任意 detach。
+## 与当前研究的关系
+
+AHAC 处理可微物理仿真的接触刚性与展开长度；当前方法通过学到的世界模型做短时 BPTT。短视野本身不是新意，预测误差小也不保证策略梯度准确。当前实现没有采用 AHAC 的自适应时域。

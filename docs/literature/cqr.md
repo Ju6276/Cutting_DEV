@@ -1,5 +1,8 @@
 # CQR：Conformalized Quantile Regression
 
+> Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
+> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
+
 核对日期：2026-11-10。论文 [1905.03222v1](https://arxiv.org/abs/1905.03222v1)，全文 §§1–7、附录 A/B 与结果图表已读。官方 [yromano/cqr](https://github.com/yromano/cqr)，提交 37eeb0604cc57efc40b84e3539e8cfa8f09e30c1；未运行。
 
 ## 逐节与保证
@@ -16,8 +19,8 @@
 - QuantileRegErrFunc.apply_inverse 将超范围索引夹到最大残差。若 n 很小且所需覆盖太高，正确有限样本规则可能要求无穷区间；直接照搬这个夹取实现会失去该保证。
 - LearnerOptimizedCrossing.predict 的顺序 min/max 赋值在发生分位交叉时有覆盖原数组的风险。这里只是静态代码发现，未执行确认，不据此否定论文方法。
 
-## 对本项目
+## 与当前研究的关系
 
-可以用作 B 的标准校准基线；不构成方法新意。以回合最大欠预测分数校准时，样本数是独立回合数，不是该回合所有高度相关的帧数。多材料、策略迭代和以风险筛选采样都须另说明交换性或漂移。13 个事件的比较规则是开发决策，不是该定理给出的安全置信度；事件命中数和全样本覆盖率也不同。
+本条保留为校准方法背景，当前主线没有使用 CQR。若以后比较校准，必须明确独立样本单位、交换性假设及策略变化；同回合高度相关帧不自动构成独立样本。历史事件筛选规则不属于当前任务或论文成功标准。
 
 资料：contact_risk/1905.03222.*、code/cqr/。未核对全部数据清洗脚本与上游 sklearn 实现。

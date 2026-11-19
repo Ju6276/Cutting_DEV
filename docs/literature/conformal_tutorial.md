@@ -1,5 +1,8 @@
 # A Gentle Introduction to Conformal Prediction and Distribution-Free Uncertainty Quantification
 
+> Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
+> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
+
 - Primary paper: [Angelopoulos and Bates, arXiv:2107.07511v6](https://arxiv.org/abs/2107.07511v6), December 2022, 51 pages. Read on 2026-11-10: Sections 1–7 and Appendices A–D, including coverage proofs, distribution-shift qualifications and risk-control examples. Bibliography entries were used as pointers, not counted as separately read papers.
 - Author repository: [aangelopoulos/conformal-prediction](https://github.com/aangelopoulos/conformal-prediction), inspected commit `0426de356dbfa71c4c46be81d1973255ac66d050`.
 - Remote evidence: `/dataHDD/dong/Research/cutting_literature_20261110/contact_risk/2107.07511.pdf`, `code/conformal_tutorial/`.
@@ -43,13 +46,9 @@ The core routines are NumPy/SciPy post-processing of fixed predictions. There is
 
 A source-level caution: the uncertainty-scalar notebook calculates its coverage using rescaled intervals, but its final plotting cell reuses the CQR-style additive bounds. The illustrative plot should therefore not be copied as a verified visualization of the scalar method without correction. This is a static observation, not a reproduced numerical failure.
 
-## Implications for Route B
+## Relevance to the current method
 
-A calibrated upper force bound may be a useful component and diagnostic. It cannot alone justify “safe cutting” or a new policy-learning algorithm.
-
-In particular, with a constant calibrated radius `U(s,a)=f_hat(s,a)+q`, the action derivative remains `dU/da=df_hat/da`. Better numerical coverage does not repair an incorrect action-dependent force gradient. An action-dependent uncertainty term can change this derivative, but its reliability still requires evidence under the actions the optimizer actually chooses.
-
-For a small pilot, freeze the operating point on development data, preserve episode-level pairing, report gained and lost detected events and false alarms, and treat any count threshold as a resource-allocation rule. Do not rename it statistical significance or deployment safety.
+Calibration is background, not part of the selected main algorithm. A constant residual correction changes a predicted value but not its action derivative. Coverage, action-gradient quality and physical execution require different evidence; none follows merely from a force predictor. Historical event-count screening is not a current training gate or a safety guarantee.
 
 ## Remaining limits
 

@@ -1,4 +1,7 @@
 # CERL: Safe Exploration Using Bayesian World Models and Log-Barrier Optimization
+
+> Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
+> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
 Reviewed 2026-11-10. [Paper v1](https://arxiv.org/pdf/2405.05890).
 Read all eight pages: §§1–6, assumptions, experiments and limitations.
 ## Paper
@@ -10,10 +13,8 @@ Read all eight pages: §§1–6, assumptions, experiments and limitations.
 ## Code availability
 Paper points to https://anonymous.4open.science/r/safe-opax-F5FF/ rather than a versioned GitHub release.
 Repository retrieval/commit and executable-core inspection remain pending; no code-derived claims or reproduction claim are made.
-## Consequence for route B
-Pessimistic model-ensemble cost + BPTT + constrained policy update already exists.
-Replacing obstacle costs with force ratios is an adaptation, not automatically a new algorithm.
-A cutting contribution must address the actual peak-observation/prediction/control issue and demonstrate resulting behavior.
-CERL's expected-cost constraint cannot certify that every 2 ms sensor sample stays below our force threshold.
+## Relevance to the current method
 
-Follow-up code access on 2026-11-10: the official anonymous root, README endpoint and repository API all returned HTTP 403 from GPU7; the web tool could not retrieve the anonymous site. No code-read evidence is claimed. Exact-title/author-code searches did not verify a replacement public repository.
+Pessimistic model costs, BPTT and constrained policy updates are prior art. CERL is background, not the selected main algorithm. Its expected-cost constraint does not establish per-sample wrench safety in the current task.
+
+Follow-up code access on 2026-11-10: the official anonymous root, README endpoint and repository API returned HTTP 403 from GPU7; no code-read evidence or verified replacement release was obtained.

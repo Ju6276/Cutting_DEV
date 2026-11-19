@@ -1,4 +1,7 @@
-# CAP：Conservative and Adaptive Penalty（Route B 直接先例）
+# CAP：Conservative and Adaptive Penalty
+
+> Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
+> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
 
 核对日期：2026-11-10。论文：[arXiv 2112.07701v1](https://arxiv.org/abs/2112.07701v1)，已读主文、理论与附录 A–E。源码：[Redrew/CAP](https://github.com/Redrew/CAP)，提交 d870ccd9665038edd850dbb503d29a7369ec6e2a；未运行训练。
 
@@ -16,8 +19,8 @@
 - cap-planet/planner.py 对潜变量集成模型执行相似的约束采样规划。
 - run_cap_pets.py 连接真实环境成本记录和系数更新。只核对了相关调用与配置，未完整审计其模型训练实现；不据此声称整个仓库无 bug。
 
-## 对本项目的意义
+## 与当前研究的关系
 
-“给模型预测成本加不确定性，执行后适应保守程度”已经存在。B 必须区别于 CAP 的风险控制机制，而不仅把 cost 换成 force。可复用真实执行结果回馈保守性、以及保留不可行率的报告方式；不能把神经网络集成分歧直接写成有覆盖保证的上界。我们若做逐控制区间峰值约束，也应明确与累计期望代价的区别。
+不确定性成本与执行反馈调节保守程度已有先例。当前主线没有采用 CAP；神经网络集成分歧不能自动解释为有覆盖保证的力上界，累计期望成本也不同于逐区间峰值事件。
 
 资料：服务器 contact_risk/2112.07701.* 和 contact_risk/code/cap/。未阅读范围：库依赖内部实现与引用论文；未复现其 benchmark。

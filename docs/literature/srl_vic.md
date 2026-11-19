@@ -1,5 +1,8 @@
 # SRL-VIC: A Variable Stiffness-Based Safe Reinforcement Learning for Contact-Rich Robotic Tasks
 
+> Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
+> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
+
 - Paper: [arXiv:2406.13744v1](https://arxiv.org/abs/2406.13744v1), 8 pages. Read on 2026-11-10: all Sections I–V, equations, experimental setup, hyperparameters, simulation/real-robot results and discussion. No separate appendix was provided in this version.
 - Remote paper: `/dataHDD/dong/Research/cutting_literature_20261110/srl-vic.pdf`.
 - Author implementation: no SRL-VIC task/controller repository verified after checking the paper, arXiv links and exact-title/GitHub searches. The paper references [Recovery RL](https://github.com/abalakrishna123/recovery-rl), which is a **dependency/prior implementation, not the authors' released VIC experiment**.
@@ -39,10 +42,6 @@ At Recovery RL commit `084c968538850e82776564e07b9dcdffca369936`:
 
 These paths establish the upstream algorithm pattern. They do **not** verify the authors' force observation transform, VIC implementation, data collection or exact neural network choices. Source files were read statically; no experiment was rerun.
 
-## What this changes for our direction
+## Relevance to the current method
 
-Force-aware policy learning, adaptive stiffness, safety critics and recovery switching are established mechanisms. A new cutting paper cannot use that collection alone as its novelty.
-
-The current cutting task has irreversible internal damage and contact-mode changes. A wrench-only safety critic may alias states with different future force responses; adding history is plausible but is not by itself proof of a new algorithm. Route B should show that a specific model mechanism changes reliable action choice, not merely that a classifier predicts old trajectories better.
-
-Do not copy the paper's 40 N-style limit, risk discount or threshold into the cutting task. Existing task definitions and units must remain explicit. A learned risk score below a threshold is not a hard per-step force guarantee.
+Force-aware learning, variable stiffness, safety critics and recovery switching are established mechanisms. This is related-work evidence, not an implemented safety critic in the current cutting policy. History can help represent changing contact, but its benefit requires controlled ablations. Do not transfer this paper's force limits or risk thresholds to the current task.

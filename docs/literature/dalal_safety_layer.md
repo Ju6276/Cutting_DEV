@@ -1,5 +1,8 @@
 # Safe Exploration in Continuous Action Spaces
 
+> Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
+> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
+
 - Paper: [arXiv:1801.08757v1](https://arxiv.org/abs/1801.08757v1), Dalal et al., 2018. Read on 2026-11-10: full Sections 1–8, Proposition 1 and its proof, all environment/ablation details and discussion. No separate appendix in this version.
 - Remote paper: `/dataHDD/dong/Research/cutting_literature_20261110/contact_risk/1801.08757.pdf`.
 - Author source status: no official implementation verified after checking the paper/arXiv links and title/author/code searches.
@@ -45,10 +48,6 @@ At `828673a0f8d6d41c3df05763707c141f93b3294e`:
 - The optional random-start exploration branch bypasses the modifier; `get_safe_action` also divides by `g_i^T g_i` without an explicit zero-denominator guard. These are static implementation limitations, not reproduced numerical failures.
 - The environment implementations are separate PyTorch/Gym-era reproductions. No experiment or checkpoint from this repository was executed in this audit.
 
-## Implications for cutting and Route B
+## Relevance to the current method
 
-A calibrated force upper bound and an action correction are not sufficient novelty by themselves. The literature already has learned constraint sensitivities, projections and evidence that prediction loss can be misleading.
-
-A cutting-specific opportunity would need a concrete mechanism for reliable action effects across contact changes and irreversible damage history, plus evidence that the chosen actions improve physical outcomes. Merely adding a global conformal residual constant to the mean does not repair its derivative with respect to action.
-
-This paper also motivates an honest comparator: a simple learned local constraint-response model can be an informative baseline against a much larger WM. Whether it is adequate for the current cutting interval is an empirical question, not a reason to silently replace the existing task or force definition.
+Learned constraint sensitivities and action correction are established techniques. The current main policy does not implement this safety layer. This reference helps separate prediction quality, action effects and closed-loop constraint results; a calibrated prediction alone is not a safety or novelty claim.

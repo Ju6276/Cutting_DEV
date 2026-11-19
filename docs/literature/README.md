@@ -1,10 +1,10 @@
-# Literature review index — 2026-11-10
+# Literature review index — current scope updated 2026-11-19
 
 This is the per-paper evidence ledger requested by the user, produced by Codex
 with one literature subagent. It covers the named method papers in the reading list below
 and archived NOVELTY, with separately identified simulator and data references.
-[Synthesis](../archive/NOVELTY.md), [paper argument](../PAPER.md) and
-[current task list](../PLAN.md) have different roles.
+[Historical synthesis](../archive/NOVELTY.md) is not the current research plan.
+[PAPER](../PAPER.md) defines current claims; [PLAN](../PLAN.md) defines current work.
 
 Each record states **what was actually read**, method and data, relevant
 experiments/metrics, limitations, and inspected code/version where available.
@@ -13,12 +13,24 @@ A downloaded PDF, an abstract, a README or an advertised Code button is not
 counted as an implementation review. None of these external algorithms was
 trained or numerically reproduced in this review. No sealed test was opened.
 
-The main conclusion is conditional: the inherited WM+BPTT framework and a
-multi-object benchmark do not themselves establish a new method. B also needs
-a distinction from existing conservative world-model control, force MPC and
-contact-conditioned calibration. The recommended research question concerns
-useful action changes under changing cutting interaction; it is a hypothesis,
-not a claim that these papers prove an untouched gap.
+## Current use and historical interpretation
+
+Use these existing readings to build the current comparison of force-feedback
+compliant cutting, learned cutting models/MPC, sim-to-real cutting policies,
+and differentiable model-based control. Record observations, actions, actual
+interaction units, online computation and completion definitions. An unreported
+quantity remains unreported; control frequency is not measured inference latency.
+
+The selected method is history-conditioned WM+BPTT with a real-data critic and
+return-scaled BC, under the pose_depth_v3 task. No calibrated force-risk head or
+conservative-risk branch is selected. Pose-task success is evaluated by the
+approved arrival/failure rules; material-connection diagnostics do not relabel
+a successful episode as a policy failure.
+
+The November10 research hypotheses are retained only in
+[the dated interpretation archive](../archive/LITERATURE_POSITIONING_20261110.md).
+Original reading dates, paper findings and code-access limitations remain in
+the individual notes. This cleanup is not a new full-paper or code review.
 
 ## Storage and version provenance
 
@@ -139,13 +151,13 @@ Priority: **A** decides novelty or the paper's framing; **B** method background;
 | P | Paper | Why read |
 |---|---|---|
 | A | Luo, Yuan. *A Perception-Manipulation Robotics System for Food Cutting*. IROS 2026. [arXiv:2607.04367](https://arxiv.org/abs/2607.04367), [project](https://robotproject8.github.io/robocutting/) Note: [robocutting](robocutting.md). | Real UR5e food cutting. PPO tunes target downward force and sawing speed. Reward is downward progress minus mechanical work. Ten foods, one policy per food, plus knife selection from trial cuts. Their actions bound force to [-30, 0] N. Closest real-robot RL work. |
-| A | Beltran-Hernandez, Erbetti, Hamaya. *SliceIt! A Dual Simulator Framework for Learning Robot Food Slicing*. ICRA 2024. [arXiv:2404.02569](https://arxiv.org/abs/2404.02569) Note: [sliceit](sliceit.md). | Our task, reward and SAC baseline. Paper force-penalty formula differs from the code; see METHOD. |
+| A | Beltran-Hernandez, Erbetti, Hamaya. *SliceIt! A Dual Simulator Framework for Learning Robot Food Slicing*. ICRA 2024. [arXiv:2404.02569](https://arxiv.org/abs/2404.02569) Note: [sliceit](sliceit.md). | Task/controller precedent. Current pose_depth_v3 reward and vector SB3 SAC are adaptations, not exact original SliceIt reproduction; see METHOD. |
 | A | Wang, Bian, Heiden, Garg. *TopoCut: Learning Multi-Step Cutting with Spectral Rewards and Discrete Diffusion Policies*. arXiv 2025. [arXiv:2509.19712](https://arxiv.org/abs/2509.19712) Note: [topocut](topocut.md). | Cutting benchmark (MLS-MPM, Taichi): slice, stick and dice goals, seen and novel shapes. Kinematic knife; no sensor-force prediction target in the inspected method. Goal-conditioned diffusion behavior cloning; code still advertised as forthcoming. See the individual note; this does not by itself establish our novelty. |
 | A | Xu et al. *RoboNinja: Learning an Adaptive Cutting Policy for Multi-Material Objects*. RSS 2023. [arXiv:2302.11553](https://arxiv.org/abs/2302.11553) Note: [roboninja](roboninja.md). | Differentiable MPM; closed-loop policy trained from optimized trajectories; collision and energy metrics. |
 | A | Heiden et al. *DiSECt: A Differentiable Simulator for Parameter Inference and Control in Robotic Cutting*. Autonomous Robots. [arXiv:2203.10263](https://arxiv.org/abs/2203.10263) Note: [disect](disect.md). | Our material model; gradient trajectory optimization baseline; Ansys force data for sim validation. |
 | B | Heiden et al. *DiSECt: A Differentiable Simulation Engine for Autonomous Robotic Cutting*. RSS 2021. [arXiv:2105.12244](https://arxiv.org/abs/2105.12244) Note: [disect](disect.md). | Original DiSECt; mean-force and time objective. |
 | B | Lou et al. *DexNinja: Learning Robust Dexterous Cutting Policy with a Real-to-Sim-to-Real Data Engine*. arXiv 2026. [arXiv:2610.17208](https://arxiv.org/abs/2610.17208) Note: [dexninja](dexninja.md). | Dexterous-hand cutting with RGB-D and fingertip tactile input; ACT-style behavior cloning; differentiable MPM data engine built on RoboNinja; category-specific policies and real-robot generalization; assets release differs from algorithm code. |
-| B | Yang et al. *BladeMaster: Real-Time Robotic Cutting Simulation with Online-Generated Persistent Discontinuities*. arXiv 2026. [arXiv:2609.27342](https://arxiv.org/abs/2609.27342) Note: [blademaster](blademaster.md). | GPU TLMPM cutting with tool reaction forces and persistent cuts; no learning. Forward mechanics reference; no new simulator migration is planned. |
+| B | Yang et al. *BladeMaster: Real-Time Robotic Cutting Simulation with Online-Generated Persistent Discontinuities*. arXiv 2026. [arXiv:2609.27342](https://arxiv.org/abs/2609.27342) Note: [blademaster](blademaster.md). | GPU TLMPM cutting with tool reaction forces and persistent cuts; no learning. Forward mechanics reference; a native backend is now integrated. Local reproduction and author code remain distinct; see current METHOD. |
 | C | *CRESSim-MPM: A Material Point Method Library for Surgical Soft Body Simulation with Cutting and Suturing*. IROS 2025. [arXiv:2502.18437](https://arxiv.org/abs/2502.18437) Note: [cressim](cressim.md). | GPU MPM cutting, surgical domain. |
 | C | *Sashimi-Bot: autonomous tri-manual advanced manipulation and cutting of deformable objects*. npj Robotics 2026. [link](https://www.nature.com/articles/s44182-026-00098-9) Note: [sashimi_bot](sashimi_bot.md). | SAC transfers shape-pushing control; cutting uses geometric trajectories with tactile board-contact correction. Do not call cutting itself an RL policy. |
 | C | *Learning to Shape by Grinding: Cutting-surface-aware Model-based Reinforcement Learning*. [arXiv:2308.02150](https://arxiv.org/abs/2308.02150) Note: [grinding](grinding.md). | One of few model-based RL papers on material removal. |
@@ -167,11 +179,11 @@ Priority: **A** decides novelty or the paper's framing; **B** method background;
 
 | P | Paper | Why read |
 |---|---|---|
-| A | *SuperMimic: Scaling Humanoid Whole-Body Control with One Differentiable World Model*. CoRL 2026. [arXiv:2610.28480](https://arxiv.org/abs/2610.28480) Note: [supermimic](supermimic.md). | Our base method; no official code. |
+| A | *SuperMimic: Scaling Humanoid Whole-Body Control with One Differentiable World Model*. CoRL 2026. [arXiv:2610.28480](https://arxiv.org/abs/2610.28480) Note: [supermimic](supermimic.md). | Base-method precedent; the inspected implementation is a community reproduction. Author-code availability is recorded as of the reading date. |
 | B | Janner et al. *When to Trust Your Model: Model-Based Policy Optimization* (MBPO). [arXiv:1906.08253](https://arxiv.org/abs/1906.08253) Note: [mbpo](mbpo.md). | Short model rollouts augment SAC replay; this is not our BPTT actor implementation. |
 | B | Feinberg et al. *Model-Based Value Estimation* (MVE). [arXiv:1803.00101](https://arxiv.org/abs/1803.00101) Note: [mve](mve.md). | Model-expanded targets and TD-k at imagined states; not an implementation or justification of our `real`/`real_wm` targets. |
 | B | Buckman et al. *STEVE*. [arXiv:1807.01675](https://arxiv.org/abs/1807.01675) Note: [steve](steve.md). | Ensemble-weighted value expansion. |
-| B | Fujimoto, Gu. *A Minimalist Approach to Offline RL* (TD3+BC). [arXiv:2106.06860](https://arxiv.org/abs/2106.06860) Note: [td3_bc](td3_bc.md). | Precedent for actor BC regularization; original offline objective includes Q scaling and is not identical to our fixed online coefficient. |
+| B | Fujimoto, Gu. *A Minimalist Approach to Offline RL* (TD3+BC). [arXiv:2106.06860](https://arxiv.org/abs/2106.06860) Note: [td3_bc](td3_bc.md). | Precedent for actor BC regularization; original offline Q scaling is adapted to our mean-absolute imagined return; alpha=0.25 is not a fixed MSE multiplier. |
 | C | Yu et al. *MOPO: Model-based Offline Policy Optimization*. [arXiv:2005.13239](https://arxiv.org/abs/2005.13239) Note: [mopo](mopo.md). | Uncertainty-penalized model rewards. |
 | C | *Learning on the Fly: Rapid Policy Adaptation via Differentiable Simulation*. RA-L. [arXiv:2508.21065](https://arxiv.org/abs/2508.21065) Note: [learning_on_fly](learning_on_fly.md). | Differentiable simulation plus residual dynamics; RA-L format reference. |
 
@@ -195,4 +207,4 @@ alone therefore do not define a DiSECt food.
 
 ### Still to do
 
-Open reading items are tracked in [NOVELTY](../archive/NOVELTY.md) ("Still open").
+Current work is tracked in [PLAN](../PLAN.md) and [PAPER](../PAPER.md). The historical NOVELTY checklist is not an active work queue.

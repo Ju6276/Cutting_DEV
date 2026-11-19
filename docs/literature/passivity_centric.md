@@ -1,5 +1,8 @@
 # Passivity-Centric Safe Reinforcement Learning for Contact-Rich Robotic Tasks
 
+> Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
+> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
+
 - Paper: [arXiv:2503.00287v3](https://arxiv.org/abs/2503.00287v3), accepted Robotics and Autonomous Systems version, 27 pages. Read on 2026-11-10: complete Sections 1–4, including controller equations, all training/deployment experiments, limitations and supplementary-material statement. No separate appendix is present in the downloaded version.
 - Remote paper: `/dataHDD/dong/Research/cutting_literature_20261110/passivity.pdf`.
 - Author release: [Hugging Face passiveRL](https://huggingface.co/Anonymous998/passiveRL/tree/6f7468ee71565f13a6a6c462a87f53b5eb725bd9), revision `6f7468ee71565f13a6a6c462a87f53b5eb725bd9`.
@@ -36,10 +39,6 @@ Physical experiments use selected trained models with three trials per setting. 
 - Maze contact does not include irreversible cutting damage, material separation or changing internal topology.
 - Source code was not available in the checked author release, so exact discretization, numerical tank clamping and safety-network target handling were not verified.
 
-## Relation to cutting and Route B
+## Relevance to the current method
 
-This is a strong non-cutting precedent for **structured physical constraints plus learned compliant control**. It disproves a broad claim that prior safe learning ignores contact forces or energy.
-
-A cutting adaptation could use controller/energy structure, but passivity alone cannot replace the project's actual force-limit event definition or a substep peak-force predictor. Conversely, a statistically calibrated force bound cannot establish passivity. These are different claims.
-
-The useful lesson is methodological: a contribution needs an explicit physical or statistical mechanism with assumptions, not just another auxiliary loss. Copying an energy tank into the current controller would be an additional design change requiring its own cutting-specific justification; it is not recommended here as a spontaneous replacement for the approved S0–S4 route.
+This is a non-cutting precedent for physical structure in learned compliant control. Passivity, measured-force limits and statistical prediction coverage are distinct claims. The current main controller does not include this paper's energy-tank mechanism, and the paper is not evidence that our software board stop provides physical contact safety.
