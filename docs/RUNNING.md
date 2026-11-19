@@ -293,6 +293,11 @@ GPU7 storage:
   BladeMaster entry fails at import. This replaces the A6000-only
   /dataHDD/dong/Envs/blademaster-extra-20261114 that the 2026-11-16 BladeMaster run
   put on PYTHONPATH by hand (kept for that run).
+- Host capability difference: the source robot URDF references absolute mesh files from
+  ROS Noetic ur_description (/opt/ros/noetic/share) and the SliceIt catkin packages. GPU7
+  has them; A6000 has no ROS. On A6000 the source-URDF backend test is skipped (reason
+  printed) and studio export (`--source-root /opt/ros/noetic/share ...`) cannot run; run
+  those on GPU7. Training and evaluation use the prepared robot.mjb and are unaffected.
 - Renderer environment on every server: the checkout's `.venv-render`
   (`CUTTING_ENV=render`), built by scripts/env/make_render_env.sh from
   requirements-render-lock.txt, the exact package set of the former GPU7-only

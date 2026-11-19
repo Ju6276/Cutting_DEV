@@ -2,6 +2,8 @@ import sys
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
+import pytest
+
 import mujoco
 import numpy as np
 
@@ -74,6 +76,13 @@ def test_adjacent_collisions_follow_fixed_body_groups():
 def test_source_adjacent_collision_exclusion():
     urdf = Path('runs/model/robot.urdf')
     robot = ET.parse(urdf).getroot()
+    # Compiling the source URDF needs its absolute mesh files (ROS Noetic ur_description and the
+    # SliceIt packages). Hosts without them (A6000 has no ROS) cannot run this source check;
+    # the prepared robot.mjb used by training/evaluation does not need them.
+    missing = sorted({m.get('filename') for m in robot.iter('mesh')
+                      if m.get('filename') and not Path(m.get('filename').replace('file://', '')).exists()})
+    if missing:
+        pytest.skip(f'source URDF meshes not installed on this host ({len(missing)} missing, e.g. {missing[0]})')
     spec = mujoco.MjSpec.from_file(str(urdf))
     original = spec.compile()
     for first, second in adjacent_collision_pairs(robot, 'b_bot_base_link'):
