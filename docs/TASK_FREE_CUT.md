@@ -72,11 +72,17 @@ Changed (v3 only):
 - Reset (full or partial): latch and last_wrench reset only for reset worlds;
   last_wrench = the initialised sensor reading. Generic restore_frame remains
   unsupported for board tasks.
-- WM fit: transitions whose recorded start state is latched are zero-weighted
-  in the dynamics loss (normalisation by valid transitions unchanged); the
-  first-contact transition is kept. A batch without unlatched starts skips the
-  dynamics optimizer update. Logged: dynamics_fit_count, dynamics_masked_count,
-  dynamics_skipped_batches. Terminal BCE unchanged.
+- WM fit (normalization corrected 2026-11-19): transitions whose recorded start
+  state is latched are zero-weighted in the dynamics loss; the first-contact
+  transition is kept. Dynamics error is divided by the number of valid unlatched
+  starts, while terminal BCE is divided by all valid transitions. Microbatches
+  use these two full-batch denominators independently. A batch without unlatched
+  starts skips the dynamics optimizer update (including Adam momentum/decay);
+  terminal-head fitting continues. Logged: dynamics_fit_count,
+  dynamics_masked_count, dynamics_masked_fraction, dynamics_skipped_batches.
+  Checkpoints record wm_loss_normalization=separate_fit_valid_v1; resuming an older
+  v3 checkpoint warns that its training loss changes. Network weights and
+  evaluation semantics remain load-compatible. v2/free_cut loss rules are unchanged.
 - Imagined survival: success (+100), failure (−100) and timeout are all settled
   analytically, so survival = prod(1 − absorbed) in actor imagination, GAE
   targets and WM+MPPI. The terminal head is still fitted with the same BCE and
@@ -86,9 +92,12 @@ Changed (v3 only):
   separation diagnostic; it refuses every pose task (including v3) at load, so its
   analytic-survival line is never reached. The v3 WM prediction diagnostic is
   scripts/diagnose_pose_predictions.py (docs/RUNNING.md).
-- Reading the WM loss: with more latched transitions the dynamics loss and its
-  gradient shrink by construction. Report dynamics_fit_count with the loss and
-  judge prediction quality on unlatched transitions only.
+- Reading historical WM losses: before the 2026-11-19 normalization correction,
+  v3 divided masked dynamics error by all valid transitions, so adding latched
+  rows diluted that term. New losses average only the transitions being predicted;
+  report the fit/masked counts and do not interpret the resulting increase in
+  state_loss relative to old logs as worse prediction. Adding latched rows can
+  still change BCE and its gradient; its population has not been restricted.
 - v3 refuses v2 checkpoints, critics and replay (state shape/version checks).
 
 Unchanged: reward weights, +100 arrival rule, −100 failures, thresholds,

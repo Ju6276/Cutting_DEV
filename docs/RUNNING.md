@@ -635,3 +635,26 @@ commanded reference paths. It does not validate learned WM prediction accuracy,
 all material randomizations or BladeMaster reference trajectories.
 The source-URDF mesh test needs the original meshes (available on GPU7); its
 absence on A6000 is an explicit skip, not validation of source-scene export.
+
+
+### Bounded latch-loss normalization check
+
+Use a generated pose_depth_v3 config and a fresh output directory:
+
+    source scripts/env/cutting_env.sh
+    python -m scripts.check_wm_latch_learning --backend disect \
+      --config PATH_TO_GENERATED_DISECT_JSON --output runs/latch_loss_check \
+      --wall-seconds 1800
+
+For BladeMaster select --backend blademaster and its generated config; --saw
+adds small oscillatory lateral actions to the bounded coverage probe. The probe
+uses three cucumber worlds, actual six-channel actions, and a small WM (32,32).
+It requires first contact, held-start transitions and reset coverage; it fails
+rather than declaring coverage when no latch occurs. It checks the real replay
+mask, WM updates and checkpoint/replay restoration. It performs no policy
+updates and is not evidence about training quality or long-run memory stability.
+
+The WM checkpoint field wm_loss_normalization records separate_fit_valid_v1
+for the corrected v3 loss. Older v3 checkpoints still load, but training restore
+warns about the changed dynamics/BCE normalization. Evaluation and task rules
+are unchanged.

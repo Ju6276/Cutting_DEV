@@ -188,6 +188,11 @@ class OnlineLearner:
             self.progress(phase="risk_ensemble" if member else "world_model", minibatch=batch_index + 1, minibatches=cfg.batches_per_update)
             batch = buffer.sample_windows(cfg.batch_size, cfg.window)
             valid = getattr(batch, 'valid_steps', None)
+            separate_normalization = getattr(model.spec, 'board_latch', False)
+            if separate_normalization and valid is None:
+                valid = torch.ones_like(batch.done, dtype=torch.bool)
+            if separate_normalization:
+                fit_total = (valid & ~model.spec.contact(batch.states[:-1])[..., 0]).sum()
             if valid is not None:
                 count = valid.sum()
                 for key, value in {
@@ -205,12 +210,14 @@ class OnlineLearner:
                         batch.states[:, part], batch.a_exec[:, part], batch.xi[part], batch.done[:, part])
                 else:
                     weight = valid[:, part].sum().to(batch.states.dtype) / count
+                    kwargs = ({'normalization_counts': (fit_total, count)}
+                              if separate_normalization else {})
                     loss, metrics = model.window_loss(
                         batch.states[:, part], batch.a_exec[:, part], batch.xi[part], batch.done[:, part],
-                        valid[:, part])
+                        valid[:, part], **kwargs)
                 if not torch.isfinite(loss):
                     raise FloatingPointError('Non-finite world-model loss')
-                (loss * weight).backward()
+                (loss if separate_normalization else loss * weight).backward()
                 batch_fit += int(metrics.get('dynamics_fit_count', 0))
                 metrics['loss'] = loss.detach()
                 for key, value in metrics.items():
@@ -223,6 +230,11 @@ class OnlineLearner:
                         continue
                     metric_weight = ((part.stop - part.start) / cfg.batch_size
                                      if key in ('nse_1step', 'nse_kstep') else weight)
+                    if separate_normalization:
+                        if key == 'state_loss':
+                            metric_weight = metrics['dynamics_fit_count'].to(batch.states.dtype) / fit_total.clamp_min(1)
+                        elif key == 'loss':
+                            metric_weight = 1.  # already divided by full-batch populations
                     aggregate[key] = (aggregate.get(key, 0.)
                                       + value.detach() * metric_weight / cfg.batches_per_update)
             if getattr(model.spec, 'board_latch', False) and batch_fit == 0:
@@ -240,6 +252,9 @@ class OnlineLearner:
                                                           'nse_1step_count', 'nse_kstep_count'}
         metrics = {key: int(value) if key in count_keys else float(value)
                    for key, value in aggregate.items()}
+        if 'dynamics_masked_count' in metrics:
+            total = metrics['dynamics_fit_count'] + metrics['dynamics_masked_count']
+            metrics['dynamics_masked_fraction'] = metrics['dynamics_masked_count'] / max(total, 1)
         for rate, numerator in RATE_COUNTS.items():
             if numerator in metrics:
                 metrics[rate] = metrics[numerator] / metrics['metric_transition_count']
@@ -674,8 +689,14 @@ class OnlineLearner:
                 'prefit_rounds': self.critic_prefit_rounds,
                 'prefit_pending': self.critic_prefit_pending}
 
+    @property
+    def wm_loss_normalization(self):
+        return ('separate_fit_valid_v1' if getattr(self.wm.spec, 'board_latch', False)
+                else 'valid_transitions_v1')
+
     def checkpoint(self):
         return {'imagination_terminal_rule': 'task_absorbing_v1',
+                'wm_loss_normalization': self.wm_loss_normalization,
                 'world_model': self.wm.state_dict(), 'policy': self.policy.state_dict(),
                 'critic': self.critic.state_dict(), 'wm_optimizer': self.wopt.state_dict(),
                 'policy_optimizer': self.popt.state_dict(), 'critic_optimizer': self.copt.state_dict(),
@@ -704,6 +725,14 @@ class OnlineLearner:
         """
         if data.get('imagination_terminal_rule') != 'task_absorbing_v1':
             raise ValueError('Checkpoint imagination terminal rule differs')
+        saved_normalization = data.get('wm_loss_normalization', 'valid_transitions_v1')
+        if saved_normalization != self.wm_loss_normalization:
+            if saved_normalization != 'valid_transitions_v1':
+                raise ValueError('Checkpoint WM loss normalization differs')
+            import warnings
+            warnings.warn('Resuming an older board-latch checkpoint with separate dynamics/BCE '
+                          'normalization; this changes the training loss, not evaluation semantics.',
+                          RuntimeWarning)
         # Checkpoints written before the variant existed were trained on imagined targets.
         variant = data.get('critic_variant', {'target': 'imagined', 'reset_update': None,
                                               'prefit_rounds': 0, 'prefit_pending': False})

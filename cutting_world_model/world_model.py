@@ -143,11 +143,12 @@ class CuttingWorldModel(nn.Module):
             return (self.spec.field(states[1:], 'cut_progress')[..., 0] >= 1).to(done.dtype)
         return done
 
-    def window_loss(self, states, actions, goal, done, valid_steps=None):
+    def window_loss(self, states, actions, goal, done, valid_steps=None, *, normalization_counts=None):
         if valid_steps is None and hasattr(self.spec, 'free_task'):
             valid_steps = torch.ones_like(done, dtype=torch.bool)
         if valid_steps is not None:
-            return self.masked_window_loss(states, actions, goal, done, valid_steps)
+            return self.masked_window_loss(states, actions, goal, done, valid_steps,
+                                           normalization_counts=normalization_counts)
         done = self.completion_labels(states, done)
         state = states[0]
         loss_state = states.new_zeros(())
@@ -168,7 +169,7 @@ class CuttingWorldModel(nn.Module):
                       'term_acc': correct / done.numel(), 'term_correct_count': correct,
                       'metric_transition_count': correct.new_tensor(done.numel())}
 
-    def masked_window_loss(self, states, actions, goal, done, valid_steps):
+    def masked_window_loss(self, states, actions, goal, done, valid_steps, *, normalization_counts=None):
         if valid_steps.shape != done.shape or valid_steps.dtype != torch.bool:
             raise ValueError('Valid-step mask must be boolean and align with termination labels')
         if not valid_steps[0].all() or (valid_steps[1:] & ~valid_steps[:-1]).any():
@@ -203,7 +204,7 @@ class CuttingWorldModel(nn.Module):
                 # pose_depth_v3: a transition whose recorded START state is latched at the
                 # software board stop is frozen by rule, not by dynamics; it is zero-weighted
                 # in the dynamics fit. The first-contact transition (unlatched start) is kept.
-                # Normalization stays the valid count, so the terminal BCE is unchanged.
+                # Dynamics and BCE use their own sample populations (see normalization below).
                 fit = valid & ~self.spec.contact(states[t])[..., 0]
                 dynamics_count = dynamics_count + fit.sum()
             compared = torch.where(fit[:, None], predicted, target)
@@ -233,8 +234,20 @@ class CuttingWorldModel(nn.Module):
             if t == 0:
                 first_sum, first_count = torch.where(fit, error, 0.).sum(), fit.sum()
             state = torch.where(valid[:, None], predicted, state)
-        loss = (loss_state + loss_term) / count
-        return loss, {'state_loss': loss_state.detach() / count,
+        # v3: rule-frozen rows provide no dynamics targets. Their frequency must not
+        # dilute the mean prediction loss. BCE still uses every valid transition.
+        # A trainer microbatch may supply the FULL batch populations: its returned
+        # loss is then an additive contribution, not a local mean to weight again.
+        dynamics_denominator = dynamics_count.clamp_min(1) if latch else count
+        if normalization_counts is None:
+            loss = (loss_state / dynamics_denominator + loss_term / count if latch
+                    else (loss_state + loss_term) / count)
+        else:
+            if not latch:
+                raise ValueError('Separate loss normalization is only supported for board-latch tasks')
+            fit_total, valid_total = normalization_counts
+            loss = loss_state / fit_total.clamp_min(1) + loss_term / valid_total
+        return loss, {'state_loss': loss_state.detach() / dynamics_denominator,
                       'term_bce': loss_term.detach() / count,
                       'nse_1step': first_sum / first_count.clamp_min(1),
                       'nse_kstep': torch.where(has_fit, last_error, 0.).sum() / has_fit.sum().clamp_min(1),

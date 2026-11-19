@@ -1,7 +1,7 @@
 """World-model loss decomposition for gradient diagnostics (no training).
 
 ``window_loss_components`` repeats ``CuttingWorldModel.masked_window_loss`` but keeps the
-state loss per physical field. Its components sum to the training loss numerator, so
+state loss per physical field. Its effective numerators sum to the training loss numerator, so
 gradients of the components sum to the training gradient.
 """
 import torch
@@ -20,10 +20,14 @@ def field_slices(spec, state):
     return slices
 
 
-def window_loss_components(wm, states, actions, goal, done, valid_steps):
-    """Summed squared state error per physical field, summed terminal BCE and valid count.
+def window_loss_components(wm, states, actions, goal, done, valid_steps, *, normalization_counts=None):
+    """Effective field numerators, summed terminal BCE and LOCAL valid count.
 
-    (sum of field sums + terminal sum) / count equals ``wm.window_loss`` with the mask.
+    With no normalization_counts, (sum(fields) + terminal) / count equals the
+    training loss. For v3, field sums are rescaled by valid_count / fit_count.
+    For a microbatch, pass full-batch (fit, valid) counts, then divide every
+    returned numerator by the full valid count, NOT the local returned count.
+    Non-latched versions keep their original raw sums exactly.
     """
     if valid_steps.shape != done.shape or valid_steps.dtype != torch.bool:
         raise ValueError('Valid-step mask must be boolean and align with termination labels')
@@ -55,7 +59,15 @@ def window_loss_components(wm, states, actions, goal, done, valid_steps):
         bce = F.binary_cross_entropy_with_logits(logits, labels, reduction='none')
         terminal = terminal + torch.where(valid, bce, 0.).sum()
         state = torch.where(valid[:, None], predicted, state)
-    return fields, terminal, valid_steps.sum()
+    count = valid_steps.sum()
+    if getattr(spec, 'board_latch', False):
+        fit_count = (valid_steps & ~spec.contact(states[:-1])[..., 0]).sum()
+        fit_total, valid_total = (fit_count, count) if normalization_counts is None else normalization_counts
+        factor = valid_total.to(states.dtype) / fit_total.clamp_min(1)
+        fields = {name: value * factor for name, value in fields.items()}
+    elif normalization_counts is not None:
+        raise ValueError('Separate loss normalization is only supported for board-latch tasks')
+    return fields, terminal, count
 
 
 def flat_grad(loss, parameters, retain_graph=True):

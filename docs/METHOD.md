@@ -1,6 +1,6 @@
 # Implementation reference
 
-## Active configuration — pose_depth_v3 (updated 2026-11-18)
+## Active configuration — pose_depth_v3 (updated 2026-11-19)
 
 Current task version: **pose_depth_v3** in both material backends
 ([scene_v1.json](../configs/shared/scene_v1.json)): the pose_depth_v2 task rules
@@ -14,6 +14,11 @@ pose_depth_v2 is read/evaluate-only for the 2026-11-16 runs; `train_gpu.py` and
 - WM state (v3): adds `last_wrench` (6, predicted, scaled by the force limits)
   and `board_contact` (latch flag, derived, not predicted). Transitions whose
   recorded start state is latched are zero-weighted in the dynamics loss.
+  Since 2026-11-19, dynamics error is averaged over valid unlatched starts and
+  terminal BCE over all valid transitions, with independent full-batch denominators
+  during microbatch accumulation (separate_fit_valid_v1). This corrects the earlier
+  v3 loss dilution; it does not change rewards or evaluation. Old v3 resume warns
+  about the change; checkpoints record the normalization rule.
 - Imagined survival (v3): success, failure and timeout are settled analytically
   in actor imagination, GAE targets and WM+MPPI; the learned terminal head is
   still fitted and logged, not used as survival.

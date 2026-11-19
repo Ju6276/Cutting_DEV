@@ -1409,3 +1409,67 @@ literature edits. GPU9 was unreachable and was not synchronized. Multi-hour memo
 behaviour with repeated resets remains unverified; a short suite is not that check.
 BladeMaster's ten-trajectory audit and real-physics pending-round resume remain
 coverage gaps. No new long run was started.
+
+
+## 2026-11-19 — v3 dynamics loss normalized by fitted transitions
+
+Correctness repair, not a new reward or policy design. Base: 3a75b2e.
+For valid transitions V and recorded unlatched starts F, the WM objective is now
+sum(prediction_error over F)/|F| + sum(terminal_BCE over V)/|V|.
+An empty F contributes zero dynamics error and skips dynamics Adam state/parameter
+updates; terminal-head fitting continues. Each microbatch uses the full batch's
+two denominators. First-contact transitions remain fitted. The gradient diagnostic
+helper and its legacy batch aggregator use the same normalization.
+
+Checkpoints record wm_loss_normalization=separate_fit_valid_v1. Older v3 training
+restores warn that the loss changes; task, architecture, reward, success and
+evaluation rules are unchanged. The new dynamics_masked_fraction reports the
+actual sampled training population, not a geometric proxy for board contact.
+
+Negative checks:
+- With fixed unlatched samples, adding three held rows per fitted row changed
+  old state_loss from 0.0024928555053112854 to 0.0006232138763278214 (one quarter).
+  The regression fails on the old implementation and passes after repair.
+- Restoring only the old trainer while keeping the corrected local loss makes
+  six microbatch checks fail. Local normalization alone is insufficient.
+- Leaving the diagnostic decomposition unchanged reports loss 0.728888019020123
+  instead of the corrected training loss 0.7307576606491065 on the same fixture.
+  Its repaired components and gradients match training for multiple microbatch sizes.
+- pose_depth_v2 and free_cut_v3: metrics, gradients and updated weights are
+  bit-identical to the base revision for tested microbatch sizes 1 and 2.
+
+Real physical checks (three cucumber worlds per backend, actual six-channel FDCC
+actions, reference=False; a small (32,32) WM and zero policy updates):
+
+| Probe | Steps | First-contact transitions | Held-start transitions | Unlatched after reset |
+|---|---:|---:|---:|---:|
+| DiSECt straight controls | 180 | 13 | 54 | 272 |
+| DiSECt with lateral oscillation | 23 | 4 | 4 | 18 |
+| BladeMaster with lateral oscillation | 21 | 2 | 6 | 14 |
+
+The initial BladeMaster straight-action probe did not exercise locking and was
+stopped; it is not counted as passed coverage. The oscillatory probe uses actual
+actions rather than injecting unmatched reference actions into replay.
+
+All completed probes matched recorded latch counts to replay, performed WM updates,
+saved/restored paired learner and replay, and reproduced the next sampled WM update
+bit-for-bit with restored CUDA RNG. Both oscillatory probes additionally selected
+real all-held windows after ordinary updates: dynamics parameters and Adam state
+were exactly unchanged, dynamics_fit_count=0, and dynamics_skipped_batches=1.
+Partial resets cleared only selected latches; unselected joint states stayed equal.
+These are learner/replay restoration checks, not a new test of the full runner's
+pending-round scheduler or an exact restart of the live material simulator.
+
+Validation on GPU7: final root suite 713 passed / 5 skipped; backend suite 43
+passed. The five skips concern the historical gym/TensorFlow SAC bridge, not
+v3 normalization. The root suite includes 15 new normalization, microbatch,
+checkpoint and diagnostic regressions. Final tested source hashes are recorded
+in tested_sources.json. Runtime scopes are separated above; no test count alone
+is presented as physical or long-training validation.
+
+Evidence stays on the servers under runs/wm_loss_normalization_20261119/:
+GPU7 before_corrected.log, without_trainer_fix.log, diagnostic_negative.json,
+legacy_identity.json, root_final.log, backend.log, physical_disect/ and
+physical_disect_saw/; A6000 physical_blademaster_saw/. No long training was started.
+This validates normalization and execution, not improved policy quality or
+hours-long memory stability. Old v2 behavior cannot be explained by this v3 mask.

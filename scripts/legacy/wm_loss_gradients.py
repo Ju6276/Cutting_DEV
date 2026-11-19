@@ -74,10 +74,14 @@ def batch_gradients(learner, batch):
     head = list(wm.term_head.parameters())
     valid = batch.valid_steps
     count = valid.sum().to(batch.states.dtype)
+    normalization = {}
+    if getattr(wm.spec, 'board_latch', False):
+        fit = (valid & ~wm.spec.contact(batch.states[:-1])[..., 0]).sum()
+        normalization = {'normalization_counts': (fit, valid.sum())}
     grads, head_grad, sums = {}, None, {}
     for part in chunks(batch.states.shape[1], learner.microbatch):
         fields, terminal, _ = window_loss_components(
-            wm, batch.states[:, part], batch.a_exec[:, part], batch.xi[part], batch.done[:, part], valid[:, part])
+            wm, batch.states[:, part], batch.a_exec[:, part], batch.xi[part], batch.done[:, part], valid[:, part], **normalization)
         components = {**fields, 'terminal_bce': terminal}
         for name, value in components.items():
             g = flat_grad(value / count, dynamics)

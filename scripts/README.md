@@ -20,6 +20,7 @@ distinguishes interface support from tested task-version/backend combinations.
 | Frozen RL, SAC, WM+MPPI, analytic MPC | `evaluate_pose_policy.py --method wm_policy|sac|wm_mppi|analytic_mpc` |
 | Recorded entry / short-run resume evidence | python -m scripts.verify_entry and python -m scripts.verify_resume; missing stages fail |
 | DiSECt reference reward audit | audit_pose_reward.py with explicit current config; all groups, ten trajectories |
+| Physical latch/reset, separately normalized WM loss and save/restore | python -m scripts.check_wm_latch_learning --config GENERATED_CONFIG --backend BACKEND (disect or blademaster) --output NEW_DIR; optional --saw; bounded probe, no policy updates |
 | Actual collection/update/reset/replay capacity | `check_training_capacity.py` |
 | Task/reward equations and optional tool-position rule | `check_pose_depth.py`; [SHARED_SCENE](../docs/SHARED_SCENE.md) |
 | pose_depth_v3 WM/terminal-head/critic prediction diagnostic on frozen-policy trajectories | `diagnose_pose_predictions.py`; [RUNNING](../docs/RUNNING.md#pose_depth_v3-wm-prediction-diagnostic) |
