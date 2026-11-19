@@ -7,6 +7,9 @@
 # requirements-baselines.txt on top of it (scripts/env/make_sac_env.sh). That file includes
 # requirements-mpc.txt, so the same env holds SB3 and the pinned pytorch_mppi; the base
 # .venv has neither (evaluate_pose_policy.py --method wm_mppi|analytic_mpc fails there).
+# Native BladeMaster needs scipy, which no base .venv has: scripts/env/make_bm_extra.sh installs
+# requirements-blademaster-runtime.txt into CUTTING_BM_EXTRA (default
+# /dataHDD/dong/Envs/cutting-bm-extra), added to PYTHONPATH when present.
 # Nonempty overrides take precedence over host defaults. An explicitly empty
 # CUDA_VISIBLE_DEVICES remains empty (CPU-only). GPU defaults are not reservations.
 _root="$(pwd)"
@@ -42,6 +45,8 @@ export SLICEIT_ROOT="${SLICEIT_ROOT:-/dataHDD/dong/Projects/SliceIt}"
 export CUTTING_LOGGER_PYTHON="${CUTTING_LOGGER_PYTHON:-$_root/.venv/bin/python}"
 export NETRC="${NETRC:-/dataHDD/dong/.config/wandb/netrc}"
 # Current checkout takes precedence; retain explicitly supplied extra modules.
-export PYTHONPATH="$_root:$_root/backends/mujoco${PYTHONPATH:+:$PYTHONPATH}"
-echo "cutting_env: $(hostname -s) env=${CUTTING_ENV:-base} python=$_venv/bin/python commit=$(git -C "$_root" rev-parse --short HEAD) gpu=$CUDA_VISIBLE_DEVICES"
-unset _root _venv _arch _gpu
+_bm_extra="${CUTTING_BM_EXTRA:-/dataHDD/dong/Envs/cutting-bm-extra}"
+if [ -d "$_bm_extra" ]; then _bm_path=":$_bm_extra"; _bm_state="$_bm_extra"; else _bm_path=""; _bm_state="missing (BladeMaster needs scripts/env/make_bm_extra.sh)"; fi
+export PYTHONPATH="$_root:$_root/backends/mujoco$_bm_path${PYTHONPATH:+:$PYTHONPATH}"
+echo "cutting_env: $(hostname -s) env=${CUTTING_ENV:-base} python=$_venv/bin/python commit=$(git -C "$_root" rev-parse --short HEAD) gpu=$CUDA_VISIBLE_DEVICES bm_extra=$_bm_state"
+unset _root _venv _arch _gpu _bm_extra _bm_path _bm_state

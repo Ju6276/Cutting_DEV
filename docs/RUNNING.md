@@ -280,6 +280,13 @@ GPU7 storage:
   base packages; it contains every package of the former GPU7-only
   /dataHDD/dong/Envs/cutting-mppi-20261108 (same names and versions, checked
   2026-11-19), which is kept only for historical runs.
+- Native BladeMaster runtime extras on every server: scipy==1.18.1 (pinned by
+  BladeMaster-Warp; no base `.venv` has scipy), installed without dependencies by
+  scripts/env/make_bm_extra.sh into /dataHDD/dong/Envs/cutting-bm-extra, which
+  cutting_env.sh adds to PYTHONPATH (its banner prints `bm_extra=`). Without it every
+  BladeMaster entry fails at import. This replaces the A6000-only
+  /dataHDD/dong/Envs/blademaster-extra-20261114 that the 2026-11-16 BladeMaster run
+  put on PYTHONPATH by hand (kept for that run).
 - Renderer environment on every server: the checkout's `.venv-render`
   (`CUTTING_ENV=render`), built by scripts/env/make_render_env.sh from
   requirements-render-lock.txt, the exact package set of the former GPU7-only

@@ -114,6 +114,7 @@ The two historical 2026-11-14/15 training outputs are under
 | Prepared robot/material data (backend runs symlink) | /dataHDD/dong/Assets/Cutting_DEV/prepared |
 | Main Python environment | /dataHDD/dong/Projects/CuttingGpuBackend/.venv |
 | Planner/SAC environment (all servers) | checkout `.venv-sac` -> /dataHDD/dong/Envs/cutting-sac (scripts/env/make_sac_env.sh); GPU7 cutting-mppi-20261108 kept for historical runs |
+| BladeMaster runtime extras (all servers) | /dataHDD/dong/Envs/cutting-bm-extra (scripts/env/make_bm_extra.sh, requirements-blademaster-runtime.txt); A6000 blademaster-extra-20261114 kept for the 2026-11-16 run |
 | Renderer environment (all servers) | checkout `.venv-render` -> /dataHDD/dong/Envs/cutting-render (scripts/env/make_render_env.sh, requirements-render-lock.txt); GPU7 render-20261108 kept for historical runs |
 | Earlier MPPI development | /dataHDD/dong/Experiments/Cutting_DEV/mpc_development_20261108 |
 | Earlier metrics | /dataHDD/dong/Experiments/Cutting_DEV/legacy_metrics |

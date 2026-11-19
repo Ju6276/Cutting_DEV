@@ -27,7 +27,8 @@ def source_env(tmp_path, host, overrides=None, selected='base'):
     (root / 'hostname').chmod(0o755)
     (root / 'dump.py').write_text(
         'import os,json,sys\nprint("RESULT="+json.dumps({k:os.environ.get(k) for k in sys.argv[1:]}))')
-    env = {k: v for k, v in os.environ.items() if k not in KEYS and k != 'CUTTING_ENV'}
+    env = {k: v for k, v in os.environ.items() if k not in KEYS and k not in ('CUTTING_ENV', 'CUTTING_BM_EXTRA')}
+    env['CUTTING_BM_EXTRA'] = str(tmp_path / 'no_bm_extra')  # absent unless a test creates it
     env.update(PATH=str(root) + os.pathsep + env['PATH'], CUTTING_ENV=selected)
     env.update(overrides or {})
     result = subprocess.run(
@@ -66,6 +67,13 @@ def test_baseline_and_planner_names_select_the_baselines_env(tmp_path, selected)
 def test_render_name_selects_the_render_env(tmp_path):
     root, out = source_env(tmp_path, 'tamsGPU9', selected='render')
     assert out['PATH'].split(':')[0] == str(root / '.venv-render/bin')
+
+
+def test_blademaster_extras_join_pythonpath_when_present(tmp_path):
+    extra = tmp_path / 'bm_extra'
+    extra.mkdir()
+    root, out = source_env(tmp_path, 'tamsGPU7', {'CUTTING_BM_EXTRA': str(extra)})
+    assert out['PYTHONPATH'] == f'{root}:{root}/backends/mujoco:{extra}'
 
 
 def test_unknown_env_name_is_rejected(tmp_path):

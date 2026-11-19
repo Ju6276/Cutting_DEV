@@ -1,0 +1,4 @@
+# Runtime import of the native BladeMaster backend (blademaster_warp/scenarios.py imports scipy).
+# Version pinned by BladeMaster-Warp requirements.txt. Installed WITHOUT dependencies into a
+# separate target directory over the base .venv (numpy 2.5.4 there); see scripts/env/make_bm_extra.sh.
+scipy==1.18.1
