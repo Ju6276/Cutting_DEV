@@ -278,8 +278,15 @@ def collect(env, learner, horizon):
         # with a termination, so missing steps are NaN (not measured), never zero.
         for key in PHYSICAL_SEPARATION:
             value = info.get(key)
-            put('physical_' + key, torch.full((n,), float('nan'), dtype=torch.float64) if value is None
-                else value.reshape(n).double())
+            if value is None:
+                value = torch.full((n,), float('nan'), dtype=torch.float64)
+            else:
+                value = value.reshape(n).double()
+                if key == 'material_components':
+                    # BladeMaster marks worlds that did not terminate on this step with -1
+                    # (blademaster_backend.py); store the same NaN "not measured" marker.
+                    value = torch.where(value < 0, torch.full_like(value, float('nan')), value)
+            put('physical_' + key, value)
         ended = (terminated | truncated).to(device)
         alive = alive & ~ended
         state = next_state
