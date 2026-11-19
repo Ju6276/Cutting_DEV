@@ -13,11 +13,14 @@ CURRENT = ROOT / 'configs/shared/scene_v1.json'
 ARCHIVE = ROOT / 'configs/archive/shared_scene_v1_pose_depth_v2_20261116/scene_v1.json'
 
 
-def test_current_shared_scene_is_v3_and_archive_differs_only_in_version():
+def test_current_shared_scene_preserves_archive_except_version_and_authorized_horizon():
     current, archived = (json.loads(p.read_text()) for p in (CURRENT, ARCHIVE))
     assert current['common']['task']['version'] == CURRENT_POSE_DEPTH == 'pose_depth_v3'
     assert archived['common']['task']['version'] == 'pose_depth_v2'
+    assert archived['common']['task']['horizon_steps'] == 180
+    assert current['common']['task']['horizon_steps'] == 500
     archived['common']['task']['version'] = 'pose_depth_v3'
+    archived['common']['task']['horizon_steps'] = 500
     assert archived == current
     validate_task(current['common']['task'])
 

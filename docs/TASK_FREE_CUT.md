@@ -25,7 +25,7 @@ Source snapshots and the reproduction diff are recorded on GPU7 in
 | Height tolerance and counter | Ordinary simulation: 0.5 mm, >10. **DiSECt simulation: 2 mm, >10.** Real: 2 mm, >1. | 2 mm, >10. Counter increments on qualifying samples; it is not a consecutive-hold requirement. | The current pair already exists in official DiSECt simulation. It is **not** a mixture of real tolerance and simulation counter. Do not remove the counter merely to match upstream. |
 | Force/torque limits | Component limits; collision ends the episode and contributes -100. DiSECt simulation uses 50 N / 10 N m; real config uses 50 N / 5 N m. | Six-component limits 50 N / 5 N m, checked on fresh 2 ms filtered samples; -100 once. | Our shared sensor/limit contract uses the latter scale. Current sample timing and peak bookkeeping are adapter-specific, not an upstream reproduction claim. |
 | Workspace | Out-of-workspace ends the episode. The slicing reward has no separate fixed -100 for this event. | Explicit robot-base workspace; exit ends the episode with -100. | Our failure settlement makes workspace violations costly; it is a deviation, not an upstream -100 rule. |
-| Time and step cost | Configured 500 steps, passed to the environment loader. Configured step cost -1 is part of the normalized continuous reward; with the listed equal weights its contribution is -0.25. | 180 steps / 9 s; timeout is terminal with no bootstrap. No separate fixed per-step -1. | Our finite-horizon task and reward design. Do not infer bootstrap semantics from upstream's horizon alone. |
+| Time and step cost | Configured 500 steps, passed to the environment loader. Configured step cost -1 is part of the normalized continuous reward; with the listed equal weights its contribution is -0.25. | 500 steps / 25 s (aligned 2026-11-19); timeout is terminal with no bootstrap. No separate fixed per-step -1. | Horizon aligned by user request. Continuous rewards and timeout/bootstrap semantics remain our task design. |
 | Continuous rewards | Normalized distance, force and jerk terms, plus normalized step cost. | Historical maximum geometric-depth increment, target-speed deviation, normalized six-axis load and jerk costs; formulas below. | Our motion and speed objectives, not the full SliceIt reward. Spring-release shaping has been removed from the current task. |
 | Board geometry and reaction | Official scene contains a board collision mesh. Task code has no permanent board latch or special board-hit failure. Geometry alone does not validate the executed contact response. | Finite-blade software boundary; no calibrated blade-board reaction model in the formal task. | Boundary was added here to prevent penetration after migration; do not describe missing board physics as an upstream requirement. |
 | After software board stop | No corresponding permanent freeze in SliceIt task code. | Robot/material/sensor state remains latched until episode end; counter and time continue. WM reproduces that rule. | Our implementation, introduced in b367fcd, not a requested SliceIt rule. User requests removing cross-step freezing; **not yet removed in current main**. |
@@ -208,6 +208,36 @@ not separation of the prescribed cut. Fields:
 - `separated_bm_candidate`: candidate only (two largest components >=10% each,
   reference centroids on opposite sides of the plane); used nowhere.
 
+## Horizon alignment — 2026-11-19
+
+The user requested aligning the episode duration with SliceIt: the current
+shared contract uses **500 control steps x 0.05 s = 25 s** for both backends.
+Initialization settling is outside this clock. Earlier success/failure still
+ends the episode; timeout remains terminal without bootstrap. No arrival rule,
+latch behaviour, reward formula or weight is changed here.
+
+The speed time term and optional tool-motion term use 1/horizon, so their
+per-step contributions now use 1/500 rather than 1/180. This follows the existing
+formula, not a retuned weight. Load and jerk remain integrated over physical
+time, so their maximum full-episode cost increases with the horizon.
+With final-only defaults, the finite running-penalty bound is
+2*20 + 500*0.05*(1+0.1) = 67.5; adding maximum progress 10 gives 77.5 < 100,
+so the existing terminal-settlement validation still passes. If optional
+tool-motion cost is enabled (weight 20), the bound plus progress is 97.5 < 100.
+These are algebraic bounds, not a new physical reward-preference experiment.
+
+Regenerate both backend input files from the shared contract. Its fingerprint
+changes; do not relabel old 180-step manifests/checkpoints/replay or bypass
+contract checks to continue them as 500-step runs. Frozen evaluations retain
+their recorded horizons.
+
+Validation on GPU7: regenerated both backend configs and checked their identical
+500-step task contracts; actual WM analytic termination with synthetic states
+does not time out at steps 180 or 499 and does at 500 for both backend identities.
+Root GPU suite: 713 passed / 5 skipped (legacy Gym/TF and opt-in bridge);
+backend suite: 43 passed. Evidence: `runs/horizon_500_check_20261119/`.
+No new 500-step physical reward-preference audit or training was run.
+
 ## Current reward and state semantics
 
 Let g_t be the lowest point of the recorded finite-blade rigid proxy above
@@ -231,7 +261,8 @@ Reset rho is zero.
   failure, with the existing arrival counter and board boundary. It does not
   require rho = 1; reaching the depth alone does not imply success.
 - Force/workspace failure is -100 once; timeout ends without bootstrapping.
-  Gamma remains 1; these check configs retain 180 steps.
+  Gamma remains 1. The current shared contract uses 500 steps / 25 s;
+  archived check configurations and historical runs retain their recorded 180 steps.
 - Retraction/re-entry into a depth already visited cannot earn progress again.
   Descending through free space does earn geometric progress: this is motion
   shaping, not a material-cutting or contact detector.
@@ -288,7 +319,7 @@ retained in this change; it is not a replacement of the entire reward with Slice
   Force/workspace failure takes precedence and costs -100 once, including when
   arrival happens on the same step. The environment requires reset after ending.
 - Timeout is an unsuccessful finite-horizon terminal, with no completion bonus
-  and no value bootstrap. Current development configuration: 180 steps, 9 s.
+  and no value bootstrap. Historical pose-v1 configuration: 180 steps, 9 s (not the current shared horizon).
 - All springs need NOT be released to earn pose completion. Material separation,
   residual springs, geometric coverage and sliding remain separately reported.
   Pose-success rate must not be described as a physical-separation rate.
@@ -460,13 +491,13 @@ There is no new particle-motion field or particle-based penalty in the shared ta
   >10 also apply. The counter increases only when all these conditions hold.
 - tool_motion.enabled = false: final only. Off-target intermediate movement
   carries no additional position cost or position failure. Force/workspace/board
-  rules still apply; failure to finish before 180 steps is timeout.
+  rules still apply; failure to finish within the configured 500 steps is timeout.
 - tool_motion.enabled = true: path plus final. Distance <=25 mm is free;
-  25–60 mm has quadratic running cost, weight20 normalized by horizon180;
+  25–60 mm has quadratic running cost, weight20 normalized by the current horizon500;
   >60 mm is tool_motion failure with -100 once. No +100 on a failure.
 
 At 25/35/42.5/50/60 mm the extra per-step costs are respectively
-0 / .0090703 / .0277778 / .0566893 / .1111111. At 61 mm the active path mode
+0 / .0032653 / .0100000 / .0204082 / .0400000 (500-step horizon). At 61 mm the active path mode
 adds the failure settlement. These distances are engineering defaults, not
 measured real-robot tolerances. Settings apply to both backends identically.
 

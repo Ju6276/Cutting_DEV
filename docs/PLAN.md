@@ -79,7 +79,7 @@ task settings must not be edited independently for each backend.
 - User choice: final-position-only. Final EE XY radius<40mm; no particle-motion
   penalty, no extra path penalty. Optional path-and-final remains available but
   is not selected for these runs.
-- 180 control steps/9s, gamma1, componentwise simulated limits[50,50,50,5,5,5].
+- 500 control steps/25s (user-aligned to SliceIt on 2026-11-19), gamma1, componentwise simulated limits[50,50,50,5,5,5].
 - Start: each settled object's top plus paired5–30mm clearance, fixed per world.
   Each episode samples E(.5–2), density(.8–1.25), cut resistance(.5–2), speed
   (1–5cm/s), then settles for1s with that material. Same scale distributions do

@@ -17,7 +17,7 @@
     "knife_friction_mu": 0.2,
     "task": {
       "version": "pose_depth_v3",
-      "horizon_steps": 180,
+      "horizon_steps": 500,
       "weights": {
         "progress": 10,
         "speed": 20,

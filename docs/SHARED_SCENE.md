@@ -57,7 +57,7 @@ fails rather than expanding the workspace silently.
 | Task version | pose_depth_v3 = pose_depth_v2 task + software board-stop consistency + analytic imagined survival (TASK_FREE_CUT); v2 archived for the 2026-11-16 runs |
 | Reward | geometric maximum-depth progress 10, speed 20, load 1, jerk .1; success +100, failure −100 (unchanged from v2) |
 | Completion | Pose arrival without higher-priority failures; material separation recorded independently |
-| Episode / discount | 180 control steps / 9 s; gamma 1 |
+| Episode / discount | 500 control steps / 25 s; gamma 1 (2026-11-19) |
 | Target speed | Uniform 1–5 cm/s, resampled per world per episode; both reference controllers use it |
 | Young's modulus / density | Per-episode log-uniform scales .5–2 / .8–1.25 |
 | Cutting resistance | Per-episode log-uniform scale .5–2: DiSECt spring stiffness, BladeMaster cutting energy |
@@ -241,7 +241,7 @@ the existing robot workspace still applies. Failure to return to the final regio
 before the horizon gives timeout, not a successful cut.
 
 With path control on, each 50 ms endpoint subtracts
-20/180 * clamp((distance-.025)/(.060-.025),0,1)^2.
+20/500 * clamp((distance-.025)/(.060-.025),0,1)^2.
 Above 60 mm the task ends with failure -100 once; exactly 60 mm remains inside.
 These are configurable engineering settings. The 2026-11-16 shared long runs used final-only; their launch records do not establish
 that optional path constraints improve learned behavior.
