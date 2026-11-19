@@ -80,3 +80,40 @@ def test_shared_reference_uses_commanded_speed_and_holds_board_goal():
     torch.testing.assert_close(final,batch.target)
     # Sampling a reference must not mutate the per-world reset pose.
     torch.testing.assert_close(batch.reference_start[:,2],torch.tensor([.10,.08],dtype=torch.double))
+
+
+def test_explicit_trajectory_takes_precedence_over_shared_descent():
+    from cutting_gpu_backend.environment import CuttingBatch
+    from cutting_gpu_backend.reference import KnifeTrajectory
+    batch=CuttingBatch.__new__(CuttingBatch)
+    batch.reference_start=torch.tensor([[0.,0.,.10,0.,0.,0.,1.]],dtype=torch.double)
+    batch.target=batch.reference_start.clone(); batch.target[:,2]=.02
+    batch.rigid_tool_geometry={"board_normal_base":[0.,0.,1.]}
+    batch.coupling=type('C',(),{'base_from_disect':torch.tensor([0.,0.,0.,0.,0.,0.,1.],dtype=torch.double)})()
+    batch.dtype=torch.double
+    batch.shared_reference_speed=torch.tensor([.03],dtype=torch.double)
+    time=torch.tensor([1.],dtype=torch.double)
+    # Default reference in a shared-scene config: the commanded descent.
+    batch.explicit_reference=False
+    torch.testing.assert_close(batch.reference_target(time)[:,2],torch.tensor([.07],dtype=torch.double))
+    # A caller-set trajectory (here: no motion) is executed instead of the descent.
+    batch.set_reference_trajectory(KnifeTrajectory.constant([0.,0.,0.],10.))
+    assert batch.explicit_reference
+    torch.testing.assert_close(batch.reference_target(time),batch.reference_start)
+
+
+def test_explicit_trajectory_survives_shared_speed_installed_after_it():
+    # Real order: the caller sets the trajectory, then GPUEnvironment.step() assigns
+    # shared_reference_speed before every physics step.
+    from cutting_gpu_backend.environment import CuttingBatch
+    from cutting_gpu_backend.reference import KnifeTrajectory
+    batch=CuttingBatch.__new__(CuttingBatch)
+    batch.reference_start=torch.tensor([[0.,0.,.10,0.,0.,0.,1.]],dtype=torch.double)
+    batch.target=batch.reference_start.clone(); batch.target[:,2]=.02
+    batch.rigid_tool_geometry={"board_normal_base":[0.,0.,1.]}
+    batch.coupling=type('C',(),{'base_from_disect':torch.tensor([0.,0.,0.,0.,0.,0.,1.],dtype=torch.double)})()
+    batch.dtype=torch.double
+    batch.set_reference_trajectory(KnifeTrajectory.constant([0.,0.,0.],10.))
+    batch.shared_reference_speed=torch.tensor([.03],dtype=torch.double)   # as in step()
+    torch.testing.assert_close(batch.reference_target(torch.tensor([1.],dtype=torch.double)),
+                               batch.reference_start)

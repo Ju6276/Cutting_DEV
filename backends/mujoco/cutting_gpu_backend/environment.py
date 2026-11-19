@@ -160,8 +160,11 @@ class CuttingBatch:
         """None restores the scene's constant knife velocity. Its duration is the scene's,
         changed per world by the start lift over the downward speed, so a lifted start
         still ends at the scene reference's end height (identical when the lift is zero).
-        A given trajectory is used as is for every world."""
+        A given trajectory is used as is for every world and takes precedence over the
+        shared-scene commanded descent (``shared_reference_speed``); only the default
+        (None) reference is replaced by that descent."""
         self.reference_time_limit = None
+        self.explicit_reference = trajectory is not None
         if trajectory is None:
             velocity = self.material.reference_linear_velocity.reshape(-1, 3)[0].to(self.dtype)
             duration = float(self.material.reference_duration)
@@ -174,7 +177,9 @@ class CuttingBatch:
     def reference_target(self, time):
         """Controller target after ``time`` seconds of the DiSECt-frame knife trajectory."""
         target = self.reference_start.clone()
-        if hasattr(self,'shared_reference_speed'):
+        # Shared-scene configs set shared_reference_speed every step; it must not silently
+        # override a trajectory the caller set explicitly (reward audits, sawing checks).
+        if hasattr(self,'shared_reference_speed') and not getattr(self,'explicit_reference',False):
             normal=target.new_tensor(self.rigid_tool_geometry['board_normal_base'])
             distance=((target[:,:3]-self.target[:,:3])*normal).sum(-1).clamp_min(0)
             travel=torch.minimum(time*self.shared_reference_speed,distance)

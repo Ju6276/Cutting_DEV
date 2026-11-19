@@ -53,6 +53,28 @@ def trajectory(case, distance, speed, dt, horizon):
     return KnifeTrajectory(times, velocities, {'case':case})
 
 
+def checked_error(label, reference, candidate, tol, extra=()):
+    """Max |candidate - reference| after requiring every compared value to be finite.
+    NaN would otherwise pass a plain `err > tol` comparison."""
+    for name, value in (('reference', reference), ('candidate', candidate), *extra):
+        if not bool(torch.isfinite(value).all()):
+            raise FloatingPointError(f'{label}: non-finite {name}')
+    err = float((candidate - reference).abs().max()) if reference.numel() else 0.
+    if not math.isfinite(err) or err > tol:
+        raise AssertionError(f'{label}: max abs error {err} exceeds {tol}')
+    return err
+
+
+def command_offsets(physics, start, normal):
+    """Commanded knife-target displacement from the reset pose: depth along -normal and the
+    lateral magnitude. This is the instruction, not the tracked robot position."""
+    target = physics.reference_target(physics.sim_time)[:, :3]
+    delta = target - start
+    depth = -(delta * normal).sum(-1)
+    lateral = (delta + depth[:, None] * normal).norm(dim=-1)
+    return depth, lateral
+
+
 class IndependentReferences:
     def __init__(self, trajectories):
         self.trajectories = trajectories
@@ -79,9 +101,9 @@ def components(task, old_progress, frame, target_speed, info):
                            -w['failure']*(info['collision']|info['outside']).double())
 
 
-def run(config_path, output, deadline):
+def run(config_path, group_index, output, deadline):
     cfg=json.loads(config_path.read_text())
-    group=cfg['groups'][0]
+    group=cfg['groups'][group_index]
     from cutting_world_model.free_cut import POSE_DEPTH_VERSIONS
     if cfg['task']['version'] not in ('free_cut_pose_v1',) + POSE_DEPTH_VERSIONS:
         raise ValueError('This audit is for the current pose task')
@@ -91,7 +113,24 @@ def run(config_path, output, deadline):
     env=GPUEnvironment(ROOT/'backends/mujoco',n,scene=group['scene'],
                        initial_lift=torch.full((n,),lift), sim_dt=group.get('sim_dt'),
                        force_model=group['force_model'],friction_velocity=group['friction_velocity'],
-                       task=cfg['task'],force_limits=cfg['force_limits'])
+                       task=cfg['task'],force_limits=cfg['force_limits'],
+                       # Current shared configs require the paired per-world start clearance
+                       # and name the force observation; the audit's nominal 10 mm is used
+                       # for every case (inside the contract's 5-30 mm range).
+                       start_clearance_m=[clearance]*n,force_observation=cfg.get('force_observation'))
+    try:
+        return audit_group(env,cfg,group,config_path,output,deadline,n,speed,clearance)
+    finally:
+        # GPUEnvironment has no close(); release this group's simulator before the next one
+        # (several groups run in one process) and on any exception.
+        close=getattr(env,'close',None)
+        if close is not None:close()
+        del env
+        if torch.cuda.is_available():torch.cuda.empty_cache()
+
+
+def audit_group(env, cfg, group, config_path, output, deadline, n, speed, clearance):
+    from cutting_world_model.free_cut import POSE_DEPTH_VERSIONS
     env.target_speed=torch.full((n,),speed,device=env.device,dtype=torch.float64)
     frame=env.settle(group['settle_seconds'])
     meta=ControlStateSpec.metadata_from_frame(env.metadata,{k:v[0].cpu().numpy() for k,v in frame.items()})
@@ -104,6 +143,12 @@ def run(config_path, output, deadline):
     refs=[trajectory(case,float(distance[i]),speed,env.free_task.dt,env.free_task.horizon)
           for i,case in enumerate(CASES)]
     env.physics.set_reference_trajectory(IndependentReferences(refs))
+    # Per-step check of the COMMANDED references after env.step() (which installs any
+    # shared-scene descent): stall holds, fast > press > slow in depth, saw moves laterally.
+    start=env.physics.reference_start[:,:3].clone()
+    normal=start.new_tensor(env.physics.rigid_tool_geometry['board_normal_base'])
+    idx={c:CASES.index(c) for c in ('stall','press','fast','slow','saw')}
+    command=dict(stall_max_offset_m=0.,saw_max_lateral_m=0.,press_max_lateral_m=0.,depth_at_step5={})
     manifest=dict(git=git_revision(ROOT),source_config=cfg,worlds=n,cases=CASES,nominal_material=True,
                   clearance_m=clearance,target_speed_mps=speed,
                   trajectories=[r.to_dict() for r in refs],action_interface='prescribed reference; not policy actions')
@@ -127,9 +172,19 @@ def run(config_path, output, deadline):
             frame,reward,done,truncated,info=env.step(action,reference=True)
             parts=components(env.free_task,previous,frame,env.target_speed,info)
             reconstructed=sum(parts.values())
-            err=float((reconstructed[active]-reward[active]).abs().max())
-            formula_error=max(formula_error,err)
-            if err>2e-5:raise AssertionError('Reward decomposition disagrees with training environment')
+            formula_error=max(formula_error,checked_error('Reward decomposition vs training environment',
+                reward[active],reconstructed[active],2e-5,extra=[(k,v[active]) for k,v in parts.items()]))
+            depth,lateral=command_offsets(env.physics,start,normal)
+            offset=float((env.physics.reference_target(env.physics.sim_time)[idx['stall'],:3]-start[idx['stall']]).norm())
+            command['stall_max_offset_m']=max(command['stall_max_offset_m'],offset)
+            if offset>1e-9:raise AssertionError(f'Stall reference commanded a motion of {offset} m')
+            command['saw_max_lateral_m']=max(command['saw_max_lateral_m'],float(lateral[idx['saw']]))
+            command['press_max_lateral_m']=max(command['press_max_lateral_m'],float(lateral[idx['press']]))
+            if step+1==5:
+                command['depth_at_step5']={c:float(depth[i]) for c,i in idx.items()}
+                d=command['depth_at_step5']
+                if not d['fast']>d['press']>d['slow']>0:
+                    raise AssertionError(f'Commanded depths not ordered fast>press>slow>0: {d}')
             fields={k:frame[k].double() for k in spec.physical_fields}
             if cfg['task']['version'] in POSE_DEPTH_VERSIONS:
                 from cutting_world_model.pose_depth import depth_progress
@@ -139,9 +194,8 @@ def run(config_path, output, deadline):
                 if 'board_contact' in spec.history_fields:
                     fields['board_contact']=frame['board_contact'].double()
             _,model_reward,_=spec.derive(state,fields,action,goal)
-            err=float((model_reward[active]-reward[active]).abs().max())
-            wm_error=max(wm_error,err)
-            if err>1e-3:raise AssertionError(f'WM reward equations disagree on real transition: {err}')
+            wm_error=max(wm_error,checked_error('WM reward equations on real transition',
+                reward[active],model_reward[active],1e-3))
             next_state=spec.pack_batch_transition(frame,state).double()
             totals+=torch.where(active,reward,0)
             for k,v in parts.items():
@@ -172,8 +226,12 @@ def run(config_path, output, deadline):
                 print(config_path.stem,step+1,'finished',len(endpoints),'wall',round(time.monotonic()-started,1),flush=True)
             if not alive.any():break
     if alive.any():raise RuntimeError('Incomplete case batch')
+    if command['saw_max_lateral_m']<.005 or command['press_max_lateral_m']>1e-6:
+        raise AssertionError(f'Saw/press lateral commands not as specified: {command}')
     np.savez_compressed(output/'transitions.npz',**{k:np.stack([r[k] for r in records]) for k in records[0]})
     report=dict(source_config=cfg,effective_overrides=dict(worlds=n,nominal_material=True,clearance_m=clearance,target_speed_mps=speed),endpoints=sorted(endpoints,key=lambda x:x['world']),
+                commanded_reference_checks=command,
+                commanded_reference_scope='instructions only; tracked robot motion under contact can differ',
                 reward_decomposition_max_abs_error=formula_error,wm_reward_on_real_transition_max_abs_error=wm_error,
                 wall_seconds=time.monotonic()-started,
                 physical_force_event_observed=any(r['outcome']=='force' for r in endpoints),
@@ -184,7 +242,9 @@ def run(config_path, output, deadline):
 
 def main():
     p=argparse.ArgumentParser(description=__doc__)
-    p.add_argument('--configs',nargs='+',type=Path,default=[ROOT/'configs/free_cut'/f'pose_{s}.json' for s in ('cucumber','potato','prism')])
+    # Generated current configs (prepare_shared_scenes.py disect.json); the old default
+    # configs/free_cut/pose_*.json still hold free_cut_pose_v1. Every object group is audited.
+    p.add_argument('--configs',nargs='+',type=Path,required=True)
     p.add_argument('--output',type=Path,required=True)
     p.add_argument('--wall-seconds',type=int,default=2700)
     a=p.parse_args();a.output.mkdir(parents=True,exist_ok=False)
@@ -193,7 +253,11 @@ def main():
     torch.set_num_threads(2);torch.manual_seed(0)
     deadline=time.monotonic()+a.wall_seconds
     try:
-        reports={cfg.stem:run(cfg,a.output/cfg.stem,deadline) for cfg in a.configs}
+        reports={}
+        for cfg in a.configs:
+            for index,group in enumerate(json.loads(cfg.read_text())['groups']):
+                name=f"{cfg.stem}_{group.get('name',index)}"
+                reports[name]=run(cfg,index,a.output/name,deadline)
         (a.output/'summary.json').write_text(json.dumps(reports,indent=2))
     finally:
         signal.alarm(0)
