@@ -1,6 +1,6 @@
 # Free-object single cut — shared geometric-progress pose task
 
-Updated 2026-11-17. The single current task version is **pose_depth_v3**:
+Updated 2026-11-19. The currently implemented task version is **pose_depth_v3**:
 the pose_depth_v2 task plus the software board-stop consistency fix and analytic
 imagined survival below. It is not a new cutting task. pose_depth_v2 is kept only
 to read/evaluate the 2026-11-16 runs; new training on it is refused.
@@ -8,6 +8,55 @@ Origin (2026-11-16): the depth-progress pose task is shared by
 DiSECt and BladeMaster. The user requested removing spring-release shaping and
 using BladeMaster-style downward progress. Previously trained checkpoints retain
 free_cut_pose_v1 / blademaster_pose_v1; their results have not been relabelled.
+
+## Rule provenance and pending latch revision (2026-11-19)
+
+This table separates upstream rules, **implemented behaviour**, and proposed changes.
+It is not authorization to silently change a task while documenting it.
+Reference: official SliceIt superproject `3a6964862f1f135af9d98dd400efeb44ba394c15`
+pins ur_python_utilities `7cd7cb8ce491b7953fce61ca891382e893e2ec43`.
+The local reproduction checkout `1e79aba` is not the unmodified upstream revision.
+Source snapshots and the reproduction diff are recorded on GPU7 in
+`runs/sliceit_task_rule_audit_20261119/evidence.json`.
+
+| Rule | Official SliceIt source | Implemented shared pose_depth_v3 | Provenance / reason for difference |
+|---|---|---|---|
+| Arrival and +100 | Current pose error satisfies selected-axis thresholds and cumulative arrival counter exceeds threshold; no force/torque collision. No material-separation test. | Pose arrival plus cumulative counter >10; no higher-priority failure; +100 once. Also requires the configured final XY region. | Pose-based completion is inherited. Final XY region and explicit failure precedence are our task choices; completion does not certify cut-through. |
+| Height tolerance and counter | Ordinary simulation: 0.5 mm, >10. **DiSECt simulation: 2 mm, >10.** Real: 2 mm, >1. | 2 mm, >10. Counter increments on qualifying samples; it is not a consecutive-hold requirement. | The current pair already exists in official DiSECt simulation. It is **not** a mixture of real tolerance and simulation counter. Do not remove the counter merely to match upstream. |
+| Force/torque limits | Component limits; collision ends the episode and contributes -100. DiSECt simulation uses 50 N / 10 N m; real config uses 50 N / 5 N m. | Six-component limits 50 N / 5 N m, checked on fresh 2 ms filtered samples; -100 once. | Our shared sensor/limit contract uses the latter scale. Current sample timing and peak bookkeeping are adapter-specific, not an upstream reproduction claim. |
+| Workspace | Out-of-workspace ends the episode. The slicing reward has no separate fixed -100 for this event. | Explicit robot-base workspace; exit ends the episode with -100. | Our failure settlement makes workspace violations costly; it is a deviation, not an upstream -100 rule. |
+| Time and step cost | Configured 500 steps, passed to the environment loader. Configured step cost -1 is part of the normalized continuous reward; with the listed equal weights its contribution is -0.25. | 180 steps / 9 s; timeout is terminal with no bootstrap. No separate fixed per-step -1. | Our finite-horizon task and reward design. Do not infer bootstrap semantics from upstream's horizon alone. |
+| Continuous rewards | Normalized distance, force and jerk terms, plus normalized step cost. | Historical maximum geometric-depth increment, target-speed deviation, normalized six-axis load and jerk costs; formulas below. | Our motion and speed objectives, not the full SliceIt reward. Spring-release shaping has been removed from the current task. |
+| Board geometry and reaction | Official scene contains a board collision mesh. Task code has no permanent board latch or special board-hit failure. Geometry alone does not validate the executed contact response. | Finite-blade software boundary; no calibrated blade-board reaction model in the formal task. | Boundary was added here to prevent penetration after migration; do not describe missing board physics as an upstream requirement. |
+| After software board stop | No corresponding permanent freeze in SliceIt task code. | Robot/material/sensor state remains latched until episode end; counter and time continue. WM reproduces that rule. | Our implementation, introduced in b367fcd, not a requested SliceIt rule. User requests removing cross-step freezing; **not yet removed in current main**. |
+| Material separation | Not checked by the cited pose-success code. | Separate diagnostic only; never a success gate or reward. BladeMaster separated is unknown where no validated diagnostic exists. | Preserve pose success as the evaluation standard; do not relabel it as physical separation. |
+
+Official sources:
+[DiSECt simulation config](https://github.com/omron-sinicx/ur_python_utilities/blob/7cd7cb8ce491b7953fce61ca891382e893e2ec43/ur3e_rl/config/simulation/slicing_3d_disect.yaml),
+[ordinary simulation config](https://github.com/omron-sinicx/ur_python_utilities/blob/7cd7cb8ce491b7953fce61ca891382e893e2ec43/ur3e_rl/config/simulation/slicing_3d.yaml),
+[real config](https://github.com/omron-sinicx/ur_python_utilities/blob/7cd7cb8ce491b7953fce61ca891382e893e2ec43/ur3e_rl/config/real/slicing_3d.yaml),
+[termination](https://github.com/omron-sinicx/ur_python_utilities/blob/7cd7cb8ce491b7953fce61ca891382e893e2ec43/ur3e_openai/src/ur3e_openai/task_envs/force_control/disect_slicing.py),
+[reward](https://github.com/omron-sinicx/ur_python_utilities/blob/7cd7cb8ce491b7953fce61ca891382e893e2ec43/ur3e_openai/src/ur3e_openai/cost_utils.py),
+[board collision geometry](https://github.com/omron-sinicx/sliceit/blob/3a6964862f1f135af9d98dd400efeb44ba394c15/catkin_ws/src/o2ac_scene_description/urdf/cooking_environment.xacro).
+
+**Current direction vs implementation:** the user prefers fixing the current v3
+rather than opening another named v4 task, and requests removing permanent
+cross-step freezing. This documentation change does not implement that removal.
+Retaining the cumulative arrival rule is compatible with that direction; removing
+the counter was a separate first-arrival-terminal proposal, not a necessary
+consequence of removing the latch. First-arrival success and board-hit/not-arrived
+failure (-100) remain proposals, not implemented or approved by this table.
+
+Without a blade-board force model, removing the latch while retaining the counter
+still requires an explicit nonpenetrating continuation rule. Merely deleting
+`board_contact` or unfreezing states does not specify that behaviour. The independent
+contact/FDCC experiment is not part of the production task. Any later rule change
+must update this table, physical/WM/planner/evaluation logic together, and record a
+machine-checked semantics revision even if the public task name remains v3.
+Existing v3 smoke checkpoints/replay still exist; they must not silently resume
+under different transition/termination semantics. Fixing v3 does not mean reverting
+to v2: analytic survival, corrected sampling and other applicable correctness
+fixes are retained.
 
 ## pose_depth_v3 — software board-stop consistency (2026-11-17)
 
