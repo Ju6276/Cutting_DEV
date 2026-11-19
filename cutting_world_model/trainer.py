@@ -14,6 +14,11 @@ from .task_heads import pose_error
 
 # pose_depth_v3 only: transitions kept / zero-weighted in the dynamics fit (summed counts).
 DYNAMICS_MASK_COUNTS = frozenset({'dynamics_fit_count', 'dynamics_masked_count'})
+# Prediction-error metrics pooled as sum / count over a whole update, so the microbatch
+# split and the share of latched (unpredicted) rows per microbatch do not change them.
+NSE_POOLED = {'nse_1step': ('nse_1step_error_sum', 'nse_1step_count'),
+              'nse_kstep': ('nse_kstep_error_sum', 'nse_kstep_count')}
+NSE_PARTS = frozenset(part for pair in NSE_POOLED.values() for part in pair)
 
 
 def chunks(n, size):
@@ -209,8 +214,10 @@ class OnlineLearner:
                 batch_fit += int(metrics.get('dynamics_fit_count', 0))
                 metrics['loss'] = loss.detach()
                 for key, value in metrics.items():
-                    if key in COUNT_KEYS or key in DYNAMICS_MASK_COUNTS:
+                    if key in COUNT_KEYS or key in DYNAMICS_MASK_COUNTS or key in NSE_PARTS:
                         aggregate[key] = aggregate.get(key, 0) + value.detach()
+                        continue
+                    if key in NSE_POOLED and NSE_POOLED[key][0] in metrics:
                         continue
                     if key in RATE_COUNTS and RATE_COUNTS[key] in metrics:
                         continue
@@ -229,12 +236,19 @@ class OnlineLearner:
             optimizer.step()
             aggregate['grad_norm'] = aggregate.get('grad_norm', 0.) + gn.detach() / cfg.batches_per_update
         count_keys = COUNT_KEYS | DYNAMICS_MASK_COUNTS | {'sampled_transitions', 'sample_terminal_transitions',
-                                                          'short_windows', 'dynamics_skipped_batches'}
+                                                          'short_windows', 'dynamics_skipped_batches',
+                                                          'nse_1step_count', 'nse_kstep_count'}
         metrics = {key: int(value) if key in count_keys else float(value)
                    for key, value in aggregate.items()}
         for rate, numerator in RATE_COUNTS.items():
             if numerator in metrics:
                 metrics[rate] = metrics[numerator] / metrics['metric_transition_count']
+        for name, (total, number) in NSE_POOLED.items():
+            if number in metrics:
+                # No predicted row in the whole update (all latched): not measured, so omitted.
+                metrics.pop(name, None)
+                if metrics[number]:
+                    metrics[name] = metrics[total] / metrics[number]
         if not member:
             self.wm_updates += 1
         return metrics

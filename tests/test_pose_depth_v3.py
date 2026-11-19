@@ -425,6 +425,32 @@ def test_dynamics_loss_masks_latched_starts_and_keeps_first_contact():
     assert torch.equal(wm.window_loss(free, actions, goal, done, valid)[1]['term_bce'], metrics['term_bce'])
 
 
+@pytest.mark.parametrize('microbatch', [1, 2])
+def test_error_metrics_do_not_depend_on_microbatch_split(microbatch):
+    # One predicted world and one world latched throughout (the review reproduction):
+    # pooled over the update, nse equals the full-batch value for any microbatch split.
+    from cutting_world_model.policy import SliceItCritic
+    from cutting_world_model.trainer import OnlineLearner
+    from third_party.supermimic.trainer_config import WMTrainerCfg
+    wm, s, g = model()
+    sp = wm.spec
+    torch.nn.init.normal_(wm.dynamics.mlp.net[-1].weight, std=.01)
+    states = transitions(sp, s, [(0, 1), (0, 1), (0, 1)])
+    batch = SimpleNamespace(states=states, a_exec=torch.full((2, 2, 6), .3, dtype=s.dtype),
+                            xi=g.repeat(2, 1), done=torch.zeros(2, 2, dtype=s.dtype),
+                            valid_steps=torch.ones(2, 2, dtype=torch.bool))
+    _, full = wm.window_loss(batch.states, batch.a_exec, batch.xi, batch.done, batch.valid_steps)
+    assert full['nse_1step_count'].item() == 1 and full['nse_kstep_count'].item() == 1
+    cfg = WMTrainerCfg(compile=None, lr=0., window=2, batch_size=2, batches_per_update=1)
+    learner = OnlineLearner(wm, torch.nn.Linear(1, 1), SliceItCritic(sp.state_dim, 8),
+                            microbatch=microbatch, wm_cfg=cfg)
+    result = learner.fit_world_model(SimpleNamespace(sample_windows=lambda *a: batch))
+    assert result['nse_1step_count'] == 1 and result['nse_kstep_count'] == 1
+    assert result['nse_1step'] == pytest.approx(full['nse_1step'].item(), rel=1e-6)
+    assert result['nse_kstep'] == pytest.approx(full['nse_kstep'].item(), rel=1e-6)
+    assert result['nse_1step'] > 0
+
+
 @pytest.mark.parametrize('route', ['dynamics', 'head'])
 def test_all_latched_batch_is_finite_and_does_not_update_dynamics(route):
     from cutting_world_model.policy import SliceItCritic

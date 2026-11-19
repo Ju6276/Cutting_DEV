@@ -187,7 +187,9 @@ class CuttingWorldModel(nn.Module):
         last_error = states.new_zeros(states.shape[1])
         # Prediction-error metrics average only predicted (fit) transitions; latched starts
         # are rule-frozen with error 0 and would otherwise dilute them (v3). Without a latch
-        # fit == valid, so the values equal the previous valid-window averages.
+        # fit == valid, so the values equal the previous valid-window averages. nse_kstep is
+        # the error at each window's LAST PREDICTED valid step (step k only if no earlier end
+        # or latch). Sums and counts are returned so the trainer pools them across microbatches.
         has_fit = torch.zeros(states.shape[1], dtype=torch.bool, device=states.device)
         for t in range(len(actions)):
             valid = valid_steps[t]
@@ -229,13 +231,16 @@ class CuttingWorldModel(nn.Module):
             last_error = torch.where(fit, error, last_error)
             has_fit = has_fit | fit
             if t == 0:
-                first_error = torch.where(fit, error, 0.).sum() / fit.sum().clamp_min(1)
+                first_sum, first_count = torch.where(fit, error, 0.).sum(), fit.sum()
             state = torch.where(valid[:, None], predicted, state)
         loss = (loss_state + loss_term) / count
         return loss, {'state_loss': loss_state.detach() / count,
                       'term_bce': loss_term.detach() / count,
-                      'nse_1step': first_error,
+                      'nse_1step': first_sum / first_count.clamp_min(1),
                       'nse_kstep': torch.where(has_fit, last_error, 0.).sum() / has_fit.sum().clamp_min(1),
+                      'nse_1step_error_sum': first_sum, 'nse_1step_count': first_count,
+                      'nse_kstep_error_sum': torch.where(has_fit, last_error, 0.).sum(),
+                      'nse_kstep_count': has_fit.sum(),
                       'term_acc': correct / count, 'term_correct_count': correct,
                       'metric_transition_count': count,
                       **({'dynamics_fit_count': dynamics_count,
