@@ -314,7 +314,11 @@ def project_joint_endpoint(proposed, fk, geometry, limits=None, jacobian=None):
     tracking = torch.is_grad_enabled()
     stop = geometry['stop_gap_m']
     with torch.enable_grad():
-        q0 = proposed if proposed.requires_grad else proposed.detach().requires_grad_(True)
+        # The pose solver verifies nanometre residuals; evaluating Newton in
+        # float32 cannot satisfy that contract even for a well-conditioned arm.
+        # Promote arithmetic, preserving the cast's gradient to the WM state.
+        work = proposed.to(torch.float64) if proposed.dtype in (torch.float16, torch.bfloat16, torch.float32) else proposed
+        q0 = work if work.requires_grad else work.detach().requires_grad_(True)
         pose = fk(q0)
         gap = gap_from_pose(pose, geometry)
         limited = gap < stop
@@ -326,13 +330,34 @@ def project_joint_endpoint(proposed, fk, geometry, limits=None, jacobian=None):
             target = target.detach()
         q = q0
         mask = limited[..., None]
-        for _ in range(12):
-            residual, matrix = _residual_jacobian(fk, q, target, tracking, jacobian)
-            residual = torch.where(mask, residual, torch.zeros_like(residual))
-            if float(residual.detach().abs().max()) < POSE_TOLERANCE:
+        # Newton solves the geometric pose in double. The returned WM state
+        # is quantized to float32: refine the outward rounding only if its
+        # actual FK would cross the stop. Tangential/orientation targets stay
+        # unchanged; no task tolerance or penetration threshold is relaxed.
+        for refinement in range(8):
+            for _ in range(12):
+                residual, matrix = _residual_jacobian(fk, q, target, tracking, jacobian)
+                residual = torch.where(mask, residual, torch.zeros_like(residual))
+                if float(residual.detach().abs().max()) < POSE_TOLERANCE:
+                    break
+                step = _twist_solve(matrix, residual)
+                q = q - torch.where(mask, step, torch.zeros_like(step))
+            solve_error = _pose_residual(fk(q), target).detach().abs()
+            if bool((solve_error[limited] > 1e-9).any()):
+                raise FloatingPointError('Board projection could not realise a pure normal translation '
+                                         '(singular end-effector Jacobian along the board normal)')
+            cast_gap = gap_from_pose(fk(q.to(proposed.dtype)), geometry)
+            needs_rounding = limited & (cast_gap.detach() < stop - 1e-9)
+            if not bool(needs_rounding.any()):
                 break
-            step = _twist_solve(matrix, residual)
-            q = q - torch.where(mask, step, torch.zeros_like(step))
+            # The quantization correction is not a physical state derivative.
+            extra = torch.where(needs_rounding, stop - cast_gap.detach().to(q) + 2e-7,
+                                torch.zeros_like(lift))
+            lift = lift + extra
+            target = torch.cat((target[..., :3] + extra[..., None]*_unit_shift(geometry, pose),
+                                target[..., 3:]), -1)
+        else:
+            raise FloatingPointError('Board projection cannot represent a nonpenetrating state')
         correction = (q - q0).detach().norm(dim=-1)
         if bool((correction > MAX_JOINT_PER_LIFT*lift.detach() + 1e-9).any()):
             raise FloatingPointError('Board projection needs a near-singular end-effector Jacobian '
@@ -351,7 +376,12 @@ def project_joint_endpoint(proposed, fk, geometry, limits=None, jacobian=None):
                     raise FloatingPointError('Board projection blocked by a joint limit')
         if bool((gap_from_pose(fk(q), geometry)[limited] < stop - 1e-9).any()):
             raise FloatingPointError('Board endpoint projection did not converge')
-    return (q if tracking else q.detach()), limited
+        result = torch.where(mask, q.to(proposed.dtype), proposed)
+        # Verify the representation actually returned to the caller as well.
+        # The existing 0.2 um outward margin covers its joint-angle rounding.
+        if bool((gap_from_pose(fk(result), geometry)[limited] < stop - 1e-9).any()):
+            raise FloatingPointError('Board projection loses clearance when cast to the state dtype')
+    return (result if tracking else result.detach()), limited
 
 
 def project_joint_velocity(q, velocity, fk, geometry, limited, jacobian=None):

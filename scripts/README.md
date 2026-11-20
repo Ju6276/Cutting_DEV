@@ -104,3 +104,9 @@ no old checkpoint or experiment data is deleted by this cleanup.
 
 See [UR10e setup](../docs/hardware/UR10E_FDCC_SETUP_ZH.md) for exact commands and limitations.
 Robot checks are not a material-cutting integration or hardware acceptance test.
+
+UR10e adapter verification: check_baseline_adapters.py --evidence <learning-run>
+--output <new-dir> checks actual recorded states on CPU; add
+--live disect or --live blademaster for bounded physical planner/SAC execution.
+check_reference_episodes.py checks natural termination, masked reset and a
+subsequent physical step with the configured task horizon.

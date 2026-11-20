@@ -20,8 +20,10 @@ def align_board_goal(physics, backend_root):
     # Canonical source reset avoids batch/clearance-dependent metadata roundoff.
     q = torch.as_tensor(np.load(Path(backend_root)/'runs/source/episode_000.npz')['joint_q'][0],
                         device=physics.device,dtype=physics.dtype)[None]
+    if hasattr(physics,'nominal_q'):
+        q=physics.nominal_q
     initial_pose = physics.chain(q,mass_matrix=False)[0][physics.chain.tip]
-    tool_pose = physics.knife_chain(q,mass_matrix=False)[0]['b_bot_knife_sim']
+    tool_pose = physics.knife_chain(q,mass_matrix=False)[0][getattr(physics,'tool_frame','b_bot_knife_sim')]
     material_pose = physics.coupling.reset_pose(tool_pose)
     board = physics.board
     transform = physics.coupling.base_from_disect

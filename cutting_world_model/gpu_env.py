@@ -10,7 +10,7 @@ from .free_cut import POSE_DEPTH_VERSIONS
 class GPUEnvironment:
     def __init__(self, backend_root, worlds=1, reference_trajectory=None, reward=None, scene=None,
                  initial_lift=None, force_limits=None, sim_dt=None, force_model='scalar',
-                 friction_velocity=None, settle_seconds=0., task=None, force_observation=None, start_clearance_m=None):
+                 friction_velocity=None, settle_seconds=0., task=None, force_observation=None, start_clearance_m=None, robot_platform=None):
         """``reward`` optionally selects the force penalty, e.g. {'force_penalty': 'linear',
         'force_penalty_scale': 50.}; None keeps the source SliceIt reward and metadata.
         ``scene`` is an exported DiSECt scene relative to ``backend_root``; None keeps the
@@ -29,7 +29,7 @@ class GPUEnvironment:
         scene = {} if scene is None else {'scene': scene}
         self.physics = CuttingBatch(backend_root, worlds, reference_trajectory=reference_trajectory,
                                     initial_lift=initial_lift, sim_dt=sim_dt, force_model=force_model,
-                                    friction_velocity=friction_velocity, settle_seconds=settle_seconds, **scene)
+                                    friction_velocity=friction_velocity, settle_seconds=settle_seconds, robot_platform=robot_platform, **scene)
         if force_limits is not None:
             limits = force_limits
             self.physics.task = {**self.physics.task, 'controller': {**self.physics.task['controller'],
@@ -96,14 +96,23 @@ class GPUEnvironment:
                 mount,_,_=canonical_mount(backend_root,self.physics.chain,self.physics.knife_chain,self.physics.task)
                 actual=self.physics.board.vertices.double().cpu().numpy()
                 import numpy as np
-                expected=vertices_disect()
-                if actual.shape!=expected.shape or np.max(np.min(np.linalg.norm(actual[:,None]-expected[None,:],axis=-1),axis=1))>1e-9:
+                if robot_platform is not None:
+                    from .cad_knife import load
+                    tool_meta,arrays=load(str(robot_platform))
+                    expected=arrays['board_vertices_disect']
+                    revision=tool_meta['revision']
+                    if self.physics.material.tool_geometry['geometry_sha256']!=tool_meta['geometry_sha256']:
+                        raise ValueError('Material and robot CAD geometry differ')
+                else:
+                    expected=vertices_disect()
+                    revision=REVISION
+                if task['tool_revision']!=revision or actual.shape!=expected.shape or np.max(np.min(np.linalg.norm(actual[:,None]-expected[None,:],axis=-1),axis=1))>1e-7:
                     raise ValueError('Scene knife differs from shared physical geometry')
                 self.physics.rigid_tool_mount=mount
                 self.physics.rigid_tool_geometry=geometry
                 self.physics.rigid_tool_reach_bound=float(self.physics.chain.origin_position.norm(dim=-1).sum()+mount.new_tensor(geometry['vertices_in_ee']).norm(dim=-1).max())
                 geometry['model']='Rigid EE mounting; substep material interpolation; swept joint board stop'
-                self.metadata['tool_revision']=REVISION
+                self.metadata['tool_revision']=revision
 
             self.metadata['goal_alignment_revision'] = 'finite_blade_board_pose_v1'
 

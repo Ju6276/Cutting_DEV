@@ -91,7 +91,17 @@ def load_material(config):
         if 'blade_half_size' in overrides:overrides['blade_half_size']=tuple(overrides['blade_half_size'])
         cfg=replace(cfg,**overrides)
         cfg=replace(cfg,dt=banana_dt(cfg,cfg.grid_spacing,.002))
-    if config.get('task',{}).get('tool_revision'):
+    if config.get('robot_platform'):
+        from .cad_knife import load,REVISION
+        meta,arrays=load(config['robot_platform'])
+        if config['task']['tool_revision']!=REVISION:
+            raise ValueError('Robot and task blade revisions differ')
+        if not hasattr(cfg,'blade_geometry_asset'):
+            raise ValueError('IKEA blade requires mesh-contact BladeMaster solver')
+        bounds=np.abs(arrays['vertices_blademaster']).max(0)
+        cfg=replace(cfg,blade_geometry_asset=str(Path(config['robot_platform'])/'cutting_geometry.json'),
+                    blade_half_size=tuple(bounds),blade_bevel_height=0.,blade_edge_half_width=None)
+    elif config.get('task',{}).get('tool_revision'):
         from .shared_knife import HALF,BEVEL,NECK,REVISION
         if config['task']['tool_revision'] != REVISION:
             raise ValueError('Unsupported shared tool')
@@ -150,6 +160,11 @@ class BladeMasterBatch(CuttingBatch):
         if type(self.worlds) is not int or self.worlds < 1:
             raise ValueError('worlds must be positive')
         self.task = json.loads((root/'runs/source/task.json').read_text())
+        platform=None
+        if config.get('robot_platform'):
+            from .robot_platform import RobotPlatform
+            platform=RobotPlatform.load(config['robot_platform'])
+            self.task.update(platform.metadata)
         self.task['controller']['max_force_torque'] = validate_force_limits(config['force_limits'], required=True)
         groups=config.get('groups') or [dict(name=config['material'],worlds=self.worlds,
                                               material=config['material'])]
@@ -199,14 +214,17 @@ class BladeMasterBatch(CuttingBatch):
         if not all(math.isfinite(x) for x in (self.clearance,self.settle_seconds)) or self.clearance <= 0 or self.settle_seconds < 0:
             raise ValueError('Clearance must be positive and settling nonnegative')
         episode = np.load(root/'runs/source/episode_000.npz')
-        self.robot = Robot(root/'runs/model_coupled/robot.mjb',episode['joint_q'][0],
-                           episode['joint_qd'][0],self.worlds)
-        self.config = ControllerConfig.from_parameters(json.loads((root/'runs/controller_source/controller_params.json').read_text()))
+        self.robot = (platform.robot(self.worlds,native_sensor=True) if platform is not None else
+                      Robot(root/'runs/model_coupled/robot.mjb',episode['joint_q'][0],episode['joint_qd'][0],self.worlds))
+        parameters=(platform.controller_parameters if platform is not None else
+                    json.loads((root/'runs/controller_source/controller_params.json').read_text()))
+        self.config = ControllerConfig.from_parameters(parameters)
+        self.tool_frame=self.task.get('material_tool_frame','b_bot_knife_sim')
         t = self.task
         self.chain = SerialChain(t['robot_xml'],t['robot_base'],t['robot_tip'],t['joint_names']).to(self.device,self.dtype)
-        self.knife_chain = SerialChain(t['robot_xml'],t['robot_base'],'b_bot_knife_sim',t['joint_names']).to(self.device,self.dtype)
+        self.knife_chain = SerialChain(t['robot_xml'],t['robot_base'],self.tool_frame,t['joint_names']).to(self.device,self.dtype)
         frames = self.chain(self.robot.q.double(),mass_matrix=False)[0]
-        source_tool = self.knife_chain(self.robot.q.double(),mass_matrix=False)[0]['b_bot_knife_sim']
+        source_tool = self.knife_chain(self.robot.q.double(),mass_matrix=False)[0][self.tool_frame]
         # Keep the source knife centre as the mounting origin. BladeMaster's local
         # z is vertical and local y is along the edge at the initial pose.
         mounted = source_tool.clone()
@@ -224,16 +242,20 @@ class BladeMasterBatch(CuttingBatch):
         self.base_from_material[2] = board[2]
         self.base_from_material[3:] = mounted.new_tensor([0.,0.,0.,1.])
         if shared:
-            self.base_from_material[3:]=compose_pose(base_d,disect_from_blade(base_d))[3:]
+            self.base_from_material[3:]=compose_pose(base_d,base_d.new_tensor(t['cad_tool']['disect_from_blademaster']) if platform is not None else disect_from_blade(base_d))[3:]
 
         self.material_from_base = inverse_pose(self.base_from_material)
         self.vertices = torch.tensor(blade_vertices(self.material_config.blade_half_size,
                                   self.material_config.blade_bevel_height,
                                   getattr(self.material_config,'blade_edge_half_width',None)),device=self.device,dtype=self.dtype)
+        if platform is not None:
+            from .cad_knife import load
+            _,arrays=load(config['robot_platform'])
+            self.vertices=torch.as_tensor(arrays['board_vertices_blademaster'],device=self.device,dtype=self.dtype)
         self.stop_gap = float(config['task']['board']['stop_gap_m'])
         self.depth_span = float(max(c.size[2] for c in self.material_configs)+self.clearance)
         wanted = frames[self.chain.tip].clone()
-        wanted[:,2] += board[2]+self.depth_span+self.material_config.blade_half_size[2]-mounted[:,2]
+        wanted[:,2] += board[2]+self.depth_span+(-float(self.vertices[:,2].min()))-mounted[:,2]
         self.robot.set_joint_positions(self.solve_pose(self.robot.q.double(),wanted))
         self.controller = FDCCController(self.chain,self.config)
         self.mapper = SlicingActionMapper(max_twist=t['controller']['max_twist'],
@@ -408,7 +430,7 @@ class BladeMasterBatch(CuttingBatch):
     @staticmethod
     def _check_batch_result(out):
         if not np.isfinite(out).all() or (out[:,6:9]!=0).any():
-            raise FloatingPointError('Invalid batched BladeMaster material interval')
+            raise FloatingPointError('Invalid batched BladeMaster material interval: ' + repr(out.tolist()))
         if (out[:,-1]>1e-6).any():
             raise FloatingPointError('Batched blade grid constraint failed to converge')
 
@@ -422,7 +444,10 @@ class BladeMasterBatch(CuttingBatch):
             selected=enabled[indices]
             if not selected.any():continue
             out=solver.advance(host[indices],selected).numpy()
-            self._check_batch_result(out[selected])
+            try:
+                self._check_batch_result(out[selected])
+            except FloatingPointError as exc:
+                raise FloatingPointError(f'BladeMaster worlds {indices.start}:{indices.stop}: {exc}') from exc
             wrench=torch.as_tensor(out[:,:6]/.002,device=self.device,dtype=self.dtype)
             self.net[indices]=torch.where(active[indices,None],wrench,self.net[indices])
 

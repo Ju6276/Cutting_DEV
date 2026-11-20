@@ -49,7 +49,7 @@ def validate_task(config):
     if 'scene_alignment' in config:
         from .scene_alignment import validate_alignment
         validate_alignment(config['scene_alignment'])
-        if config['version'] not in POSE_DEPTH_VERSIONS or config.get('tool_revision')!='disect_knife_rigid_mount_v1':
+        if config['version'] not in POSE_DEPTH_VERSIONS or config.get('tool_revision') not in ('disect_knife_rigid_mount_v1','ikea_cad_mesh_v1'):
             raise ValueError('Aligned reset requires the shared rigid knife task')
         required.add('scene_alignment')
     if 'pitch_control' in config:
@@ -86,7 +86,7 @@ def validate_task(config):
             raise ValueError('Object motion constraint requires pose_depth_v2/v3')
         required.add('object_slip')
     if 'tool_revision' in config:
-        if config['tool_revision'] != 'disect_knife_rigid_mount_v1' or config['version'] not in POSE_DEPTH_VERSIONS:
+        if config['tool_revision'] not in ('disect_knife_rigid_mount_v1','ikea_cad_mesh_v1') or config['version'] not in POSE_DEPTH_VERSIONS:
             raise ValueError('Shared knife requires pose_depth_v2/v3')
         required.add('tool_revision')
     if config['version'] != 'free_cut_v1':
@@ -114,7 +114,7 @@ def validate_task(config):
             from cutting_gpu_backend.tool_mount import CONTINUING_MOTIONS
             if config['version'] != 'pose_depth_v3' or board['motion'] not in CONTINUING_MOTIONS:
                 raise ValueError('Unknown board motion semantics')
-            if config.get('tool_revision') != 'disect_knife_rigid_mount_v1':
+            if config.get('tool_revision') not in ('disect_knife_rigid_mount_v1','ikea_cad_mesh_v1'):
                 raise ValueError('Continuing board needs the shared rigid knife')
             expected.add('motion')
         if set(board) != expected:

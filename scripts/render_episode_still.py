@@ -59,7 +59,7 @@ def export(a):
         for j in range(3):np.add.at(cut,d['cut_tri'][:,j],face_n)
         cut/=np.maximum(np.linalg.norm(cut,axis=1,keepdims=True),1e-20)
         normals=np.concatenate([fine,cut])[faces].reshape(-1,3)
-    out=dict(points=pts,faces=faces,colors=colors,knife=d['knife'][i],knife_tri=d['knife_tri'],
+    out=dict(points=pts,faces=faces,colors=colors,mounted_cad_knife=bool(task.get('cad_tool')),knife=d['knife'][i],knife_tri=d['knife_tri'],
              ground=d['ground'],center=(d['particles'][i].min(0)+d['particles'][i].max(0))/2)
     robot,sources=r.visual_actors(d,task,a.source_root)
     robot=[entry for entry in robot if str(d['geom_body'][entry[0]])!='b_bot_cam_cables_link']
@@ -75,6 +75,9 @@ def export(a):
         out[f'robot_f{j}']=f[:,1:]
         out[f'robot_c{j}']=actor.GetProperty().GetColor()
         out[f'robot_tool{j}']=str(d['geom_body'][k])=='b_bot_right_inner_knuckle'
+        body=str(d['geom_body'][k])
+        if body in ('ikea_knife','ati_mini45_body'):out[f'robot_metallic{j}']=.7
+        elif body in ('user_knife_holder','user_ur_adapter'):out[f'robot_metallic{j}']=0.
     if normals is not None:out['normals']=normals
     out['metadata']=np.array(json.dumps(dict(recording=str(a.recording),frame=i,
        sim_time=float(d['sim_time'][i]),robot_meshes=len(robot),sources=sources,
@@ -148,7 +151,7 @@ def render(a):
             from mathutils import Matrix
             robot_obj.matrix_world=Matrix(d[f'robot_transform{j}'][a.frame].tolist())
     physical_blade=None
-    if animated:
+    if animated and not bool(d.get('mounted_cad_knife', False)):
         physical_blade=mesh('Recorded physical blade',d['knife'][a.frame],d['knife_tri'],tool_material)
     if a.show_contact_blade and not animated:mesh('DiSECt contact blade',d['knife'],d['knife_tri'],mat('Contact blade blue steel',(.12,.29,.40),.7,.24))
     def cube(name,center,size,m):
@@ -258,7 +261,8 @@ def render(a):
             else:
                 obj.data.vertices.foreach_set('co',material_points(i).ravel());obj.data.update()
                 update_display_normals(i)
-            physical_blade.data.vertices.foreach_set('co',d['knife'][i].ravel());physical_blade.data.update()
+            if physical_blade is not None:
+                physical_blade.data.vertices.foreach_set('co',d['knife'][i].ravel());physical_blade.data.update()
             for j,robot_obj in enumerate(robot_objects):
                 robot_obj.matrix_world=Matrix(d[f'robot_transform{j}'][i].tolist())
             scene.render.filepath=str((frame_dir/f'{i:04d}.png').resolve())

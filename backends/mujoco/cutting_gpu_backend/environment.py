@@ -22,7 +22,7 @@ class CuttingBatch:
     @torch.no_grad()
     def __init__(self, root, worlds=1, scene='runs/disect_source_v4/scene.pt', reference_trajectory=None,
                  initial_lift=None, sim_dt=None, force_model='scalar', friction_velocity=None,
-                 settle_seconds=0.):
+                 settle_seconds=0., robot_platform=None):
         """``initial_lift`` (m, per world): start the knife this far above the captured start
         along DiSECt +y (vertical), same orientation, by inverse kinematics before the reset
         state is settled and saved. ``sim_dt`` (s): DiSECt material substep, None keeps the scene's.
@@ -56,14 +56,33 @@ class CuttingBatch:
         episode = np.load(root / 'runs/source/episode_000.npz')
         task = self.task
         self.material = BatchedDiSECt(root / scene, worlds, sim_dt=sim_dt, friction_velocity=friction_velocity)
-        self.robot = Robot(root / 'runs/model_coupled/robot.mjb', episode['joint_q'][0], episode['joint_qd'][0], worlds)
-        self.config = ControllerConfig.from_parameters(json.loads((root / 'runs/controller_source/controller_params.json').read_text()))
+        if robot_platform is not None:
+            from cutting_world_model.robot_platform import RobotPlatform
+            platform = RobotPlatform.load(robot_platform)
+            self.task.update(platform.metadata)
+            self.robot = platform.robot(worlds, native_sensor=True)
+            self.nominal_q = torch.as_tensor(platform.q,device=self.device,dtype=self.dtype)[None]
+            parameters=platform.controller_parameters
+        else:
+            self.robot = Robot(root / 'runs/model_coupled/robot.mjb', episode['joint_q'][0], episode['joint_qd'][0], worlds)
+            parameters=json.loads((root / 'runs/controller_source/controller_params.json').read_text())
+        self.config = ControllerConfig.from_parameters(parameters)
+        self.tool_frame = task.get('material_tool_frame','b_bot_knife_sim')
         self.chain = SerialChain(task['robot_xml'], task['robot_base'], task['robot_tip'], task['joint_names']).to(self.device, self.dtype)
-        self.knife_chain = SerialChain(task['robot_xml'], task['robot_base'], 'b_bot_knife_sim', task['joint_names']).to(self.device, self.dtype)
+        self.knife_chain = SerialChain(task['robot_xml'], task['robot_base'], self.tool_frame, task['joint_names']).to(self.device, self.dtype)
         self.controller = FDCCController(self.chain, self.config)
         self.mapper = SlicingActionMapper(max_twist=task['controller']['max_twist'])
         self.mapper.reset(worlds, self.device, self.dtype)
-        self.coupling = SliceItCoupling.from_urdf(task['robot_xml'], self.material.spine_height, device=self.device, dtype=self.dtype)
+        self.coupling = SliceItCoupling.from_urdf(task['robot_xml'], self.material.spine_height, base_link=task['robot_base'], device=self.device, dtype=self.dtype)
+        if robot_platform is not None:
+            self.coupling.rigid_tool = True
+            from .controller.fdcc import quat_apply
+            knife=self.knife_chain(self.robot.q.to(self.dtype),mass_matrix=False)[0][getattr(self, "tool_frame", "b_bot_knife_sim")]
+            current=self.coupling.reset_pose(knife)[:,1]
+            # Export's starting tool centre is above the object; paired reset alignment follows.
+            saved=torch.load(root/scene,map_location="cpu",weights_only=False)
+            lift=self.robot.q.new_full((worlds,),float(saved['initial_pos'][1])).to(self.dtype)-current
+            self.robot.set_joint_positions(self.lifted_configuration(self.robot.q.to(self.dtype),lift))
         self.initial_lift = torch.zeros(worlds, device=self.device, dtype=self.dtype)
         if initial_lift is not None:
             self.initial_lift = torch.as_tensor(initial_lift, device=self.device, dtype=self.dtype).expand(worlds).clone()
@@ -79,14 +98,15 @@ class CuttingBatch:
         self.coupling.wrench_filter.tare()
         self.controller.reset(self.robot.q.to(self.dtype), self.robot.qd.to(self.dtype))
         self.frames = self.chain(self.robot.q.to(self.dtype), mass_matrix=False)[0]
-        knife = self.knife_chain(self.robot.q.to(self.dtype), mass_matrix=False)[0]['b_bot_knife_sim']
+        knife = self.knife_chain(self.robot.q.to(self.dtype), mass_matrix=False)[0][getattr(self, "tool_frame", "b_bot_knife_sim")]
         self.material.set_motion(torch.zeros((worlds, 6), device=self.device), self.coupling.reset_pose(knife).float())
         if self.settle_seconds > 0:
             self._settle_material(self.settle_seconds)
         self.material.advance(.002)
         self.feedback = self._feedback(raw)
         self.wrench_queue = self.feedback['sensor_wrench'][:, None].repeat(1, 25, 1)
-        self.target = torch.as_tensor(episode['target_pose'][0], device=self.device, dtype=self.dtype)[None].repeat(worlds, 1)
+        self.target = (self.chain(self.nominal_q,mass_matrix=False)[0][self.chain.tip].repeat(worlds,1) if robot_platform is not None else
+                       torch.as_tensor(episode['target_pose'][0], device=self.device, dtype=self.dtype)[None].repeat(worlds, 1))
         self.reference_start = self.frames[self.chain.tip].clone()
         self.set_reference_trajectory(reference_trajectory)
         self.force_limits = torch.tensor(task['controller']['max_force_torque'], device=self.device,
@@ -139,7 +159,7 @@ class CuttingBatch:
     @torch.no_grad()
     def lifted_configuration(self, q, lift, iterations=50, tolerance=1e-7):
         """Joint positions placing the knife ``lift`` metres higher along DiSECt +y, same orientation."""
-        tip = 'b_bot_knife_sim'
+        tip = getattr(self, "tool_frame", "b_bot_knife_sim")
         start = self.knife_chain(q, mass_matrix=False)[0][tip]
         up = quat_apply(self.coupling.base_from_disect[3:].to(q).expand(len(q), -1),
                         q.new_tensor([0., 1., 0.]).expand(len(q), -1))
@@ -373,7 +393,7 @@ class CuttingBatch:
                 command = self.controller_command(args, active)
                 self.robot.step(command, active=active)
             self.frames = self.chain(self.robot.q.to(self.dtype), mass_matrix=False)[0]
-            knife = self.knife_chain(self.robot.q.to(self.dtype), mass_matrix=False)[0]['b_bot_knife_sim']
+            knife = self.knife_chain(self.robot.q.to(self.dtype), mass_matrix=False)[0][getattr(self, "tool_frame", "b_bot_knife_sim")]
             motion = self.coupling.motion(knife)
             twist = torch.cat((motion['linear_velocity'], motion['angular_velocity']), -1)
             twist[~self.motion_initialized] = 0
@@ -412,7 +432,7 @@ class CuttingBatch:
                         import mujoco_warp as mjw
                         mjw.forward(self.robot.gpu_model, self.robot.data)
                     self.frames = self.chain(self.robot.q.to(self.dtype), mass_matrix=False)[0]
-                    knife = self.knife_chain(self.robot.q.to(self.dtype), mass_matrix=False)[0]['b_bot_knife_sim']
+                    knife = self.knife_chain(self.robot.q.to(self.dtype), mass_matrix=False)[0][getattr(self, "tool_frame", "b_bot_knife_sim")]
                     self.coupling.previous_pose_base[board_hit] = knife[board_hit]
             if hasattr(self,'rigid_tool_mount'):
                 from .coupling import compose_pose

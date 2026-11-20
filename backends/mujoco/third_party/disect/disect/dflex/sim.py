@@ -3136,9 +3136,15 @@ class SemiImplicitIntegrator:
             if (model.cut_spring_count and model.shape_count):
                 sdf_based_contact = True
                 if sdf_based_contact:
+                    contact_kernel = eval_spring_sdf_contacts
+                    contact_extra = []
+                    if getattr(model, "knife_sdf_grid", None) is not None:
+                        from .grid_contact import grid_eval_spring_sdf_contacts
+                        contact_kernel = grid_eval_spring_sdf_contacts
+                        contact_extra = [model.knife_sdf_grid]
                     with dflex.util.ScopedTimer("eval_spring_sdf_contacts", False):
                         tape.launch(
-                            func=eval_spring_sdf_contacts,
+                            func=contact_kernel,
                             dim=model.cut_spring_count,
                             inputs=[
                                 model.cut_spring_indices,
@@ -3158,7 +3164,7 @@ class SemiImplicitIntegrator:
                                 model.sdf_kf,
                                 model.sdf_mu,
                                 model.sdf_radius,
-                            ],
+                            ] + contact_extra,
                             outputs=[
                                 state_out.particle_f,
                                 state_out.knife_f,
@@ -3223,7 +3229,7 @@ class SemiImplicitIntegrator:
                                 model.sdf_kf,
                                 model.sdf_mu,
                                 model.sdf_radius,
-                            ],
+                            ] + contact_extra,
                             outputs=[
                                 state_out.particle_f,
                                 state_out.knife_f,

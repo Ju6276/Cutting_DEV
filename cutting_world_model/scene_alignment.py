@@ -90,7 +90,7 @@ def align_reset(env, frame, mask):
         desired=compose_pose(physics.coupling.disect_from_base,
             compose_pose(pose,physics.rigid_tool_mount.expand(env.worlds,-1)))
         physics.material.set_motion(torch.zeros(env.worlds,6,device=q.device),desired.float(),active=mask)
-        knife=physics.knife_chain(physics.robot.q.double(),mass_matrix=False)[0]['b_bot_knife_sim']
+        knife=physics.knife_chain(physics.robot.q.double(),mass_matrix=False)[0][getattr(physics,'tool_frame','b_bot_knife_sim')]
         physics.coupling.previous_pose_base[mask]=knife[mask]
         physics.motion_initialized[mask]=False
         physics.reference_start[mask]=pose[mask]

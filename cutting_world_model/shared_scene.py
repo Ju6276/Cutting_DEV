@@ -45,6 +45,9 @@ def configs(contract, prepared):
            settle_seconds=common['settle_seconds'],
            force_limits=common['force_limits'],force_observation=common['force_observation'],
            task=copy.deepcopy(task),episode_conditions=copy.deepcopy(conditions),execution='batched',groups=[])
+    if contract.get('robot_platform'):
+        d['robot_platform']=contract['robot_platform']
+        b['robot_platform']=contract['robot_platform']
     for obj in contract['objects']:
         item=prepared['objects'][obj['name']]
         if item['blademaster_geometry_asset'] != obj['blademaster_geometry_asset']:

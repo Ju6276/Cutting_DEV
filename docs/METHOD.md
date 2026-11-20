@@ -1008,3 +1008,12 @@ explicit null. An empty selected cohort is still valid and has count zero.
 
 This changes diagnostic failure reporting only. It does not change the WM,
 policy, replay, reward, task version or optimization schedule.
+
+## UR10e CAD knife integration (2026-11-20)
+
+Both backends load the mounted CAD geometry; DiSECt uses its signed grid distance,
+BladeMaster uses mesh contact and curved-edge forward kernels at native commit
+166a269. Robot, controller and sensor identities are checked across checkpoint
+loading. Task rewards and controller action dimensions remain unchanged.
+Implementation, estimates and verification evidence are in the
+[review handoff](hardware/UR10E_INTEGRATION_REVIEW.md).

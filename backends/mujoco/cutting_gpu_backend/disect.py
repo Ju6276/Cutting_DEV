@@ -7,8 +7,34 @@ from pathlib import Path
 import sys
 
 import torch
+import numpy as np
 
 from .controller.fdcc import quat_mul
+
+
+_SDF_CACHE = {}
+
+
+def validate_sdf_payload(grid, expected):
+    """Check the packed float32 grid against its source .npy SHA once on load.
+
+    np.save reproduces the source header and data without trusting a path that
+    may no longer exist on a deployment host. Stream into the digest to avoid
+    retaining a second complete serialized grid in memory.
+    """
+    import hashlib
+    digest = hashlib.sha256()
+    class HashWriter:
+        def write(self, data):
+            digest.update(data)
+            return len(data)
+    array = grid.detach().cpu().numpy()
+    if array.dtype != np.dtype("float32") or array.ndim != 1:
+        raise ValueError("Knife SDF must be a packed one-dimensional float32 grid")
+    np.save(HashWriter(), array, allow_pickle=False)
+    if digest.hexdigest() != expected:
+        raise ValueError("Knife SDF payload checksum mismatch")
+
 
 
 class DiSECt:
@@ -24,6 +50,16 @@ class DiSECt:
         df.config.no_grad = True
         scene = torch.load(scene_path, weights_only=False)
         self.model, self.state = scene['model'], scene['state']
+        self.tool_geometry = scene.get('tool_geometry')
+        if getattr(self.model, 'knife_sdf_grid', None) is not None:
+            if not self.tool_geometry:
+                raise ValueError('Mesh SDF scene lacks geometry provenance')
+            key=(self.tool_geometry['sdf_validation']['sha256'],str(self.state.particle_q.device))
+            if key not in _SDF_CACHE:
+                validate_sdf_payload(self.model.knife_sdf_grid, key[0])
+                _SDF_CACHE[key]=self.model.knife_sdf_grid.to(self.state.particle_q.device).detach()
+            self.model.knife_sdf_grid=_SDF_CACHE[key]
+            self.contact_discretization_revision='mesh_sdf_edge_coordinate_v1'
         self.position = scene['initial_pos'].clone()
         self.rotation = scene['initial_rot'].clone()
         self.linear_velocity = scene['linear_velocity'].clone()

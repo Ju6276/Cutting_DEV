@@ -207,7 +207,8 @@ def main():
             planner_config = MPPIConfig(horizon=args.planner_horizon, samples=args.planner_samples,
                 refinements=args.planner_refinements, discount=config["task"]["gamma"],
                 terminal_value=args.terminal_value)
-            controller_parameters = json.loads((ROOT / "backends/mujoco/runs/controller_source/controller_params.json").read_text())
+            from cutting_world_model.controller_profile import controller_parameters as load_controller_parameters
+            controller_parameters = load_controller_parameters(env.metadata, ROOT / "backends/mujoco")
             planner = SharedMPPIPolicy(env, planner_config, args.checkpoint,
                 controller_parameters, args.analytic_substeps)
             manifest["planner"] = planner.manifest

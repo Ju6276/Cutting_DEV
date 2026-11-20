@@ -155,7 +155,8 @@ def main():
         if a.method!="wm_policy":
             from cutting_world_model.mpc import MPPIConfig
             from cutting_world_model.shared_baselines import SharedMPPIPolicy
-            params=json.loads((ROOT/"backends/mujoco/runs/controller_source/controller_params.json").read_text())
+            from cutting_world_model.controller_profile import controller_parameters
+            params=controller_parameters(env.metadata,ROOT/"backends/mujoco")
             planner=SharedMPPIPolicy(env,MPPIConfig(horizon=a.planner_horizon,
                 samples=a.planner_samples,refinements=a.planner_refinements,
                 discount=config["task"]["gamma"],terminal_value="none"),

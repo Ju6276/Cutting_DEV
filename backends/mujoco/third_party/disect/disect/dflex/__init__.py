@@ -10,5 +10,8 @@ from .adjoint import compile
 
 from .util import *
 
+# Mesh contact functions must be registered before the shared extension is compiled.
+from .grid_contact import *
+
 # compiles kernels
 kernel_init()

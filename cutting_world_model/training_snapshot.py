@@ -91,7 +91,8 @@ def capture_blademaster_environment(env, backend_root, output, status):
     from cutting_gpu_backend.controller.fdcc import quat_apply
     output=Path(output);output.mkdir(parents=True,exist_ok=False)
     physics=env.physics
-    mj=mujoco.MjModel.from_binary_path(str(Path(backend_root)/'runs/model_coupled/robot.mjb'))
+    from .robot_platform import model_path_for_task
+    mj=mujoco.MjModel.from_binary_path(str(model_path_for_task(backend_root,env.metadata)))
     data=mujoco.MjData(mj);mujoco.mj_forward(mj,data)
     base=mj.body(env.metadata['robot_base']).id
     base_pos=data.xpos[base].copy();base_mat=data.xmat[base].reshape(3,3).copy()
@@ -106,14 +107,21 @@ def capture_blademaster_environment(env, backend_root, output, status):
     bodies=mj.geom_bodyid[geoms]
     qindices=[mj.jnt_qposadr[mj.joint(n).id] for n in env.metadata['joint_names']]
     ground=world(np.array([[-.15,-.15,0],[.15,-.15,0],[.15,.15,0],[-.15,.15,0]]))
-    blades=blade_world_vertices(physics.tool_pose().double(),physics.vertices,world)
-    if blades.shape[1] != 10:
-        raise ValueError('Unsupported physical blade topology; do not substitute a visual tool')
-    faces=[]
-    for k in range(1,4):faces.extend([(0,k+1,k),(5,5+k,5+k+1)])
-    for k in range(5):
-        j=(k+1)%5;faces.extend([(k,j,j+5),(k,j+5,k+5)])
-    faces=np.asarray(faces,dtype=np.int64)
+    if env.metadata.get('cad_tool'):
+        from .cad_knife import load
+        _,geometry=load(env.metadata['robot_platform']['asset_root'])
+        vertices=torch.as_tensor(geometry['vertices_blademaster'],device=env.device)
+        faces=geometry['faces']
+    else:
+        vertices=physics.vertices
+        if len(vertices)!=10:
+            raise ValueError('Unsupported physical blade topology; do not substitute a visual tool')
+        faces=[]
+        for k in range(1,4):faces.extend([(0,k+1,k),(5,5+k,5+k+1)])
+        for k in range(5):
+            j=(k+1)%5;faces.extend([(k,j,j+5),(k,j+5,k+5)])
+        faces=np.asarray(faces,dtype=np.int64)
+    blades=blade_world_vertices(physics.tool_pose().double(),vertices,world)
     groups=[]
     for index,(sl,solver) in enumerate(physics.batch_groups):
         root=output/('group_%02d'%index);root.mkdir()

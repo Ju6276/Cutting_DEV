@@ -42,13 +42,17 @@ class KnifeBoard:
         self.y = float(config['height_m'])
         self.stop_gap = float(config['stop_gap_m'])
         self.tolerance = float(config.get('coverage_tolerance_m', .0005))
-        self.vertices = material.model.knife_tri_vertices.reshape(-1, 3).to(material.position)
-        # pack_model repeats knife vertices for worlds; one knife geometry suffices.
-        self.vertices = torch.unique(self.vertices, dim=0)
-        lowest = self.vertices[:, 1].min()
-        edge = self.vertices[(self.vertices[:, 1] - lowest).abs() < 1e-7]
-        self.edge = torch.stack((edge[edge[:, 2].argmin()], edge[edge[:, 2].argmax()]))
-        if float((self.edge[1] - self.edge[0]).norm()) <= 0:
+        geometry = getattr(material.model, 'knife_board_vertices', None)
+        self.vertices = (material.model.knife_tri_vertices if geometry is None else geometry).reshape(-1,3).to(material.position)
+        self.vertices = torch.unique(self.vertices,dim=0)
+        curved = getattr(material.model,'knife_edge_vertices',None)
+        if curved is not None:
+            self.edge = curved.reshape(-1,3).to(material.position)
+        else:
+            lowest = self.vertices[:,1].min()
+            edge = self.vertices[(self.vertices[:,1]-lowest).abs()<1e-7]
+            self.edge = torch.stack((edge[edge[:,2].argmin()],edge[edge[:,2].argmax()]))
+        if len(self.edge)<2 or float((self.edge[-1]-self.edge[0]).norm())<=0:
             raise ValueError('Knife needs a finite leading edge')
         self.covered = torch.zeros_like(material.state_field('cut_spring_ke'), dtype=torch.bool)
         self.contacted = torch.zeros(material.worlds, device=material.position.device, dtype=torch.bool)
@@ -90,7 +94,7 @@ class KnifeBoard:
             self.contacted[mask] = board_contact(clearance)[mask]
         else:
             self.contacted[mask] = False
-        self.min_gap[mask] = clearance[mask]
+        self.min_gap[mask] = clearance[mask].to(self.min_gap)
         self.last_mid[mask] = self.midpoints()[mask]
         self.last_footprint[mask] = self.footprint()[mask]
         if bool((self.min_gap[mask] < self.stop_gap).any()):
@@ -126,7 +130,7 @@ class KnifeBoard:
                 hi = torch.where(safe, hi, mid)
         return torch.where(hit, lo, full), hit
 
-    def signed_height(self, position, rotation, points, footprint):
+    def _straight_signed_height(self, position, rotation, points, footprint):
         edge = self.transformed(position, rotation, self.edge)
         a, b = edge[:, 0], edge[:, 1]
         dz = b[:, 2] - a[:, 2]
@@ -139,6 +143,37 @@ class KnifeBoard:
         # fixed 'allowed sliding' threshold.
         xmin, xmax = footprint.unbind(-1)
         inside = ((u >= 0) & (u <= 1) & valid_edge[:, None]
+                  & (line[:, :, 0] >= xmin[:, None]) & (line[:, :, 0] <= xmax[:, None]))
+        # No deleted witnesses at the board: the same tolerance covers penalty-contact
+        # penetration of the material, and it is reported as a geometric approximation.
+        return line[:, :, 1]-points[:, :, 1], inside
+
+    def signed_height(self, position, rotation, points, footprint):
+        if len(self.edge)==2:
+            return self._straight_signed_height(position,rotation,points,footprint)
+        edge = self.transformed(position, rotation, self.edge)
+        z=edge[:,:,2]
+        # Small allowed pitches preserve the edge order. Refuse a folded projection
+        # rather than join unrelated vertices and fabricate coverage.
+        increasing=(z[:,1:]-z[:,:-1]>1e-9).all(-1)
+        decreasing=(z[:,1:]-z[:,:-1]<-1e-9).all(-1)
+        if not bool((increasing|decreasing).all()):
+            raise ValueError('Cutting edge projection is not monotone')
+        edge=torch.where(decreasing[:,None,None],edge.flip(1),edge)
+        z=edge[:,:,2].contiguous()
+        ids=torch.searchsorted(z,points[:,:,2].contiguous()).clamp(1,len(self.edge)-1)
+        a=edge.gather(1,(ids-1)[:,:,None].expand(-1,-1,3))
+        b=edge.gather(1,ids[:,:,None].expand(-1,-1,3))
+        dz=b[:,:,2]-a[:,:,2]
+        valid_edge=dz.abs()>1e-9
+        u=(points[:,:,2]-a[:,:,2])/dz
+        line=a+u[:,:,None]*(b-a)
+        # Coverage is of the projected intended section, not a demand that a
+        # deforming free object keep its original cut plane at x=0. Reject a
+        # knife outside the object's actual transverse footprint without a
+        # fixed 'allowed sliding' threshold.
+        xmin, xmax = footprint.unbind(-1)
+        inside = ((u >= 0) & (u <= 1) & valid_edge
                   & (line[:, :, 0] >= xmin[:, None]) & (line[:, :, 0] <= xmax[:, None]))
         # No deleted witnesses at the board: the same tolerance covers penalty-contact
         # penetration of the material, and it is reported as a geometric approximation.

@@ -16,7 +16,7 @@ def pack_model(source, worlds):
         raise ValueError('Triangle self-collision needs an environment-aware pair list')
     result = copy.copy(source)
     shared = {'gravity', 'knife_params', 'knife_tri_indices', 'knife_tri_vertices',
-              'com', 'com_above_cut', 'com_below_cut'}
+              'com', 'com_above_cut', 'com_below_cut', 'knife_edge_vertices', 'knife_board_vertices', 'knife_sdf_grid'}
     offsets = {
         'tet_indices': source.particle_count, 'tri_indices': source.particle_count,
         'spring_indices': source.particle_count, 'edge_indices': source.particle_count,
@@ -38,7 +38,9 @@ def pack_model(source, worlds):
                  'articulation_joint_start': source.link_count}
     for name, value in vars(source).items():
         if isinstance(value, torch.Tensor):
-            if name in shared or value.ndim == 0:
+            if name == 'knife_sdf_grid':
+                pass  # Immutable shared geometry; do not replicate a dense SDF per reset pool.
+            elif name in shared or value.ndim == 0:
                 value = value.detach().clone()
             elif name in sentinels:
                 stride = sentinels[name]

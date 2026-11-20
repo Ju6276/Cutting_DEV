@@ -48,7 +48,8 @@ class GeometryRecorder:
         self.env = env
         self.material = env.physics.material
         self.base_from_disect = env.physics.coupling.base_from_disect.to(env.device, torch.float64)
-        self.mj = mujoco.MjModel.from_binary_path(str(backend / 'runs/model_coupled/robot.mjb'))
+        from cutting_world_model.robot_platform import model_path_for_task
+        self.mj = mujoco.MjModel.from_binary_path(str(model_path_for_task(backend,env.metadata)))
         self.data = mujoco.MjData(self.mj)
         mujoco.mj_forward(self.mj, self.data)
         base = self.mj.body(env.metadata['robot_base']).id

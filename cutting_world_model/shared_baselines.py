@@ -31,6 +31,17 @@ def frame_metadata(env):
 def validate_current_interface(saved, actual, allow_backend_transfer=False):
     if actual.get('free_cut_task', {}).get('version') not in POSE_DEPTH_VERSIONS:
         raise ValueError('Current baselines require pose_depth_v2/v3')
+    # An unchanged task observation interface is not enough when the FDCC
+    # sensor frames, gains or compiled robot have changed. Paths may relocate.
+    old_platform, new_platform = saved.get('robot_platform'), actual.get('robot_platform')
+    if (old_platform is None) != (new_platform is None):
+        raise ValueError('Baseline checkpoint/environment mismatch: robot_platform')
+    if new_platform is not None:
+        for name in ('revision', 'controller_sha256', 'runtime_sha256'):
+            if not old_platform.get(name) or not new_platform.get(name):
+                raise ValueError('Robot platform checkpoint lacks verified identity: ' + name)
+            if old_platform[name] != new_platform[name]:
+                raise ValueError('Baseline checkpoint/environment mismatch: robot_platform.' + name)
     keys = ('environment', 'controller', 'policy_observation_revision', 'physical_backend',
             'task_interface_revision', 'tool_revision', 'progress_semantics',
             'board_pose_geometry', 'contact_discretization_revision', 'free_cut_task',

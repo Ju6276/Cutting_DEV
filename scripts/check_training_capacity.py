@@ -61,6 +61,7 @@ def main():
   frame=env.current;n=env.worlds
   metadata=ControlStateSpec.metadata_from_frame(env.metadata,{k:v[0].cpu().numpy() for k,v in frame.items()})
   metadata['goal_dim']=8;metadata['task_conditions']=cfg
+  (a.output/'metadata.json').write_text(json.dumps(metadata,indent=2))
   wm=CuttingWorldModel(metadata).cuda();spec=wm.spec
   policy=SliceItPolicy(8,metadata['state_shapes']['observation'][0]).cuda()
   critic=SliceItCritic(spec.state_dim,8).cuda()
@@ -101,6 +102,9 @@ def main():
   # Prove replay can supply terminal-aware real critic windows before updating.
   candidate=replay.buffer.sample_windows(learner.pcfg.batch_size,learner.pcfg.horizon)
   del candidate
+  # Preserve the exact collected dataset before an optimizer can fail.
+  torch.save(learner.checkpoint(),a.output/'collected_learner.pt')
+  replay.save(a.output/'collected_replay.pt')
   save('wm_update')
   t=time.monotonic();report['wm']=learner.fit_world_model(replay.buffer);report['wm_seconds']=time.monotonic()-t
   save('actor_critic_update')

@@ -120,7 +120,7 @@ def main():
   smooth=vtk.vtkWindowedSincPolyDataFilter();smooth.SetInputConnection(contour.GetOutputPort());smooth.SetNumberOfIterations(80);smooth.SetPassBand(.01);smooth.NormalizeCoordinatesOn()
   normals=vtk.vtkPolyDataNormals();normals.SetInputConnection(smooth.GetOutputPort());normals.SplittingOff()
  # Static triangle data and animated coordinates share the historical studio schema.
- out=dict(ground=r.presentation_ground(d,task),recorded_ground=d['ground'],center=(points.min(0)+points.max(0))/2,
+ out=dict(mounted_cad_knife=bool(task.get('cad_tool')),ground=r.presentation_ground(d,task),recorded_ground=d['ground'],center=(points.min(0)+points.max(0))/2,
           knife=blade_points,knife_tri=blade_faces,
           sim_time=np.arange(last+1)*float(task['environment']['agent_control_dt']))
  app=None
@@ -171,6 +171,9 @@ def main():
   out[f'robot_f{j}']=cells[:,1:]
   out[f'robot_c{j}']=act.GetProperty().GetColor()
   out[f'robot_tool{j}']=str(d['geom_body'][k])=='b_bot_right_inner_knuckle'
+  body=str(d['geom_body'][k])
+  if body in ('ikea_knife','ati_mini45_body'):out[f'robot_metallic{j}']=.7
+  elif body in ('user_knife_holder','user_ur_adapter'):out[f'robot_metallic{j}']=0.
   transforms=[]
   for st in states:
    m=np.eye(4);m[:3,:3]=st['body_mat'][k].reshape(3,3);m[:3,3]=st['body_pos'][k]
@@ -225,7 +228,7 @@ def main():
    physical_blade=True,mount_rigidity_residual_m=mount_residual,
    board_display=('Shared main-run 24x16 cm exterior; infinite physical support; not a collision boundary'
      if task.get('tool_revision')=='disect_knife_rigid_mount_v1' else 'Recorded display corners; not a collision boundary'),
-   mount='Original handle and physical blade; no fabricated connector; measured adapter mesh unavailable',
+   mount=('User CAD assembly: ATI Mini45, PLA adapters, IKEA knife' if task.get('cad_tool') else 'Original handle and physical blade; no fabricated connector; measured adapter mesh unavailable'),
    schematic_connector=False,tool_revision=task.get('tool_revision'),
    case=w,episode=row,policy_updates=initial['training']['policy_updates'],
    scope=('Settled initial geometry; no policy or control steps' if a.snapshot else row.get('scope','Frozen policy rerun; first world per object; no physics edits')))))

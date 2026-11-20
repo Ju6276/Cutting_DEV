@@ -54,6 +54,13 @@ def disect_from_blade(like):
 def canonical_mount(root, chain, knife_chain, task):
     from pathlib import Path
 
+    if task.get("cad_tool"):
+        from .cad_knife import mount
+        ee_d=mount(task,chain.origin_position)
+        d_b=ee_d.new_tensor(task["cad_tool"]["disect_from_blademaster"])
+        from cutting_gpu_backend.coupling import fixed_pose_from_urdf
+        base_d=fixed_pose_from_urdf(task["robot_xml"],task["robot_base"],"cutting_board_disect",device=ee_d.device,dtype=ee_d.dtype)
+        return ee_d, compose_pose(ee_d,d_b), base_d
     q = torch.as_tensor(
         np.load(Path(root) / "runs/source/episode_000.npz")["joint_q"][0],
         device=chain.origin_position.device,

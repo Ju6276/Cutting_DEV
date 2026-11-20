@@ -172,6 +172,8 @@ class SliceItCoupling:
 
     def reset_pose(self, knife_pose_base):
         pose = compose_pose(self.disect_from_base,knife_pose_base)
+        if getattr(self, "rigid_tool", False):
+            return pose
         pose[...,1] -= 0.0043
         twist = pose.new_zeros((*pose.shape[:-1],6))
         pose,twist = constrain_knife(pose,twist,self.spine_height)
@@ -187,7 +189,8 @@ class SliceItCoupling:
                            quat_apply(transform[...,3:],angular)),-1)
         twist = torch.where(jump,torch.zeros_like(twist),twist)
         pose = compose_pose(self.disect_from_base,knife_pose_base)
-        pose,twist = constrain_knife(pose,twist,self.spine_height)
+        if not getattr(self, "rigid_tool", False):
+            pose,twist = constrain_knife(pose,twist,self.spine_height)
         self.previous_pose_base = knife_pose_base.clone()
         return {'pose':pose,'linear_velocity':twist[...,:3],
                 'angular_velocity':twist[...,3:],'update_pose':False}

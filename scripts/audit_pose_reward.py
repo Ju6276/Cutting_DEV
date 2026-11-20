@@ -110,7 +110,7 @@ def run(config_path, group_index, output, deadline):
     output.mkdir(parents=True,exist_ok=False)
     n=len(CASES);speed=.03;clearance=.01
     lift=clearance-knife_clearance(ROOT/'backends/mujoco',group['scene'])
-    env=GPUEnvironment(ROOT/'backends/mujoco',n,scene=group['scene'],
+    env=GPUEnvironment(ROOT/'backends/mujoco',n,scene=group['scene'],robot_platform=cfg.get('robot_platform'),
                        initial_lift=torch.full((n,),lift), sim_dt=group.get('sim_dt'),
                        force_model=group['force_model'],friction_velocity=group['friction_velocity'],
                        task=cfg['task'],force_limits=cfg['force_limits'],

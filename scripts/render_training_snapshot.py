@@ -56,6 +56,7 @@ def main():
   states=dict(np.load(root/'world_states.npz',allow_pickle=False))
   if len(states['world_id'])!=g['worlds']:raise ValueError('Missing captured worlds')
   task=json.loads((root/'task.json').read_text())
+  d['mounted_cad_knife']=bool(task.get('cad_tool'))
   if 'knife_world' not in states or 'knife_tri' not in states:
    raise ValueError('Snapshot lacks per-world physical blades; recapture instead of displaying the old URDF knife')
   if len(states['knife_world'])!=g['worlds']:
@@ -80,7 +81,8 @@ def main():
    transform=np.eye(4);transform[:3,:3]=states['body_mat'][i,k].reshape(3,3)
    transform[:3,3]=states['body_pos'][i,k]+offset;transform=transform@local
    inst.SetUserMatrix(r.matrix(transform[:3,3],transform[:3,:3]));ren.AddActor(inst)
-  ren.AddActor(r.actor(r.polydata(states['knife_world'][i]+offset,states['knife_tri']),(.61,.63,.65),specular=.5))
+  if not d.get('mounted_cad_knife'):
+   ren.AddActor(r.actor(r.polydata(states['knife_world'][i]+offset,states['knife_tri']),(.61,.63,.65),specular=.5))
   points=states['particles'][i]
   if g.get('representation')=='material_points':
    poly=vtk.vtkPolyData();pts=vtk.vtkPoints()
@@ -106,8 +108,8 @@ def main():
   win.Render();cap=vtk.vtkWindowToImageFilter();cap.SetInput(win);cap.SetInputBufferTypeToRGB();cap.ReadFrontBufferOff();cap.Update()
   out=cap.GetOutput();w,h,_=out.GetDimensions();pixels=vtk_to_numpy(out.GetPointData().GetScalars()).reshape(h,w,3)[::-1]
   canvas=Image.new('RGB',(w,h+160),(240,243,246));canvas.paste(Image.fromarray(pixels),(0,160));draw=ImageDraw.Draw(canvas)
-  t=report['training'];stage=t.get('training_stage',t.get('phase','unclassified'));label='ACTUAL TRAINING SNAPSHOT' if stage in ('world_model_only','joint') else 'VALIDATION SNAPSHOT'
-  draw.text((40,16),f"{label} | {report['worlds']} environments | vector step {t['iteration']}",font=r.font(36,True),fill=r.INK)
+  t=report['training'];stage=t.get('training_stage',t.get('phase',t.get('stage','unclassified')));label='ACTUAL TRAINING SNAPSHOT' if stage in ('world_model_only','joint') else 'VALIDATION SNAPSHOT'
+  draw.text((40,16),f"{label} | {report['worlds']} environments | vector step {t.get('iteration','n/a')}",font=r.font(36,True),fill=r.INK)
   draw.text((40,67),f"{stage} | WM rounds {t.get('wm_updates','n/a')} | policy updates {t.get('policy_updates','n/a')} | showing {count} captured worlds",font=r.font(25),fill=r.MUTED)
   draw.text((40,108),'Cucumber / half potato / prism. Grid is display-only; material colors are display colors. No added crack overlay.',font=r.font(23),fill=r.MUTED)
   a.output.parent.mkdir(parents=True,exist_ok=True);canvas.save(a.output)

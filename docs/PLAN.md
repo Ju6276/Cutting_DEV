@@ -145,3 +145,30 @@ preserves all completed vision budgets and their conditions.
 The [previous shared-launch plan](archive/PLAN_before_shared_long_20261116.md)
 retains older decisions. Archived S3, perturbation and old-task commands are
 not current launch instructions.
+
+## 2026-11-20 — UR10e / ATI / IKEA cutting integration (active)
+
+Authorized: finish both material backends and the shared learning/evaluation/render
+path for the user's UR10e, ATI Mini45 and CAD knife. No formal long run is started.
+Keep the UR5e profile runnable and preserve V3 reward/arrival/force/horizon rules.
+
+Implementation: immutable canonical knife mesh + curved edge; mesh-derived SDF
+for DiSECt (old analytic wedge remains legacy); arbitrary-mesh contact/edge rules
+for the BladeMaster forward solver; same fixed mounting and sensor wrench origin.
+Re-export the three free objects with explicit knife provenance. Robot profile,
+workspace and board placement are explicit; observations and action semantics stay
+documented, checkpoint robot/geometry mismatches must fail.
+
+Acceptance: geometry/SDF/contact tests and independent wrench transform checks;
+three-object reference and actual-action episodes on both backends; all WM,
+critic-32/actor-8 updates, SAC/planners, save/resume, partial resets; shared render
+matching the physical knife. Per user scope, do not repeat hundreds-world learning
+probes or native differentiation suites as acceptance gates. The two completed
+9-world learning runs stand; finish natural terminal/reset checks independently
+per backend. Publish a finite launch config and measured throughput.
+
+Validation budget: each geometry/contact probe <= 10 min, each small full-pipeline
+probe <= 1 h, capacity/reset probes <= 2 h per backend. These are bounded engineering
+checks, not a substitute for a trained policy or a hardware contact validation.
+
+Review candidate and evidence: [UR10e integration handoff](hardware/UR10E_INTEGRATION_REVIEW.md).
