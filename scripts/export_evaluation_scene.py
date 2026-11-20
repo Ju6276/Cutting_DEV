@@ -230,10 +230,10 @@ def main():
    out['normal_interior_triangles']=np.asarray(interior)
    out['normal_indices']=ids;out['normal_weights']=weights
 
-  appearance_note=dict(source=appearance_config['source'],reference=str(a.color_reference) if a.color_reference else None,mapping='Pinned scan colors in recorded material axes; translation-only reset alignment; approximate projection, not original UV')
+  appearance_note=dict(source=appearance_config['source'],reference=str(a.color_reference) if a.color_reference else None,mapping=('Pinned scan colors in recorded material axes; translation-only reset alignment; approximate projection, not original UV' if a.color_reference else 'Deterministic synthetic colors in recorded material coordinates; no scanned texture claim'))
  out['metadata']=np.array(json.dumps(dict(format='studio_evaluation_v1',
    render_contract=profile['revision'],render_profile_sha256=profile_sha,robot_identity=robot_identity,recording=str(a.evaluation),frame=0,sim_time=0,robot_meshes=len(robot),sources=sources,
-   backend=a.backend,material=style,appearance=appearance_note,
+   backend=a.backend,object_name=name,material=name,appearance=appearance_note,
    physical_blade=True,mount_rigidity_residual_m=mount_residual,
    board_display=('Pinned food_studio_v1 presentation board; infinite physical support; not a collision boundary'
      if task.get('tool_revision')=='disect_knife_rigid_mount_v1' else 'Recorded display corners; not a collision boundary'),
