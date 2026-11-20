@@ -445,6 +445,10 @@ class BladeMasterBatch(CuttingBatch):
             self._reset_batched(mask)
         else:
             for index in mask.nonzero().flatten().tolist():self._new_material(index)
+        if getattr(self, 'board_current_continuation', False):
+            from cutting_gpu_backend.tool_mount import board_contact
+            gap = gap_from_pose(self.frames[self.chain.tip], self.board_geometry)
+            self.contacted[mask] = board_contact(gap)[mask]
         return self.frame()
 
     def frame(self):

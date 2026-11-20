@@ -79,10 +79,18 @@ class KnifeBoard:
         particles = self.material.state_field('particle_q')
         return torch.stack((particles[:, :, 0].amin(-1), particles[:, :, 0].amax(-1)), -1)
 
-    def reset(self, mask):
+    def reset(self, mask, gap=None):
         self.covered[mask] = False
-        self.contacted[mask] = False
-        self.min_gap[mask] = self.gap()[mask]
+        # Current contact is a pose property, including at reset. Historical
+        # interval-event/latch versions still start with their event cleared.
+        current = getattr(self, 'continuing', False) and getattr(self, 'current_continuation', True)
+        clearance = gap if current and gap is not None else self.gap()
+        if current:
+            from .tool_mount import board_contact
+            self.contacted[mask] = board_contact(clearance)[mask]
+        else:
+            self.contacted[mask] = False
+        self.min_gap[mask] = clearance[mask]
         self.last_mid[mask] = self.midpoints()[mask]
         self.last_footprint[mask] = self.footprint()[mask]
         if bool((self.min_gap[mask] < self.stop_gap).any()):

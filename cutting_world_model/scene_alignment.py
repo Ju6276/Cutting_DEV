@@ -94,7 +94,7 @@ def align_reset(env, frame, mask):
         physics.coupling.previous_pose_base[mask]=knife[mask]
         physics.motion_initialized[mask]=False
         physics.reference_start[mask]=pose[mask]
-        physics.board.reset(mask)
+        physics.board.reset(mask, gap=gap_from_pose(pose, geo))
     else:
         import warp as wp
         desired=physics.tool_pose()
@@ -108,4 +108,7 @@ def align_reset(env, frame, mask):
             wp.to_torch(solver.tool_omega.data)[local]=0
         physics.initial_pose[mask]=pose[mask]
         physics.reward_depth_span[mask]=(gap_from_pose(pose,geo)[mask]-geo['stop_gap_m'])[:,None]
+        if getattr(physics, 'board_current_continuation', False):
+            from cutting_gpu_backend.tool_mount import board_contact
+            physics.contacted[mask]=board_contact(gap_from_pose(pose,geo))[mask]
     return physics.frame()

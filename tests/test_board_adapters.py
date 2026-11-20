@@ -339,3 +339,29 @@ def test_partial_reset_clears_only_selected_worlds_and_others_continue(rig):
     assert moved[1, 0].item() > 3e-4, 'unreset world stayed frozen'
     assert frame['knife_board_contact'][:, 0].tolist() == [False, True]
     assert torch.equal(wm_contact(r), frame['knife_board_contact'][:, 0].bool())
+
+
+@pytest.mark.parametrize("current", [True, False])
+def test_reset_recomputes_current_contact_from_restored_pose(rig, current):
+    """A valid near-board reset must have the same state flag as the WM."""
+    r = rig
+    press(r)
+    # Save a pose just above the interlock, inside the 10 um contact band.
+    # A little lift avoids comparing float32 joint rounding with the stop plane.
+    r.proposal.velocity[:] = torch.tensor([0., .0001], dtype=torch.double)
+    r.step()
+    assert ((clearance(r) > 1e-6) & (clearance(r) < 1e-5)).all()
+    r.robot.initial[0] = r.robot.q[0]
+    r.proposal.velocity[:] = torch.tensor([0., .02], dtype=torch.double)
+    r.step()
+    assert not r.contacted().any()
+    kept = r.robot.q[1].clone()
+    if hasattr(r.physics, 'board'):
+        r.physics.board.current_continuation = current
+    else:
+        r.physics.board_current_continuation = current
+    frame = r.reset(torch.tensor([True, False]))
+    assert r.contacted().tolist() == [current, False]
+    if current:
+        assert torch.equal(frame['knife_board_contact'][:, 0].bool(), wm_contact(r))
+    torch.testing.assert_close(r.robot.q[1], kept, atol=0, rtol=0)

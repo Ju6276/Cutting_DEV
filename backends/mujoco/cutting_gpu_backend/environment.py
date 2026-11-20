@@ -214,9 +214,13 @@ class CuttingBatch:
         self.coupling.previous_pose_base[mask] = self._initial_previous_knife[mask]
         self.sim_time[mask] = 0
         self.peak[mask] = 0
-        if self.board is not None:
-            self.board.reset(mask)
         self.frames = self.chain(self.robot.q.to(self.dtype), mass_matrix=False)[0]
+        if self.board is not None:
+            gap = None
+            if getattr(self, 'rigid_tool_geometry', None) is not None:
+                from .tool_mount import gap_from_pose
+                gap = gap_from_pose(self.frames[self.chain.tip], self.rigid_tool_geometry)
+            self.board.reset(mask, gap=gap)
         return self.frame()
 
     def frame(self):

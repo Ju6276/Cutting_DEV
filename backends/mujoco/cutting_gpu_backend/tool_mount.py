@@ -46,7 +46,8 @@ def swept_joint_fraction(old_q, new_q, fk, geometry, reach_bound, active):
 
 # Machine-checked board-continuation semantics recorded in task.board.motion.
 # v1 (f12ca04): flag = projected AND clearance <= 10 um; minimum-norm joint
-# projection. Read/evaluate-only: kept so its checkpoints evaluate as recorded.
+# projection. Read/evaluate-only: preserves its endpoint/flag rules. The shared
+# swept-start gap fix also applies to v1; evaluation is not bitwise historical.
 # v2 (current): flag = clearance <= 10 um (state property, board_contact below).
 CONTINUE_BOARD_V1 = 'project_continue_v1'
 CONTINUE_BOARD = 'project_continue_v2'

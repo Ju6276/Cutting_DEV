@@ -7,13 +7,56 @@ task, free_cut_v1–v4, pose-v1 runs, including the 2026-11-14 evidence index) a
 [PLAN](PLAN.md) says what happens next; old next-step prose in entries is not a plan.
 
 
+## 2026-11-20 — Follow-up review of board continuation and reset
+
+Independent review of Claude's six caveats at 9ea91b2, on the UR10e development
+branch (719e1c2 before these fixes). No rewards, task limits, arrival counter,
+horizon or material parameters changed; no long training launched.
+
+Confirmed issues and corrections:
+
+- Current board_contact is a state property, but both physical adapters reset
+  it to zero unconditionally. A valid reset at 1–10 um therefore disagreed with
+  the WM. Both now recompute it from the restored rigid-blade FK/geometry, also
+  after settled-surface alignment. Unselected worlds are unchanged; historical
+  event/latch reset semantics still clear the event. The new two-backend
+  regression failed on the previous implementation and passed after correction.
+  The configured millimetre-clearance starts did not trigger this edge case.
+- check_board_continue.py measured its lateral slide from first contact, before
+  three intervening inward phases. The phase now uses its own initial pose;
+  the old aggregate is retained under contact_to_slide_end_x_m. Saved audited
+  records give 9.992–9.998 mm (DiSECt) and 9.985–9.986 mm (BladeMaster) for the
+  commanded 10 mm slide. The previous 9.0–9.7 mm report does not establish a
+  swept-step shortfall. Original results are untouched. Reanalysis plus input
+  SHA256s: runs/review_reset_contact_20261120/slide_reanalysis.json.
+- v1 evaluation retains its endpoint/flag rules but also receives the swept-start
+  gap boundary fix. Documentation now explicitly says it is not bitwise
+  reproduction; use the frozen old checkout for that purpose.
+
+Other caveats: the semantic label and implementation must be merged as the
+complete change series, not its intermediate commits. The toy-chain >0.3 mm
+assertion only tests that sliding is possible; quantitative tracking evidence
+comes from the physical probes, with the corrected phase baseline above.
+55 vs 44 ms is a reported projection+velocity microbenchmark, not an end-to-end
+50 ms real-time controller validation. No board reaction-force model is added.
+
+Final GPU7 validation: **773 passed / 5 skipped** in the root suite,
+**44 passed** in the backend suite. Both suites used the same final code tree;
+the full final root run includes the additional historical-reset and probe tests.
+Evidence: runs/review_reset_contact_20261120/{before,after,root_final,backend}.log.
+The before log shows both near-board reset assertions failing. Additional tests
+cover historical reset flags and phase-baseline/invalid-record handling.
+
 ## 2026-11-19 — V3 board continuation revision project_continue_v2
 
 Three review findings on `project_continue_v1` (f12ca04) were fixed on branch
 `claude/board-contact-fixes`; the public task stays `pose_depth_v3`, the
 machine-checked `task.board.motion` is now `project_continue_v2`. v1 checkpoints,
-replay and configs stay evaluable with their recorded rules but are refused for
-training and resume (metadata differs; `refuse_retired_training`).
+replay and configs retain their old endpoint/flag rules for evaluation but are
+refused for training and resume (metadata differs; `refuse_retired_training`).
+The shared swept-start gap boundary correction also applies to v1 evaluation:
+this is deliberately **not bitwise reproduction** of the original v1 executable.
+Use the frozen original checkout when that reproduction is required.
 
 1. `board_contact` is now a property of the end-of-step pose (rigid-blade
    clearance <= 10 um), computed by the same function in DiSECt, BladeMaster and
@@ -49,8 +92,13 @@ length) and rotated it 0.03–0.04 / 0.14 / 0.34 rad over the three phases. At
 response to the unreachable target and material wrench), not added by the board
 projection; this attribution is from the audit, the controller mechanism itself
 was not separately analysed. Final gaps stayed 1.17–1.53 um, no force-limit event.
-The 10 mm lateral target slide gave 26.3–26.4 mm at f12ca04 (projection-induced
-slide added to the commanded one) and 9.0–9.7 mm at 08bb59f. Hold, lift (contact
+Correction (2026-11-20 independent review): the old reported 26.3–26.4 mm at
+f12ca04 and 9.0–9.7 mm at 08bb59f were displacement from **first board contact**,
+not from the start of the lateral phase. They included the three inward phases.
+Recomputing from saved transitions, the lateral phase itself moved
+10.400–10.416 mm at f12ca04 and **9.985–9.998 mm at 08bb59f**.
+The claimed 0.3–1 mm lateral shortfall was a diagnostic baseline error, not
+evidence that the sweep shortened the commanded slide. Hold, lift (contact
 cleared) and partial reset passed for all four runs. First boundary step: DiSECt
 38–39, BladeMaster 36. Wall time 588–630 s per probe.
 Evidence: GPU7 `runs/board_normal_20261119/audited/{after,before}_{disect,blademaster}/`

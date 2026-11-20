@@ -14,6 +14,24 @@ from cutting_world_model.provenance import git_revision
 ROOT=Path(__file__).resolve().parents[1]
 DRIFT_SPEEDS=(.005,.02,.05)
 
+
+def phase_translation(records, stage):
+    """Net EE translation during one contiguous phase of post-step records.
+
+    Its initial pose is the last sample BEFORE that phase, not first contact.
+    This also lets archived probe records be rechecked without running physics.
+    """
+    indices=[i for i,row in enumerate(records) if row['stage']==stage]
+    if not indices or indices[0]==0 or indices!=list(range(indices[0],indices[-1]+1)):
+        raise ValueError('Phase needs a preceding sample and one contiguous block')
+    start=torch.as_tensor(records[indices[0]-1]['pose'],dtype=torch.float64)
+    end=torch.as_tensor(records[indices[-1]]['pose'],dtype=torch.float64)
+    if start.ndim!=2 or start.shape[-1]!=7 or start.shape!=end.shape:
+        raise ValueError('Probe poses must be matching [worlds,7] arrays')
+    if not (torch.isfinite(start).all() and torch.isfinite(end).all()):
+        raise ValueError('Non-finite probe pose')
+    return end[:,:3]-start[:,:3]
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--config',type=Path,required=True)
@@ -151,9 +169,13 @@ def main():
                     raise AssertionError(('Force limit during inward press; drift phase incomplete',speed))
             # Keep a small inward target component to ensure lateral movement
             # is possible even while the controller continues asking to descend.
-            target=f['ee_pose'].clone();target[:,0]+=.01;target[:,2]-=.001
+            slide_start=f['ee_pose'].clone()
+            target=slide_start.clone();target[:,0]+=.01;target[:,2]-=.001
             for _ in range(20):f=step('slide')
-            slide=f['ee_pose'][:,0]-contact_pose[:,0]
+            slide=phase_translation(records, 'slide')[:,0]
+            # Keep the old aggregate under an explicit name; inward phases can
+            # drift, so first contact is not the lateral phase's starting pose.
+            contact_to_slide_end=f['ee_pose'][:,0]-contact_pose[:,0]
             assert (slide>.003).all(), ('Lateral motion suppressed',slide.tolist())
             target=f['ee_pose'].clone();target[:,2]+=.005
             for _ in range(20):f=step('lift')
@@ -167,6 +189,7 @@ def main():
             contact=ph.board.contacted if a.backend=='disect' else ph.contacted
             assert not contact[0]
             report.update(status='passed',contact_step=i+1,slide_m=slide.tolist(),
+                           contact_to_slide_end_x_m=contact_to_slide_end.tolist(),
                           final_gap_m=f['knife_board_gap'].flatten().tolist(),partial_reset=True)
         (a.output/'transitions.json').write_text(json.dumps(records,indent=2))
     except BaseException as exc:
