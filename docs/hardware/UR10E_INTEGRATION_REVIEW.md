@@ -11,8 +11,9 @@ branch codex/ikea-mesh-tool, based on c51ef733364aa9cbbbceb6ba5b422cabf67ddefc.
 The native branch is a forward robot-integration candidate; full differentiation
 acceptance is excluded by the user's current scope.
 
-This is a review candidate, not a completed long-training acceptance report.
-No formal UR10e long run has been launched. Main has not been merged.
+The reviewed board fixes and platform work are consolidated for the authorized main merge.
+No formal UR10e long run has been launched. The verification scope and remaining
+physical limitations below are not changed by merging.
 
 ## Fixed task contract
 pose_depth_v3 / project_continue_v2; no permanent freezing. Cumulative arrival >10,
@@ -34,7 +35,7 @@ there is no knife-board reaction-force model. Material separation is diagnostic.
 - Dependencies consolidated in requirements/ and the root installation entry.
 
 Asset bundle:
-`/dataHDD/dong/Assets/Cutting_DEV/robots/ur10e_ati_ikea_midblade_v1`.
+`/dataHDD/dong/Assets/Cutting_DEV/robots/ur10e_ati_ikea_fdcc_v2` (current; old bundle retained for recorded experiments).
 Paired configuration:
 `/dataHDD/dong/Assets/Cutting_DEV/ur10e_shared_midblade_20261120/`.
 The fixed nominal pose supports the central curved edge with 8.25-degree tip-down
@@ -98,3 +99,65 @@ Final merge is authorized by the user once the applicable checks complete.
 Each material backend can become ready independently. A finite launch budget and
 online W&B are required for formal training; baseline performance and physical
 knife-board reaction validation are separate from this interface acceptance.
+
+
+## 2026-11-21 FDCC correction and render consolidation
+
+The nominal 5000 N/m direction incorrectly moved from vertical to horizontal when
+UR5e stiffness values were copied into UR10e knife_mount axes. The compiler now
+inserts knife_compliance at the same origin and compensates the task-TCP fixed
+transform. Physical TCP, knife and ATI poses are unchanged. Reference stiffness
+and both policy stiffness channels use the corrected axes.
+
+Real A6000 reference comparison: old cucumber capture ended at step 80 with
+5.713 mm blade gap and no success; corrected run succeeded at step 63, gap
+1.482 mm, cumulative arrival 11, no force-limit/workspace failure. This is one
+reference condition, not a learned-policy result or all-material acceptance.
+Evidence: new_knife_fdcc_v2/motion.json and new_knife_video/motion.json.
+
+The current food configs contain cucumber and HALF potato; former three-object
+configs are retained under configs/archive/three_object_*.json. New formal UR10e
+config uses the corrected fdcc_v2 bundle. Source-scene physics is not changed by
+the presentation renderer.
+
+One presentation entry: scripts/render_scene.py. Recorded platform identity is
+mandatory; pinned scan sources/colors and camera/board settings are in
+configs/render/studio_v1.json. Missing assets fail instead of silently changing
+colors. Pure-white PLA and metal ATI/IKEA are explicit. Exterior normals no
+longer average prepared internal cut faces into the food skin. No physical
+vertices are moved to hide a real gap. Batch diagnostic views are separate.
+
+OmniObject3D banana_001 (Object.usd and textures/Scan.jpg) was downloaded from the
+AlbertS666 mirror. Its inspected archive has no tofu/luncheon category. Existing
+procedural banana/tofu/luncheon geometries have deterministic synthetic appearance,
+explicitly not attributed to that scan. The banana scan is a future physical-asset
+candidate, not silently substituted for the existing banana contact geometry.
+Physics preset provenance remains in configs/blademaster_disect/catalog.json;
+transferred elastic values are not real-food calibration and fracture models
+are not interchangeable.
+
+## Merge verification (2026-11-21)
+
+GPU7 final root suite: 771 passed, 25 skipped (merge_root_suite.log).
+Backend suite from its documented working directory: 44 passed
+(merge_backend_correct_cwd.log). An earlier invocation from repository root failed
+14 file-relative fixture loads; it was a test invocation error, not a repaired
+physics defect, and was rerun from backends/mujoco.
+
+Registered UR10e half-potato/cucumber stills and the wide scene were rendered and
+visually inspected with the same appearance/camera/board contract. Both material
+backends export the actual CAD knife and pure-white PLA. The MPM presentation maps
+scan colors through interpolated particle displacement instead of averaging coarse
+particle colors, avoiding a separate blurred appearance. The surface reconstruction
+still differs from FEM, as the physical representations differ.
+
+The legacy three-object DiSECt reference check finished 500 steps with status passed
+on A6000, covering natural timeout/reset. It used the earlier midblade controller
+bundle; it must not be cited as a success-rate test for corrected fdcc_v2.
+Corrected-controller evidence remains the same-condition cucumber success at step 63.
+
+Mac delivery location is now /Users/judong/Documents/Cutting_DEV/Media:
+current holds current reviewed images/videos; archive preserves earlier experiments
+and superseded previews. moved_20261121.json records 24 moves from Downloads.
+No experiment data was deleted. tams61 receives code/docs only; run-host assets and
+the native BladeMaster CAD dependency are synchronized separately.

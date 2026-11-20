@@ -1,0 +1,76 @@
+{
+  "revision": "food_studio_v1",
+  "board_size_m": [
+    0.65,
+    0.54
+  ],
+  "board_thickness_m": 0.012,
+  "camera": {
+    "close": {
+      "target_offset_m": [
+        0,
+        0,
+        0.14
+      ],
+      "offset_m": [
+        0.78,
+        -1.13,
+        0.6
+      ],
+      "ortho_scale_m": 0.55
+    },
+    "wide": {
+      "target_offset_m": [
+        -0.25,
+        0,
+        0.05
+      ],
+      "offset_m": [
+        1.2,
+        -1.6,
+        0.9
+      ],
+      "ortho_scale_m": 1.65
+    }
+  },
+  "appearance": {
+    "cucumber_003": {
+      "directory": "/dataHDD/dong/Assets/Cutting_DEV/presentation/food_studio_v1/cucumber_003",
+      "sha256": {
+        "episode.npz": "5e7390f8665183e2c506a38a699c9f8670ccd7455370e81c0c639c97b23589f0",
+        "appearance.npz": "1bf0f8b188f48a1e1f46ade29f6c57bc3fda481c274d7be4faaefd89c4043d7b",
+        "task.json": "251679181892d9803e97dd4af516f0193fef15cc6be0192bf8bc545b765da7bf"
+      },
+      "source": "Approved 2026-11-14 OmniObject3D scan appearance"
+    },
+    "potato_half": {
+      "directory": "/dataHDD/dong/Assets/Cutting_DEV/presentation/food_studio_v1/potato_half",
+      "sha256": {
+        "episode.npz": "f2bb1433f759a91fdce47c6e250a3148aaabdcdbc7a07260aa835cf1e0941466",
+        "appearance.npz": "0a1caed6ac3d21cc3a610c37025442d132d4b22277baa14f0f952bb93d2d99f6",
+        "task.json": "069add0e58c05dad36c4b3b65954674f0adae6c370d7147be270522666818a33"
+      },
+      "source": "Approved 2026-11-14 OmniObject3D scan appearance"
+    },
+    "banana": {
+      "kind": "procedural",
+      "material": "banana",
+      "source": "Deterministic synthetic appearance; not an OmniObject3D scan"
+    },
+    "tofu": {
+      "kind": "procedural",
+      "material": "tofu",
+      "source": "Deterministic synthetic appearance; not an OmniObject3D scan"
+    },
+    "luncheon_meat": {
+      "kind": "procedural",
+      "material": "luncheon_meat",
+      "source": "Deterministic synthetic appearance; not an OmniObject3D scan"
+    },
+    "luncheon": {
+      "kind": "procedural",
+      "material": "luncheon_meat",
+      "source": "Deterministic synthetic appearance; not an OmniObject3D scan"
+    }
+  }
+}

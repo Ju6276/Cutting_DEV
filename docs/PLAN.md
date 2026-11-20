@@ -11,7 +11,7 @@ Source of scene truth: [SHARED_SCENE](SHARED_SCENE.md) and
 [scene_v1.json](../configs/shared/scene_v1.json); task rules: [TASK_FREE_CUT](TASK_FREE_CUT.md).
 Resource counts may differ; task settings must not be edited independently per backend.
 
-- Freely placed cucumber003, flat-bottom half potato and prism; equal object
+- Freely placed cucumber003 and flat-bottom half potato; equal object
   allocation within a run. One shared policy per backend (DiSECt or BladeMaster).
 - Same robot, FDCC, mounted finite blade, sensor frame and action meaning.
   Six output channels, pitch off; five effective controls.
@@ -52,7 +52,7 @@ workspace and board placement are explicit; observations and action semantics st
 documented; checkpoint robot/geometry mismatches must fail.
 
 Acceptance: geometry/SDF/contact tests and independent wrench transform checks;
-three-object reference and actual-action episodes on both backends; all WM,
+food-object reference and actual-action episodes on both backends; all WM,
 critic-32/actor-8 updates, SAC/planners, save/resume, partial resets; shared render
 matching the physical knife. Per user scope, do not repeat hundreds-world learning
 probes or native differentiation suites as acceptance gates. The two completed
@@ -127,3 +127,11 @@ tests are pending; this does not authorize a training run.
 - 2026-11-17: pose_depth_v3; DP3 encoder for visual goals; UR10e + ATI selected as hardware.
 - 2026-11-19: horizon 500 steps; permanent board latch removed (`project_continue_v2`).
 - 2026-11-20: UR10e/ATI/CAD-knife integration authorized; no formal long run.
+
+
+## 2026-11-21 authorized consolidation
+Merge the reviewed board-contact fixes, UR10e platform, corrected compliance axes,
+fixed presentation entry and docs-prune branch after current regression checks.
+Synchronize GPU7, GPU9, A6000 and tams61. No formal long training is launched by this
+merge. Use the two-food configs (cucumber, half potato); new candidate foods require
+their own scene preparation. Do not repeat unrelated native differentiation tests.

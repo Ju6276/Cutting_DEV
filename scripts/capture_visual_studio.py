@@ -5,7 +5,7 @@ import numpy as np
 import vtk
 from PIL import Image,ImageDraw
 from vtk.util.numpy_support import numpy_to_vtk,vtk_to_numpy
-import render_episode as r
+import render_geometry as r
 from cutting_world_model.visual_cut import DepthCamera,visual_midpoint_plan
 
 def main():

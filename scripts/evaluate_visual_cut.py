@@ -129,6 +129,7 @@ def main():
         roots=["--source-root","/opt/ros/noetic/share/ur_description",
                "--source-root","/dataHDD/dong/Projects/SliceIt/catkin_ws/src"]
         run([a.render_python,ROOT/"scripts/export_evaluation_scene.py","--evaluation",pre,"--group","0",
+             "--robot-platform","ur10e" if env.metadata["robot_base"]=="base_link" else "ur5e",
              "--snapshot","--backend","BladeMaster",*roots,"--output",pre/"scene.npz"])
         capture_args=[a.render_python,ROOT/"scripts/capture_visual_studio.py","--scene",pre/"scene.npz",
              "--camera",a.output/"camera.json","--config",a.output/"visual_config.json",

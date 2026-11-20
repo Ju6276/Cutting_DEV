@@ -5,7 +5,7 @@ import numpy as np
 import vtk
 from vtk.util.numpy_support import vtk_to_numpy
 from PIL import Image
-import render_episode as shared
+import render_geometry as shared
 from cutting_world_model.visual_cut import DepthCamera,observe_depth
 from cutting_world_model.visual_center_features import cloud_input,heading,SCALE_M
 

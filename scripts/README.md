@@ -33,15 +33,16 @@ input contracts, SAC provenance and analytic-model limitations.
 
 ## Approved visualization
 
-1. `evaluate_pose_policy.py --record-geometry` records actual frozen execution.
-2. `export_evaluation_scene.py` exports the physical blade and original robot/
-   handle; use the correct backend and source mesh roots.
-3. `render_episode_still.py --video` renders the shared studio through Blender.
-4. `compose_wrench_video.py` appends synchronized sensor force/torque curves.
+1. Record execution with evaluate_pose_policy.py --record-geometry.
+2. Render with render_scene.py --robot-platform ur5e|ur10e --backend DiSECt|BladeMaster.
+   It uses configs/render/studio_v1.json for appearance identities, board and cameras.
+3. compose_wrench_video.py appends synchronized sensor force/torque curves.
 
-No blue blade overlay, fabricated mounting rod or highlighted artificial cracks.
-Color transfer is approximate when representation differs.
-`render_training_snapshot.py` reads actual recorded all-world training geometry;
+No blue blade overlay, fabricated mounting rod or highlighted artificial cut faces.
+Missing approved appearance or mismatched robot identity is an error.
+Scan-color mapping across remeshed physics is explicitly approximate.
+Legacy render_episode.py and the alternate still exporter are removed.
+All-world debug views live under scripts/diagnostics and are not presentation exports.
 `capture_shared_scenes.py` makes shared-config previews.
 `record_tool_motion_demo.py` and `compose_tool_motion_demo.py` illustrate the
 optional process constraint; current long runs select final-position-only.
@@ -79,8 +80,7 @@ versions and [RESULTS](../docs/RESULTS.md).
 - `train_sac_gpu.py` / `sac_gpu_worker.py`: original TensorFlow SAC bridge.
   These are not the current batched SB3 learner.
 - `evaluate_benchmark.py`, `record_episode.py`: fixed-prism benchmark.
-  `render_episode.py` reads the historical recording format and is also
-  imported by shared export utilities; it is not the default studio video entry.
+  Shared geometry helpers are in render_geometry.py, which has no rendering CLI.
 - `evaluate_multi.py`: old free-cut task; rejects current pose tasks.
 - `compare_free_cut_references.py`: free_cut_v3 reward decomposition, not the pose tasks.
 - `diagnose_free_cut_predictions.py`: free_cut_v3 separation diagnostic; refuses pose tasks.

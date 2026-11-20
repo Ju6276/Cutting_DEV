@@ -22,6 +22,9 @@ def test_current_shared_scene_preserves_archive_except_version_and_authorized_ho
     archived['common']['task']['version'] = 'pose_depth_v3'
     archived['common']['task']['horizon_steps'] = 500
     archived['common']['task']['board']['motion'] = 'project_continue_v2'
+    archived["objects"]=[o for o in archived["objects"] if o["name"]!="prism"]
+    archived["scope"]=current["scope"]
+    assert [o["name"] for o in current["objects"]]==["cucumber_003","potato_half"]
     assert archived == current
     validate_task(current['common']['task'])
 

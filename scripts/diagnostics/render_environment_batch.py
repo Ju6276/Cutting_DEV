@@ -4,6 +4,9 @@ Use capture_environment_batch.py first. This shows initialized simulation states
 not a training rollout. Robot visual mappers are shared; material vertices are
 individual captured states. Distant material color is a display fallback.
 """
+import sys
+from pathlib import Path
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import argparse
 import hashlib
 import json
@@ -14,7 +17,7 @@ import numpy as np
 import vtk
 from PIL import Image, ImageDraw
 from vtk.util.numpy_support import vtk_to_numpy
-import render_episode as r
+import render_geometry as r
 
 
 def main():

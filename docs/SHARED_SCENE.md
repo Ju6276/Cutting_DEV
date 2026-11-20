@@ -40,7 +40,7 @@ fails rather than expanding the workspace silently.
 
 | Item | Both backends under scene_v1 |
 |---|---|
-| Objects / allocation | Cucumber 003, flat-bottom half potato, prism; equal world count per object |
+| Objects / allocation | Cucumber 003 and flat-bottom half potato; equal world count per object |
 | Object sampling | Fixed geometry group per world; one shared learner, not sequential object training |
 | Robot and controller | Same UR5e asset, FDCC parameters, action mapping and sensor frame |
 | Physical knife / mount | disect_knife_rigid_mount_v1; same finite blade and rigid EE transform |
@@ -66,7 +66,7 @@ fails rather than expanding the workspace silently.
 | Friction coefficients | Board .2, knife .2; contact laws still differ; no calibration claimed |
 | Nominal cucumber | E=2.6 MPa, nu=.37, density=950 kg/m³ |
 | Nominal half potato | E=2 MPa, nu=.45, density=1101 kg/m³ |
-| Nominal prism | E=.04 MPa, nu=.45, density=830 kg/m³ |
+| Historical prism fixture | E=.04 MPa, nu=.45, density=830 kg/m³ |
 
 Workspace and tool-position thresholds are **fixed physical distances**, not scaled
 with object size. Rendered board edges are not a physical boundary. The current
@@ -131,7 +131,7 @@ Material mechanisms and arrival-counter semantics: [CUTTING_MECHANISMS](referenc
 - Native BladeMaster preset provenance: all three geometries start from
   `paper-banana`; geometry, E, Poisson ratio and density are overridden, but the
   nominal yield stress (30000 Pa) and cutting energy (700 J/m²) remain preset
-  values. These are not calibrated fracture properties for these three objects.
+  values. These are not calibrated fracture properties for these objects.
 - Material physics: FEM / pre-inserted cutting springs versus MPM / native damage.
   Equal E, density or friction coefficients do not imply equal resulting forces.
 - Geometry discretization: each backend samples the same intended object with its
@@ -249,3 +249,10 @@ Loaded files under
 | cucumber_003.pt | e3311f1a9b64d266ba597582fd096888cc665f2a4370693e1f4a89ab0b6fe0ad |
 | potato_half.pt | 46e32d9535b1014e79bc5b76764b6626e1383d2d5007f556436ee230e3384a56 |
 | prism.pt | 53b979a7efdaf9be4b41523806be8f2cab5dc3d9d3e04dad6eb116c12482b641 |
+
+
+## Current food selection (2026-11-21)
+The current UR5e and UR10e shared configs select cucumber_003 and potato_half.
+Generic prism has no food calibration and is removed from new food-training defaults.
+Old three-object source configs are retained under configs/archive/three_object_*.json.
+Episode randomization and task/reward rules are unchanged.

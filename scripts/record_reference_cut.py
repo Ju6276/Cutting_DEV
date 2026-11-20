@@ -3,7 +3,7 @@
 
 Runs one world with the reference branch (no policy), the force-limit termination disabled,
 and writes ``episode.npz``, ``report.json`` and ``task.json`` in the format read by
-``render_episode.py``. A measurement/illustration tool, not a task episode.
+``render_scene.py``. A measurement/illustration tool, not a task episode.
 """
 import argparse
 import json

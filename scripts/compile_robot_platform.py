@@ -15,6 +15,10 @@ from prepare_robot import adjacent_collision_pairs
 def compile_bundle(root, controller_source, ros_package):
     root = Path(root)
     info = json.loads((root / "platform.json").read_text())
+    from cutting_world_model.compliance_frame import configure
+    xml, compliance = configure((root / "robot.urdf").read_text(), info, info["q_initial_rad"])
+    (root / "robot.urdf").write_text(xml)
+    info["fdcc_compliance"] = compliance
     tree = ET.parse(root / "robot.urdf")
     robot = tree.getroot()
     ext = ET.SubElement(robot, "mujoco")
@@ -49,7 +53,7 @@ def compile_bundle(root, controller_source, ros_package):
     params = json.loads(Path(controller_source).read_text())
     params.update(end_effector_link=info["robot_tip"], robot_base_link=info["robot_base"],
                   joints=info["joint_names"], ft_sensor_ref_link=info["sensor_frame"],
-                  compliance_ref_link="knife_mount", gravity=dict(x=0.,y=0.,z=-9.8))
+                  compliance_ref_link=compliance["frame"], gravity=dict(x=0.,y=0.,z=-9.8))
     payload = info["sensor_distal_payload"]
     params["tool"] = dict(mass=payload["mass_kg"],
                           **{"com_"+a: value for a,value in zip("xyz",payload["com_m"])})

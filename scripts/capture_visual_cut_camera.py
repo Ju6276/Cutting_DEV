@@ -11,7 +11,7 @@ import numpy as np
 import vtk
 from PIL import Image,ImageDraw
 from vtk.util.numpy_support import vtk_to_numpy,numpy_to_vtk
-import render_episode as shared
+import render_geometry as shared
 from cutting_world_model.visual_cut import DepthCamera,estimate_plan
 
 def capture(recording, appearance, camera, roots, world_from_base):

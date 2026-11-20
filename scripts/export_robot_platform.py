@@ -6,7 +6,7 @@ import numpy as np
 import hashlib
 import vtk
 from vtk.util.numpy_support import vtk_to_numpy
-import render_episode as r
+import render_geometry as r
 from cutting_world_model.robot_platform import RobotPlatform
 
 def export(platform,output,verification_path):
@@ -39,6 +39,7 @@ def export(platform,output,verification_path):
             out[f"robot_metallic{j}"]=.7
         elif names[k] in ("user_ur_adapter", "user_knife_holder"):
             out[f"robot_metallic{j}"]=0.
+            out[f"robot_c{j}"]=np.ones(3)
     out["metadata"]=np.array(json.dumps(dict(format="static_platform",robot_meshes=len(actors),
                     platform=str(platform),sources=sources,geometry="Compiled robot FK and the URDF visual geometry; no material-cutting claim")))
     Path(output).parent.mkdir(parents=True,exist_ok=True);np.savez_compressed(output,**out)

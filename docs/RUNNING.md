@@ -126,7 +126,7 @@ BladeMaster replace `--conditions PREPARED/disect.json` with
 changing that flag does not scale a run. The preparer writes
 `common.worlds_per_object` from the contract into every group. The default
 [scene_v1.json](../configs/shared/scene_v1.json) has 3, which gives
-3 objects x 3 = **9 worlds**. To run the approved scale:
+2 objects x 3 = **6 worlds**. To run the approved scale:
 
 1. Copy the contract and change only `common.worlds_per_object` (e.g. 1024 per
    object, 3072 in total).
@@ -321,19 +321,18 @@ CUTTING_EVAL_ROOT can point to a frozen source checkout when running the audited
 evaluation script from an external experiment directory; the manifest records
 both the physical-source Git revision and evaluation-script SHA256.
 
-Frozen evaluation videos use the shared studio appearance with actual physical
-blade geometry:
+Frozen evaluation videos use one presentation entry with the recorded robot:
 
-```bash
-.venv-render/bin/python scripts/export_evaluation_scene.py   --evaluation RUN --group 0 --backend DiSECt   --source-root /opt/ros/noetic/share   --source-root /dataHDD/dong/Projects/SliceIt/catkin_ws/src   --source-root /dataHDD/dong/Projects/SliceIt/underlay_ws/src   --output RUN/studio_scene.npz
-blender -b -t 12 --python-exit-code 1 -P scripts/render_episode_still.py --   --scene RUN/studio_scene.npz --output RUN/video.mp4 --video --preview --samples 16 --fps 10 --speed 1
-# Remove --preview to encode the complete clip; --view wide gives the robot view.
-```
+    CUTTING_ENV=render source scripts/env/cutting_env.sh
+    python scripts/render_scene.py --evaluation RUN --group 0 --backend DiSECt --robot-platform ur10e --source-root /opt/ros/noetic/share --source-root /dataHDD/dong/Projects/SliceIt/catkin_ws/src --output RUN/video.mp4 --video
 
-Use `--appearance-reference DIR` only for a verified identical FEM topology
-and matching reference geometry. Use `--color-reference DIR` for approximate
-scan color transfer to another representation; this changes no physical geometry.
-The reference directory contains episode.npz and its hash-verified appearance.npz.
+Select the robot actually present in the recording. --view wide selects the fixed
+wide view. Single-episode initial stills use --recording DIR --object cucumber_003
+instead of --evaluation. Per-video texture/camera overrides are retired.
+Appearance identities/hashes and cameras live in configs/render/studio_v1.json.
+Older exported scenes must be regenerated. Rendered PLA adapters are pure white;
+ATI and IKEA knife retain metal materials. Original recording geometry is preserved.
+
 Both flags are optional: geometric blocks use the neutral material palette.
 BladeMaster uses `--backend BladeMaster` and recorded physical blade poses.
 Only the recorded original handle and physical blade are displayed; no fabricated
@@ -499,7 +498,7 @@ This reads the geometry recorded by a trainer snapshot (`--snapshot-at`); displa
 grid offsets do not change the physical environment.
 
 ~~~bash
-PYTHONPATH=.:backends/mujoco .venv-render/bin/python scripts/render_training_snapshot.py \
+PYTHONPATH=.:backends/mujoco .venv-render/bin/python scripts/diagnostics/render_training_snapshot.py \
   --recording /dataHDD/dong/Projects/Cutting_DEV_shared_long_20261116/runs/shared_long_20261116/disect_training/snapshot_00000001 \
   --source-root /dataHDD/dong/Projects/SliceIt \
   --source-root /opt/ros/noetic/share \

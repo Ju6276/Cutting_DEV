@@ -44,7 +44,7 @@ def test_current_ur10e_contract_keeps_task_rules():
  d,b=configs(new,prepared)
  assert d['robot_platform']==b['robot_platform']==new['robot_platform']
  assert [g['start_clearance_m'] for g in d['groups']]==[
-  b['start_clearance_m'][i*3:(i+1)*3] for i in range(3)]
+  b['start_clearance_m'][i*3:(i+1)*3] for i in range(len(new['objects']))]
 
 def test_cad_geometry_hash_mismatch_is_not_silently_accepted(tmp_path):
  path=tmp_path/'data.npz';np.savez(path,vertices=np.zeros((3,3)))

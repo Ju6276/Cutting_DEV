@@ -14,9 +14,8 @@ def arguments():
     p.add_argument('--export',action='store_true')
     p.add_argument('--recording',type=Path)
     p.add_argument('--source-root',type=Path,action='append',default=[])
-    p.add_argument('--show-contact-blade',action='store_true',help='Debug only: blue material-contact proxy overlay')
+    p.set_defaults(show_contact_blade=False,highlight_cut_faces=False)
     p.add_argument('--view',choices=['close','wide'],default='close')
-    p.add_argument('--highlight-cut-faces',action='store_true',help='Debug only: contrasting prepared cut faces')
     p.add_argument('--surface-map',type=Path)
     p.add_argument('--material',choices=['generic','cucumber','potato','prism'],default='generic')
     p.add_argument('--frame',type=int,default=0)
@@ -31,67 +30,28 @@ def arguments():
     return p.parse_args(args)
 
 def export(a):
-    import render_episode as r
-    import vtk
-    from vtk.util.numpy_support import vtk_to_numpy
-    d=np.load(a.recording/'episode.npz');i=a.frame
-    task=json.loads((a.recording/'task.json').read_text())
-    app=r.load_appearance(a.surface_map,a.recording/'episode.npz') if a.surface_map else None
-    pts=r.display_vertices(d,i,app)
-    colors=r.material_face_colors(d,a.material,app,a.highlight_cut_faces)/255.
-    if app is None:
-        faces=np.concatenate([d['tri'],d['cut_tri']])
-    else:
-        n=len(app['indices'])
-        faces=np.concatenate([np.arange(n).reshape(-1,3),d['cut_tri']+n])
-    normals=None
-    if app is not None:
-        original=r.material_vertices(d,i)
-        exterior_normals=np.zeros_like(original)
-        v=original[d['tri']]
-        face_n=np.cross(v[:,1]-v[:,0],v[:,2]-v[:,0])
-        for j in range(3):np.add.at(exterior_normals,d['tri'][:,j],face_n)
-        exterior_normals/=np.maximum(np.linalg.norm(exterior_normals,axis=1,keepdims=True),1e-20)
-        fine=(exterior_normals[app['indices']]*app['weights'][...,None]).sum(1)
-        fine/=np.maximum(np.linalg.norm(fine,axis=1,keepdims=True),1e-20)
-        cut=np.zeros_like(original);v=original[d['cut_tri']]
-        face_n=np.cross(v[:,1]-v[:,0],v[:,2]-v[:,0])
-        for j in range(3):np.add.at(cut,d['cut_tri'][:,j],face_n)
-        cut/=np.maximum(np.linalg.norm(cut,axis=1,keepdims=True),1e-20)
-        normals=np.concatenate([fine,cut])[faces].reshape(-1,3)
-    out=dict(points=pts,faces=faces,colors=colors,mounted_cad_knife=bool(task.get('cad_tool')),knife=d['knife'][i],knife_tri=d['knife_tri'],
-             ground=d['ground'],center=(d['particles'][i].min(0)+d['particles'][i].max(0))/2)
-    robot,sources=r.visual_actors(d,task,a.source_root)
-    robot=[entry for entry in robot if str(d['geom_body'][entry[0]])!='b_bot_cam_cables_link']
-    for j,(k,actor,local) in enumerate(robot):
-        actor.GetMapper().Update()
-        triangles=vtk.vtkTriangleFilter();triangles.SetInputData(actor.GetMapper().GetInput());triangles.Update()
-        poly=triangles.GetOutput()
-        v=vtk_to_numpy(poly.GetPoints().GetData()).copy()
-        f=vtk_to_numpy(poly.GetPolys().GetData()).reshape(-1,4)
-        if not np.all(f[:,0]==3):raise ValueError('Robot mesh must be triangular')
-        rot=d['body_mat'][i][k].reshape(3,3)
-        out[f'robot_v{j}']=(v@local[:3,:3].T+local[:3,3])@rot.T+d['body_pos'][i][k]
-        out[f'robot_f{j}']=f[:,1:]
-        out[f'robot_c{j}']=actor.GetProperty().GetColor()
-        out[f'robot_tool{j}']=str(d['geom_body'][k])=='b_bot_right_inner_knuckle'
-        body=str(d['geom_body'][k])
-        if body in ('ikea_knife','ati_mini45_body'):out[f'robot_metallic{j}']=.7
-        elif body in ('user_knife_holder','user_ur_adapter'):out[f'robot_metallic{j}']=0.
-    if normals is not None:out['normals']=normals
-    out['metadata']=np.array(json.dumps(dict(recording=str(a.recording),frame=i,
-       sim_time=float(d['sim_time'][i]),robot_meshes=len(robot),sources=sources,
-       highlight_cut_faces=a.highlight_cut_faces,
-       appearance=json.loads(str(app['metadata'])) if app is not None else None,
-       geometry='Recorded surfaces; barycentric display subdivision only; no physics changes')))
-    a.scene.parent.mkdir(parents=True,exist_ok=True)
-    np.savez_compressed(a.scene,**out)
+    raise ValueError("The legacy per-recording exporter is retired; use scripts/render_scene.py")
+
+def exterior_vertex_normals(x, faces):
+    """Smooth only exterior faces, sharing normals at coincident split nodes."""
+    v=x[faces];fn=np.cross(v[:,1]-v[:,0],v[:,2]-v[:,0])
+    normals=np.zeros_like(x)
+    for k in range(3):np.add.at(normals,faces[:,k],fn)
+    _,inverse=np.unique(np.round(x/1e-8).astype(np.int64),axis=0,return_inverse=True)
+    joined=np.zeros((inverse.max()+1,3));np.add.at(joined,inverse,normals)
+    normals=joined[inverse]
+    return normals/np.maximum(np.linalg.norm(normals,axis=1,keepdims=True),1e-20)
 
 def render(a):
+    import hashlib
     import bpy
-    from mathutils import Vector
+    from mathutils import Vector, Matrix
     d=dict(np.load(a.scene))
     meta=json.loads(str(d['metadata']))
+    if meta.get('format')=='studio_evaluation_v1':
+        contract=Path(__file__).resolve().parents[1]/'configs/render/studio_v1.json'
+        if meta.get('render_profile_sha256')!=hashlib.sha256(contract.read_bytes()).hexdigest():
+            raise ValueError("Outdated scene export: regenerate through render_scene.py")
     animated=meta.get('format')=='studio_evaluation_v1'
     variable=bool(d.get('dynamic_topology',False))
     def material_points(i):
@@ -129,13 +89,17 @@ def render(a):
     def update_display_normals(i):
         if 'normal_base_points' not in d:return
         x=d['normal_base_points'][i];faces=d['normal_base_faces']
-        v=x[faces];fn=np.cross(v[:,1]-v[:,0],v[:,2]-v[:,0])
-        normals=np.zeros_like(x)
-        for k in range(3):np.add.at(normals,faces[:,k],fn)
-        normals/=np.maximum(np.sqrt(np.sum(normals*normals,axis=1,keepdims=True)),1e-20)
+        normals=exterior_vertex_normals(x,faces)
         fine=(normals[d['normal_indices']]*d['normal_weights'][...,None]).sum(1)
         fine/=np.maximum(np.sqrt(np.sum(fine*fine,axis=1,keepdims=True)),1e-20)
-        obj.data.normals_split_custom_set(fine[d['faces']].reshape(-1,3).tolist())
+        corner_normals=fine[d['faces']]
+        inside=d.get('normal_interior_triangles')
+        if inside is not None and np.any(inside):
+            triangles=material_points(i)[material_faces(i)[inside]]
+            n=np.cross(triangles[:,1]-triangles[:,0],triangles[:,2]-triangles[:,0])
+            n/=np.maximum(np.linalg.norm(n,axis=1,keepdims=True),1e-20)
+            corner_normals[inside]=n[:,None,:]
+        obj.data.normals_split_custom_set(corner_normals.reshape(-1,3).tolist())
         obj.data.use_auto_smooth=True
     update_display_normals(a.frame)
     tool_material=mat('Mounted knife and adapter steel',(.44,.47,.50),.7,.3)
@@ -160,6 +124,8 @@ def render(a):
         bpy.ops.object.transform_apply(location=False,rotation=False,scale=True)
         o.data.materials.append(m)
         return o
+    profile_path=Path(__file__).resolve().parents[1]/'configs/render/studio_v1.json'
+    profile=json.loads(profile_path.read_text())
     ground=d['ground'];bc=ground.mean(0);top=bc[2]
     boardmat=mat('Board display',(0.54,.38,.22),rough=.68)
     # Fine grain is decorative; it does not represent a measured board surface.
@@ -171,15 +137,17 @@ def render(a):
     ramp=nodes.new('ShaderNodeValToRGB');ramp.color_ramp.elements[0].color=(.28,.16,.075,1);ramp.color_ramp.elements[1].color=(.66,.49,.29,1)
     links.new(noise.outputs['Fac'],ramp.inputs[0]);links.new(ramp.outputs[0],nodes.get('Principled BSDF').inputs['Base Color'])
     cube('Recorded board plane with display thickness',bc-[0,0,.006],
-         [np.ptp(ground[:,0]),np.ptp(ground[:,1]),.012],boardmat)
-    if a.view=='close':
-        cube('Display table',bc-[0,0,.023],[3,3,.034],mat('Table',(.32,.35,.37),rough=.8))
-    else:
-        cube('Display floor',[0,0,-.02],[8,8,.04],mat('Floor',(.54,.57,.60),rough=.8))
-        cube('Display board support',[bc[0],bc[1],(top-.012)/2],
-             [np.ptp(ground[:,0])*.85,np.ptp(ground[:,1])*.85,max(.001,top-.012)],
-             mat('Support',(.42,.45,.48),rough=.65))
-    center=d['center']
+         [*profile['board_size_m'],profile['board_thickness_m']],boardmat)
+    # One scene for both views: only the camera changes.
+    cube('Floor',[bc[0],bc[1],-.015],[4,4,.03],mat('Floor',(.32,.35,.37),rough=.8))
+    cube('Display board support',[bc[0],bc[1],(top-profile['board_thickness_m'])/2],
+         [profile['board_size_m'][0]*.85,profile['board_size_m'][1]*.85,max(.001,top-profile['board_thickness_m'])],
+         mat('Support',(.42,.45,.48),rough=.65))
+    profile_path=Path(__file__).resolve().parents[1]/'configs/render/studio_v1.json'
+    profile=json.loads(profile_path.read_text())
+    meta['render_contract']=profile['revision']
+    meta['render_profile_sha256']=hashlib.sha256(profile_path.read_bytes()).hexdigest()
+    center=bc+np.array([0,0,.08])
     scene=bpy.context.scene;scene.render.engine='CYCLES';scene.cycles.device='CPU';scene.cycles.samples=a.samples
     scene.cycles.use_denoising=True
     for layer in scene.view_layers:
@@ -193,38 +161,14 @@ def render(a):
     area('Large soft key',np.array([.15,-.22,.32]),2.,.30)
     area('Soft fill',np.array([-.24,.08,.20]),1.,.26)
     bpy.ops.object.camera_add()
-    camera=bpy.context.object;target=center+np.array([0,0,.012])
-    camera.location=center+np.array([.22,-.32,.17])
+    camera=bpy.context.object
+    c=profile['camera'][a.view]
+    target=bc+np.array(c['target_offset_m'])
+    camera.location=target+np.array(c['offset_m'])
     camera.rotation_euler=(Vector(target)-camera.location).to_track_quat('-Z','Y').to_euler()
-    camera.data.type='ORTHO';camera.data.ortho_scale=.235
-    if a.view=='wide':
-        target=np.array([center[0]*.5,center[1]*.52,.30])
-        camera.location=target+np.array([1.2,-1.6,.9])
-        camera.rotation_euler=(Vector(target)-camera.location).to_track_quat('-Z','Y').to_euler()
-        camera.data.ortho_scale=1.05
-    if animated:
-        # Fixed camera over the entire episode. Include the grip, not just the blade.
-        tool_ids=[j for j in range(robot_count) if bool(d.get(f'robot_tool{j}',False))]
-        fit=[material_points(0),d['knife'].reshape(-1,3)]
-        if a.view=='close':
-            for j in tool_ids:fit.append(d[f'robot_transform{j}'][:,:3,3])
-            direction=np.array([.22,-.32,.17]);margin=.015
-        else:
-            for j in range(robot_count):fit.append(d[f'robot_transform{j}'][:,:3,3])
-            direction=np.array([1.2,-1.6,.9]);margin=.10
-        fit=np.concatenate(fit);target=(fit.min(0)+fit.max(0))/2
-        direction/=np.sqrt(np.sum(direction*direction))
-        camera.location=target+direction*1.5
-        camera.rotation_euler=(Vector(target)-camera.location).to_track_quat('-Z','Y').to_euler()
-        right=np.cross([0,0,1],direction);right/=np.sqrt(np.sum(right*right));up=np.cross(direction,right)
-        delta=fit-target
-        # Blender ortho_scale is horizontal image width.
-        camera.data.ortho_scale=2.12*max(abs(np.sum(delta*right,axis=1)).max()+margin,(abs(np.sum(delta*up,axis=1)).max()+margin)*1100/780)
+    camera.data.type='ORTHO';camera.data.ortho_scale=c['ortho_scale_m']
     if a.camera_from:
-        camera_data=json.loads(a.camera_from.read_text())['camera']
-        camera.location=camera_data['location']
-        camera.rotation_euler=camera_data['rotation_euler']
-        camera.data.ortho_scale=camera_data['ortho_scale']
+        raise ValueError('Per-video camera overrides are retired; edit the versioned render contract')
     meta['camera']=dict(location=list(camera.location),rotation_euler=list(camera.rotation_euler),
                         ortho_scale=camera.data.ortho_scale,type=camera.data.type)
     scene.camera=camera
@@ -274,7 +218,7 @@ def render(a):
             subprocess.run(['ffmpeg','-y','-loglevel','error','-f','concat','-safe','0','-i',str(listing),
               '-r',str(fps),'-frames:v',str(len(indices)),'-c:v','libx264','-crf','19','-pix_fmt','yuv420p','-movflags','+faststart',str(a.output)],check=True)
         meta.update(video=True,preview_only=a.preview,frames=len(indices),fps=fps,speed=a.speed,
-                    frame_directory=str(frame_dir),style='Shared Nov14 studio: scan appearance, wood board, soft lighting, one metal blade')
+                    frame_directory=str(frame_dir),style='Pinned food_studio_v1: registered appearance, wood board, one recorded tool assembly')
     else:
         bpy.ops.wm.save_as_mainfile(filepath=str(a.output.with_suffix('.blend').resolve()))
         bpy.ops.render.render(write_still=True)

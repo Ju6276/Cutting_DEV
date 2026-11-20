@@ -1,0 +1,17 @@
+{
+  "dataset": "OmniObject3D",
+  "mirror": "https://huggingface.co/datasets/AlbertS666/OmniObject3D-objects",
+  "license": "CC BY 4.0",
+  "archive_categories_checked": 216,
+  "banana_scan": "banana_001",
+  "banana_texture": "textures/Scan.jpg",
+  "tofu_scan_found": false,
+  "luncheon_meat_scan_found": false,
+  "synthetic_appearance": [
+    "banana",
+    "tofu",
+    "luncheon_meat"
+  ],
+  "note": "Downloaded banana scan is a candidate. Existing procedural banana physics retains its own geometry and explicitly synthetic appearance. Tofu/luncheon assets are synthetic, not falsely attributed to scans.",
+  "physics_parameters": "configs/blademaster_disect/catalog.json; source reproduction revision and omitted fracture parameters are recorded there."
+}

@@ -48,14 +48,14 @@ def test_shared_evaluation_resizes_and_reseeds_both_backends():
     import numpy as np
     c=contract();d,b=configs(c,manifest(c))
     dc=evaluation_config(d,5,91);bc=evaluation_config(b,5,91,True)
-    assert all(g['worlds']==5 for g in dc['groups']) and bc['worlds']==15
+    assert all(g['worlds']==5 for g in dc['groups']) and bc['worlds']==5*len(c['objects'])
     assert bc['start_clearance_m']==[x for g in dc['groups'] for x in g['start_clearance_m']]
     assert dc['episode_conditions']['seed']==bc['episode_conditions']['seed']==91
-    ds=EpisodeConditions(dc['episode_conditions'],dc['groups']).sample(np.ones(15,bool))
-    bs=EpisodeConditions(bc['episode_conditions'],bc['groups']).sample(np.ones(15,bool))
+    ds=EpisodeConditions(dc['episode_conditions'],dc['groups']).sample(np.ones(5*len(c["objects"]),bool))
+    bs=EpisodeConditions(bc['episode_conditions'],bc['groups']).sample(np.ones(5*len(c["objects"]),bool))
     for key in ds:np.testing.assert_array_equal(ds[key],bs[key])
     changed=evaluation_config(d,5,92)
-    cs=EpisodeConditions(changed['episode_conditions'],changed['groups']).sample(np.ones(15,bool))
+    cs=EpisodeConditions(changed['episode_conditions'],changed['groups']).sample(np.ones(5*len(c["objects"]),bool))
     assert not np.array_equal(ds['youngs_modulus'],cs['youngs_modulus'])
     assert dc['groups'][0]['start_clearance_m']!=changed['groups'][0]['start_clearance_m']
     assert d['groups'][0]['worlds']==c['common']['worlds_per_object']

@@ -1,11 +1,14 @@
 """Render a provenance-labelled snapshot exported by an actual training loop."""
+import sys
+from pathlib import Path
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import argparse,hashlib,json,math
 from pathlib import Path
 import numpy as np
 import vtk
 from PIL import Image,ImageDraw
 from vtk.util.numpy_support import vtk_to_numpy
-import render_episode as r
+import render_geometry as r
 
 
 def robot_instances(renderer, records, offsets):
