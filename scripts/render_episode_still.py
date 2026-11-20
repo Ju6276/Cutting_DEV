@@ -139,8 +139,9 @@ def render(a):
     robot_count=json.loads(str(d['metadata']))['robot_meshes']
     robot_objects=[]
     for j in range(robot_count):
-        color=d[f'robot_c{j}'];metal=.55 if np.mean(color)>.4 else .1
-        robot_obj=mesh(f'UR5e visual {j}',d[f'robot_v{j}'],d[f'robot_f{j}'],
+        color=d[f'robot_c{j}']
+        metal=float(d.get(f'robot_metallic{j}', .55 if np.mean(color)>.4 else .1))
+        robot_obj=mesh(f'Robot visual {j}',d[f'robot_v{j}'],d[f'robot_f{j}'],
              tool_material if bool(d.get(f'robot_tool{j}',False)) else mat(f'robot {j}',color,metal,.3),True)
         robot_objects.append(robot_obj)
         if animated:

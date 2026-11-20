@@ -33,6 +33,12 @@ def export(platform,output,verification_path):
         out[f"robot_v{j}"]=(v@local[:3,:3].T+local[:3,3])@rotation.T+pose
         out[f"robot_f{j}"]=f[:,1:];out[f"robot_c{j}"]=actor.GetProperty().GetColor()
         out[f"robot_tool{j}"]=names[k]=="ikea_knife"
+        # The ATI housing is metal; printed adapters are PLA. Do not infer
+        # materials from brightness (dark metal otherwise looks like plastic).
+        if names[k] in ("ati_mini45_body", "ikea_knife"):
+            out[f"robot_metallic{j}"]=.7
+        elif names[k] in ("user_ur_adapter", "user_knife_holder"):
+            out[f"robot_metallic{j}"]=0.
     out["metadata"]=np.array(json.dumps(dict(format="static_platform",robot_meshes=len(actors),
                     platform=str(platform),sources=sources,geometry="Compiled robot FK and the URDF visual geometry; no material-cutting claim")))
     Path(output).parent.mkdir(parents=True,exist_ok=True);np.savez_compressed(output,**out)

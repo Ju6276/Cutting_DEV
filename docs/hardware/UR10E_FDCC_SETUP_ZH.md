@@ -332,3 +332,19 @@ blender -b -t 4 --python scripts/render_episode_still.py -- \
   --scene runs/ur10e_platform_20261120/scene.npz \
   --output runs/ur10e_platform_20261120/close.png --view close
 ```
+
+
+2026-11-20 补充：共用渲染器明确读取每个组件的材质标记。ATI Mini45 外壳和刀为金属，
+用户刀架和法兰为 PLA，不再依据灰度猜测它们的金属度。装配和几何没有改变；
+新图仍为 robot-only 装配预览，不是材料切割验收。
+
+实际 IKEA 刀接入需要处理的代码约定已经查明：
+- DiSECt 的自由刀具支持三角网格，但预切面生成默认把第 4、9 号顶点当成直刀刃；
+  新刀有弧形刀刃，必须显式提供刀刃曲线并据此重新导出场景，不能沿用旧编号。
+- 当前 KnifeBoard 的覆盖诊断也假定最低点组成一条直边；新刀需按实际刀刃处理。
+  板面不穿透检查使用整把刀的几何包络。
+- BladeMaster 当前解析接触、切削阻力作用区和 side-code 更新使用旧楔形刀的直刃。
+  三处都要适配新刀，不能只更换接触外观或 bounding box。
+- 两后端用同一份米制刀形和安装变换，反力和力矩均换算到 ATI 测量原点。
+  然后才验证新 UR10e 场景的采集、更新、部分重置与续训。以上接入尚未验收，
+  require_cutting_ready 的拒绝保护保留。

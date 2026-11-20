@@ -169,7 +169,9 @@ def build(args):
     fixed(robot, "knife_mount", "ati_sensing_frame", rpy=[0, 0, -clock])
     fixed(robot, "user_knife_holder", "knife_mount", part=parts["holder"], mesh=args.output/"holder_visual.stl", collision_mesh=args.output/"holder.stl", color=".35 .36 .38 1")
     fixed(robot, "ikea_knife", "knife_mount", part=parts["knife"], mesh=args.output/"knife_visual.stl", collision_mesh=args.output/"knife.stl")
-    # Control origin at the middle of the cutting edge, preserving tool0 frame axes.
+    # Control origin is the center-plane projection of the lowest CAD vertex in
+    # the nominal blade-down pose, not necessarily the edge midpoint. The
+    # separate knife_tip frame marks the foremost CAD vertex.
     tip = knife.vertices[np.argmax(knife.vertices[:, 1])]
     lowest = knife.vertices[np.argmax(knife.vertices[:, 2])]
     control = lowest.copy()
