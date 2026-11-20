@@ -1608,3 +1608,32 @@ legacy_identity.json, root_final.log, backend.log, physical_disect/ and
 physical_disect_saw/; A6000 physical_blademaster_saw/. No long training was started.
 This validates normalization and execution, not improved policy quality or
 hours-long memory stability. Old v2 behavior cannot be explained by this v3 mask.
+
+## 2026-11-20 — Independent review of board-contact fixes (9ea91b2)
+
+Reviewed f12ca04..9ea91b2, including both physical adapters, continuation
+projection/contact flags, WM derivation, task metadata and regression tests.
+No additional blocking source defect was confirmed in this change set.
+This is a review conclusion, not a proof of absence of bugs.
+
+Independent GPU7 rerun on the clean 9ea91b2 checkout: root 755 passed / 5 skipped;
+backend 44 passed. Use the standard planner environment for optional dependencies
+and run backend tests from backends/mujoco. An initial base-env invocation lacked
+scipy; an initial backend invocation from the repository root could not resolve
+relative test assets. These setup failures were corrected, not suppressed.
+Logs: runs/review_9ea91b2_20261120/root_full_env.log and backend_correct_cwd.log.
+
+Additional spatial-6R numerical gradcheck and gradgradcheck passed for the
+new normal projection (including the moving target derivative). The supplied
+physical reports under runs/board_normal_20261119/audited/ record clean 08bb59f
+sources; 9ea91b2 adds the report documentation. Those physical probes were
+reviewed as prior evidence; they were not independently rerun in this review.
+
+The new rule preserves the proposed EE orientation/tangential position during
+normal projection, except the explicitly documented joint-limit fallback. Near
+singular or unreachable correction targets raise instead of silently producing
+invalid states. Contact is an end-of-step clearance property, not a permanent
+latch. No board reaction-force model was added. Projection timing, extreme
+singular cases, long-run memory, training quality and hardware contact remain
+outside the completed verification. UR10e preparation below is a separate change;
+it is not evidence that this V3 has been trained on UR10e.
