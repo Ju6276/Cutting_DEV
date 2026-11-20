@@ -1,0 +1,48 @@
+# Machines and access
+
+Checked 2026-11-20. Secrets are never printed, committed, or copied between hosts;
+this page names where credentials live, not their contents.
+
+## Hosts
+
+| Host | Address | Role | GPUs |
+|---|---|---|---|
+| tams61 (jump) | dong@100.70.97.92 | SSH jump host only; holds a read-only clone at ~/Projects/Cutting_DEV for reading docs. No training, data or weights. | — |
+| GPU7 (tamsGPU7) | 134.100.13.217 | Main development and run host; the only host that pushes to GitHub | 1x RTX 4090 (GPU0) |
+| A6000 (tamsGPU5) | 134.100.13.216 | Run host | 2x RTX A6000; check occupancy before use (other users run there) |
+| GPU9 (tamsGPU9) | 134.100.13.219 | Run host | 1x RTX 4090 (GPU0) |
+
+Each run host has the project at /dataHDD/dong/Projects/Cutting_DEV on branch `main`.
+Confirm the commit with `git rev-parse HEAD` before a run. Runs: /dataHDD/dong/Experiments/Cutting_DEV/runs
+(GPU7; local `runs/` directories on A6000/GPU9). Locations of data and frozen runs: [DATA](DATA.md).
+
+## Connecting
+
+- From the Mac: SSH aliases `cutting-gpu7` and `cutting-a6000` (Mac `~/.ssh/config`, both `ProxyJump dong@100.70.97.92`).
+  GPU9 has no Mac alias: `ssh -J dong@100.70.97.92 dong@134.100.13.219`, or go through GPU7.
+- From GPU7: aliases `a6000` and `gpu9` in `~/.ssh/config`; A6000 uses the dedicated key
+  `~/.ssh/id_ed25519_a6000`. Copy files server-to-server from GPU7, never through the Mac.
+- VS Code Remote SSH opens GPU7 for development.
+
+## GitHub
+
+- Repository: https://github.com/Ju6276/Cutting_DEV. Only GPU7 can push, with the deploy key
+  `~/.ssh/id_ed25519_github_cutting` (alias `github.com` in GPU7 `~/.ssh/config`).
+- A6000, GPU9 and tams61 have no GitHub key: they fetch over https and cannot push. To publish a
+  commit made elsewhere, fetch it from GPU7 (`git fetch a6000:/dataHDD/dong/Projects/Cutting_DEV <ref>`) and push from GPU7.
+
+## Weights & Biases
+
+- Every long run uses `--wandb-mode online`, project `sliceit-supermimic`, entity
+  `ju-dong6276-technical-university-of-munich`.
+- Credentials: `/dataHDD/dong/.config/wandb/netrc` on GPU7, A6000 and GPU9; `scripts/env/cutting_env.sh`
+  sets `NETRC` to it. Do not print it or copy it to other hosts.
+
+## Host differences that matter
+
+- Environments are identical by construction (`scripts/env/`): base `.venv` (torch 2.4.1, warp 1.18.0,
+  mujoco 3.16.0), `.venv-sac` (SAC and planners), `.venv-render`, BladeMaster scipy extras. See [RUNNING](RUNNING.md).
+- ROS Noetic (UR meshes for the source-URDF test and studio export): GPU7 and GPU9 only; A6000 has none.
+- Blender: 2.82 on GPU7 and GPU9 (the studio script's target); 3.4.1 on A6000 (not validated).
+- `cutting_env.sh` defaults: A6000 GPU1 and CUDA arch 8.6, GPU7/GPU9 GPU0 and 8.9; `CUDA_VISIBLE_DEVICES` overrides.
+  These defaults are not reservations; check `nvidia-smi` first.

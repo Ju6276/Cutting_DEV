@@ -32,3 +32,4 @@ is not a training instruction.
 [Script map](../scripts/README.md) and [configuration index](../configs/README.md)
 identify execution entry points and versioned configs. Superseded documents are
 not kept in the working tree; Git history retains them.
+- [Machines and access](MACHINES.md): hosts, SSH paths, GitHub and W&B credential locations.

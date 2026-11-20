@@ -257,11 +257,9 @@ Environments, the same tracked files on every server (scripts/env/):
   render_episode_still.py: 2.82 on GPU7 and GPU9 (the version the script targets;
   export + still render checked on GPU9 2026-11-19); A6000 has 3.4.1, not validated.
 
-The Mac holds only explicitly requested exported previews/videos. GPU9 is
-reached through tams61. Machine addresses and protected paths are in each
-server's runs/operations/MACHINES.md (timestamped observations, not proof that
-a job is active). Inspect process ownership before changing A6000 checkouts or
-dependencies.
+The Mac holds only explicitly requested exported previews/videos. Hosts, SSH
+paths and GitHub/W&B credential locations: [MACHINES](MACHINES.md). Inspect
+process ownership before changing A6000 checkouts or dependencies.
 
 ## Online W&B for long training
 
