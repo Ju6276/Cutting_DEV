@@ -1,0 +1,48 @@
+{
+  "revision": "ur10e_ati_ikea_estimated_v1",
+  "robot": "ur10e",
+  "knife_mass_kg": 0.17,
+  "knife_mass_source": "User confirmed net mass, 2026-11-20; not the IKEA packaging entry",
+  "pla_density_kg_m3": 1240,
+  "pla_density_status": "Nominal solid PLA assumption; actual filament, infill and walls unmeasured",
+  "sensor_mass_kg": 0.0917,
+  "sensor_radius_m": 0.0225,
+  "sensor_height_m": 0.0157,
+  "sensor_inertia_status": "Uniform-cylinder estimate, not an ATI measured inertia",
+  "sensor_source": "https://www.ati-ia.com/products/ft/ft_models.aspx?id=Mini45",
+  "sensor_ranges_N_Nm": [
+    580,
+    580,
+    1160,
+    20,
+    20,
+    20
+  ],
+  "sensor_range_status": "SI-580-20 from existing hardware record; verify calibration certificate; not task limits",
+  "sensor_clocking_rad": -1.5707963267948966,
+  "sensor_clocking_status": "Proposed clocking; verify physical axes/cable before hardware use",
+  "assembly_mount_CAD_m": [
+    0.075,
+    0.305,
+    0.0627
+  ],
+  "flange_mount_CAD_m": [
+    0.075,
+    0.207,
+    -0.015
+  ],
+  "adapter_height_m": 0.062,
+  "q_initial_rad": [
+    -0.32218128498968357,
+    -1.8407417165649966,
+    1.9894147046223156,
+    -1.7194693163570938,
+    -1.5707963258982984,
+    2.819411368917277
+  ],
+  "robot_base": "base_link",
+  "robot_tip": "knife_control",
+  "sensor_frame": "ati_sensing_frame",
+  "board_height_m": 0.37,
+  "deployment_status": "Simulation development only; tool mass distribution and robot calibration unmeasured"
+}

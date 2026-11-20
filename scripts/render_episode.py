@@ -192,12 +192,16 @@ def visual_actors(d, task, roots):
             rgba = np.fromstring(color_tag.get('rgba'), sep=' ') if color_tag is not None else np.array([.7,.7,.7,1.])
             if mesh is not None:
                 uri = mesh.get('filename')
-                if not uri.startswith('package://'):
-                    raise ValueError(f'Expected a ROS package mesh URI, got {uri}')
-                package, relative = uri[len('package://'):].split('/', 1)
-                if package not in packages:
-                    raise FileNotFoundError(f'{package}: add its source directory with --source-root')
-                path = packages[package] / relative
+                if uri.startswith('package://'):
+                    package, relative = uri[len('package://'):].split('/', 1)
+                    if package not in packages:
+                        raise FileNotFoundError(f'{package}: add its source directory with --source-root')
+                    path = packages[package] / relative
+                elif Path(uri).is_absolute():
+                    # Prepared user CAD bundles record absolute asset paths.
+                    path = Path(uri)
+                else:
+                    raise ValueError(f'Expected package URI or absolute mesh path, got {uri}')
                 if not path.is_file():
                     raise FileNotFoundError(path)
                 sources.append(str(path))

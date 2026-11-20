@@ -1,4 +1,4 @@
-"""UR5e GPU stepping with the source position-command execution order."""
+"""GPU robot stepping with the source position-command execution order."""
 import mujoco
 import mujoco_warp as mjw
 import numpy as np
@@ -18,7 +18,10 @@ def configure_position_hardware(model):
 
 
 class Robot:
-    def __init__(self, model_path, q, qd, worlds=1):
+    def __init__(self, model_path, q, qd, worlds=1, sensor_sign=1.):
+        if sensor_sign not in (-1., 1.):
+            raise ValueError("Sensor sign must be +1 or -1")
+        self.sensor_sign = sensor_sign
         wp.init()
         self.model = mujoco.MjModel.from_binary_path(str(model_path))
         configure_position_hardware(self.model)
@@ -62,7 +65,11 @@ class Robot:
             mjw.forward(self.gpu_model, self.data)
 
     def sensor_wrench(self, body_name):
-        """MuJoCo native force/torque sensor at the named body's origin."""
+        """Wrench at the named body origin; +1 preserves the historical convention.
+
+        -1 reports the distal load on the sensor (UR10e/ATI bundle); MuJoCo
+        cfrc_int itself reports parent-on-child interaction.
+        """
         body = self.model.body(body_name).id
         root = int(self.model.body_rootid[body])
         with wp.ScopedStream(self.stream):
@@ -75,7 +82,7 @@ class Robot:
         torque = internal[:, :3] - torch.linalg.cross(origin-com, force)
         force = (rotation.transpose(-1, -2) @ force[..., None]).squeeze(-1)
         torque = (rotation.transpose(-1, -2) @ torque[..., None]).squeeze(-1)
-        return torch.cat((force, torque), -1)
+        return self.sensor_sign * torch.cat((force, torque), -1)
 
     @torch.no_grad()
     def step(self, position_command, active=None):

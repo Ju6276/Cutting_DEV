@@ -15,7 +15,7 @@
 | 外置传感器 | ATI Mini45-E，用户确认标定 SI-580-20 |
 | 标定量程 | 传感器坐标系 Fx/Fy ±580 N，Fz ±1160 N；Mx/My/Mz ±20 N·m；不是任务停止阈值 |
 | ATI 采集 | 接口类型、采集盒固件、IP/协议、有效标定文件与序列号待现场确认；历史记录提到 Net F/T 9105-NETBA，不能据此直接假定当前接线 |
-| 连接件、刀具 | 同事制作，CAD、质量、重心和安装方向待用户提供；第一轮不装刀 |
+| 连接件、刀具 | 2026-11-20 已提供组合/法兰 STL 和独立刀具 USDZ；刀具净重 170 g，PLA 件惯性为估算，见文末仿真记录；真机第一轮不装刀 |
 | 相机 | 梅卡曼德，型号待确认；本轮不接 |
 | 控制电脑 | Ubuntu/ROS 版本、网卡、管理员权限待确认；不要求训练 GPU |
 
@@ -241,3 +241,94 @@ UR5e 仿真策略/WM 不能直接认定适用于 UR10e；MPC 的在线时延与�
   /dataHDD/dong/Projects/Cutting_DEV_ur10e_docs_check/runs/ur10e_docs_check/。
 - 未在目标控制电脑安装 ROS，未编译该 FDCC 工作空间，未连接 UR10e/ATI，
   未发送运动指令。这些 GPU 回归不构成 FDCC 真机验收。
+
+## 2026-11-20 仿真平台与用户 CAD 接入状态
+
+这一节是新的仿真准备结果，不代表上文的真机验收已经完成。
+代码在 `codex/ur10e-platform`，基于审阅过的 `9ea91b2`。
+旧 UR5e 场景和新 UR10e 机器人资产可由同一个
+`cutting_world_model.robot_platform.RobotPlatform` 加载。
+
+已完成：
+
+- 用户提供的 `IKEA_365_Knife.usdz` 单独刀具与组合 STL 露出的刀刃做刚体配准；
+  不缩放、不改变安装方向，表面最大误差约 14 nm（网格数值一致性，不是实物精度）。
+- 刀具采用用户确认的 **净重 0.170 kg**。IKEA 商品页的 0.17 kg 位于包装栏，
+  本参数的来源明确记为用户确认，不冒称网页证实了净重。
+- 从组合 CAD 中做布尔差，得到 PLA 刀架。刀架约 147.323 cm³、法兰约 89.392 cm³。
+  暂用实心 PLA 密度 1240 kg/m³，分别估算为 0.182681 kg 和 0.110846 kg。
+  未测量打印填充率、壁厚和实际耗材密度；不是打印件称重结果。
+- 由闭合网格计算重心和完整惯量张量。刀具按均匀体积分布缩放到 170 g，
+  ATI 按官方 91.7 g、45 mm × 15.7 mm 圆柱包络估算惯量。
+  三者的内部质量分布均不是实测。
+- 法兰侧总负载约 **0.555227 kg**；ATI 测量平面下游的刀和刀架约
+  **0.352681 kg**。重力补偿只用下游负载，不能把上游法兰和传感器外壳再加进去。
+- 官方标称 UR10e 各连杆惯性保留，不为匹配产品总重而统一缩放。
+- 生成 URDF、碰撞网格、MuJoCo 二进制模型、FDCC 帧配置以及文件校验和。
+  碰撞采用 MuJoCo 网格凸包；这不是材料切割接触所需的 SDF。
+- ATI 节点是下游负载的祖先。保留固定连杆上的惯性，不把它们全部搬到 wrist_3。
+  MuJoCo 输出的 parent-on-child wrench 在新平台取负，统一成下游载荷作用于传感器；
+  旧 UR5e 默认符号不改。
+- 机器人 FK、Jacobian、WM FK 与 MuJoCo 一致；静态载荷约 3.45627 N；
+  已知外力/力矩与力臂换算核对通过。六个 wrench 通道都会影响 FDCC。
+- GPU 上两个世界运行 50 步、传感器数值有限、部分重置隔离通过；
+  初始姿态的机器人自身碰撞未发现穿透。并非整个工作空间的碰撞验收。
+
+**尚未完成，不能把新平台标成可长训：**
+
+- 真实 IKEA 刀的材料接触几何尚未接入两个材料后端。当前 DiSECt 导出场景和
+  BladeMaster 解析接触仍约定旧的共用楔形刀。直接换显示网格或只换 robot.mjb 会造成
+  物理与显示不一致，因此新 bundle 的 `require_cutting_ready()` 明确拒绝这种使用。
+- 新平台的材料坐标系、切割场景重导出、目标/工作空间、两后端的采集/更新/续训
+  仍需在新刀形接入之后一起验证。旧 UR5e 策略不能称为已经适配 UR10e。
+- 传感器绕轴安装角仍是按三孔对称给出的候选；需对照实物轴标识。
+  名义机器人运动学不是这台 UR10e 的标定文件。
+- FDCC 使用来源配置的增益和位置执行模型，不能等同于已识别的 UR10e 真机伺服响应。
+  任务力限没有改成 ATI 的量程，也没有启动长训或真机运动。
+
+资产目录：
+`/dataHDD/dong/Assets/Cutting_DEV/robots/ur10e_ati_ikea_estimated_v1/`。
+验证报告：
+`runs/ur10e_platform_20261120/robot_check.json`、`ur5e_check.json`。
+复用原有 studio 渲染器；只渲染一个金属刀、用户 PLA 件和 ATI 包络，不加连接杆。
+
+复现（GPU7，在仓库根目录）：
+
+```bash
+# CAD 用独立环境，安装 requirements-cad.txt；不修改训练环境。
+/dataHDD/dong/Envs/cutting-cad/bin/python scripts/prepare_ur10e_tool.py \
+  --assets /dataHDD/dong/Assets/Cutting_DEV/user_tools/ati_mini45_20261119 \
+  --urdf /dataHDD/dong/tmp/ur10e_ati_preview.urdf \
+  --output /dataHDD/dong/Assets/Cutting_DEV/robots/ur10e_ati_ikea_estimated_v1
+source scripts/env/cutting_env.sh
+python scripts/compile_robot_platform.py \
+  --platform /dataHDD/dong/Assets/Cutting_DEV/robots/ur10e_ati_ikea_estimated_v1 \
+  --controller-source backends/mujoco/runs/controller_source/controller_params.json
+python scripts/check_robot_platform.py \
+  --platform /dataHDD/dong/Assets/Cutting_DEV/robots/ur10e_ati_ikea_estimated_v1 \
+  --output runs/ur10e_platform_20261120/robot_check.json
+# 同一入口检查原 UR5e
+python scripts/check_robot_platform.py --platform backends/mujoco \
+  --output runs/ur10e_platform_20261120/ur5e_check.json
+```
+
+本轮新增代码回归：主仓库 764 passed / 5 skipped，后端 44 passed。
+最后的 CAD 可视面分区及导出改动另外实跑；检查脚本新增跟踪误差断言后，
+两个机器人均重新执行 GPU 检查，新增 9 项测试再次通过。
+日志为上述 runs 目录的 root.log、backend.log、targeted_final.log、robot_check.log。
+50 个 GPU 步后，1 mm 位置目标的误差降至 UR10e 0.453 mm、UR5e 0.404 mm。
+
+渲染环境的 MuJoCo 与训练环境版本不同，所以渲染读取已验证运行导出的机器人
+body 变换，不在渲染环境加载训练的 MJB；URDF 哈希必须一致。刀与 PLA 的显示
+面来自原始组合 CAD 的不重叠分区，避免布尔差数值薄片造成双面闪烁。
+
+```bash
+CUTTING_ENV=render source scripts/env/cutting_env.sh
+python scripts/export_robot_platform.py \
+  --platform /dataHDD/dong/Assets/Cutting_DEV/robots/ur10e_ati_ikea_estimated_v1 \
+  --verification runs/ur10e_platform_20261120/robot_check.json \
+  --output runs/ur10e_platform_20261120/scene.npz
+blender -b -t 4 --python scripts/render_episode_still.py -- \
+  --scene runs/ur10e_platform_20261120/scene.npz \
+  --output runs/ur10e_platform_20261120/close.png --view close
+```

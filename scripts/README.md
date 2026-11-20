@@ -94,3 +94,13 @@ Historical commands and detailed diagnostic provenance remain in the
 [previous script map](https://github.com/Ju6276/Cutting_DEV/blob/e7b9e69/scripts/README.md)
 and dated results. Importable historical helpers are retained for compatibility;
 no old checkpoint or experiment data is deleted by this cleanup.
+
+## Estimated UR10e/ATI robot assets (2026-11-20)
+
+- prepare_ur10e_tool.py: supplied CAD/USDZ conversion, rigid registration and estimated inertials (requirements-cad.txt, separate environment).
+- compile_robot_platform.py: nominal UR10e MuJoCo model and FDCC frame/compensation configuration.
+- check_robot_platform.py: same robot-only checker for the legacy UR5e backend root or a prepared UR10e bundle.
+- export_robot_platform.py: verified robot poses and original CAD through the common studio renderer.
+
+See [UR10e setup](../docs/hardware/UR10E_FDCC_SETUP_ZH.md) for exact commands and limitations.
+Robot checks are not a material-cutting integration or hardware acceptance test.
