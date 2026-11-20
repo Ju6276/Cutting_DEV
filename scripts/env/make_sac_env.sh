@@ -2,7 +2,7 @@
 # Create the SAC baseline environment for this checkout and link it as .venv-sac.
 # Recipe (same as GPU9 cutting-baselines-20261116): a venv made from the base .venv
 # Python, a .pth that exposes the base GPU packages (torch/warp/mujoco unchanged), and
-# requirements-baselines.txt installed on top. The base .venv is not modified.
+# requirements/baselines.txt installed on top. The base .venv is not modified.
 #   scripts/env/make_sac_env.sh [ENV_DIR]   (default /dataHDD/dong/Envs/cutting-sac)
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -15,7 +15,7 @@ if [ ! -x "$env_dir/bin/python" ]; then
     env_site="$("$env_dir/bin/python" -c 'import site; print(site.getsitepackages()[0])')"
     echo "$base_site" > "$env_site/existing_gpu_packages.pth"
 fi
-"$env_dir/bin/python" -m pip install -q -r requirements-baselines.txt
+"$env_dir/bin/python" -m pip install -q -r requirements/baselines.txt
 ln -sfn "$env_dir" .venv-sac
 .venv-sac/bin/python - <<'PY'
 import importlib.metadata as md, json, torch, warp, stable_baselines3, pytorch_mppi

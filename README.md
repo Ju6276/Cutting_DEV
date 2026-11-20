@@ -3,10 +3,10 @@
 Force-conditioned robotic cutting with a learned world model and BPTT policy
 optimization. UR5e + FDCC is shared by two material backends: DiSECt
 (FEM, prepared cutting interface) and native BladeMaster (MPM, damage).
-The current task version is **pose_depth_v3** (= the pose_depth_v2 task plus a
-software board-stop consistency fix and analytic imagined survival; v2 is kept
-only for the 2026-11-16 runs): prescribed final pose without failure,
-with a board execution boundary. Pose success is not proof of material separation.
+The current task version is **pose_depth_v3**, with analytic imagined survival
+and `project_continue_v2` board handling: prescribed final pose without failure,
+with geometric nonpenetration and continuing material/sensor updates. No permanent
+board freeze is used. Historical v2 checkpoints remain evaluation-only. Pose success is not proof of material separation.
 
 ## Current entry points — 2026-11-19
 
@@ -21,6 +21,7 @@ with a board execution boundary. Pose success is not proof of material separatio
 | Vision implementation and fixed-heading method-2 pilot | [VISION_ROUTE1](docs/methods/VISION_ROUTE1.md) |
 | Measured outcomes and limits | [RESULTS](docs/RESULTS.md) |
 | Installation, tests, training/evaluation commands, recording and shared renderer | [RUNNING](docs/RUNNING.md) |
+| Main requirements and isolated baseline/render/CAD environments | [Dependencies](scripts/env/README.md) |
 | Server data and preserved run provenance | [DATA](docs/DATA.md) |
 | UR10e + ATI: first FDCC hardware setup | [Chinese setup handoff](docs/hardware/UR10E_FDCC_SETUP_ZH.md) |
 | Full documentation index | [docs](docs/README.md) |

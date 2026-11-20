@@ -1,0 +1,4 @@
+# Main WM+BPTT runtime for UR5e and UR10e, with either material backend.
+-r requirements/physics.txt
+-r requirements/blademaster.txt
+wandb==0.31.0

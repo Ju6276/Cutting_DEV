@@ -97,7 +97,7 @@ no old checkpoint or experiment data is deleted by this cleanup.
 
 ## Estimated UR10e/ATI robot assets (2026-11-20)
 
-- prepare_ur10e_tool.py: supplied CAD/USDZ conversion, rigid registration and estimated inertials (requirements-cad.txt, separate environment).
+- prepare_ur10e_tool.py: supplied CAD/USDZ conversion, rigid registration and estimated inertials (requirements/cad.txt, separate environment).
 - compile_robot_platform.py: nominal UR10e MuJoCo model and FDCC frame/compensation configuration.
 - check_robot_platform.py: same robot-only checker for the legacy UR5e backend root or a prepared UR10e bundle.
 - export_robot_platform.py: verified robot poses and original CAD through the common studio renderer.

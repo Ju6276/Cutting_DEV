@@ -19,12 +19,17 @@ is authorized by this correction.
 
 ## GPU environment
 
+The root `requirements.txt` is the main installation entry, including both material
+backends. Optional baseline, renderer and CAD manifests live in `requirements/`;
+see [the dependency guide](../scripts/env/README.md). Do not install the renderer
+MuJoCo version into the training environment.
+
 Use Linux, Python 3.12 and NVIDIA CUDA. On the existing workstations, place the
 checkout, environment, caches and outputs under `/dataHDD/dong`.
 
 ```bash
 python3.12 -m venv .venv
-.venv/bin/python -m pip install -r requirements-gpu.txt
+.venv/bin/python -m pip install -r requirements.txt
 export CUDA_HOME=/usr/local/cuda-12.9
 export PATH="$PWD/.venv/bin:$CUDA_HOME/bin:$PATH"
 export XDG_CACHE_HOME=/dataHDD/dong/.cache
@@ -261,7 +266,7 @@ Environment, the same tracked files on every server (scripts/env/):
   current owner/processes before launching (including A6000 GPU1).
 - `CUTTING_ENV=sac source scripts/env/cutting_env.sh`: `.venv-sac` for
   `train_sac_multi.py`. Create it once per server with `scripts/env/make_sac_env.sh`
-  (a venv over the base packages plus requirements-baselines.txt; the base
+  (a venv over the base packages plus requirements/baselines.txt; the base
   `.venv` is not modified).
 - Assets: backends/mujoco/runs must contain
   sweep/{free_cucumber_003,free_potato_half_20261114,free_prism}, the source
@@ -300,7 +305,7 @@ GPU7 storage:
   those on GPU7. Training and evaluation use the prepared robot.mjb and are unaffected.
 - Renderer environment on every server: the checkout's `.venv-render`
   (`CUTTING_ENV=render`), built by scripts/env/make_render_env.sh from
-  requirements-render-lock.txt, the exact package set of the former GPU7-only
+  requirements/render.txt, the exact package set of the former GPU7-only
   /dataHDD/dong/Envs/render-20261108 (kept for historical runs). Blender for
   render_episode_still.py: 2.82 on GPU7 and GPU9 (the version the script targets;
   export + still render checked on GPU9 2026-11-19); A6000 has 3.4.1, not validated.

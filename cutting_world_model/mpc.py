@@ -125,7 +125,7 @@ class MPPIPolicy:
         source = json.loads(distribution.read_text('direct_url.json') or '{}')
         revision = source.get('vcs_info', {}).get('commit_id')
         if revision != 'e04a569cd4215e705f9013145c496fc59cb25ed6':
-            raise ValueError('Install the pinned planner from requirements-mpc.txt')
+            raise ValueError('Install the pinned planner from requirements/baselines.txt')
         if env.worlds != 1:
             raise ValueError('MPPI benchmark requires one physical world')
         saved = torch.load(checkpoint, map_location='cpu', weights_only=False)

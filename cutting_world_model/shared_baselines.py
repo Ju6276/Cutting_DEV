@@ -134,7 +134,7 @@ class SharedMPPIPolicy:
         distribution = importlib.metadata.distribution('pytorch-mppi')
         revision = json.loads(distribution.read_text('direct_url.json') or '{}').get('vcs_info', {}).get('commit_id')
         if revision != MPPI_REVISION:
-            raise ValueError('Install the pinned planner from requirements-mpc.txt')
+            raise ValueError('Install the pinned planner from requirements/baselines.txt')
         metadata = frame_metadata(env)
         if metadata.get('free_cut_task', {}).get('version') not in POSE_DEPTH_VERSIONS:
             raise ValueError('Shared planner requires pose_depth_v2/v3')

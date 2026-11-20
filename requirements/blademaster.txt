@@ -1,0 +1,2 @@
+# Additional runtime dependency for the native material backend.
+scipy==1.18.1

@@ -295,7 +295,7 @@ UR5e 仿真策略/WM 不能直接认定适用于 UR10e；MPC 的在线时延与�
 复现（GPU7，在仓库根目录）：
 
 ```bash
-# CAD 用独立环境，安装 requirements-cad.txt；不修改训练环境。
+# CAD 用独立环境，安装 requirements/cad.txt；不修改训练环境。
 /dataHDD/dong/Envs/cutting-cad/bin/python scripts/prepare_ur10e_tool.py \
   --assets /dataHDD/dong/Assets/Cutting_DEV/user_tools/ati_mini45_20261119 \
   --urdf /dataHDD/dong/tmp/ur10e_ati_preview.urdf \

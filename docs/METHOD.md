@@ -490,7 +490,7 @@ export contains 608 virtual vertices and 1338 cut triangles.
 
 One EGL window owns both views. Force traces use measured control-step peaks;
 playback speed uses recorded simulation timestamps, independently of solver wall
-time. Render dependencies are isolated in `requirements-render.txt`.
+time. Render dependencies are isolated in `requirements/render.txt`.
 
 The URDF tool is fixed to the gripper frame. The DiSECt contact blade follows
 SliceIt's separate velocity coupling, with motion projected onto the cutting

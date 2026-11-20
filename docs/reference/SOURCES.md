@@ -9,7 +9,7 @@ The main branch retains both original histories through a two-parent merge:
 - ndm-gym: `0171f5e`, the 500-round WM preparation stage is recorded in METHOD.
 - Optional MPPI optimizer: [UM-ARM-Lab/pytorch_mppi](https://github.com/UM-ARM-Lab/pytorch_mppi),
   `e04a569cd4215e705f9013145c496fc59cb25ed6`, MIT; installed by
-  `requirements-mpc.txt`. Its sampling and update code is unchanged.
+  `requirements/baselines.txt`. Its sampling and update code is unchanged.
 
 The exact SliceIt and nested repository versions are in
 [`sources.json`](../../integrations/sliceit/patches/sources.json). Each entry records

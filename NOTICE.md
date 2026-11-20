@@ -10,7 +10,7 @@ histories. Vendored and patched dependencies retain their upstream licenses:
 - DP3 XYZ point encoder: `cutting_world_model/vendor/dp3/LICENSE` (MIT);
   pinned revision and extraction details in that directory's `SOURCE.json`.
 - Optional pytorch-mppi and arm-pytorch-utilities: MIT, distributed with their
-  installed packages; revisions are in `requirements-mpc.txt` and SOURCES.
+  installed packages; revisions are in `requirements/baselines.txt` and SOURCES.
 - External SliceIt, controller, ROS and tf2rl checkouts: licenses in each pinned
   upstream repository. Their source changes are in `integrations/sliceit/patches/`.
 
