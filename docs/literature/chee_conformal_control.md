@@ -1,7 +1,6 @@
 # Chee 等：Conformal Prediction Robustification（L4DC 2024）
 
 > Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
-> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
 
 核对日期：2026-11-10。[会议全文与来源](https://proceedings.mlr.press/v242/chee24a.html)，13 页全部正文、理论、算法和实验已读，无独立附录。
 

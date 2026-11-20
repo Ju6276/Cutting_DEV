@@ -1,7 +1,6 @@
 # LAMBDA：Learning Safe Latent Policies
 
 > Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
-> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
 
 核对日期：2026-11-10。论文：[arXiv 2201.09802v4](https://arxiv.org/abs/2201.09802v4)。已读主文与附录 A–J；参考文献用于追踪，未逐篇阅读。源码：[yardenas/la-mbda](https://github.com/yardenas/la-mbda)，固定提交 542df63fb3ab5712185644d07ca2968faa6f76fe。本次未执行其训练。
 

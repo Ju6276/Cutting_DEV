@@ -1,7 +1,6 @@
 # Passivity-Centric Safe Reinforcement Learning for Contact-Rich Robotic Tasks
 
 > Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
-> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
 
 - Paper: [arXiv:2503.00287v3](https://arxiv.org/abs/2503.00287v3), accepted Robotics and Autonomous Systems version, 27 pages. Read on 2026-11-10: complete Sections 1–4, including controller equations, all training/deployment experiments, limitations and supplementary-material statement. No separate appendix is present in the downloaded version.
 - Remote paper: `/dataHDD/dong/Research/cutting_literature_20261110/passivity.pdf`.

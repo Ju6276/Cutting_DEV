@@ -1,7 +1,6 @@
 # CGPO：有限时域约束的梯度估计
 
 > Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
-> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
 核对日期：2026-11-10。证据：全文 T；作者代码未取得。
 来源：[arXiv 2412.11138v1](https://arxiv.org/abs/2412.11138v1)；[ICML 2024](https://proceedings.mlr.press/v235/dai24d.html)。
 已读：全文 §§1–8、Appendix A–F（31 页），包括 Taylor/KKT 推导、指标定义和 F.4 的 WM 版本。

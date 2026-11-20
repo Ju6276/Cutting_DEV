@@ -1,7 +1,6 @@
 # CERL: Safe Exploration Using Bayesian World Models and Log-Barrier Optimization
 
 > Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
-> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
 Reviewed 2026-11-10. [Paper v1](https://arxiv.org/pdf/2405.05890).
 Read all eight pages: §§1–6, assumptions, experiments and limitations.
 ## Paper

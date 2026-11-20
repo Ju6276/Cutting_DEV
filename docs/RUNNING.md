@@ -3,9 +3,9 @@
 Current task: pose_depth_v3 ([TASK_FREE_CUT](TASK_FREE_CUT.md), scene in
 [SHARED_SCENE](SHARED_SCENE.md)); follow [PLAN](PLAN.md). Every paid/long run
 needs an approved plan and online W&B. Historical fixed-prism/Gazebo reproduction
-commands moved to [archive/RUNNING_historical_20261118](archive/RUNNING_historical_20261118.md);
+commands moved to [archive/RUNNING_historical_20261118](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/RUNNING_historical_20261118.md);
 the 2026-11-16 launch records are in
-[archive/TRAINING_SHARED_20261116](archive/TRAINING_SHARED_20261116.md).
+[archive/TRAINING_SHARED_20261116](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/TRAINING_SHARED_20261116.md).
 Commands run from the repository root. The GPU backend is bundled at
 `backends/mujoco`; `--backend-root` can select a separate prepared checkout.
 
@@ -76,7 +76,7 @@ For a new machine, restore and build the pinned SliceIt sources first
 `external/SliceIt/disect/dataset`, following its download instructions.
 
 1. Collect a reset and physical episode using the Gazebo collection command in
-   [the historical reproduction guide](archive/RUNNING_historical_20261118.md). Its `data/` directory supplies `task.json` and `episode_000.npz`.
+   [the historical reproduction guide](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/RUNNING_historical_20261118.md). Its `data/` directory supplies `task.json` and `episode_000.npz`.
 2. Export the material in the built SliceIt Python environment. Set
    `CUTTING_DEV_ROOT` to this repository's absolute path before sourcing:
    `source external/SliceIt/scripts/public_env.sh`. Then run:
@@ -177,7 +177,7 @@ continuation.
 SIGUSR1 saves after the current iteration. Completion/SIGTERM writes
 `last.pt` and `progress.json`. Frozen evaluation performs zero optimizer updates.
 
-The historical fixed-environment evaluation commands are in [BENCHMARK](archive/BENCHMARK.md).
+The historical fixed-environment evaluation commands are in [BENCHMARK](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/BENCHMARK.md).
 The current task list is in [PLAN](PLAN.md).
 The absorbing-terminal repair permits older checkpoints in frozen evaluation only
 when the environment/physics metadata also match. Training additionally requires
@@ -273,7 +273,7 @@ Environment, the same tracked files on every server (scripts/env/):
   scenes of configs/shared/scene_v1.json. GPU7 links the directory to
   /dataHDD/dong/Assets/Cutting_DEV/prepared; GPU9 and A6000 keep local copies
   (checksums equal to GPU7, checked 2026-11-18). GPU7/A6000 frozen training
-checkouts are recorded in [TRAINING_SHARED_20261116](archive/TRAINING_SHARED_20261116.md).
+checkouts are recorded in [TRAINING_SHARED_20261116](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/TRAINING_SHARED_20261116.md).
 The Mac holds only explicitly requested exported previews/videos, not project
 source, training data or checkpoints.
 GPU9 was reauthorized on2026-11-15 for BladeMaster; access it through tams61.

@@ -59,7 +59,7 @@ GPU7 and A6000 each use an isolated checkout at
 Their checked source is5ec9f85; native material source is
 /dataHDD/dong/Projects/BladeMaster-Warp-shared-knife-20261116 atc51ef73.
 Robot model, source task/reset, FDCC parameters and three intact geometry assets
-match byte-for-byte. Authoritative status/URLs are in [TRAINING_SHARED_20261116](archive/TRAINING_SHARED_20261116.md);
+match byte-for-byte. Authoritative status/URLs are in [TRAINING_SHARED_20261116](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/TRAINING_SHARED_20261116.md);
 do not infer a launched run merely from the checkout's existence.
 
 Run files under each checkout: runs/shared_long_20261116.
@@ -141,7 +141,7 @@ comparisons, not the active potato asset.
 - BladeMaster-derived DiSECt candidates: /dataHDD/dong/Assets/Cutting_DEV/blademaster_disect_20261114;
   prepared/sweep/bm_{banana,cake,tofu,luncheon}_20261114.
   Evidence: runs/bm_disect_assets_20261114 and runs/ground_contact_20261114.
-  These are not added to main training. See [asset provenance](archive/BLADEMASTER_DISECT_ASSETS.md).
+  These are not added to main training. See [asset provenance](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/BLADEMASTER_DISECT_ASSETS.md).
 
 ## Historical checkpoints and research evidence
 

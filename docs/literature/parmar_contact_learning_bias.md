@@ -1,7 +1,6 @@
 # Fundamental Challenges in Deep Learning for Stiff Contact Dynamics
 
 > Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
-> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
 
 - Primary paper: [Parmar, Halm, Posa, arXiv:2103.15406v1](https://arxiv.org/abs/2103.15406v1), eight pages. Read on 2026-11-10: main Sections I–VI and Appendices I–III, including experimental definitions and recurrent/residual-model discussion. This note does not claim the proposed remedies were implemented by the authors.
 - Official code: [DAIRLab/ContactLearningBias](https://github.com/DAIRLab/ContactLearningBias), inspected commit `65d23dd0ef2e7c39f517cc771ea74ce7b968d6a2`.

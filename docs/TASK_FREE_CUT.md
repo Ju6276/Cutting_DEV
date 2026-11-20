@@ -408,7 +408,7 @@ This proxy must not be described as a learned board contact-force model.
 Unchanged from v3: progress weight 10; speed weight 20 (progress and finite-time
 components); load weight 1; jerk weight 0.1; gamma=1. Six-axis sensor limits remain
 explicit configuration values, currently [50,50,50,5,5,5] for simulated development,
-not calibrated Mini45 safety limits. See [historical equations](archive/TASK_FREE_CUT_V1_V3.md).
+not calibrated Mini45 safety limits. See [historical equations](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/TASK_FREE_CUT_V1_V3.md).
 
 Existing release-progress prediction remains for running reward shaping, not
 completion. No new coverage head is added. The +100 settlement is computed from

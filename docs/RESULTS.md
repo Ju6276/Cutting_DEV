@@ -1,9 +1,9 @@
 # Results
 
 Dated measurements from 2026-11-16 on (shared scene, pose_depth_v2 runs and pose_depth_v3 work).
-Earlier entries: [2026-11-11 … 2026-11-15](archive/RESULTS_20261111_20261115.md) (multi-object
+Earlier entries: [2026-11-11 … 2026-11-15](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/RESULTS_20261111_20261115.md) (multi-object
 task, free_cut_v1–v4, pose-v1 runs, including the 2026-11-14 evidence index) and
-[2026-11-02 … 2026-11-10](archive/RESULTS_20261102_20261110.md) (fixed prism development).
+[2026-11-02 … 2026-11-10](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/RESULTS_20261102_20261110.md) (fixed prism development).
 [PLAN](PLAN.md) says what happens next; old next-step prose in entries is not a plan.
 
 
@@ -633,7 +633,7 @@ establish long-runtime reliability on that host.
 
 ## 2026-11-16 — Framework provenance audit and latest-task learner preflight
 
-See [FRAMEWORK_AUDIT_20261116](archive/FRAMEWORK_AUDIT_20261116.md) for upstream/local
+See [FRAMEWORK_AUDIT_20261116](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/FRAMEWORK_AUDIT_20261116.md) for upstream/local
 choices and remaining training-readiness limits. Removed the invented renderer
 shank and collar; corrected stale shared-knife/reset and integration-patch docs.
 No learner, reward, material parameter or physical mount change in this audit.
@@ -947,7 +947,7 @@ normal cleanup. Total475.37s including439.94s initialization; this is not a
 measurement of complete-episode or sustained training throughput.
 The authorized fresh SAC run then started from5be7d90 on GPU9, same current
 three-object distribution and1,280,000-transition/24h cap as documented in
-[TRAINING_SAC_20261116](archive/TRAINING_SAC_20261116.md). Online W&B i00yr0fg authenticated
+[TRAINING_SAC_20261116](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/TRAINING_SAC_20261116.md). Online W&B i00yr0fg authenticated
 and its first3072-transition history row was independently read through the API.
 Local6144 transitions and zero updates are expected during30720 warmup.
 GPU7/A6000 running checkouts were not changed. No new SAC success-rate claim.

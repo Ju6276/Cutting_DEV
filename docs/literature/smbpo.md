@@ -1,7 +1,6 @@
 # SMBPO：Safe Reinforcement Learning by Imagining the Near Future
 
 > Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
-> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
 
 核对日期：2026-11-10。论文 [2202.07789v1](https://arxiv.org/abs/2202.07789v1)，已读 §§1–6、附录 A.1–A.3。官方 [gwthomas/Safe-MBPO](https://github.com/gwthomas/Safe-MBPO)，提交 416dd13b6d4eceec7ac89ece161627e166ea54d8；未运行。
 

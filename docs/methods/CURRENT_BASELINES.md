@@ -3,7 +3,7 @@
 This is the single controller/version/coverage ledger, including WM+BPTT.
 [PLAN](../PLAN.md) selects work and budgets; [SHARED_SCENE](../SHARED_SCENE.md)
 defines the scene; [TASK_FREE_CUT](../TASK_FREE_CUT.md) defines the task.
-Historical detail is in [the 11-16–18 baseline record](../archive/BASELINES_20261116_20261118.md).
+Historical detail is in [the 11-16–18 baseline record](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/BASELINES_20261116_20261118.md).
 Do not infer a completed experiment from an available CLI or current config.
 
 ## One code line, one current task, two material backends

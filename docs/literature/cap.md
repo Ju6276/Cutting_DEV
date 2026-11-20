@@ -1,7 +1,6 @@
 # CAP：Conservative and Adaptive Penalty
 
 > Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
-> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
 
 核对日期：2026-11-10。论文：[arXiv 2112.07701v1](https://arxiv.org/abs/2112.07701v1)，已读主文、理论与附录 A–E。源码：[Redrew/CAP](https://github.com/Redrew/CAP)，提交 d870ccd9665038edd850dbb503d29a7369ec6e2a；未运行训练。
 

@@ -32,7 +32,6 @@ experiment or archived launch is not a new training instruction.
   [SOURCES](reference/SOURCES.md) (upstream revisions, patches and provenance).
 - [literature/](literature/README.md): per-paper evidence records and the reading
   list; [candidate topic search](literature/force_adaptive_search_20261112.md).
-- [archive/](archive/): historical records kept for traceability (below).
 
 [Script map](../scripts/README.md) and [configuration index](../configs/README.md)
 identify execution entry points and versioned configs.
@@ -42,38 +41,38 @@ identify execution entry points and versioned configs.
 Archived files are evidence, not current instructions.
 
 - Split from current docs on 2026-11-18:
-  [RESULTS 2026-11-11 … 15](archive/RESULTS_20261111_20261115.md),
-  [METHOD historical sections](archive/METHOD_historical_20261118.md),
-  [RUNNING historical commands](archive/RUNNING_historical_20261118.md).
-- [11-16–18 baseline detail](archive/BASELINES_20261116_20261118.md):
+  [RESULTS 2026-11-11 … 15](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/RESULTS_20261111_20261115.md),
+  [METHOD historical sections](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/METHOD_historical_20261118.md),
+  [RUNNING historical commands](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/RUNNING_historical_20261118.md).
+- [11-16–18 baseline detail](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/BASELINES_20261116_20261118.md):
   historical controller implementations and tests; three-controller physical
   outcomes were v2, whereas the 11-18 SAC smoke was v3.
 - 2026-11-16 launches (pose_depth_v2, ended):
-  [shared WM+BPTT runs](archive/TRAINING_SHARED_20261116.md),
-  [GPU9 vector SAC](archive/TRAINING_SAC_20261116.md),
-  [previous shared-launch plan](archive/PLAN_before_shared_long_20261116.md),
-  [frozen policy mechanics](archive/POLICY_MECHANICS_20261116.md),
-  [framework provenance audit](archive/FRAMEWORK_AUDIT_20261116.md).
-- Fixed-prism era: [BENCHMARK contract](archive/BENCHMARK.md),
-  [official SuperMimic adaptation](archive/OFFICIAL_SUPERMIMIC.md),
-  [NOVELTY synthesis](archive/NOVELTY.md),
-  [2026-11-02–10 results](archive/RESULTS_20261102_20261110.md),
-  [2026-11-10 evidence](archive/EVIDENCE_20261110.md),
-  [unselected method variants](archive/METHOD_variants_20261112.md),
-  [retired perturbations](archive/ACTION_PERTURBATIONS.md).
-- BladeMaster integration: [backend review](archive/BLADEMASTER_BACKEND_REVIEW.md),
-  [DiSECt asset conversion](archive/BLADEMASTER_DISECT_ASSETS.md),
-  [batching review](archive/BLADEMASTER_BATCHING_REVIEW_20261114.md),
-  [three-world training](archive/BLADEMASTER_MULTIOBJECT_TRAINING_20261114.md).
-- 2026-11-14 launches: [scale/launch record](archive/TRAINING_SCALE_20261114.md),
-  [stopped 192-world A6000](archive/TRAINING_20261114.md).
-- Completed reviews: [contact coordinates](archive/CONTACT_FIX_REVIEW.md),
-  [ground contact](archive/GROUND_CONTACT_REVIEW.md),
-  [full wrench](archive/WRENCH_OBSERVATION_REVIEW.md),
-  [v4 board/coverage audit](archive/BOARD_CUT_REVIEW.md).
-- Earlier task equations/reviews: [v1–v3](archive/TASK_FREE_CUT_V1_V3.md),
-  [first review](archive/FREE_CUT_REVIEW_20261112.md),
-  [repair](archive/FREE_CUT_REPAIR_20261113.md).
+  [shared WM+BPTT runs](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/TRAINING_SHARED_20261116.md),
+  [GPU9 vector SAC](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/TRAINING_SAC_20261116.md),
+  [previous shared-launch plan](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/PLAN_before_shared_long_20261116.md),
+  [frozen policy mechanics](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/POLICY_MECHANICS_20261116.md),
+  [framework provenance audit](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/FRAMEWORK_AUDIT_20261116.md).
+- Fixed-prism era: [BENCHMARK contract](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/BENCHMARK.md),
+  [official SuperMimic adaptation](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/OFFICIAL_SUPERMIMIC.md),
+  [NOVELTY synthesis](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/NOVELTY.md),
+  [2026-11-02–10 results](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/RESULTS_20261102_20261110.md),
+  [2026-11-10 evidence](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/EVIDENCE_20261110.md),
+  [unselected method variants](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/METHOD_variants_20261112.md),
+  [retired perturbations](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/ACTION_PERTURBATIONS.md).
+- BladeMaster integration: [backend review](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/BLADEMASTER_BACKEND_REVIEW.md),
+  [DiSECt asset conversion](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/BLADEMASTER_DISECT_ASSETS.md),
+  [batching review](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/BLADEMASTER_BATCHING_REVIEW_20261114.md),
+  [three-world training](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/BLADEMASTER_MULTIOBJECT_TRAINING_20261114.md).
+- 2026-11-14 launches: [scale/launch record](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/TRAINING_SCALE_20261114.md),
+  [stopped 192-world A6000](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/TRAINING_20261114.md).
+- Completed reviews: [contact coordinates](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/CONTACT_FIX_REVIEW.md),
+  [ground contact](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/GROUND_CONTACT_REVIEW.md),
+  [full wrench](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/WRENCH_OBSERVATION_REVIEW.md),
+  [v4 board/coverage audit](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/BOARD_CUT_REVIEW.md).
+- Earlier task equations/reviews: [v1–v3](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/TASK_FREE_CUT_V1_V3.md),
+  [first review](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/FREE_CUT_REVIEW_20261112.md),
+  [repair](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/FREE_CUT_REPAIR_20261113.md).
 
 Redundant plan/paper drafts were removed from the working tree on 2026-11-15.
 Their original content remains at these immutable Git references:

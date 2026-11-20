@@ -4,8 +4,8 @@
 
 Runtime status is a timestamped observation, not inferred from this plan.
 Frozen launch protocol, budgets and W&B links:
-[shared WM+BPTT runs](archive/TRAINING_SHARED_20261116.md),
-[vector SAC](archive/TRAINING_SAC_20261116.md). Read each run's progress and process
+[shared WM+BPTT runs](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/TRAINING_SHARED_20261116.md),
+[vector SAC](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/TRAINING_SAC_20261116.md). Read each run's progress and process
 before reporting that it is still active.
 
 - GPU7: 3072-world WM+BPTT, DiSECt material backend.
@@ -142,7 +142,7 @@ a new training run. No additional near-board controller handover is selected.
 [RESULTS](RESULTS.md) contains dated evidence; [DATA](DATA.md) locates artifacts.
 The [pre-cleanup plan](https://github.com/Ju6276/Cutting_DEV/blob/e7b9e69/docs/PLAN.md)
 preserves all completed vision budgets and their conditions.
-The [previous shared-launch plan](archive/PLAN_before_shared_long_20261116.md)
+The [previous shared-launch plan](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/PLAN_before_shared_long_20261116.md)
 retains older decisions. Archived S3, perturbation and old-task commands are
 not current launch instructions.
 

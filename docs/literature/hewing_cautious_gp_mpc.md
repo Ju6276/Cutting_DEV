@@ -1,7 +1,6 @@
 # Cautious Model Predictive Control Using Gaussian Process Regression
 
 > Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
-> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
 
 - Primary paper: [Hewing, Kabzan, Zeilinger, arXiv:1705.10702v4](https://arxiv.org/abs/1705.10702v4), 12 pages. Read on 2026-11-10: all main Sections I–VI, derivations, experiments and implementation approximations. No separate appendix was present in the retrieved PDF.
 - Remote paper: `/dataHDD/dong/Research/cutting_literature_20261110/contact_risk/1705.10702.pdf`.

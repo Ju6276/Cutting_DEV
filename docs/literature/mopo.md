@@ -1,7 +1,6 @@
 # MOPO — pessimistic offline model-based policy optimization
 
 > Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
-> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
 
 Reviewed 2026-11-10. [Paper, 2005.13239](https://arxiv.org/abs/2005.13239).
 Read scope: §§3–6, assumptions, practical uncertainty estimator, main tables.

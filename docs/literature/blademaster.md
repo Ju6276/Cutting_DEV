@@ -2,7 +2,6 @@
 Reviewed 2026-11-10.
 
 > Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
-> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
 
 ## Evidence/status
 [Paper](https://arxiv.org/abs/2609.27342), main method/experiments §§III–IV and conclusion. An official released algorithm repository was not verified in this literature pass. Our historical BladeMaster-Warp reproduction is a separate local implementation, not author-source evidence.

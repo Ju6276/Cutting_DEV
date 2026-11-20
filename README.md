@@ -16,7 +16,7 @@ board freeze is used. Historical v2 checkpoints remain evaluation-only. Pose suc
 | Scene, robot, knife, reset distribution and cut locations | [SHARED_SCENE](docs/SHARED_SCENE.md) |
 | Completion, rewards and constraints | [TASK_FREE_CUT](docs/TASK_FREE_CUT.md) |
 | Learning implementation | [METHOD](docs/METHOD.md) |
-| Ended 2026-11-16 launches (pose_depth_v2): WM+BPTT and GPU9 SAC | [Shared training](docs/archive/TRAINING_SHARED_20261116.md), [SAC training](docs/archive/TRAINING_SAC_20261116.md) |
+| Ended 2026-11-16 launches (pose_depth_v2): WM+BPTT and GPU9 SAC | [Shared training](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/TRAINING_SHARED_20261116.md), [SAC training](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/TRAINING_SAC_20261116.md) |
 | All four controllers: current code, task versions and tested coverage | [CURRENT_BASELINES](docs/methods/CURRENT_BASELINES.md) |
 | Vision implementation and fixed-heading method-2 pilot | [VISION_ROUTE1](docs/methods/VISION_ROUTE1.md) |
 | Measured outcomes and limits | [RESULTS](docs/RESULTS.md) |
@@ -63,7 +63,7 @@ unimplemented; see docs/methods/VISION_ROUTE1.md for exact scope and commands.
 ## Historical reproduction
 
 The original fixed-prism contract and commands are in
-[BENCHMARK](docs/archive/BENCHMARK.md); v1-v3 and old pose-v1 results retain their original
+[BENCHMARK](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/BENCHMARK.md); v1-v3 and old pose-v1 results retain their original
 task definitions. [Archived records](docs/README.md#archive) are
 evidence, not the current training recipe. Historical README recipes remain at
 [4653d10](https://github.com/Ju6276/Cutting_DEV/blob/4653d10/README.md).

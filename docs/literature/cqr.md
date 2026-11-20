@@ -1,7 +1,6 @@
 # CQR：Conformalized Quantile Regression
 
 > Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
-> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
 
 核对日期：2026-11-10。论文 [1905.03222v1](https://arxiv.org/abs/1905.03222v1)，全文 §§1–7、附录 A/B 与结果图表已读。官方 [yromano/cqr](https://github.com/yromano/cqr)，提交 37eeb0604cc57efc40b84e3539e8cfa8f09e30c1；未运行。
 

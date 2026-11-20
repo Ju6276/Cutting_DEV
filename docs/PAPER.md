@@ -55,7 +55,7 @@ generalization or a paper contribution by itself. See [VISION_ROUTE1](methods/VI
 
 No new superiority, safety or novelty claim follows from current integration.
 [PLAN](PLAN.md) is the only task list; [RESULTS](RESULTS.md) holds measurements.
-Prior-art evidence remains in [NOVELTY](archive/NOVELTY.md) and [reading list](literature/README.md#reading-list).
+Prior-art evidence remains in [NOVELTY](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/NOVELTY.md) and [reading list](literature/README.md#reading-list).
 The task/force-spike discussion from November12 is historical:
 [previous paper scope](https://github.com/Ju6276/Cutting_DEV/blob/4653d10/docs/PAPER.md).
 The force-spike premise and risk-head method are not the selected main route.

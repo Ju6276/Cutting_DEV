@@ -168,7 +168,7 @@ recorded geometry, camera metadata, render_audit.json).
   `paper-banana`; geometry, E, Poisson ratio and density are overridden, but the
   nominal yield stress (30000 Pa) and cutting energy (700 J/m²) remain preset
   values. These are not calibrated fracture properties for these three objects.
-  See [framework audit](archive/FRAMEWORK_AUDIT_20261116.md).
+  See [framework audit](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/FRAMEWORK_AUDIT_20261116.md).
 - Material physics: FEM / pre-inserted cutting springs versus MPM / native damage.
   Equal E, density or friction coefficients do not imply equal resulting forces.
 - Geometry discretization: each backend samples the same intended object with its

@@ -2,8 +2,7 @@
 
 This is the per-paper evidence ledger requested by the user, produced by Codex
 with one literature subagent. It covers the named method papers in the reading list below
-and archived NOVELTY, with separately identified simulator and data references.
-[Historical synthesis](../archive/NOVELTY.md) is not the current research plan.
+and the former [NOVELTY synthesis](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/NOVELTY.md), with separately identified simulator and data references.
 [PAPER](../PAPER.md) defines current claims; [PLAN](../PLAN.md) defines current work.
 
 Each record states **what was actually read**, method and data, relevant
@@ -28,7 +27,7 @@ approved arrival/failure rules; material-connection diagnostics do not relabel
 a successful episode as a policy failure.
 
 The November10 research hypotheses are retained only in
-[the dated interpretation archive](../archive/LITERATURE_POSITIONING_20261110.md).
+[the dated interpretation archive](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/LITERATURE_POSITIONING_20261110.md).
 Original reading dates, paper findings and code-access limitations remain in
 the individual notes. This cleanup is not a new full-paper or code review.
 
@@ -207,4 +206,4 @@ alone therefore do not define a DiSECt food.
 
 ### Still to do
 
-Current work is tracked in [PLAN](../PLAN.md) and [PAPER](../PAPER.md). The historical NOVELTY checklist is not an active work queue.
+Current work is tracked in [PLAN](../PLAN.md) and [PAPER](../PAPER.md). 

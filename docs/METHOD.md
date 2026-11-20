@@ -55,7 +55,7 @@ Sections describing the fixed-prism source adapter mapping, the native
 ROS/Gazebo state path, the one-off pre-policy checkpoint migration, the retired
 S0 multi-condition task, the force-risk penalty and the free_cut_v1–v4 task
 interfaces moved verbatim to
-[archive/METHOD_historical_20261118](archive/METHOD_historical_20261118.md).
+[archive/METHOD_historical_20261118](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/METHOD_historical_20261118.md).
 Source revisions and patches: [SOURCES](reference/SOURCES.md).
 
 ## External implementation evidence
@@ -414,7 +414,7 @@ value is rejected unless it starts the variant with `--critic-reset`.
 ## Variants not adopted
 
 `actor_objective=bc`, `force_penalty=linear` and `wm_terminal_gradient=head` were tested and not
-adopted; their descriptions are in [archive/METHOD_variants_20261112](archive/METHOD_variants_20261112.md).
+adopted; their descriptions are in [archive/METHOD_variants_20261112](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/METHOD_variants_20261112.md).
 
 ## Frozen world-model MPPI controller
 
@@ -617,7 +617,7 @@ forces, despite leaving all numerical parameters unchanged.
 ## DiSECt execution changes from the free-cut reviews (2026-11-12/13)
 
 Kept from the free-cut v2/v3 review sections (task-specific parts are in
-[archive/METHOD_historical_20261118](archive/METHOD_historical_20261118.md)); these
+[archive/METHOD_historical_20261118](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/METHOD_historical_20261118.md)); these
 execution changes apply to all DiSECt paths, including the current shared task.
 
 Reset execution: cached material scratch batches compute only resetting worlds, with exact
@@ -679,9 +679,9 @@ initialization previews, not screenshots of an ongoing training run.
 
 ## Additional material implementations (2026-11-14)
 
-The [BladeMaster-derived DiSECt candidates](archive/BLADEMASTER_DISECT_ASSETS.md) keep the current prescribed-interface pose task. Only geometry and compatible elastic quantities (E, nu, rho) transfer; cutting-spring and contact values remain explicitly inherited from the DiSECt template. They are reproduction shapes, not scanned foods or real-food calibrations.
+The [BladeMaster-derived DiSECt candidates](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/BLADEMASTER_DISECT_ASSETS.md) keep the current prescribed-interface pose task. Only geometry and compatible elastic quantities (E, nu, rho) transfer; cutting-spring and contact values remain explicitly inherited from the DiSECt template. They are reproduction shapes, not scanned foods or real-food calibrations.
 
-The [BladeMaster UR5e adapter](archive/BLADEMASTER_BACKEND_REVIEW.md) instead runs the external forward material solver with the existing robot, six-action FDCC interface and 500 Hz sensor-wrench feedback. It has the independent `blademaster_pose_v1` identity and analytical board-normal depth progress, no DiSECt cut-spring input or separation label. Real mapped actions feed the normal replay/WM/BPTT update path. Material reaction reaches the robot through controller feedback, not an additional full two-way MuJoCo contact solve. The initial adapter used serial independent material solvers. The later batched implementation was validated at256 worlds and used for the GPU9 engineering run; see RESULTS for its scope and subsequent SIGILL, rather than treating the initial serial limitation as current.
+The [BladeMaster UR5e adapter](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/BLADEMASTER_BACKEND_REVIEW.md) instead runs the external forward material solver with the existing robot, six-action FDCC interface and 500 Hz sensor-wrench feedback. It has the independent `blademaster_pose_v1` identity and analytical board-normal depth progress, no DiSECt cut-spring input or separation label. Real mapped actions feed the normal replay/WM/BPTT update path. Material reaction reaches the robot through controller feedback, not an additional full two-way MuJoCo contact solve. The initial adapter used serial independent material solvers. The later batched implementation was validated at256 worlds and used for the GPU9 engineering run; see RESULTS for its scope and subsequent SIGILL, rather than treating the initial serial limitation as current.
 
 Per-object settling settings now belong to `group_reset_settings` when object groups differ. Shared reward, force limits and robot/task fields must still match. Homogeneous groups retain the former metadata shape for compatibility.
 
@@ -691,10 +691,10 @@ Per-object settling settings now belong to `group_reset_settings` when object gr
 The source mode is preserved. The opt-in transition schedule earns WM updates
 from newly collected physical transitions rather than a world-count-independent
 vector-step counter; its warmup, integer credit, LR clock and budget are specified
-in [TRAINING_SCALE_20261114](archive/TRAINING_SCALE_20261114.md).
+in [TRAINING_SCALE_20261114](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/TRAINING_SCALE_20261114.md).
 The opt-in sensor_wrench6_v1 observation adds all six sensor components while
 preserving pose/velocity axes, action mapping and reward. WM already predicted
-six-dimensional wrench. See [WRENCH_OBSERVATION_REVIEW](archive/WRENCH_OBSERVATION_REVIEW.md)
+six-dimensional wrench. See [WRENCH_OBSERVATION_REVIEW](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/WRENCH_OBSERVATION_REVIEW.md)
 for layout, normalization and checkpoint compatibility. These are explicit
 engineering variants, not claimed methodological contributions.
 
@@ -794,7 +794,7 @@ not filled. Board grain, lights and shading are decorative.
 The new opt-in `disect_knife_rigid_mount_v1` uses the same finite physical blade
 and canonical rigid EE mount in both backends. See [SHARED_SCENE](SHARED_SCENE.md#shared-physical-knife-and-mounting)
 for geometry, coupling differences and verification commands. Historical policies
-retain their recorded tools. [Frozen policy analysis](archive/POLICY_MECHANICS_20261116.md)
+retain their recorded tools. [Frozen policy analysis](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/POLICY_MECHANICS_20261116.md)
 separates measured force/history sensitivity from unproven material identification.
 
 ## Optional material-motion envelope — 2026-11-16

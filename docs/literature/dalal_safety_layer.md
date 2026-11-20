@@ -1,7 +1,6 @@
 # Safe Exploration in Continuous Action Spaces
 
 > Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
-> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
 
 - Paper: [arXiv:1801.08757v1](https://arxiv.org/abs/1801.08757v1), Dalal et al., 2018. Read on 2026-11-10: full Sections 1–8, Proposition 1 and its proof, all environment/ablation details and discussion. No separate appendix in this version.
 - Remote paper: `/dataHDD/dong/Research/cutting_literature_20261110/contact_risk/1801.08757.pdf`.

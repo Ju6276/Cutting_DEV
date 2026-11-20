@@ -15,8 +15,8 @@ distinguishes interface support from tested task-version/backend combinations.
 |---|---|
 | Server runtime environment (base / SAC) | `source scripts/env/cutting_env.sh`, `CUTTING_ENV=sac`; create the SAC env with `env/make_sac_env.sh` |
 | Shared scene inputs for both material backends | `prepare_shared_scenes.py`; [SHARED_SCENE](../docs/SHARED_SCENE.md) |
-| WM+BPTT training | `train_gpu.py`; explicit generated config and the pose_depth_v3 command in [RUNNING](../docs/RUNNING.md#current-wmbptt-training-command-pose_depth_v3); 2026-11-16 [launch record](../docs/archive/TRAINING_SHARED_20261116.md) |
-| Batched SB3 SAC baseline | `train_sac_multi.py` in the SAC env; [CURRENT_BASELINES](../docs/methods/CURRENT_BASELINES.md#commands); 2026-11-16 [SAC protocol](../docs/archive/TRAINING_SAC_20261116.md) (archived) |
+| WM+BPTT training | `train_gpu.py`; explicit generated config and the pose_depth_v3 command in [RUNNING](../docs/RUNNING.md#current-wmbptt-training-command-pose_depth_v3); 2026-11-16 [launch record](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/TRAINING_SHARED_20261116.md) |
+| Batched SB3 SAC baseline | `train_sac_multi.py` in the SAC env; [CURRENT_BASELINES](../docs/methods/CURRENT_BASELINES.md#commands); 2026-11-16 [SAC protocol](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/TRAINING_SAC_20261116.md) (archived) |
 | Frozen RL, SAC, WM+MPPI, analytic MPC | `evaluate_pose_policy.py --method wm_policy|sac|wm_mppi|analytic_mpc` |
 | Recorded entry / short-run resume evidence | python -m scripts.verify_entry and python -m scripts.verify_resume; missing stages fail |
 | DiSECt reference reward audit | audit_pose_reward.py with explicit current config; all groups, ten trajectories |
@@ -87,7 +87,7 @@ versions and [RESULTS](../docs/RESULTS.md).
 - `train_coupled*.py`, `train_sac.py`, `run_sac_training.py` and Gazebo
   collection bridges retain independent upstream reproduction.
 - `train_official_supermimic.py`: separate official adaptation; see
-  [OFFICIAL_SUPERMIMIC](../docs/archive/OFFICIAL_SUPERMIMIC.md).
+  [OFFICIAL_SUPERMIMIC](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/OFFICIAL_SUPERMIMIC.md).
 - `legacy/`: retired perturbation, B1 and model-fit diagnostics.
 
 Historical commands and detailed diagnostic provenance remain in the

@@ -1,7 +1,6 @@
 # SafeDreamer：Safe Reinforcement Learning with World Model
 
 > Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
-> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
 
 核对日期：2026-11-10。ICLR 2024，[2307.07176v3](https://arxiv.org/abs/2307.07176v3)。已读主文与附录 A–C（含所有任务、参数和消融）；官方 [PKU-Alignment/SafeDreamer](https://github.com/PKU-Alignment/SafeDreamer)，提交 529221f02b54d5093e304d877eb2aaf6da63a9ff；未运行。
 

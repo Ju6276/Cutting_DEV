@@ -1,7 +1,6 @@
 # AHAC：接触刚性引起的梯度问题与自适应展开长度
 
 > Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
-> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
 核对日期：2026-11-10。证据：全文 T + 作者核心代码 C；没有复现实验。
 来源：[arXiv 2405.17784v2](https://arxiv.org/abs/2405.17784v2)；[官方项目](https://adaptive-horizon-actor-critic.github.io/)。
 已读全文 §§1–7、Appendix A–I（20 页），包括假设、理论推导、单环境与并行版本、完整消融。

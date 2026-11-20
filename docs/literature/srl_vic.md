@@ -1,7 +1,6 @@
 # SRL-VIC: A Variable Stiffness-Based Safe Reinforcement Learning for Contact-Rich Robotic Tasks
 
 > Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
-> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
 
 - Paper: [arXiv:2406.13744v1](https://arxiv.org/abs/2406.13744v1), 8 pages. Read on 2026-11-10: all Sections I–V, equations, experimental setup, hyperparameters, simulation/real-robot results and discussion. No separate appendix was provided in this version.
 - Remote paper: `/dataHDD/dong/Research/cutting_literature_20261110/srl-vic.pdf`.

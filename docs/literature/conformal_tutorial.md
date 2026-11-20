@@ -1,7 +1,6 @@
 # A Gentle Introduction to Conformal Prediction and Distribution-Free Uncertainty Quantification
 
 > Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
-> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
 
 - Primary paper: [Angelopoulos and Bates, arXiv:2107.07511v6](https://arxiv.org/abs/2107.07511v6), December 2022, 51 pages. Read on 2026-11-10: Sections 1–7 and Appendices A–D, including coverage proofs, distribution-shift qualifications and risk-control examples. Bibliography entries were used as pointers, not counted as separately read papers.
 - Author repository: [aangelopoulos/conformal-prediction](https://github.com/aangelopoulos/conformal-prediction), inspected commit `0426de356dbfa71c4c46be81d1973255ac66d050`.

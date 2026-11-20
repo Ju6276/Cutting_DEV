@@ -1,7 +1,6 @@
 # CaPTURe：接触分层的共形粒子集合
 
 > Project interpretation updated 2026-11-19; original paper/code reading scope is unchanged.
-> Superseded project hypotheses are [archived](../archive/LITERATURE_POSITIONING_20261110.md).
 核对日期：2026-11-10。证据：全文 T；没有取得作者算法代码，不能标 C。
 来源：[arXiv 2608.09166v1](https://arxiv.org/abs/2608.09166v1)；[作者项目页](https://um-arm-lab.github.io/capture/)。
 已读：全文 §§1–7、Appendix A/B，31 页；包括分层覆盖证明、两任务数据生成、规划配置与消融。原文件在服务器 research/contact_risk/2608.09166.*。
