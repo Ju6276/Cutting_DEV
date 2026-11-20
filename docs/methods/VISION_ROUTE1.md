@@ -1,10 +1,11 @@
-# Visual goals — geometric and learned centers (2026-11-17)
+# Visual goals — geometric and learned centers
 
 ## Current implementation
 
-The user requested a plane selected from vision, followed by a physical cutting
-trial. The earlier prescribed-plane prototype is retained explicitly as a
-height/interface diagnostic; it is not the current plane-selection method.
+Pre-cut vision selects the cut plane; motion/wrench feedback then drives
+execution. The prescribed-plane mode is retained only as a height/interface
+diagnostic. All physical trials below used the pose_depth_v2, 180-step task and
+frozen policies of that time.
 
 visual_cut.visual_midpoint_plan receives metric depth, camera/board calibration
 and mounted-tool geometry/orientation. It never receives prescribed target XY.
@@ -58,19 +59,17 @@ intersection with the board, not a material-separation prediction.
 
 scripts/evaluate_visual_cut.py executes one native BladeMaster cucumber world.
 DiSECt's baked cut topology is not silently relocated to support a new plane.
-It uses policy66 from GPU7 checkpoint128 (original checkpoint SHA256
-3bf6d7017bcfe31b5e38da68d61372156c2c85a77e8328b84989e126d138a8fd), since the new
-A6000 run had no policy updates when this trial was run (it entered joint
-training on 2026-11-17 09:40). This is explicitly **cross-backend frozen
-inference**, not evaluation of the eventual A6000-trained actor.
+The trials used policy66 from GPU7 checkpoint128 (SHA256
+3bf6d7017bcfe31b5e38da68d61372156c2c85a77e8328b84989e126d138a8fd): explicitly
+**cross-backend frozen inference**, not a native BladeMaster-trained actor.
 
 The handoff verifies controller/task/observation compatibility, then uses
 simulation IK/reset placement before the episode, preserving material positions.
 This is not a collision-checked real approach trajectory. The policy thereafter
 receives measured simulated motion/force history and the visual goal at20 Hz.
 This is one-shot pre-cut vision followed by motion/force feedback, not continuous
-visual servoing. The trial is bounded to one180-step episode with a25-minute
-external timeout; no weights, reward, material law or active training job change.
+visual servoing. Each trial is one episode under an external timeout; no
+weights, reward or material law change.
 
 ~~~sh
 PYTHONPATH=.:backends/mujoco timeout --kill-after=20s 1500 \
@@ -97,39 +96,21 @@ These static ideal-depth examples have no robot occlusion and have not been
 physically settled or cutting-validated. Whole potato scans differ from the
 half-potato training asset. Scans supply geometry/colors, not calibrated physics.
 
-Earlier prescribed-plane checks in runs/vision_route1_20261117 used three settled
-recordings: cucumber/half-potato/prism visible-top errors0.34/0.14/0.03 mm. Those
-are single-frame ideal-depth comparisons, not real sensor accuracy. Their yellow
-lines were prescribed. Keep that older video distinct from visual-selection
-results; its 589/3skip root and41 backend checks are historical verification.
-
-Current physical trials are on GPU9 in runs/vision_closedloop_20261117. Early
-attempts are retained: trial01 startup exit139 (cause unconfirmed); trial02 IK
-comparison fixed for quaternion sign equivalence; trial03/04 renderer dependency
-and missing snapshot identity errors. Trial05 completed but used the opposite
-raw goal quaternion sign from the source policy; it is an interface diagnostic,
-not the final transfer result. Trial06 uses the source goal convention. See
-RESULTS for measurements and final regression counts.
-
-The GPU9 rendering env is Python3.8 / VTK9.5.2 / pycollada0.8; pycollada0.9.3 uses
-functools.cache unavailable on3.8. Prefer the standard Python3.12 render env for
-new installations. Tests share GPU9 with SAC and are not exclusive throughput
-measurements. No source/weights/data are copied to Mac; requested previews are.
-
 Real deployment additionally needs measured camera/tool/board calibration,
 noise/visibility checks, an actual approach controller and validated low-level
 goal coverage. The simulation board stop is not a real contact tolerance.
 
-Final verification: root596 passed/3 skipped, backend41 passed;19 visual tests.
-The completed physical handoff timed out at180 steps (blade gap2.476 mm),
-without force-limit failure. It demonstrates execution, not task success.
+Prescribed-plane depth checks: GPU7 runs/vision_route1_20261117. Physical
+trials: GPU9 runs/vision_closedloop_20261117 (trial06 is the scored PCA-heading
+run: timeout, blade gap 2.476 mm, no force-limit failure; earlier trials are
+retained interface diagnostics).
 
-## Integration status and next pilot — 2026-11-17
+## Integration status
 
 | Controller | Current-task evaluator | Visual-goal physical execution |
 |---|---|---|
 | Frozen WM+BPTT policy | Implemented | Implemented for geometric and learned selectors in one BladeMaster world; both latest trials timed out |
-| Vector SAC | Implemented; bounded GPU9 training finished (1,281,024 transitions) | Not implemented |
+| Vector SAC | Implemented | Not implemented |
 | Frozen WM+MPPI | Implemented | DP3 goal executed in native BladeMaster; one paired WM566 transfer trial timed out |
 | Nonlearned approximate FDCC+MPPI | Implemented | DP3 goal executed; one nominal case reached pose goal in105steps |
 
@@ -140,10 +121,10 @@ There is no arbitrary DiSECt topology re-export or real-robot approach planner.
 
 ## Method 2: fixed-heading learned midpoint
 
-Current default: official DP3 encoder; see the DP3 replacement result below.
-The following records the initial local_v1 pilot for reproducibility.
+Default encoder: official DP3 (below). The local_v1 network remains for
+comparison and old checkpoints.
 
-Initial local implementation: visual_center_features.cloud_input uses512 visible points,
+local_v1: visual_center_features.cloud_input uses512 visible points,
 subtracts the **observed** XY centroid, and measures height from the observed
 board. Coordinates use a fixed0.1m scale; object size is not normalized away.
 The network receives no absolute XY, object ID, full mesh or target. A shared
@@ -211,7 +192,7 @@ The full shape-source hashes, split membership, depth/RGB, input point clouds,
 labels, validation history and final test predictions are retained there.
 No active long-training configuration or low-level model was changed.
 
-## DP3 replacement result — 2026-11-17
+## DP3 encoder
 
 New training defaults to --architecture dp3_xyz_v1; old checkpoints still load
 local_v1. The point encoder is pinned official DP3 code (see METHOD/SOURCE.json),

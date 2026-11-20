@@ -15,18 +15,18 @@ distinguishes interface support from tested task-version/backend combinations.
 |---|---|
 | Server runtime environment (base / SAC) | `source scripts/env/cutting_env.sh`, `CUTTING_ENV=sac`; create the SAC env with `env/make_sac_env.sh` |
 | Shared scene inputs for both material backends | `prepare_shared_scenes.py`; [SHARED_SCENE](../docs/SHARED_SCENE.md) |
-| WM+BPTT training | `train_gpu.py`; explicit generated config and the pose_depth_v3 command in [RUNNING](../docs/RUNNING.md#current-wmbptt-training-command-pose_depth_v3); 2026-11-16 [launch record](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/TRAINING_SHARED_20261116.md) |
-| Batched SB3 SAC baseline | `train_sac_multi.py` in the SAC env; [CURRENT_BASELINES](../docs/methods/CURRENT_BASELINES.md#commands); 2026-11-16 [SAC protocol](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/TRAINING_SAC_20261116.md) (archived) |
+| WM+BPTT training | `train_gpu.py`; explicit generated config and the pose_depth_v3 command in [RUNNING](../docs/RUNNING.md#current-wmbptt-training-command-pose_depth_v3) |
+| Batched SB3 SAC baseline | `train_sac_multi.py` in the SAC env; [CURRENT_BASELINES](../docs/methods/CURRENT_BASELINES.md#commands) |
 | Frozen RL, SAC, WM+MPPI, analytic MPC | `evaluate_pose_policy.py --method wm_policy|sac|wm_mppi|analytic_mpc` |
 | Recorded entry / short-run resume evidence | python -m scripts.verify_entry and python -m scripts.verify_resume; missing stages fail |
 | DiSECt reference reward audit | audit_pose_reward.py with explicit current config; all groups, ten trajectories |
-| Physical latch/reset, separately normalized WM loss and save/restore | python -m scripts.check_wm_latch_learning --config GENERATED_CONFIG --backend BACKEND (disect or blademaster) --output NEW_DIR; optional --saw; bounded probe, no policy updates |
 | Actual collection/update/reset/replay capacity | `check_training_capacity.py` |
 | Task/reward equations and optional tool-position rule | `check_pose_depth.py`; [SHARED_SCENE](../docs/SHARED_SCENE.md) |
+| Board continuation probe (press, hold, slide, lift, reset) | `check_board_continue.py` |
 | pose_depth_v3 WM/terminal-head/critic prediction diagnostic on frozen-policy trajectories | `diagnose_pose_predictions.py`; [RUNNING](../docs/RUNNING.md#pose_depth_v3-wm-prediction-diagnostic) |
 
 Do not launch `train_gpu.py` with bare defaults as the current task: defaults
-retain the historical fixed-prism source variant. Current task is pose_depth_v3 (v2 training refused);
+retain the original SuperMimic `source` variant. Current task is pose_depth_v3 (older versions evaluate-only);
 material separation is diagnostic. The optional risk variant is not selected.
 [CURRENT_BASELINES](../docs/methods/CURRENT_BASELINES.md) records tested backend coverage,
 input contracts, SAC provenance and analytic-model limitations.
@@ -86,16 +86,13 @@ versions and [RESULTS](../docs/RESULTS.md).
 - `diagnose_free_cut_predictions.py`: free_cut_v3 separation diagnostic; refuses pose tasks.
 - `train_coupled*.py`, `train_sac.py`, `run_sac_training.py` and Gazebo
   collection bridges retain independent upstream reproduction.
-- `train_official_supermimic.py`: separate official adaptation; see
-  [OFFICIAL_SUPERMIMIC](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/OFFICIAL_SUPERMIMIC.md).
+- `train_official_supermimic.py`: separate official SuperMimic adaptation (fixed prism).
+- `check_wm_latch_learning.py`: latch-era V3 loss probe; refuses the current board motion.
 - `legacy/`: retired perturbation, B1 and model-fit diagnostics.
 
-Historical commands and detailed diagnostic provenance remain in the
-[previous script map](https://github.com/Ju6276/Cutting_DEV/blob/e7b9e69/scripts/README.md)
-and dated results. Importable historical helpers are retained for compatibility;
-no old checkpoint or experiment data is deleted by this cleanup.
+Importable historical helpers are retained for compatibility.
 
-## Estimated UR10e/ATI robot assets (2026-11-20)
+## UR10e/ATI robot assets (integration in progress)
 
 - prepare_ur10e_tool.py: supplied CAD/USDZ conversion, rigid registration and estimated inertials (requirements/cad.txt, separate environment).
 - compile_robot_platform.py: nominal UR10e MuJoCo model and FDCC frame/compensation configuration.

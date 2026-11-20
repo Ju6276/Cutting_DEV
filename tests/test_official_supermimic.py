@@ -1,5 +1,5 @@
 """Pins the official SuperMimic (HybridRobotics/supermimic @ 5efbf11) defaults and semantics
-kept by the cutting adaptation; see docs/OFFICIAL_SUPERMIMIC.md."""
+kept by the cutting adaptation."""
 from dataclasses import asdict
 
 import torch

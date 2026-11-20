@@ -1,4 +1,4 @@
-# Paper scope — 2026-11-17
+# Paper scope
 
 ## Research question and implemented system
 
@@ -16,12 +16,13 @@ established novel algorithm.
 
 ## Task and claim boundaries
 
-Current pose_depth_v3 (pose_depth_v2 rules plus software board-stop consistency
-and analytic imagined survival) rewards reaching the prescribed final pose without
-higher-priority failure. Geometric maximum-depth progress replaces the old
-spring-release reward. Material separation is reported independently.
-The board stop is a software execution boundary; force thresholds and material
-parameters have not been calibrated to the real robot.
+Task pose_depth_v3 (500 steps, cumulative arrival >10, 2 mm tolerance) rewards
+reaching the prescribed final pose without higher-priority failure, with
+geometric maximum-depth progress shaping. Material separation is reported
+independently. The board is a geometric nonpenetration boundary
+(`project_continue_v2`), not a board-force model; force thresholds and material
+parameters have not been calibrated to the real robot. The hardware target is
+UR10e + ATI Mini45 with the user's CAD knife (integration in progress).
 
 DiSECt uses prepared material cut interfaces; native BladeMaster does not
 require that topology. Shared robot/task settings do not make their contact
@@ -30,13 +31,11 @@ configuration and training budgets to be disclosed.
 
 ## Vision scope
 
-Route1 selects a visible midpoint from depth. Its frozen-policy physical
-handoff ran but timed out; successful general visual cutting is not established.
-Method2 has been trained on fixed-heading, small-translation cases of the three
-existing shapes and connected to the frozen policy, as a process pilot. Its held-out known-shape localization improved over the geometric reference,
-but both RL physical trials timed out. Later DP3 controller clips also include
-a paired WM+MPPI timeout and one analytic-MPC pose completion. These are
-single-case illustrations, not a controller ranking. This is not evidence of new-object visual
+Pre-cut vision selects a visible midpoint from depth (geometric or learned, DP3
+encoder). Learned localization on known shapes improved over the geometric
+reference, but frozen-policy physical handoffs timed out; one analytic-MPC case
+reached the pose goal. These are single-case illustrations, not a controller
+ranking. This is not evidence of new-object visual
 generalization or a paper contribution by itself. See [VISION_ROUTE1](methods/VISION_ROUTE1.md).
 
 ## Comparisons and evidence still needed
@@ -55,7 +54,5 @@ generalization or a paper contribution by itself. See [VISION_ROUTE1](methods/VI
 
 No new superiority, safety or novelty claim follows from current integration.
 [PLAN](PLAN.md) is the only task list; [RESULTS](RESULTS.md) holds measurements.
-Prior-art evidence remains in [NOVELTY](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/NOVELTY.md) and [reading list](literature/README.md#reading-list).
-The task/force-spike discussion from November12 is historical:
-[previous paper scope](https://github.com/Ju6276/Cutting_DEV/blob/4653d10/docs/PAPER.md).
-The force-spike premise and risk-head method are not the selected main route.
+Prior-art evidence: [reading list](literature/README.md#reading-list).
+The force-spike premise and risk-head method are retired.

@@ -1,34 +1,27 @@
 # Implementation reference
 
-## Active configuration — pose_depth_v3 (updated 2026-11-19)
+Current implementation of the learner, physics interfaces and tooling for task
+pose_depth_v3 (`board.motion=project_continue_v2`). Task equations:
+[TASK_FREE_CUT](TASK_FREE_CUT.md); scene: [SHARED_SCENE](SHARED_SCENE.md);
+decisions: [PLAN](PLAN.md); upstream revisions and patches: [SOURCES](reference/SOURCES.md).
 
-Current task version: **pose_depth_v3** in both material backends
-([scene_v1.json](../configs/shared/scene_v1.json)): the pose_depth_v2 task rules
-(shared analytic maximum blade-depth progress in both backends and the WM, no
-spring-release shaping or learned release-progress head, pose +100 and failure
-precedence) plus analytic imagined survival. Current `board.motion=project_continue_v2`
-removes permanent freezing while retaining a geometric board boundary.
-Exact equations: [TASK_FREE_CUT](TASK_FREE_CUT.md).
-pose_depth_v2 is read/evaluate-only for the 2026-11-16 runs; `train_gpu.py` and
-`train_sac_multi.py` refuse it. No pose_depth_v3 long training run has been launched.
+## Active configuration
 
-- WM state (v3): adds `last_wrench` (6, predicted, scaled by the force limits)
-  and `board_contact` (current: end-of-step clearance <= 10 um, derived, not predicted). Historical transitions whose
-  recorded start state is latched were zero-weighted in the old dynamics loss.
-  Current `project_continue_v2` (like f12ca04's v1) predicts and fits contact-start transitions normally;
-  it has no persistent physical latch or latch-based loss mask.
-  For historical latch metadata only, dynamics error is averaged over valid unlatched starts and
-  terminal BCE over all valid transitions, with independent full-batch denominators
-  during microbatch accumulation (separate_fit_valid_v1). This corrects the earlier
-  v3 loss dilution; it does not change rewards or evaluation. Old v3 resume warns
-  about the change; checkpoints record the normalization rule.
-- Imagined survival (v3): success, failure and timeout are settled analytically
-  in actor imagination, GAE targets and WM+MPPI; the learned terminal head is
-  still fitted and logged, not used as survival.
-- Force sampling (v3): every new 2 ms filtered reading of a control step enters
-  the component-wise peak, force-limit check and safety margin exactly once;
-  current worlds continue sampling after board projection; frozen-reading rules
-  apply only when evaluating historical latch metadata.
+- Task pose_depth_v3 in both material backends: shared analytic maximum
+  blade-depth progress in the backends and the WM, pose +100 with failure
+  precedence, analytic imagined survival, geometric board boundary without
+  permanent freezing. `train_gpu.py` and `train_sac_multi.py` refuse retired
+  task versions (TASK_FREE_CUT).
+- WM state: adds `last_wrench` (6, predicted, scaled by the force limits) and
+  `board_contact` (end-of-step clearance <= 10 um, derived, not predicted).
+  Contact-start transitions are fitted normally; dynamics loss and terminal BCE
+  are averaged over valid transitions (`valid_transitions_v1`). The latch mask
+  `separate_fit_valid_v1` applies only to old latch metadata.
+- Imagined survival: success, failure and timeout are settled analytically in
+  actor imagination, GAE targets and WM+MPPI; the learned terminal head is
+  fitted and logged, not used as survival.
+- Force sampling: every new 2 ms filtered reading of a control step enters the
+  component-wise peak, force-limit check and safety margin exactly once.
 - Policy input: 34 observations per frame (full six-axis sensor wrench) x10
   frames plus an 8D goal; six outputs, pitch disabled.
 - Learner settings (selected, passed explicitly): real-data critic with 32-step
@@ -39,24 +32,12 @@ pose_depth_v2 is read/evaluate-only for the 2026-11-16 runs; `train_gpu.py` and
   transitions, 640 physical transitions per learning round, then 500 WM-only
   rounds; effective batches 2048 (WM) / 4096 (actor), microbatch 512, critic
   microbatch 8192. Pending learning rounds are checkpointed
-  ([lifecycle](#gpu-training-lifecycle-correction-2026-11-16)).
-- GPU memory: Torch cache release before every physics step/reset,
-  expandable segments and a headroom guard are trainer defaults
-  ([Torch/Warp GPU memory sharing](#torchwarp-gpu-memory-sharing-default-since-2026-11-17)).
-- `train_gpu.py` defaults remain the historical `source` variant; the current
+  ([lifecycle](#training-lifecycle)).
+- GPU memory: Torch cache release before every physics step/reset, expandable
+  segments and a headroom guard are trainer defaults
+  ([Torch/Warp GPU memory sharing](#torchwarp-gpu-memory-sharing)).
+- `train_gpu.py` defaults remain the original SuperMimic `source` variant; the
   settings above must be passed explicitly ([RUNNING](RUNNING.md)).
-
-Statements below about the 2026-11-16 shared runs refer to pose_depth_v2; earlier
-pose-v1 and free_cut_v3 results retain their recorded definitions.
-[SHARED_SCENE](SHARED_SCENE.md) is the scene/configuration authority;
-[PLAN](PLAN.md) gives decisions and next work. Online W&B is required for long runs.
-
-Sections describing the fixed-prism source adapter mapping, the native
-ROS/Gazebo state path, the one-off pre-policy checkpoint migration, the retired
-S0 multi-condition task, the force-risk penalty and the free_cut_v1–v4 task
-interfaces moved verbatim to
-[archive/METHOD_historical_20261118](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/METHOD_historical_20261118.md).
-Source revisions and patches: [SOURCES](reference/SOURCES.md).
 
 ## External implementation evidence
 
@@ -65,56 +46,36 @@ provides full-update equivalence checks, independent physical evaluation and
 500 world-model-only iterations; all three are applied here. Its RunningNorm
 critic and analytic soft termination are separate method choices, not adopted.
 The implementation keeps static scales and still fits the Cuboi learned terminal
-head; since pose_depth_v3 imagined survival is analytic and the head is only logged.
+head, whose probabilities are only logged (imagined survival is analytic).
 ndm-gym's soft termination is not used. SliceIt physical thresholds stay fixed. Analytic termination
 alone cannot restore a force-limit event that the dynamics model failed to
 predict.
 
-## Control-history candidate
+## Control-history state
 
-**Current dimensions (pose_depth_v3; from the spec and the 2026-11-18 v3
-integration run's task.json/manifest.json).** One frame has 107 coordinates:
-42 predicted physical ones (joint position/velocity 12, three-sample wrench
-history 18, interval peak wrench 6, `last_wrench` 6) and 65 derived ones (motion
-command, previous pose/velocity/acceleration, the 34-wide observation, success
-counter, step count, depth progress, depth span, completion XY error and
-`board_contact`). Ten frames give 1070 state coordinates. The dynamics input takes
-54 coordinates per frame, 540 in total: joints 12, wrench history/peak/last 30,
+One frame has 107 coordinates: 42 predicted physical ones (joint position/velocity
+12, three-sample wrench history 18, interval peak wrench 6, `last_wrench` 6) and
+65 derived ones (motion command, previous pose/velocity/acceleration, the
+34-wide observation, success counter, step count, depth progress, depth span,
+completion XY error and `board_contact`). Ten frames give 1070 state coordinates
+(`prediction_layout=control_history_v2`). The dynamics input takes 54
+coordinates per frame, 540 in total: joints 12, wrench history/peak/last 30,
 motion command 6, previous action 6. The model predicts a 42-wide delta. The
 policy sees 34 observations x 10 frames plus an 8D goal. The WM fits 8-step
-windows, the actor imagines 8 steps (`--actor-horizon 8`) and the real-data critic
-uses 32-step recorded windows. Imagined survival is analytic.
+windows, the actor imagines 8 steps (`--actor-horizon 8`) and the real-data
+critic uses 32-step recorded windows.
 
-*Historical layout.* The rest of this section gives the original numbers of the
-fixed-prism SliceIt task. The field roles and history mechanism still apply; the
-numbers do not.
-
-The user-approved control predictor (`prediction_layout=control_history_v2`)
-learns 36 next-state coordinates: robot joint position/velocity (12), the exact
-three-sample observed wrench history (18), and interval peak wrench (6).
-The original FK, observation, motion-command, derivative-history, success-counter,
-reward and terminal formulas advance the other 50 current-state coordinates.
-Nine previous 86-coordinate frames accompany the current frame, giving 860
-rollout-state coordinates. Dynamics input selects 48 coordinates per frame:
-joints (12), observed/peak wrench (24), accumulated motion command (6) and
-previous executed action (6), for 480 total. Derived pose, velocity, acceleration,
-jerk, observation copies and success counter remain available to analytic heads
-and critic, but do not feed the dynamics MLP. This follows the pinned source's
-separation of physical dynamics state from analytic observation/reward features;
-the v1 frozen diagnostic identifies derivative-input feedback as an error amplifier.
-History length 10 matches the pinned policy history;
-reset repeats the actual initial frame, and each transition shifts only past
-frames. Particles, spring damage and native controller/filter packets remain in
-physical recordings but are absent from model inputs and prediction targets.
-
-This changes the state representation and supervised targets of the pinned
-SuperMimic residual MLP. Its widths, normalized squared-error form, terminal BCE,
-optimizer, effective batches, eight-step fitting and (in that version) 32-step BPTT remained intact.
-Physical/task equations and policy observations are unchanged. The finite history
-approximates unobserved material and controller memory. Evaluation separates
-reset-first transitions, held-out full episodes, force-limit termination and
-8/32-step predictions; model gradients are checked independently of physical
-policy success. No learned latent state or recurrent network is added.
+FK, observation, motion-command, derivative-history, counter, reward and
+terminal formulas advance the derived coordinates analytically; derived pose,
+velocity, acceleration, observation copies and counter feed the analytic heads
+and critic, not the dynamics MLP. This follows the pinned source's separation
+of physical dynamics state from analytic observation/reward features. History
+length 10 matches the policy history; reset repeats the actual initial frame,
+and each transition shifts only past frames. Particles, spring damage and native
+controller/filter packets remain in physical recordings but are absent from
+model inputs and targets. The SuperMimic residual MLP widths, normalized
+squared-error form, terminal BCE, optimizer and effective batches are kept.
+No learned latent state or recurrent network is added.
 
 ## World-model-first training
 
@@ -154,74 +115,41 @@ initial policy plus the existing 0.1 action noise continues collecting data.
 The change addresses policy optimization through an insufficiently fitted
 predictor; its effect is measured by force/terminal errors and physical episodes.
 
-*Historical vector-step schedule:* Cuboi's vector-step collection schedule used
-warmup 40 and UTD 0.4, replay 1000 rows per world, with the same loss, effective batches, learning rates,
-networks, reward and physical thresholds. NDM uses 64 initial collection steps
-and indexes its LR by learner iteration; those changes are not adopted. The
-500-update stage adds 5000 world-model optimizer steps before policy learning.
-At that cadence, WM-only finished at vector step 1289 and the first joint update
-occurred at 1292. Current runs use `--schedule transitions`
-(`physical_transitions_v2`): 30720 warmup transitions, one learning round per 640
-physical transitions. LR and the schedule endpoint are indexed by physical
-transitions / 256 (`lr_reference_worlds`). The vector-step figures above do not
-apply.
 
-Checkpoints store completed WM rounds, policy rounds, actual Adam step counts,
-stage length and training configuration. Resuming refills replay while retaining
-these counters. `--wm-only-updates 0` selects the original immediate joint-update
-behavior. Frozen evaluation loads model weights independently of training-stage
-metadata. RunningNorm is not adopted; static input scales are retained. The learned
-head is still fitted. Since pose_depth_v3, imagined survival is analytic and the
-head's probabilities are only logged ([Active configuration](#active-configuration--pose_depth_v3-updated-2026-11-18)).
+Schedule: `--schedule transitions` (`physical_transitions_v2`): warmup and update
+cadence count physical transitions; LR and the schedule endpoint are indexed by
+physical transitions / 256 (`lr_reference_worlds`). Checkpoints store completed
+WM rounds, policy rounds, actual Adam step counts, stage length and training
+configuration. `--wm-only-updates 0` selects immediate joint updates. Frozen
+evaluation loads model weights independently of training-stage metadata.
+RunningNorm is not adopted; static input scales are retained.
 
-## Connected trainer mapping
+## Learner mapping
 
-This section maps the original fixed-prism SliceIt task onto the trainer. Current
-task equations are in [TASK_FREE_CUT](TASK_FREE_CUT.md); current dimensions and
-horizons are in [Control-history candidate](#control-history-candidate).
+The connected learner keeps the source MLP, eight-step autoregressive loss
+(sum over state coordinates, mean over batch and time), learned terminal head
+(logged), actor objective and GAE critic updates. The actor objective spans 8
+steps with `--actor-horizon 8` (32 in the source). Microbatch gradient
+accumulation reproduces the effective batch sizes (2048 world model, 4096
+actor); optimizer steps and gradient clipping occur after accumulation.
 
-The connected candidate keeps the source MLP, eight-step autoregressive loss
-(sum over state coordinates, mean over batch and time), learned terminal head,
-survival-weighted actor objective and GAE critic updates. The actor objective
-spans 32 steps in the source and 8 with `--actor-horizon 8`. Its survival weight
-is learned up to pose_depth_v2 and analytic from pose_depth_v3. A 4090 uses
-microbatch gradient accumulation for the original effective batch sizes (2048
-world model, 4096 actor); optimizer steps and gradient clipping occur after
-accumulation. This changes storage/scheduling, not the loss or update ratio.
-
-Physical recordings contain DiSECt vertex positions/velocities and
-spring stiffness, robot joints/velocities, bridge knife pose/twist, the three
-wrench samples used by SliceIt, and the componentwise peak wrench checked during
-the control interval. Robot end-effector pose is derived by differentiable URDF
-forward kinematics. Controller motion accumulation, finite-difference velocity,
-acceleration, jerk, observation, success counter and fixed target follow the
-existing SliceIt equations. Targets and derived observations are not learned
-outputs. Spring damping is static in this DiSECt integrator.
-
-Metric/velocity/joint error and output scales reuse source StateSpec values;
-spring stiffness uses its initial material stiffness, wrench uses the existing
-force/torque limits. No damage projection is applied. The terminal head uses
-normalized force-limit, workspace, goal and counter features in place of G1
-height/tilt. Force history is decoded as component-major in both the corrected NumPy source
-and the Torch reward. Existing component scales, averaging, reward weights and
-thresholds are retained. Reward retains SliceIt's discrete collision/success bonuses and
-continuous distance/force/jerk terms; gradients through the discrete bonus tests
-are piecewise, while learned termination supplied the source survival gradient
-(pose_depth_v3 uses analytic survival instead).
-
-Only SliceIt's existing observation noise/randomization is used; humanoid sensor
-noise magnitudes do not apply to the cutting observations. The fixed target
-replaces reference-motion frames. Gazebo/ROS collection remains one environment.
-
-Training quality is assessed with learning curves and held-out physical episodes.
-Short-term loss/reward oscillation does not trigger architecture or threshold
-changes. Non-finite computations, broken data alignment and incorrect gradients
-are implementation failures to repair before interpreting training quality.
+Robot end-effector pose is derived by differentiable URDF forward kinematics.
+Controller motion accumulation, finite-difference velocity, acceleration, jerk,
+observation, success counter and target follow the existing SliceIt equations;
+targets and derived observations are not learned outputs. Wrench uses the
+force/torque limits as scale; history is decoded component-major. No damage
+projection is applied. Only SliceIt's existing observation noise/randomization
+is used.
 
 URDF FK returns the same quaternion sign convention as
 [KDL Rotation::GetQuaternion](https://github.com/orocos/orocos_kinematics_dynamics/blob/master/orocos_kdl/src/frames.cpp).
 SliceIt's angular finite difference uses the signed quaternion components, so
 matching the rotation alone is insufficient for matching its velocity history.
+
+Training quality is assessed with learning curves and held-out physical episodes.
+Short-term loss/reward oscillation does not trigger architecture or threshold
+changes. Non-finite computations, broken data alignment and incorrect gradients
+are implementation failures to repair before interpreting training quality.
 
 ## Batched GPU collection
 
@@ -233,39 +161,27 @@ matching the rotation alone is insufficient for matching its velocity history.
 | Wrench samples | Oldest three entries of a 25-entry sensor queue, appended at filter callbacks | Same queue ordering at the deterministic 500 Hz exchange; initialize queue from the reset sensor baseline |
 | Initial condition | ROS moves the arm to its start pose before resetting DiSECt | Restore the exported start and initialized controller/filter snapshot per world; shared public material configuration and prescribed cut topology |
 
-`train_gpu.py` uses the same `control_history_v2` layout as the ROS entry and
-reuses OnlineLearner, policy/critic networks, objectives, learning rates and
-effective batches.
 
-Schedule (current): `--schedule transitions` (`physical_transitions_v2`), where
-warmup and update cadence count physical transitions. Checkpoints record the
-schedule state and environment count, and a resume with a different count is
-rejected. `--max-hours`, `--max-transitions` and `--max-iterations` bound a run.
-Environment count does not change the eight-step WM loss, the actor horizon (8
-with the current flags) or the 32-step critic windows.
+`train_gpu.py` reuses OnlineLearner, policy/critic networks, objectives,
+learning rates and effective batches. Checkpoints record the schedule state and
+environment count; a resume with a different count is rejected.
+`--max-hours`, `--max-transitions` and `--max-iterations` bound a run.
 
-Resume (current): the replay paired with the checkpoint is restored: `last.pt`
-with `replay.pt`, a named checkpoint with `<stem>.replay.pt`. Name and iteration
-must match. Open episodes are closed and every world restarts. The saved warmup
+Resume: the replay paired with the checkpoint is restored (`last.pt` with
+`replay.pt`, a named checkpoint with `<stem>.replay.pt`); name and iteration must
+match. Open episodes are closed and every world restarts. The saved warmup
 origin, transition credit and pending learning rounds are kept, so no new warmup
 runs. Only `--resume-without-replay` starts from an empty replay, and then warmup
 restarts at the current transition count.
 
-*Historical:* the vector-step schedule (`vector_steps_v1`, 320000-step endpoint)
-used one overwritten `replay.pt`, and a resume repeated the source warmup.
-
-The GPU physical snapshot layout `coupled_recurrent_v1` has 8944 coordinates. It includes
+The GPU physical snapshot layout `coupled_recurrent_v1` has 8944 coordinates:
 FDCC integration velocity/error/position-command history, cached tip pose, the
 200-sample filter window and IIR state, 25-sample sensor queue, MuJoCo warm start
-and previous coupling pose. Filter tare and controller compensation remain
-constant snapshot coordinates. These values affect the next transition even when
-particle and joint states match. The predictor uses the control history described
-above: 1070 coordinates with 42 predicted for pose_depth_v3, 860 with 36 in the
-historical source layout. Tensor batch
-packing shifts each world's history independently; a reset repeats that world's
-new initial frame and preserves every other world's history. GPU checkpoints
-record `prediction_layout=control_history_v2`; full-physical-state checkpoints
-have different metadata and are rejected on resume.
+and previous coupling pose; filter tare and controller compensation are
+constant. These values affect the next transition even when particle and joint
+states match. Tensor batch packing shifts each world's history independently; a
+reset repeats that world's new initial frame and preserves every other world's
+history. Full-physical-state checkpoints have different metadata and are rejected.
 
 At a force-limit terminal boundary, inactive worlds retain their robot, material,
 controller and filter state while other worlds finish the 50 ms action. Masked
@@ -276,17 +192,10 @@ online logging for phase timing, physical episode returns/success/collision,
 world-model losses, BPTT/critic metrics and checkpoint artifacts.
 
 SliceIt Section III-B3 and Figure 2 specify the bridge: robot knife position and
-velocity go to CutSim, and CutSim contact force goes to the compliance controller.
-The disconnected topics observed in our old running launch establish an
-integration failure for that run. They do not establish that every published
-launch combination or the authors' experiment had that failure.
-Source: https://arxiv.org/html/2404.02569v1#S3.SS2.SSS3
-
-ROS and GPU task metadata include `task_interface_revision=sliceit-177cf21`.
-Existing checkpoint metadata equality rejects resuming with the old reward
-interpretation. Earlier recorded datasets retain their original rewards; new
-interface parity checks use episodes collected with the corrected source.
-SAC's PER and TCN changes do not apply to the SuperMimic replay or policy.
+velocity go to CutSim, and CutSim contact force goes to the compliance controller
+([source](https://arxiv.org/html/2404.02569v1#S3.SS2.SSS3)). Task metadata
+includes `task_interface_revision=sliceit-177cf21`; checkpoint metadata equality
+rejects the old reward interpretation.
 
 ## Trajectory baselines
 
@@ -315,7 +224,7 @@ whole rollouts.
 
 `source` (`--critic-target imagined`, default) fits the critic on GAE targets
 computed along the 32-step WM-imagined rollouts of each policy update. Measured
-(RESULTS 2026-11-05): full-episode WM position error 5–7 mm exceeds the 2 mm
+(fixed-prism development, 2026-11-05): full-episode WM position error 5–7 mm exceeds the 2 mm
 goal-z threshold, imagined terminal events are wrong, and the policy62 critic
 has held-out return MAE ~153. Run C1 (`runs/critic_real_c1_20261105`, outside
 Git) fitted a fresh source critic on recorded windows of the same data: held-out
@@ -411,10 +320,11 @@ It keeps the policy near actions present in replay, where the WM is fitted.
 Default: off (source). Checkpoints record the value; a resume with a different
 value is rejected unless it starts the variant with `--critic-reset`.
 
+
 ## Variants not adopted
 
-`actor_objective=bc`, `force_penalty=linear` and `wm_terminal_gradient=head` were tested and not
-adopted; their descriptions are in [archive/METHOD_variants_20261112](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/METHOD_variants_20261112.md).
+`actor_objective=bc`, `force_penalty=linear` and `wm_terminal_gradient=head` were
+tested and not adopted.
 
 ## Frozen world-model MPPI controller
 
@@ -423,20 +333,17 @@ optimizer (revision in SOURCES) to `CuttingWorldModel.predict`. The optimizer
 samples normalized six-dimensional actions in [-1, 1], mapped affinely to the
 task's original bounds. Candidate rollouts use the checkpoint's motion/force
 history, goal, analytic reward and task predicates. No particle or damage fields
-enter the planner. For a pose_depth_v3 checkpoint the WM dynamics receives ten
-frames of 54 control features: joints, wrench samples, interval peak wrench,
-`last_wrench`, motion command and previous action. Fixed-prism checkpoints used
-48, without `last_wrench`. The rollout additionally carries derived
-pose/velocity/acceleration, observation, success-counter and board-boundary history (persistent only for historical latch metadata).
-The policy receives ten frames of 34 observations and the 8D goal; fixed-prism
-checkpoints used 24 observations and the target pose. These are different
-information interfaces.
+enter the planner. The WM dynamics receives ten frames of 54 control features:
+joints, wrench samples, interval peak wrench, `last_wrench`, motion command and
+previous action. The rollout additionally carries derived pose/velocity/
+acceleration, observation, success-counter and board-contact history. The
+policy instead receives ten frames of 34 observations and the 8D goal; these are
+different information interfaces.
 
 The accumulated task cost is the negative discounted survival-weighted reward.
 Hard task endings absorb the rollout, keeping the terminal transition's reward
-once. Survival weighting is the same as in `OnlineLearner.imagine`. It is analytic
-for pose_depth_v3 checkpoints, where learned terminal probabilities are only
-logged, and comes from the learned terminal probabilities for earlier checkpoints. `--mpc-terminal-value none` uses the finite-horizon
+once. Survival weighting is the same as in `OnlineLearner.imagine` (analytic for
+pose_depth_v3; learned terminal probabilities only for older checkpoints). `--mpc-terminal-value none` uses the finite-horizon
 reward alone. `critic` adds `gamma**H * survival_H * V(state_H, goal)`, with
 the checkpoint's frozen critic, canonical state scaling and pose-error inputs
 used by `OnlineLearner.critic_values`. Absorbed candidates do not query the
@@ -461,7 +368,7 @@ They do not change the physical task. The frozen single-world adapter replans
 after each measured transition and clears both history and plan on reset.
 `planning.json` contains every call's duration, predicted reward and terminal
 value separately, effective sample count, predicted sensor limit ratio, survival
-and task ending. BENCHMARK supplies executed metrics. Temperature and repeated
+and task ending. The physical evaluator supplies executed metrics. Temperature and repeated
 MPPI refinements use the upstream optimizer controls; no task parameters change.
 The finite-horizon running/terminal-cost formulation follows
 [Williams et al. (2017)](https://arxiv.org/abs/1707.02342); solver controls and
@@ -470,39 +377,32 @@ the terminal callback are implemented by
 
 ## Recorded geometry and offline video
 
-The recorder observes the benchmark's reset and completed physical transitions.
-It stores raw joint/particle states and forces, plus world-frame material, knife,
-robot-body and collision-geometry poses. URDF joint names select the MuJoCo qpos
-addresses. Display frames interpolate joint angles and positions; recorded force
-peaks and spring-release counts are held until their measured boundary.
+The recorder observes reset and completed physical transitions. It stores raw
+joint/particle states and forces, plus world-frame material, knife, robot-body
+and collision-geometry poses; DiSECt and BladeMaster episode files include the
+base/world transform and every world's physical blade vertices and triangles.
+URDF joint names select the MuJoCo qpos addresses. DiSECt virtual cut vertices
+are rendered as in DiSECt (`(1-t)*particle[i] + t*particle[j]`, both
+`tri_indices` and `cut_tri_indices`).
 
-DiSECt `cutting/visualizer.py` and `dflex/render.py` evaluate virtual cut vertices
-as `(1-t)*particle[i] + t*particle[j]`, then render both `tri_indices` and
-`cut_tri_indices`. The offline renderer uses the same construction. The prism
-export contains 608 virtual vertices and 1338 cut triangles.
+Frozen evaluations use `evaluate_pose_policy.py --record-geometry`,
+`export_evaluation_scene.py` and `render_episode_still.py --video` (commands in
+RUNNING). The shared studio renderer keeps the original UR5e visual meshes, scan
+appearance and one actual physical blade; it clips only the old URDF blade beyond
+the mesh shoulder (source x=-0.04786805 m), retaining the gripped handle. No
+connector, shank or collar is drawn; the URDF cable envelope is hidden. A
+full-trajectory rigidity check rejects relative blade motion over 10 micrometres;
+it does not validate a real mounting. Cucumber scan appearance is reused only
+after topology and rigid-geometry checks; half potato and particle surfaces use
+explicitly approximate PCA-aligned color transfer. No crack bands are drawn and
+geometric gaps are not filled; board grain, lights and shading are decorative.
+`--highlight-cut-faces` is an explicit diagnostic option. The all-world overview
+(`render_training_snapshot.py`) uses the same robot/handle clipping and
+illustrative colors; snapshots without per-world blade data are rejected.
+`capture_environment_batch.py` / `render_environment_batch.py` record and display
+settled initial worlds (initialization previews, not training screenshots).
+Recording and rendering do not change physics, rewards or weights.
 
-| Source component | Video implementation |
-|---|---|
-| MuJoCo physics import discards URDF visuals and keeps collision meshes | Offline video loads the original URDF visual meshes, local origins, scales and COLLADA material colors onto recorded body poses. `--robot-geometry collision` selects the physics meshes for inspection. |
-| Robot `knife_and_adapter` includes blade, handle and mounting adapter; DiSECt uses a separate rectangular contact blade | Historical source-format renderer supports the URDF appearance with an explicit debug contact-proxy overlay. Current frozen-evaluation videos use only the actual backend blade; see the 2026-11-15 correction below. |
-| DiSECt particle and virtual-vertex surface | Same surface topology and edge interpolation, with smooth normals and optional triangle edges. |
-| Material contact plane | Add a board thickness and support below the plane for display. |
-
-One EGL window owns both views. Force traces use measured control-step peaks;
-playback speed uses recorded simulation timestamps, independently of solver wall
-time. Render dependencies are isolated in `requirements/render.txt`.
-
-The URDF tool is fixed to the gripper frame. The DiSECt contact blade follows
-SliceIt's separate velocity coupling, with motion projected onto the cutting
-plane. At reset, `b_bot_knife_sim` receives the source's vertical shift
-`spine_height / 2 - 0.0043` (25.2 mm for this blade); during stepping, transformed
-tool velocities drive DiSECt. DiSECt contact-force magnitudes are summed and
-returned along its cutting axis through the sensor filter to FDCC. This is a
-motion/force signal connection between simulators; it is not a MuJoCo fixed
-joint connecting the DiSECt blade to the robot. Source implementations are
-SliceIt `disect_slicing.py:reset`, `fzi_cartesian_compliance_controller.py`
-knife publishing, and `cutting/ros_visualizer.py:update_knife_pose` /
-`step_simulation`; the port is `cutting_gpu_backend/coupling.py`.
 
 ## Material feedback and diagnostic labels
 
@@ -513,15 +413,13 @@ torque does not imply zero total sensor torque. `source_wrench_transform`
 preserves upstream block ordering, not a newly validated general transform.
 A revised physical interface must be derived, validated and versioned separately.
 
-Historical reports from `measure_sawing.py` used temporal component maxima;
-their L2 norm is an envelope, not a simultaneous force norm. Reports with schema
-`simultaneous_coupling_samples_v2` instead sample at 500 Hz: every component and
+`measure_sawing.py` reports with schema `simultaneous_coupling_samples_v2` sample at 500 Hz: every component and
 vector norm uses the same contact-to-release window. Means are means of those
 samples, not means of 50 ms peaks. Contact onset uses the explicitly recorded
 sum-of-magnitudes threshold (default 0.5 N); 98% spring release remains a diagnostic
 fraction, not a validated task-success definition.
 
-## Material force model option (`force_model`, `friction_velocity`) — 2026-11-12
+## Material force model option (`force_model`, `friction_velocity`)
 
 Default `force_model='scalar'` is the source bridge described above (sum of contact-force
 magnitudes on one axis, no material torque). This preserves the signal convention;
@@ -553,7 +451,7 @@ coupling (DiSECt forces are not applied to the MuJoCo robot; the robot reacts th
 compliance controller reading the sensor wrench) remain unchanged. Not validated: friction coefficient and
 transition velocity against real cuts, the moment arm against a real mount, and whether
 friction redirection alone accounts for the real sawing benefit (the fracture-side effect
-of slicing is not in DiSECt's damage law). Measurements: RESULTS 2026-11-12.
+of slicing is not in DiSECt's damage law).
 
 
 The net metadata identifier is `net_contact_sensor_v1`; nondefault force/friction
@@ -577,7 +475,7 @@ statistics, not an exact material energy balance.
 
 
 
-## Contact coordinate consistency correction — 2026-11-12
+## Contact coordinate consistency correction
 
 User-authorized physical bug fix, revision `edge_coordinate_consistent_v2`, in the
 bundled `dflex/sim.py`. The earlier interface audit identified inconsistent weights
@@ -614,20 +512,14 @@ This correction changes future material motion and therefore can change cutting
 forces, despite leaving all numerical parameters unchanged.
 
 
-## DiSECt execution changes from the free-cut reviews (2026-11-12/13)
-
-Kept from the free-cut v2/v3 review sections (task-specific parts are in
-[archive/METHOD_historical_20261118](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/METHOD_historical_20261118.md)); these
-execution changes apply to all DiSECt paths, including the current shared task.
+## DiSECt execution changes
 
 Reset execution: cached material scratch batches compute only resetting worlds, with exact
 material draws and the original duration; a stationary 32-substep CUDA graph removes Python
-dispatch overhead. The vendored DFlex wrappers now launch on PyTorch's current CUDA stream,
-the extension cache checks both CPU and CUDA generated source, and a per-step scalar zero
-allocation is graph-compatible. These are execution changes, not new contact/damage equations.
+dispatch overhead. These are execution changes, not new contact/damage equations.
 
-Third-party execution changes introduced in 1b287d5 affect ALL DiSECt paths, including
-legacy tasks; they are not a free-cut-only physical patch:
+Third-party execution changes (introduced in 1b287d5) affect all DiSECt paths:
+
 - `backends/mujoco/third_party/disect/disect/dflex/adjoint.py`: generated forward AND backward
   kernels launch on PyTorch's current CUDA stream. Necessary for dependent tensor operations
   and CUDA graph capture to execute in order. Compilation cache identity includes generated
@@ -639,66 +531,40 @@ These change scheduling/cache/initialization, not the contact/fracture equations
 bitwise reproducibility is not promised. Original third-party licenses remain. New v3 work
 adds no further third-party kernel changes. GPU regression includes packed materials,
 controller/coupling, graph/eager comparisons and scratch eviction; passing these does not
-establish real-world physical calibration. Full provenance lives in FREE_CUT_REPAIR.
+
+## Tool mounting
+
+Both backends use the shared finite blade `disect_knife_rigid_mount_v1` and a
+canonical rigid EE mount ([SHARED_SCENE](SHARED_SCENE.md#shared-physical-knife-and-mounting));
+the UR10e profile uses the mounted CAD knife (below). This is a kinematic
+coupling, not a frictional gripper grasp or tool slippage model. The inherited
+`sr305` camera meshes are not policy image inputs: `GPUEnvironment._observe`
+builds observations from target-pose error, motion derivatives, actions and
+wrench history, plus task time.
+
+## Native BladeMaster adapter
+
+The BladeMaster adapter runs the external forward material solver with the
+existing robot, six-action FDCC interface and 500 Hz sensor-wrench feedback, and
+the same analytical board-normal depth progress. It has no DiSECt cut-spring
+input or separation label. Material reaction reaches the robot through
+controller feedback, not an additional two-way MuJoCo contact solve. The batched
+generated kernels load per-world particle mass, Lamé coefficients and fracture
+threshold from persistent GPU arrays. Per-object settling settings belong to
+`group_reset_settings` when object groups differ; reward, force limits and
+robot/task fields must match.
+
+## Observation and cadence options
+
+The transition schedule earns WM updates from newly collected physical
+transitions (integer credit, LR clock and budget in transitions) rather than a
+world-count-independent vector-step counter. The `sensor_wrench6_v1` observation
+adds all six sensor components while preserving pose/velocity axes, action
+mapping and reward. Both are engineering settings, not methodological
+contributions; the `source` mode remains available.
 
 
-## Recorded tool mounting and unused camera meshes (2026-11-14)
-
-The retained URDF mounts `knife_and_adapter.stl` as the visual geometry of
-`b_bot_right_inner_knuckle`. Its joint and the intervening gripper-base joints
-are fixed to the UR5e end-effector chain. The knife and adapter share one mesh;
-this model does not simulate a frictional grasp or tool slippage. The DiSECt
-contact blade is the coupled material-side proxy, driven by robot tool motion
-and returning a wrench through the existing coupling.
-
-`b_bot_cam_mount` uses `sr305_mount.stl`; inside/outside camera links use
-`sr305_simplified_body.stl`. These inherited model parts are not policy image
-inputs. `GPUEnvironment._observe` builds observations from target-pose error,
-motion derivatives, actions and wrench history, plus task time where applicable.
-
-Rendering defaults to no contrasting prepared-cut-face highlight. Original
-texture is extended from nearby exterior display triangles without moving
-vertices, deleting faces, filling openings or changing physical connectivity.
-`--highlight-cut-faces` is an explicit diagnostic display option, recorded in
-render provenance. Thus removing the pale band does not assert that a material
-is intact or separated.
-
-
-In the historical source-format render_episode.py path, the visible knife defaults to the mounted URDF knife/adapter only. The blue
-DiSECt contact proxy remains active in physics but appears only with
-`--show-contact-blade`. This corrects the confusing double outline, not any
-geometric mismatch between the two representations. Still renders support
-close and whole-arm views. Rendering settings do not alter tool transforms,
-material contact, reaction forces, task termination or learning inputs.
-
-`capture_environment_batch.py` records all worlds after actual randomized
-initialization and settling; it performs no control actions or optimizer updates.
-`render_environment_batch.py` uses each world's captured robot transforms and
-particles, arranging isolated worlds in a display-only grid. Such images are
-initialization previews, not screenshots of an ongoing training run.
-
-## Additional material implementations (2026-11-14)
-
-The [BladeMaster-derived DiSECt candidates](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/BLADEMASTER_DISECT_ASSETS.md) keep the current prescribed-interface pose task. Only geometry and compatible elastic quantities (E, nu, rho) transfer; cutting-spring and contact values remain explicitly inherited from the DiSECt template. They are reproduction shapes, not scanned foods or real-food calibrations.
-
-The [BladeMaster UR5e adapter](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/BLADEMASTER_BACKEND_REVIEW.md) instead runs the external forward material solver with the existing robot, six-action FDCC interface and 500 Hz sensor-wrench feedback. It has the independent `blademaster_pose_v1` identity and analytical board-normal depth progress, no DiSECt cut-spring input or separation label. Real mapped actions feed the normal replay/WM/BPTT update path. Material reaction reaches the robot through controller feedback, not an additional full two-way MuJoCo contact solve. The initial adapter used serial independent material solvers. The later batched implementation was validated at256 worlds and used for the GPU9 engineering run; see RESULTS for its scope and subsequent SIGILL, rather than treating the initial serial limitation as current.
-
-Per-object settling settings now belong to `group_reset_settings` when object groups differ. Shared reward, force limits and robot/task fields must still match. Homogeneous groups retain the former metadata shape for compatibility.
-
-
-## Collection-scaled cadence and full-wrench policy observation (2026-11-14)
-
-The source mode is preserved. The opt-in transition schedule earns WM updates
-from newly collected physical transitions rather than a world-count-independent
-vector-step counter; its warmup, integer credit, LR clock and budget are specified
-in [TRAINING_SCALE_20261114](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/TRAINING_SCALE_20261114.md).
-The opt-in sensor_wrench6_v1 observation adds all six sensor components while
-preserving pose/velocity axes, action mapping and reward. WM already predicted
-six-dimensional wrench. See [WRENCH_OBSERVATION_REVIEW](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/WRENCH_OBSERVATION_REVIEW.md)
-for layout, normalization and checkpoint compatibility. These are explicit
-engineering variants, not claimed methodological contributions.
-
-### Torch/Warp GPU memory sharing (default since 2026-11-17)
+## Torch/Warp GPU memory sharing
 
 Torch (learning, DiSECt state) and Warp (MuJoCo Warp collision, `wp.empty` from the
 CUDA stream-ordered pool) share one device. Warp does not change the pool's release
@@ -725,220 +591,60 @@ Per-phase Torch reserved/allocated peaks and device free memory are logged as
 `gpu_mem/<phase>/*` and in steps.jsonl (`gpu_memory`, `gpu_memory_window`,
 `gpu_headroom`, `cuda_cache`). None of this changes reward, task, effective batch
 sizes, gradient accumulation or optimizer schedule. Measured numbers: RESULTS
-2026-11-17 (GPU memory headroom).
+(GPU memory headroom).
+
+## Shared scene, reset and episode sampling
+
+`shared_scene.py` generates both backend configurations and paired
+initial-clearance cases from `configs/shared/scene_v1.json`; `scene_alignment.py`
+measures settled particle height, solves the robot start pose, updates the
+physical rigid tool and validates the resulting gap. The once-per-world clearance
+is recorded but is not an actor feature. The DiSECt reference path follows the
+goal's target speed. A packed DiSECt loader rejects CPU-resident scene tensors.
+
+`episode_conditions.py` provides per-object/world/episode random streams shared
+by both backends. E and density use the same log-uniform multipliers; the third
+multiplier maps to DiSECt cutting-spring stiffness and BladeMaster cutting
+energy (distinct quantities). Target speed is sampled uniformly and passed to
+the goal and reference controller. BladeMaster selects dt using the upper E and
+lower density bounds, updates only resetting worlds, restores their raw states
+and settles with the actual parameters. Material draws are logged, not appended
+to actor/WM state. Checkpoints retain the sampler; resume starts new physical
+episodes at the next stream indices.
+
+`completion_xy_error` is computed analytically from joint FK and the goal and
+stored in state/history; final-only versus path-and-final is selected by
+`common.task.tool_motion.enabled` (TASK_FREE_CUT). The retired particle-RMS
+`object_slip` option remains only for old checkpoints.
+
+## Training lifecycle
+
+The GPU runner persists unstarted learning rounds (`update_queue`) separately
+from the collection schedule's fractional credits; restored pending rounds run
+before further collection. Saved optimizer state from an interrupted round is
+retained, but the round is not replayed wholesale (RUNNING). Environment
+shutdown is attempted before W&B finalization, and shutdown errors enter failed
+status. Checkpoint payload hashes reject mixed model/replay generations.
+
+## Baselines and vision
+
+Baseline adapters (SB3 SAC, frozen WM+MPPI, nonlearned FDCC+MPPI) share the
+current physics/reward/recording; see [CURRENT_BASELINES](methods/CURRENT_BASELINES.md).
+
+Pre-cut vision ([VISION_ROUTE1](methods/VISION_ROUTE1.md)):
+`visual_cut.visual_midpoint_plan` chooses a visible geometric mid-section from
+depth (ambiguous axes reject); calibration maps the physical blade edge to an 8D
+base-frame goal. `visual_execution` places the robot only before an episode
+(native BladeMaster, single world), verifying IK, board clearance, goal validity
+and unchanged material positions; it is not a real-robot approach planner. The
+optional `visual_center` module predicts a one-dimensional midpoint offset from
+observed local point clouds; training supervision uses full surface bounds
+offline. `evaluate_visual_cut` dispatches `wm_policy`, `wm_mppi` and
+`analytic_mpc`; planners are constructed after the visual start is installed.
+Frozen controllers see motion/force observations and the goal, not the image.
 
 
-## Frozen-evaluation physical-tool rendering (2026-11-15; historical geometry)
-
-Current shared geometry/reset is defined in SHARED_SCENE (including its shared-knife section). The
-120 mm wedge and proxy variation below describe the old frozen runs, not the
-new 150 mm shared knife. The studio entry points remain supported.
-
-Use evaluate_pose_policy.py --record-geometry, export_evaluation_scene.py and
-render_episode_still.py --video for current frozen evaluations. The shared studio
-renderer preserves the original UR5e visual meshes, scan appearance and one
-actual physical blade, with no additional crack highlighting. It replaces the old blade portion of the combined URDF knife/adapter appearance
-mesh, which does not match the BladeMaster wedge, while retaining the original
-gripped handle (see the correction below).
-The initial whole-mesh omission was a visualization regression: it also removed
-the original handle. The current renderer clips only the old blade beyond the
-mesh shoulder (source x=-0.04786805 m), retaining the gripped handle/adapter.
-The original export added a metal shank and collar to bridge the handle and
-blade visually. These were invented display geometry without CAD provenance or
-user authorization and are now removed (FRAMEWORK_AUDIT_20261116). The original
-handle and physical blade are retained without visual repositioning. A
-full-trajectory rigidity check remains and rejects relative blade motion over
-10 micrometres; it does not establish a real manufactured mounting. Main proxy/handle relative variation was measured at
-0.488 mm in the selected cucumber recording and is not rewritten.
-
-BladeMaster's configured wedge is120 mm along the edge,80 mm high,1 mm thick,
-with5 mm bevel. Its adapter retains the initial source knife-center position
-but sets the blade's initial quaternion to identity in robot-base coordinates.
-The resulting fixed EE transform drives the material tool and wrench mapping.
-This is a kinematic coupling, not a frictional gripper grasp, and the existing
-URDF appearance must not be used as proof of physical blade placement.
-
-BladeMaster videos transform the same vertices_in_ee used by board checks
-through the saved EE pose and MuJoCo base. Main videos use the recorded DiSECt
-contact blade vertices. Particle-derived BladeMaster display surfaces are
-cosmetic and never used for collision or task labels. Recording and rendering
-do not change task physics, parameters, rewards, or checkpoint weights.
-
-### Shared studio appearance
-
-The November 14 studio appearance is reused for frozen-evaluation video instead
-of maintaining a second VTK presentation style. Evaluation geometry is adapted
-by `export_evaluation_scene.py`; `render_episode_still.py` handles both stills
-and animated output. The previous `render_pose_evaluation.py` is removed.
-The canonical entry and commands are in RUNNING.
-
-Knife vertices, body poses and material coordinates are recorded physics data.
-The original handle remains visible; the historical mismatched visual blade is
-removed. No shank, collar or other connector is drawn for either backend. The
-earlier display shank and collar were invented geometry and were removed (see
-above); do not restore them. The URDF cable
-envelope (30 x 30 x 55 mm) is hidden in studio views, without modifying physics.
-
-Cucumber FEM scan appearance is reused only after topology equality and rigid
-geometry correspondence checks. Half potato and particle surfaces can use
-explicitly approximate PCA-aligned scan-color transfer. Half-potato display
-triangles subdivide the existing FEM surface; smooth shading normals are updated
-from that surface each frame, without moving the surface. Particle colors follow
-particle identity; changing display topology is reconstructed from recorded
-points. None of these operations recover exact UV coordinates or validate
-separation. No artificial crack bands are drawn; actual geometric gaps are
-not filled. Board grain, lights and shading are decorative.
-
-## Shared physical knife (2026-11-16)
-
-The new opt-in `disect_knife_rigid_mount_v1` uses the same finite physical blade
-and canonical rigid EE mount in both backends. See [SHARED_SCENE](SHARED_SCENE.md#shared-physical-knife-and-mounting)
-for geometry, coupling differences and verification commands. Historical policies
-retain their recorded tools. [Frozen policy analysis](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/POLICY_MECHANICS_20261116.md)
-separates measured force/history sensitivity from unproven material identification.
-
-## Optional material-motion envelope — 2026-11-16
-
-Implementation: `object_slip.py` reads settled-reference planar particle RMS;
-`free_cut.py` shares soft cost and failure semantics; `pose_depth.py` adds the
-supervised WM field and hard imagined termination. `pose_cut.py` excludes this
-failure from analytical +100 settlement. Both environment adapters emit
-`object_slip_m` and `object_slip_failure`; episode logs report object_motion.
-Group concatenation excludes full reference clouds from learner state.
-Policy input is unchanged. WM/critic/replay layouts and task metadata change.
-See TASK_FREE_CUT for equations, limits and reproduction commands. This is our
-task integration, not a claimed original BladeMaster reward or fracture model.
-
-## Shared scene/reset implementation — 2026-11-16
-
-shared_scene.py generates both configurations and paired initial-clearance cases
-from configs/shared/scene_v1.json; scene_alignment.py measures settled particle
-height, solves the robot start pose, updates the physical rigid tool and validates
-the resulting gap. The once-per-world clearance is exposed in frame/condition
-records but is not an extra actor feature. Actual realized heights may differ
-across material models.
-
-The shared DiSECt reference path now explicitly follows the goal's target speed
-when this scene protocol is selected; historical exports retain their original
-reference trajectory. The new scene preparer changes knife friction from .5 to
-.2 to match the nominal BladeMaster coefficient; old assets are untouched. These
-are new-configuration choices, not calibration or old-run-equivalence claims.
-
-A packed DiSECt loader now rejects CPU-resident scene tensors before CUDA kernel
-launch. No native damage law was changed in this work. Optional bounded pitch
-has matching physical-action and WM equations (default off). See SHARED_SCENE for
-the scene definition and the episode-sampling implementation below.
-
-## Paired episode material distribution — 2026-11-16
-
-episode_conditions.py provides per-object/world/episode random streams shared
-by DiSECt and BladeMaster. E and density use the same log-uniform multipliers.
-The third log-uniform multiplier maps to DiSECt cutting-spring stiffness and
-BladeMaster cutting energy; these remain distinct physical quantities.
-Target speed is sampled uniformly and passed to the goal and reference controller.
-
-The BladeMaster generated batch kernels load per-world particle mass, Lamé
-coefficients and fracture threshold from persistent GPU arrays. They preserve
-the scalar solver equations; the native solver's heterogeneous contact tests
-compare against independent scalar instances. The robot adapter selects dt
-using the upper E and lower density bounds, updates only resetting worlds,
-restores their raw states and settles with those actual parameters.
-
-The learner still receives motion and wrench history. Material draws are logged,
-not appended to the actor/WM state. Training checkpoints now retain the episode
-sampler; resume starts new physical episodes at the next stream indices.
-
-
-## Robot-position constraint options (2026-11-16)
-
-Shared pose_depth_v2 (unchanged in pose_depth_v3) selects final-only versus path-and-final using
-common.task.tool_motion.enabled. Final EE target error is evaluated in robot-base
-XY (radius40 mm), extending the historical single-horizontal-axis goal check.
-The optional path constraint uses a bounded quadratic running cost and a hard
-60 mm failure, independently of particle motion. Neither mode penalizes fragment
-opening. See TASK_FREE_CUT for exact equations and boundary conventions.
-
-completion_xy_error is computed analytically from joint FK and the goal, stored
-in state/history for critic and goal-free termination queries; the WM does not
-predict its delta. Actor observation/action dimensions are unchanged. The physical
-and imagined arrival counter includes the same final-position mask. Historical
-particle-RMS checkpoints retain their old state specification and task metadata.
-
-
-## Per-world physical-blade overview correction (2026-11-16)
-
-The studio movie exporter already displayed the physical blade, but the separate
-all-world overview still displayed the full old URDF knife. Corrected by recording
-each world's authoritative physical tool vertices in world coordinates and
-sharing the same robot/handle clipping with the studio exporter. No fake mount
-is added. Old snapshots lacking these data fail explicitly. DiSECt episode files
-now also include the base/world transform that BladeMaster already recorded.
-This is a recording/rendering correction; task physics and learning are unchanged.
-The overview retains explicitly illustrative material colors and distant mesh LOD;
-it is not a scan-textured studio movie. Actual geometry validation is in RESULTS.
-
-
-### GPU training lifecycle correction (2026-11-16)
-
-The active GPU runner persists unstarted learning rounds separately from the
-collection schedule's fractional credits. This fixes lost work when a checkpoint
-is written between rounds earned by the same vector step. Restored pending rounds
-run before further collection. No reward, actor/critic objective, network, batch
-size or uninterrupted update cadence changes. Saved optimizer state from an
-interrupted round is retained but the round is not replayed wholesale; this
-limitation and legacy checkpoints lacking a queue are explicit in RUNNING.
-The actual runner tests exercise milestone checkpoint/replay restoration with
-CPU doubles for physics/learning, plus shutdown failure reporting. They test
-control flow, not new policy performance. Physical learner/capacity evidence
-remains separately recorded in RESULTS.
-
-## Current-task baseline adapters (2026-11-16)
-
-See [CURRENT_BASELINES](methods/CURRENT_BASELINES.md) for source provenance, input and
-update semantics, the SB3 fallback decision, and model approximations. These
-entry points share the current pose_depth_v3 physics/reward/recording (pose_depth_v2
-when introduced); the main WM+BPTT algorithm and the frozen 2026-11-16 long-training
-checkouts were unchanged. Native backend
-physics remain distinct. Physical test coverage is explicitly recorded there.
-
-## Pre-cut geometric vision (2026-11-17)
-
-Route 1 is a nonlearned depth-to-goal preprocessing module. It preserves the
-prescribed cut plane, uses calibrated board/tool geometry, estimates the visible
-top and supplies base-frame EE pose plus commanded speed. It does not change
-the policy observation or learning algorithm. This describes the original
-prescribed-plane mode; the visible-midpoint selector and tested physical
-handoffs below supersede its initial untested-execution status.
-See [VISION_ROUTE1](methods/VISION_ROUTE1.md).
-
-
-### Visual goal selector and physical handoff (2026-11-17)
-
-visual_cut.visual_midpoint_plan chooses a visible geometric mid-section from
-depth, independently of preset cut XY; ambiguous axes reject. Calibration then
-maps the physical blade edge to an8D base-frame policy goal. visual_execution
-places the robot only before an episode (native BM, single world); it verifies
-IK, board clearance, goal validity and unchanged material positions. This reset
-adapter is not a real-robot approach planner. The native BM handoff permits a
-new cut plane without rebuilding DiSECt topology. The frozen policy sees its
-existing motion/force observations and goal, not the input image or segmentation.
-See VISION_ROUTE1 and RESULTS for the cross-backend nature and bounded evidence.
-
-## Fixed-heading visual-goal predictor — 2026-11-17
-
-The optional visual_center module predicts a one-dimensional midpoint offset
-from observed local point clouds. It does not consume hidden material state,
-object labels or full mesh geometry at inference, and does not change the
-WM/BPTT/controller. Training supervision uses full surface bounds offline.
-Both learned and geometric fixed-heading selectors call the same board/tool
-goal converter, then the existing frozen-policy handoff. Camera and data
-protocol, current test errors and failed physical trials are in
-[VISION_ROUTE1](methods/VISION_ROUTE1.md). This is a modular task-input demonstration,
-not an adopted algorithmic novelty claim.
-
-## Visual midpoint DP3 encoder adapter (2026-11-17)
-
-The optional visual selector now defaults, when newly trained, to the official
+The visual selector defaults, when newly trained, to the official
 DP3 PointNetEncoderXYZ at commit47385d9d6f5bde3f2ebdf2400ecb8261cc9e6b97.
 The class is vendored verbatim under cutting_world_model/vendor/dp3 with MIT
 license and SOURCE.json; only colored terminal printing is suppressed. Its AST
@@ -957,59 +663,21 @@ orientation prediction. New runs use a dedicated shuffle RNG independent of
 model parameter initialization so unequal architecture sizes do not alter data
 order. Same epochs/optimizer, not same capacity or compute time, is the comparison.
 
-## DP3 visual goals for planning controllers (2026-11-17)
+WM transfer between backends is explicitly opt-in (`--allow-backend-transfer`).
+It admits only the DiSECt/BladeMaster contact-solver distinction and equivalent
+blade/board descriptions (unordered blade vertex sets within 1e-8 m, normal
+within 1e-10, plane offset within 1e-8 m, identical stop gap). Task, controller,
+action/observation/prediction layouts and robot metadata must match exactly;
+full checkpoint actor tensors must match the reference frozen policy.
+`SharedMPPIPolicy` reshapes `target_speed` to one scalar per world for both
+backend layouts.
 
-evaluate_visual_cut now dispatches wm_policy,wm_mppi,analytic_mpc after
-the same DP3 depth-based plane selection and pre-episode IK placement.
-The planner is constructed after the visual target/start is installed, ensuring
-its packed history begins at the actual visual start. Each physics step updates
-the planner state. Inputs are robot/controller/sensor histories and geometric
-depth; no material particles or spring progress are consumed by the planners.
+Evaluation scripts close the physical environment even if persistence fails and
+mark the progress state failed. `diagnose_pose_predictions.py` rejects
+non-finite replayed/imagined values instead of dropping them; only unavailable
+separation measurements become explicit null.
 
-WM transfer is explicitly opt-in for this native-BladeMaster visual prototype.
-Default SharedMPPIPolicy validation stays strict. The explicit transfer admits
-only the DiSECt/BladeMaster backend/contact solver distinction and equivalent
-blade/board descriptions: unordered blade vertex sets agree within1e-8m,
-normal within1e-10 and plane offset within1e-8m, identical stop gap. Task,
-controller, action/observation/prediction layouts and robot metadata must still
-match exactly. The frozen source WM is not rewritten or trained on the target
-backend. Full checkpoint actor tensors must exactly match the reference frozen
-policy; filenames/update counters alone are insufficient.
-
-Nonlearned MPC uses the existing FDCC surrogate with held measured wrench,
-not a fitted cutting/material model; MPPI is the optimizer in both planners.
-The --policy file supplies quaternion/goal convention metadata in analytic mode;
-its actor/WM/critic weights are not used to compute actions. No terminal critic
-is enabled for this video comparison. Camera perception is pre-cut only.
-
-A native-backend interface bug was found by actual execution: target_speed is
-N in BladeMaster but N-by1 in the other interface. SharedMPPIPolicy now reshapes
-one scalar per world before goal concatenation. Both layouts have integration
-tests. The first failed zero-step attempts remain in the run directory.
-
-## Evaluation persistence cleanup — 2026-11-17
-
-Visual evaluation now closes the physical environment even if planner JSON,
-trajectory serialization or summary writing fails. Persistence errors mark
-the progress state failed when the filesystem permits writing; a failed error
-log does not hide the original persistence exception. The pose evaluator
-already closed unconditionally and now also marks persistence failure.
-Task rules, checkpoints and controller/model outputs are unchanged.
-
-## Pose prediction diagnostic validity (2026-11-18)
-
-scripts/diagnose_pose_predictions.py reuses the training rollout without
-optimization. It now rejects non-finite replayed/imagined states, rewards,
-survival, logits, critic values and objective values before reporting them as
-normal predictions. Statistics reject NaN/Inf instead of silently dropping
-samples; JSON export also rejects unexpected non-finite values. Only unavailable
-physical-separation measurements convert their collection NaN sentinel to
-explicit null. An empty selected cohort is still valid and has count zero.
-
-This changes diagnostic failure reporting only. It does not change the WM,
-policy, replay, reward, task version or optimization schedule.
-
-## UR10e CAD knife integration (2026-11-20)
+## UR10e CAD knife integration (in progress)
 
 Both backends load the mounted CAD geometry; DiSECt uses its signed grid distance,
 BladeMaster uses mesh contact and curved-edge forward kernels at native commit

@@ -1,18 +1,17 @@
 # Real-robot deployment interface and calibration plan
 
-**2026-11-17 hardware update:** the first physical platform is UR10e with an
+**Hardware:** the first physical platform is UR10e with an
 external ATI Mini45-E, user-confirmed SI-580-20 calibration, and a Mech-Mind camera
 (model pending). Start with the [UR10e FDCC setup handoff](UR10E_FDCC_SETUP_ZH.md):
 no-knife motion and compliance tests, without RL, MPC or vision. This is a plan,
 not completed hardware validation. Later stages below are conditional.
 
-Goal: make the simulated benchmark (UR5e + FDCC compliance controller + DiSECt
-material) match the real setup closely enough that (1) material parameters can be
+Goal: make the simulated benchmark (robot + FDCC compliance controller + material backend) match the real setup closely enough that (1) material parameters can be
 fitted from real cutting data, (2) policies trained in simulation can be evaluated
 on the real robot with the same metrics, and (3) the remaining sim–real gap is
 measured, not assumed. Nothing here runs before the open items are settled.
 
-## Deployment interface — updated 2026-11-17
+## Deployment interface
 
 The current shared pose_depth_v3 policy interface uses a policy with ten 34-value frames
 and an 8-value goal (position3, quaternion4, commanded speed1). Per frame:
@@ -55,10 +54,10 @@ not by mixing the historical ROS1 patch set with ROS2 commands.
 
 | Item | Status |
 |---|---|
-| UR10e | User-confirmed physical platform; simulation currently uses UR5e. Robot calibration, tool installation and controller transfer require validation. |
+| UR10e | User-confirmed physical platform; a UR10e simulation profile is under integration ([handoff](UR10E_INTEGRATION_REVIEW.md)). Robot calibration, tool installation and controller transfer require validation. |
 | Mech-Mind camera | User-confirmed; model and extrinsics pending. Not required for initial FDCC tests. |
 | ATI Mini45-E | User-confirmed SI-580-20: Fx/Fy ±580 N, Fz ±1160 N, Mx/My/Mz ±20 N·m. Installed calibration file, acquisition interface and mounting transform remain to verify. Sensor ranges are not task stop limits; simulation 50 N / 5 N·m is not a hardware prescription. |
-| Knife and mount | **Open:** CAD or measured geometry and mass, to replace the simulated knife frame and tool payload. |
+| Knife and mount | User CAD knife (IKEA) integrated in simulation with user-provided net mass 0.170 kg; inertials are CAD-volume estimates. Measured mounting transform and payload remain open. |
 | Object placement | Current task uses freely placed objects. Measure the real support/friction and initial pose; historical bottom-held contracts remain separate. |
 | Foods / specimens | **Open:** proposal below. |
 
@@ -151,8 +150,7 @@ it comes from.
 ### R4 — Closed-loop evaluation on the real robot
 
 - Run the reference trajectory, then frozen policies (to be selected from the
-  version-compatible WM+BPTT runs and the vector SAC baseline; the old
-  BENCHMARK SAC at step 85000 is historical) on calibrated materials, with a workspace bound and an emergency
+  version-compatible WM+BPTT runs and the vector SAC baseline) on calibrated materials, with a workspace bound and an emergency
   stop. **Open:** how the force limit is detected and enforced on the real robot
   (sensor, filter, rate, stop mechanism, reaction time); no hardware guarantee is
   assumed until this is measured.

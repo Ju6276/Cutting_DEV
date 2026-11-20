@@ -58,17 +58,16 @@ All paths below are under
 | Mesh distance | 10,000 surface-near samples; max error0.06352mm | sdf_winding.log / GPU7 |
 
 The 9-world learner runs contain zero naturally ended episodes. Natural
-termination/reset/next-step checks are running separately:
-DiSECt on A6000 GPU1 (`disect_reference_midblade9_gpu1`);
-BladeMaster on GPU7 (`bm_reference_midblade9`).
-They have a two-hour budget and do not change the500-step task horizon.
-At DiSECt step151,0/9 episodes had ended. Reconstructed historical minimum
+termination/reset/next-step checks (`check_reference_episodes.py`, two-hour
+budget, 500-step horizon) were not complete at d7e05a2: DiSECt
+`disect_reference_midblade9_gpu1` (A6000), BladeMaster `bm_reference_midblade9`
+(GPU7). At DiSECt step 151, 0/9 episodes had ended. Reconstructed historical minimum
 blade clearance was3.49–4.62mm, using initial FK and monotone depth. This is
 not instantaneous target error and does not identify the cause of stalling.
 Evidence: `depth_gap_diagnostic.json` in that run (A6000).
 
-Both three-baseline physical smoke jobs are queued after their corresponding
-reference check; each reuses one physical initialization and executes short
+Three-baseline physical smoke checks (`check_baseline_adapters.py --live`) follow
+the reference checks; each reuses one physical initialization and executes short
 planner/SAC steps. Offline adapter checks are not closed-loop performance results.
 No gradient full-suite or hundreds-world retest blocks this user's main workflow.
 
@@ -80,7 +79,7 @@ UR10e mean9.354s/action (material6.064s).
 Most of the increase is in material advance. Geometry/topology changed along with
 the robot, so this is a whole-platform comparison, not isolated robot inertia cost.
 Evidence: `paired_platform_timing_gpu0.json` / A6000.
-The running reference check also includes WM reward/termination checks.
+The reference check also includes WM reward/termination checks.
 No11-second wait is configured.
 
 ## Review requests and remaining work

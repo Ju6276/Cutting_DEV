@@ -1,11 +1,13 @@
-# Current and historical configurations
+# Configurations
 
-Current shared scene: [shared/scene_v1.json](shared/scene_v1.json), task pose_depth_v3.
+Current shared scene: [shared/scene_v1.json](shared/scene_v1.json), task pose_depth_v3
+(UR5e). UR10e + ATI + CAD knife: [shared/ur10e_ati_ikea_v1.json](shared/ur10e_ati_ikea_v1.json)
+(integration in progress).
 All four controller entries use this same current task; backend choice is
 independent of controller choice. Old checkpoint loading must retain the task
 metadata embedded in that checkpoint. See the [controller ledger](../docs/methods/CURRENT_BASELINES.md).
 
-Its pose_depth_v2 form used by the 2026-11-16 runs is archived under
+The scene_v1 pose_depth_v2 form used by the 2026-11-16 runs is archived under
 archive/shared_scene_v1_pose_depth_v2_20261116 (read/evaluate only).
 Generate both backend inputs with scripts/prepare_shared_scenes.py; see
 [SHARED_SCENE](../docs/SHARED_SCENE.md). Scene capture and reward checks consume

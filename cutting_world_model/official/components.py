@@ -2,8 +2,7 @@
 
 Every class/function names its official counterpart (``src/supermimic/...``). Robot/task-specific
 parts (state representation, prediction integration, reward, termination rules) use the cutting
-task's ``ControlStateSpec``; all algorithmic parts follow the official code. Deviations are listed
-in https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/OFFICIAL_SUPERMIMIC.md.
+task's ``ControlStateSpec``; all algorithmic parts follow the official code.
 """
 from __future__ import annotations
 

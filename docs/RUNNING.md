@@ -2,20 +2,14 @@
 
 Current task: pose_depth_v3 ([TASK_FREE_CUT](TASK_FREE_CUT.md), scene in
 [SHARED_SCENE](SHARED_SCENE.md)); follow [PLAN](PLAN.md). Every paid/long run
-needs an approved plan and online W&B. Historical fixed-prism/Gazebo reproduction
-commands moved to [archive/RUNNING_historical_20261118](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/RUNNING_historical_20261118.md);
-the 2026-11-16 launch records are in
-[archive/TRAINING_SHARED_20261116](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/TRAINING_SHARED_20261116.md).
-Commands run from the repository root. The GPU backend is bundled at
-`backends/mujoco`; `--backend-root` can select a separate prepared checkout.
+needs an approved plan and online W&B. Commands run from the repository root.
+The GPU backend is bundled at `backends/mujoco`; `--backend-root` can select a
+separate prepared checkout.
 
-
-**Physics version:** main now uses `edge_coordinate_consistent_v2` (contact-coordinate
-bug correction; see METHOD). Historical checkpoint reproduction requires the code/configuration recorded
-in that run's manifest and an isolated kernel cache. `38b85a5` is the immediate
-pre-coordinate-fix reference, not the exact revision of every historical run. Do not remove metadata
-checks to reuse old checkpoints as identical-physics results. No training restart
-is authorized by this correction.
+**Physics version:** material contact uses `edge_coordinate_consistent_v2`
+(METHOD). Reproducing an older checkpoint requires the code/configuration
+recorded in its manifest and an isolated kernel cache; do not remove metadata
+checks to reuse old checkpoints as identical-physics results.
 
 ## GPU environment
 
@@ -75,8 +69,9 @@ For a new machine, restore and build the pinned SliceIt sources first
 [DiSECt dataset](https://github.com/NVlabs/DiSECt/tree/main/dataset) under
 `external/SliceIt/disect/dataset`, following its download instructions.
 
-1. Collect a reset and physical episode using the Gazebo collection command in
-   [the historical reproduction guide](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/RUNNING_historical_20261118.md). Its `data/` directory supplies `task.json` and `episode_000.npz`.
+1. Collect a reset and physical episode with the SliceIt Gazebo collection
+   bridge (historical reproduction path). Its `data/` directory supplies
+   `task.json` and `episode_000.npz`.
 2. Export the material in the built SliceIt Python environment. Set
    `CUTTING_DEV_ROOT` to this repository's absolute path before sourcing:
    `source external/SliceIt/scripts/public_env.sh`. Then run:
@@ -97,9 +92,7 @@ They remain outside Git.
 
 ## Current WM+BPTT training command (pose_depth_v3)
 
-Template with the selected settings (PLAN, METHOD active configuration); the
-flags mirror the 2026-11-16 launch_plan.json, whose task is now pose_depth_v3.
-Bare `train_gpu.py` defaults are the historical `source` variant, so pass every
+Template with the selected settings (PLAN, METHOD active configuration). Bare `train_gpu.py` defaults are the SuperMimic `source` variant, so pass every
 setting explicitly. Budget, world count and output come from the approved plan.
 `--max-transitions` and `--max-hours` are budgets of THIS launch (the help text says
 "additional"): `--max-transitions` counts new physical transitions after the checkpoint.
@@ -108,7 +101,7 @@ On a resume pass the remaining budget (approved total minus the checkpoint's
 state `completed` means the transition budget was reached; `budget_complete` means
 the wall-clock bound stopped the launch.
 The GPU memory defaults (cache release, expandable segments, headroom guard) are
-on without flags; see [Online W&B](#online-wb-for-long-training-required-since-2026-11-15).
+on without flags; see [Online W&B](#online-wb-for-long-training).
 
 ```bash
 source scripts/env/cutting_env.sh
@@ -125,7 +118,7 @@ PREPARED is the output of `prepare_shared_scenes.py` (SHARED_SCENE). For native
 BladeMaster replace `--conditions PREPARED/disect.json` with
 `--blademaster-config PREPARED/blademaster.json`. Check capacity first with
 `check_training_capacity.py --backend disect|blademaster --config ...`
-([Shared randomized scene inputs](#shared-randomized-scene-inputs-2026-11-16)).
+([Shared randomized scene inputs](#shared-randomized-scene-inputs)).
 
 **Environment count comes from the prepared JSON, not from `--worlds`.** With
 `--conditions` the trainer sets the count to the sum of the group `worlds`; with
@@ -135,10 +128,8 @@ changing that flag does not scale a run. The preparer writes
 [scene_v1.json](../configs/shared/scene_v1.json) has 3, which gives
 3 objects x 3 = **9 worlds**. To run the approved scale:
 
-1. Copy the contract and change only `common.worlds_per_object`. The 2026-11-16
-   run used 1024 per object, 3072 in total; its copy, written for
-   pose_depth_v2, is
-   /dataHDD/dong/Experiments/Cutting_DEV/runs/long_readiness_20261116/contract.json.
+1. Copy the contract and change only `common.worlds_per_object` (e.g. 1024 per
+   object, 3072 in total).
 2. Run `prepare_shared_scenes.py --contract COPY` and the
    `check_pose_depth.py` checks on that copy.
 3. Before launch, confirm the per-group and total `worlds` in the generated
@@ -148,41 +139,26 @@ changing that flag does not scale a run. The preparer writes
 The trainer rejects `--warmup-transitions` below worlds x 9 (WM window + 1). 30720
 covers at most 3413 worlds; a larger count needs a larger warmup.
 
-## Unified GPU training and evaluation
+## Training defaults, resume and stopping
 
-The commands for the historical working baseline (resumed from policy62/WM562 with
-critic reset and 100 pre-fit rounds) and for the `source` configuration (script
-defaults, from scratch) are in
-[historical README](https://github.com/Ju6276/Cutting_DEV/blob/4653d10/README.md); the two must not be confused. Without variant flags, `train_gpu.py` runs `source`: imagined critic
-targets, 32-step policy rollout, no BC (`--critic-target imagined`, `--actor-horizon`
-unset = 32, `--actor-bc-alpha` unset = off). Variant flags are documented in
-[METHOD](METHOD.md).
+Without variant flags, `train_gpu.py` runs the SuperMimic `source` variant:
+imagined critic targets, 32-step policy rollout, no BC (`--critic-target
+imagined`, `--actor-horizon` unset = 32, `--actor-bc-alpha` unset = off).
+Variant flags are documented in [METHOD](METHOD.md). Training collects new
+physical transitions, updates the WM, then policy/critic; the first 500 WM rounds
+leave policy/critic unchanged.
 
-The maximum eight-step WM fit, effective batches 2048/4096 and original task
-rewards are defined in the source configuration.
-Training collects new physical transitions, updates WM, then policy/critic.
-The first 500 WM rounds leave policy/critic unchanged.
-
-`--resume RUN/last.pt` restores networks, optimizers and training counters.
-Physics restarts. By default replay loads from colocated `replay.pt` only when
-checkpoint name/iteration match; open replay episodes are closed at restart.
-Named checkpoints from the 2026-11-14 restart retain a matching <stem>.replay.pt; last.pt uses replay.pt. Do not separate weights from their paired replay when resuming.
-
-With a restored replay, version-2 schedule state preserves the warmup origin and fractional update phase; no second warmup is inserted. Deliberately empty replay starts a refill warmup. Legacy schedule snapshots emit a migration warning. Use `--resume-without-replay` for old checkpoints
-without matching snapshots (the historical README command). Before the 2026-11-14
-restart a single `replay.pt` was overwritten at every save, so those older
-checkpoints can be evaluated but cannot all resume exactly; newer named
-checkpoints keep their own `<stem>.replay.pt`. Empty-replay resume is not exact
-continuation.
-SIGUSR1 saves after the current iteration. Completion/SIGTERM writes
-`last.pt` and `progress.json`. Frozen evaluation performs zero optimizer updates.
-
-The historical fixed-environment evaluation commands are in [BENCHMARK](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/BENCHMARK.md).
-The current task list is in [PLAN](PLAN.md).
-The absorbing-terminal repair permits older checkpoints in frozen evaluation only
-when the environment/physics metadata also match. Training additionally requires
-compatible terminal-rule metadata. This does not override the contact-revision
-requirement above.
+`--resume RUN/last.pt` restores networks, optimizers and training counters;
+physics restarts. Replay loads from the paired `replay.pt` (`last.pt`) or
+`<stem>.replay.pt` (named checkpoints) only when name/iteration match; open
+replay episodes are closed. Do not separate weights from their paired replay.
+With a restored replay the warmup origin and fractional update phase are
+preserved; deliberately empty replay (`--resume-without-replay`) starts a
+refill warmup and is not exact continuation. SIGUSR1 saves after the current
+iteration. Completion/SIGTERM writes `last.pt` and `progress.json`. Frozen
+evaluation performs zero optimizer updates and loads older checkpoints only when
+environment/physics metadata match; training additionally requires compatible
+terminal-rule metadata.
 
 ## Checks
 
@@ -214,10 +190,8 @@ The existing 4090 export at
 to that destination instead. Its manifest records the same warmup and source
 revision. Return to the root Python 3.12 environment for the tests.
 
-Run both suites separately to preserve their module resolution. Use a card
-with headroom for the multi-process CUDA tests; the November17 audit hit OOM
-when sharing GPU7 with its 3072-world long run and moved validation to idle GPU9.
-Do not stop a training job or turn an OOM into a passing test.
+Run both suites separately to preserve their module resolution. Do not stop a training job or turn an OOM into a passing test; use a card
+with headroom for the multi-process CUDA tests.
 In a server checkout, first `source scripts/env/cutting_env.sh` (tracked;
 sets CUDA_HOME, TORCH_EXTENSIONS_DIR, caches, PYTHONPATH and the host's GPU). An empty shell does not
 have a working DiSECt kernel environment.
@@ -239,22 +213,14 @@ Complete reference cutting uses `scripts/benchmark_gpu_env.py --worlds 1
 task success, force, released springs and timing. Value accuracy additionally
 uses complete physical discounted returns; recorded results are in RESULTS.
 
-## Record and render current episodes
-
-Use the frozen pose evaluator and shared studio commands below.
-Historical fixed-prism `record_episode.py` / VTK video commands are retained
-only in the [old operating guide](https://github.com/Ju6276/Cutting_DEV/blob/e7b9e69/docs/RUNNING.md).
-They are not the approved current video pipeline.
-
 ## Remote-only development and storage
 
-**Run entry on every server: /dataHDD/dong/Projects/Cutting_DEV on branch `main`**
-(GPU7, GPU9 and A6000, unified 2026-11-18). Before a run, `git pull --ff-only` and
-confirm the commit with `git rev-parse HEAD`; the run's provenance records it.
-Other worktrees are frozen run records or old code and are not run entries
-(DATA); Cutting_DEV_board on GPU7/A6000 is at 3680f35 without pose_depth_v3.
+**Run entry on every server: /dataHDD/dong/Projects/Cutting_DEV on the current
+branch** (GPU7, GPU9 and A6000). Before a run, `git pull --ff-only` and confirm
+the commit with `git rev-parse HEAD`; the run's provenance records it. Other
+worktrees are frozen run records and are not run entries ([DATA](DATA.md)).
 
-Environment, the same tracked files on every server (scripts/env/):
+Environments, the same tracked files on every server (scripts/env/):
 
 - `source scripts/env/cutting_env.sh`: base `.venv` (torch 2.4.1, warp 1.18.0,
   mujoco 3.16.0 on all three servers) for WM+BPTT, evaluation and tests.
@@ -271,33 +237,15 @@ Environment, the same tracked files on every server (scripts/env/):
 - Assets: backends/mujoco/runs must contain
   sweep/{free_cucumber_003,free_potato_half_20261114,free_prism}, the source
   scenes of configs/shared/scene_v1.json. GPU7 links the directory to
-  /dataHDD/dong/Assets/Cutting_DEV/prepared; GPU9 and A6000 keep local copies
-  (checksums equal to GPU7, checked 2026-11-18). GPU7/A6000 frozen training
-checkouts are recorded in [TRAINING_SHARED_20261116](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/TRAINING_SHARED_20261116.md).
-The Mac holds only explicitly requested exported previews/videos, not project
-source, training data or checkpoints.
-GPU9 was reauthorized on2026-11-15 for BladeMaster; access it through tams61.
-Historical checkouts remain untouched; see PLAN for its isolated deployment.
-
-GPU7 storage:
-
-- Current development and run entry: /dataHDD/dong/Projects/Cutting_DEV (`main`).
-- /dataHDD/dong/Projects/Cutting_DEV_board: 3680f35, codex/visual-cut-route1 (old code; not a run entry).
+  /dataHDD/dong/Assets/Cutting_DEV/prepared; GPU9 and A6000 keep local copies.
 - Runs: /dataHDD/dong/Experiments/Cutting_DEV/runs; the checkout's runs links here.
-- Prepared robot/material assets: /dataHDD/dong/Assets/Cutting_DEV/prepared;
-  backends/mujoco/runs links here.
-- Planner/SAC environment on every server: the checkout's `.venv-sac`
-  (`CUTTING_ENV=planner` or `sac`), built by scripts/env/make_sac_env.sh over the
-  base packages; it contains every package of the former GPU7-only
-  /dataHDD/dong/Envs/cutting-mppi-20261108 (same names and versions, checked
-  2026-11-19), which is kept only for historical runs.
+- `CUTTING_ENV=planner` (same `.venv-sac`) for WM+MPPI and analytic MPC; the base
+  `.venv` has no pytorch_mppi.
 - Native BladeMaster runtime extras on every server: scipy==1.18.1 (pinned by
   BladeMaster-Warp; no base `.venv` has scipy), installed without dependencies by
   scripts/env/make_bm_extra.sh into /dataHDD/dong/Envs/cutting-bm-extra, which
   cutting_env.sh adds to PYTHONPATH (its banner prints `bm_extra=`). Without it every
-  BladeMaster entry fails at import. This replaces the A6000-only
-  /dataHDD/dong/Envs/blademaster-extra-20261114 that the 2026-11-16 BladeMaster run
-  put on PYTHONPATH by hand (kept for that run).
+  BladeMaster entry fails at import.
 - Host capability difference: the source robot URDF references absolute mesh files from
   ROS Noetic ur_description (/opt/ros/noetic/share) and the SliceIt catkin packages. GPU7
   has them; A6000 has no ROS. On A6000 the source-URDF backend test is skipped (reason
@@ -305,34 +253,17 @@ GPU7 storage:
   those on GPU7. Training and evaluation use the prepared robot.mjb and are unaffected.
 - Renderer environment on every server: the checkout's `.venv-render`
   (`CUTTING_ENV=render`), built by scripts/env/make_render_env.sh from
-  requirements/render.txt, the exact package set of the former GPU7-only
-  /dataHDD/dong/Envs/render-20261108 (kept for historical runs). Blender for
+  requirements/render.txt. Blender for
   render_episode_still.py: 2.82 on GPU7 and GPU9 (the version the script targets;
   export + still render checked on GPU9 2026-11-19); A6000 has 3.4.1, not validated.
-- Archived experiment checkouts:
-  /dataHDD/dong/Archive/cutting_cleanup_20261109/code.
-- Migrated Mac files and uncommitted BladeMaster work:
-  /dataHDD/dong/Archive/mac_cutting_20261109/Code.
-- GPU9-only code (bundles with all branches, uncommitted patches, untracked files of
-  Cutting_DEV_critic, Cutting_DEV_sac, DiSECt, DiSECt-Optimization; the GPU9 tmp scripts,
-  including the 2026-11-04 video renderers): /dataHDD/dong/Archive/gpu9_20261110.
-  All of that code is superseded by main; no merge needed. GPU9 run data stays on GPU9.
 
-Source scripts/env/cutting_env.sh before GPU commands. WM+MPPI and analytic MPC
-need `CUTTING_ENV=planner`; the base `.venv` has no pytorch_mppi. Machine addresses, protected active
-paths and the migration inventory are in the server's runs/operations/MACHINES.md.
-Machine notes are timestamped observations, not proof that a job is still active.
-A6000 keeps its existing checkouts and dependencies; inspect current process
-ownership before changing them. GPU7 cleanup details and retained assets are in
-[DATA](DATA.md).
+The Mac holds only explicitly requested exported previews/videos. GPU9 is
+reached through tams61. Machine addresses and protected paths are in each
+server's runs/operations/MACHINES.md (timestamped observations, not proof that
+a job is active). Inspect process ownership before changing A6000 checkouts or
+dependencies.
 
-
-Historical v2/v3 reward/reset/throughput commands are in the
-[previous guide](https://github.com/Ju6276/Cutting_DEV/blob/e7b9e69/docs/RUNNING.md).
-Current shared-task checks use the generated configs and
-`check_training_capacity.py` / `check_pose_depth.py`; see SHARED_SCENE.
-
-## Online W&B for long training (required since 2026-11-15)
+## Online W&B for long training
 
 Every long training run uses --wandb-mode online. Both training entry points
 already default to online; do not override that default with offline/disabled.
@@ -341,11 +272,7 @@ Before launch, set NETRC=/dataHDD/dong/.config/wandb/netrc on GPU7 or A6000.
 Check authentication without printing credentials. Verify the resulting run URL
 and cloud history before leaving the run unattended. Fix login/connectivity
 failure before training; local-only logging is not an acceptable fallback.
-
-Local server checkpoints and logs remain recovery copies. Historical commands
-with --wandb-mode offline describe previous runs and must not be copied into a
-new long-training launch.
-
+Local server checkpoints and logs remain recovery copies.
 
 GPU memory (METHOD, Torch/Warp GPU memory sharing): by default the trainer
 releases unused Torch cache before every physical step and reset, sets
@@ -356,7 +283,7 @@ physics/reset is below the Warp pool high-water plus --gpu-headroom-margin-gib
 free the card or plan capacity. The manifest's gpu_memory_policy records the
 settings; steps.jsonl gpu_headroom shows free/required MiB. On the 3072-world
 GPU7 DiSECt config, free memory exceeded the requirement by about 5 GiB over 9
-joint rounds of a short run without resets (RESULTS 2026-11-17).
+joint rounds of a short run without resets (RESULTS).
 A short memory check must reach joint rounds. Before any episode ends, real-data
 critic windows need full 32-step windows (policy horizon 32): with warmup 30720,
 --transitions-per-update 3072 and --wm-only-updates 2 the first joint round
@@ -364,12 +291,11 @@ critic windows need full 32-step windows (policy horizon 32): with warmup 30720,
 --wm-only-updates 24 it started at iteration 35 and ran.
 
 
-## Frozen multi-object pose evaluation (2026-11-15)
+## Frozen multi-object pose evaluation
 
-Use scripts/evaluate_pose_policy.py for current pose_depth_v3, pose_depth_v2 checkpoints of the
-2026-11-16 runs, and historical free_cut_pose_v1 / blademaster_pose_v1. Training entry points
-(train_gpu.py, train_sac_multi.py) refuse pose_depth_v2; continue those runs only from their
-frozen checkout 5ec9f85.
+Use scripts/evaluate_pose_policy.py for current pose_depth_v3 checkpoints and for
+read/evaluate-only older pose checkpoints (pose_depth_v2, free_cut_pose_v1,
+blademaster_pose_v1).
 It executes one predeclared first episode per world without exploration or learning,
 writes cases, checkpoint/config hashes, raw per-step trajectories and per-object
 summaries, and closes the environment on success/error. Wall-budget/incomplete
@@ -397,8 +323,8 @@ CUTTING_EVAL_ROOT can point to a frozen source checkout when running the audited
 evaluation script from an external experiment directory; the manifest records
 both the physical-source Git revision and evaluation-script SHA256.
 
-Frozen evaluation videos use the same studio appearance as the November 14
-stills, with actual physical blade geometry:
+Frozen evaluation videos use the shared studio appearance with actual physical
+blade geometry:
 
 ```bash
 .venv-render/bin/python scripts/export_evaluation_scene.py   --evaluation RUN --group 0 --backend DiSECt   --source-root /opt/ros/noetic/share   --source-root /dataHDD/dong/Projects/SliceIt/catkin_ws/src   --source-root /dataHDD/dong/Projects/SliceIt/underlay_ws/src   --output RUN/studio_scene.npz
@@ -416,8 +342,6 @@ Only the recorded original handle and physical blade are displayed; no fabricate
 connector is added. A measured adapter mesh remains unavailable.
 All outputs describe a frozen-policy rerun, not footage of the original training.
 
-The removed `render_pose_evaluation.py` is not a supported video entry. Preserve
-recordings and evaluation results; superseded visual previews can be deleted.
 
 ### pose_depth_v3 WM prediction diagnostic
 
@@ -461,21 +385,21 @@ realised discounted return-to-go. Physical separation (DiSECt separation_progres
 separated; BladeMaster terminal component count and saturated damage fraction) is
 recorded separately and is never a task label.
 
-Limits: a development diagnostic on few worlds (DiSECt with 6 worlds took about 27 min
-of physics for 180-step episodes on GPU9; BladeMaster about 7 min); one episode per world; open-loop
-windows are truncated at the physical episode end; a force-risk constraint, if
-configured, is not included in the imagined objective.
+Limits: a development diagnostic on few worlds (6 DiSECt worlds with 180-step
+episodes took about 27 min of physics on GPU9; BladeMaster about 7 min); one
+episode per world; open-loop windows are truncated at the physical episode end;
+a force-risk constraint, if configured, is not included in the imagined objective.
 
-### Current geometric-depth and material-motion verification
+### Task equation checks
 
 Use the shared preparation and check commands in [SHARED_SCENE](SHARED_SCENE.md).
 Add `--tool-reward-audit` to check_pose_depth.py to compare both robot-position
 modes on measured transitions by varying goal XY offsets. It verifies reward and
-termination equations; it is not a natural large-motion rollout. The historical
---motion-reward-audit exercises the retired particle-reference metric only.
-Superseded separate scene-check inputs are under configs/archive/scene_checks_20261116.
+termination equations; it is not a natural large-motion rollout.
+`scripts/check_board_continue.py` probes board continuation (press, hold, inward
+pushes, lateral slide, lift, partial reset) directly on the physics.
 
-## Shared randomized scene inputs (2026-11-16)
+## Shared randomized scene inputs
 
 Generate both input files with prepare_shared_scenes.py from configs/shared/scene_v1.json.
 The generated DiSECt conditions and BladeMaster config use one episode sampler.
@@ -505,44 +429,28 @@ compose_tool_motion_demo.py --recording NEW_RUN/recording --render NEW_RUN/studi
 directory and actual task JSON for thresholds; no physical coordinates change.
 
 
-## Current controller and a future UR10e port (2026-11-16)
+## Controller
 
-The active simulation uses `FDCCController` in
+The simulation uses `FDCCController` in
 `backends/mujoco/cutting_gpu_backend/controller/fdcc.py`: a ROS-free tensor port
 of the SliceIt FZI position controller, pinned to the cambel fork at
 `f4359b966bb3b8d8a07d829df463da814c2bee33`. Its input combines pose error,
 sensor wrench and configured compliance/gains; it returns joint-position
 commands, followed by source-style position/velocity saturation. The robot
 substep is 1 ms, material/force exchange is 2 ms and policy action interval is
-50 ms. Its virtual solver integration step is a separate algorithm parameter.
-This is not UR's internal torque controller or an untouched ROS2 node.
+50 ms. This is not UR's internal torque controller or an untouched ROS2 node.
+Upstream: [FZI Cartesian Controllers](https://github.com/fzi-forschungszentrum-informatik/cartesian_controllers)
+([FDCC](https://github.com/fzi-forschungszentrum-informatik/cartesian_controllers/blob/ros2/cartesian_compliance_controller/README.md)).
 
-Open-source upstream:
-[FZI Cartesian Controllers](https://github.com/fzi-forschungszentrum-informatik/cartesian_controllers)
-and its [FDCC compliance controller](https://github.com/fzi-forschungszentrum-informatik/cartesian_controllers/blob/ros2/cartesian_compliance_controller/README.md).
-The upstream describes an admittance-based combination of motion and force
-tracking and includes UR10e applications. Real UR integration can use the
-[official UR ROS2 driver](https://github.com/UniversalRobots/Universal_Robots_ROS2_Driver),
-but installing a driver does not complete this project's port.
+Robot profiles: `scene_v1` uses the UR5e asset. The UR10e + ATI + CAD-knife
+profile (`configs/shared/ur10e_ati_ikea_v1.json`) is under integration; its
+assets, commands and verification status are in
+[UR10E_INTEGRATION_REVIEW](hardware/UR10E_INTEGRATION_REVIEW.md) and
+[UR10E_FDCC_SETUP_ZH](hardware/UR10E_FDCC_SETUP_ZH.md). Same joint dimensions do
+not make a UR5e-trained WM or policy robot-independent; checkpoint robot
+mismatches are rejected.
 
-The current project is still UR5e-specific: the compiled MuJoCo robot,
-source task/initial-joint/controller snapshots, `b_bot_knife_sim` chain,
-canonical shared-knife mount, workspace/goal reachability and some visual
-mesh/link selectors depend on that asset. There is no verified `ur_type=ur10e`
-launch switch. A UR10e port must regenerate these assets and transforms and
-validate joint ordering, limits, force-frame/payload compensation and control
-response. Same six joint dimensions do not make the UR5e-trained WM or policy
-robot-independent; use new UR10e data and validate/retrain before transfer claims.
-No UR10e deployment or hardware test was performed in this audit.
-
-Current overview recordings include `knife_world` for every world plus physical
-triangles and explicit robot-base/world transforms. The overview and studio
-export share `physical_robot_actors`; neither draws the obsolete full URDF knife
-or a fabricated connector. Old snapshots without per-world blade data are
-rejected by the overview renderer rather than silently substituted.
-
-
-### Pending learning rounds and shutdown status (2026-11-16)
+### Pending learning rounds and shutdown status
 
 `train_gpu.py` checkpoints include `update_queue` in addition to collection
 credits. A vector step can earn several learning rounds; completed-round
@@ -564,8 +472,6 @@ process exit status. This change does not fix GPU9's unresolved native fault.
 Root test setup adds the bundled backend import path independently of collection
 order. The explicit PYTHONPATH above also works with the optional MPPI Python
 without depending on an editable backend install.
-
-
 ## Sensor force/torque panel below studio video
 
 Keep the shared studio scene unchanged, then append synchronized charts:
@@ -588,16 +494,11 @@ recovered from the versioned full-wrench observation with its recorded limits.
 These are20 Hz control-step endpoint samples, not the500 Hz force-limit peaks
 or the material reaction-force norm. Plots have separate units and a moving time
 cursor. Force-limit event rates must still come from the physical evaluation.
-The first end-to-end composition used a historical frozen-policy movie only;
-it does not validate a newly trained policy or replace that movie's old physics.
-
-
 ## Actual all-world training snapshot
 
 Use the dedicated VTK environment and resolve both SliceIt and ROS mesh packages.
 This reads the geometry recorded by a trainer snapshot (`--snapshot-at`); display
-grid offsets do not change the physical environment. The example path is the
-ended 2026-11-16 GPU7 run.
+grid offsets do not change the physical environment.
 
 ~~~bash
 PYTHONPATH=.:backends/mujoco .venv-render/bin/python scripts/render_training_snapshot.py \
@@ -613,9 +514,7 @@ be substituted for this command.
 
 ## Validate recorded entry and resume evidence
 
-All controllers use the current entries above; no controller-specific worktree
-or /dataHDD/dong/tmp checker is needed. From the main checkout, source
-scripts/env/cutting_env.sh, then run:
+From the main checkout, source scripts/env/cutting_env.sh, then run:
 
     CUDA_VISIBLE_DEVICES='' python -m scripts.verify_entry RUN_DIR review --backends disect
     CUDA_VISIBLE_DEVICES='' python -m scripts.verify_resume PRE_DIR POST_DIR OUT_JSON
@@ -641,26 +540,3 @@ commanded reference paths. It does not validate learned WM prediction accuracy,
 all material randomizations or BladeMaster reference trajectories.
 The source-URDF mesh test needs the original meshes (available on GPU7); its
 absence on A6000 is an explicit skip, not validation of source-scene export.
-
-
-### Bounded latch-loss normalization check
-
-Use a generated pose_depth_v3 config and a fresh output directory:
-
-    source scripts/env/cutting_env.sh
-    python -m scripts.check_wm_latch_learning --backend disect \
-      --config PATH_TO_GENERATED_DISECT_JSON --output runs/latch_loss_check \
-      --wall-seconds 1800
-
-For BladeMaster select --backend blademaster and its generated config; --saw
-adds small oscillatory lateral actions to the bounded coverage probe. The probe
-uses three cucumber worlds, actual six-channel actions, and a small WM (32,32).
-It requires first contact, held-start transitions and reset coverage; it fails
-rather than declaring coverage when no latch occurs. It checks the real replay
-mask, WM updates and checkpoint/replay restoration. It performs no policy
-updates and is not evidence about training quality or long-run memory stability.
-
-The WM checkpoint field wm_loss_normalization records separate_fit_valid_v1
-for the corrected v3 loss. Older v3 checkpoints still load, but training restore
-warns about the changed dynamics/BCE normalization. Evaluation and task rules
-are unchanged.

@@ -1,23 +1,21 @@
-# Current controllers and baseline status — 2026-11-19
+# Current controllers and baseline status
 
 This is the single controller/version/coverage ledger, including WM+BPTT.
 [PLAN](../PLAN.md) selects work and budgets; [SHARED_SCENE](../SHARED_SCENE.md)
 defines the scene; [TASK_FREE_CUT](../TASK_FREE_CUT.md) defines the task.
-Historical detail is in [the 11-16–18 baseline record](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/BASELINES_20261116_20261118.md).
 Do not infer a completed experiment from an available CLI or current config.
 
 ## One code line, one current task, two material backends
 
 - Current code for ALL four controllers is on main in Cutting_DEV. No controller
   requires switching to a method-specific development branch.
-- Current task is pose_depth_v3. Users do not select v2 as an algorithm variant.
-  v2 is retained only to reproduce old checkpoints/results; v2 training is refused.
+- Current task is pose_depth_v3 (`board.motion=project_continue_v2`). Older task
+  versions are retained only to evaluate old checkpoints; their training is refused.
 - DiSECt and BladeMaster are material physics backends, not two RL algorithms.
   Either backend is selectable through the same current interfaces. Interface
   availability is not evidence of measured performance on both backends.
 - Frozen worktrees retain old run source/data. They are not alternative current
-  launch entries. A6000 Cutting_DEV_mppi_v3 contains historical unmerged commits;
-  preserve it for provenance, but use main's shared evaluator for current MPPI.
+  launch entries.
 - No old checkpoint, replay or result is relabelled as v3.
 
 | Controller / CLI name | What is learned? | Execution | Current source / entry |
@@ -30,25 +28,16 @@ Do not infer a completed experiment from an available CLI or current config.
 MPC is the receding-horizon control framework; MPPI is the optimizer used by
 both of our planners. Nonlearned does not mean model-free or calibration-free.
 The original SliceIt TensorFlow/tf2rl runner is historical reproduction, not the
-current SB3 baseline. Its source search/provenance is preserved in the archive.
+current SB3 baseline.
 
-## v2 versus v3: fixes, not different research methods
+## Task version
 
-| Item | Historical pose_depth_v2 | Current pose_depth_v3 |
-|---|---|---|
-| Pose success +100, failure precedence, geometric-depth shaping, speed cost, task tolerances | Recorded old rules | Same intended rules and weights |
-| Board stop in the physical environment | Software latch | Software latch, explicitly represented in WM state |
-| WM state after the stop | Could continue moving | board_contact and last_wrench represent the stop; analytic held-state transition |
-| Imagined survival | Learned terminal probability could reduce survival without matching settlement | Analytic success/failure/timeout absorption, aligned with settlement |
-| Post-latch peak | Backend disagreement | Both use absolute frozen last reading after the latch interval |
-| Within-step sensor sampling | DiSECt could count the carried sample again | Each new 2 ms sample enters that step's checks once |
-| Use now | Read/evaluate old runs only | All new training and comparisons |
-
-WM state dimensions changed; do not transplant a v2 WM/replay into v3.
-The policy's observable input format did not change solely because of these
-fixes. Material separation remains an independent diagnostic, not pose success.
-The current code also retains historical free_cut_v3; that older separation task
-is NOT pose_depth_v3. Use the full task name in logs and comparison tables.
+All four controllers use pose_depth_v3: pose +100 with failure precedence,
+geometric-depth shaping, analytic imagined survival, fresh-sample force checks
+and the `project_continue_v2` board boundary (TASK_FREE_CUT). WM state includes
+`board_contact` and `last_wrench`; do not transplant a v2 WM/replay into v3. The
+policy's observable input format is the same as in v2. Use the full task name in
+logs and comparison tables (free_cut_v3 is an unrelated older separation task).
 
 ## Measured coverage by task version
 
@@ -57,9 +46,9 @@ It is not a performance ranking. Operational run status changes separately;
 consult each run's progress/manifest rather than this table to see whether it
 is still running.
 
-| Controller | Recorded v3 evidence through 11-18 | Historical physical outcomes (v2 only) | Remaining current-task comparison work |
+| Controller | Recorded v3 evidence (latch-era, through 11-18) | Historical physical outcomes (v2 only) | Remaining current-task comparison work |
 |---|---|---|---|
-| WM+BPTT | Each backend: short collect/update/episode/reset/save/resume pipeline at 4dfbc0c | Two 11-16 long runs; unequal achieved interaction budgets | Evaluate the newly authorized v3 run at identified checkpoints; no mature v3 result claimed here |
+| WM+BPTT | Each backend: short collect/update/episode/reset/save/resume pipeline at 4dfbc0c; UR10e 9-world learning runs (integration handoff) | Two 11-16 long runs; unequal achieved interaction budgets | No v3 long run yet; no mature v3 result claimed |
 | SB3 SAC | GPU9, both main b2b3ea6 and 8f0a517: 6 worlds, 240 transitions; latest smoke saved model/replay with 216 updates | Separate bounded v2 SAC run; early 264-transition smoke scored 1/3 in the old comparison | v3 smoke is not a trained baseline or matched-budget comparison |
 | WM+MPPI | Compatible v3 state/analytic survival implemented and regression-covered | DiSECt 3/3 pose successes, 0/3 separated; one native-BladeMaster visual example timed out | No completed v3 physical evaluation established in the audited records; needs compatible v3 WM |
 | Nonlearned FDCC+MPPI | v3 task/board-state branch implemented | DiSECt 2/3 pose successes, 0/3 separated; one native-BladeMaster visual example reached pose goal | No completed v3 physical evaluation established in the audited records |
@@ -121,7 +110,6 @@ For native BladeMaster replace --conditions with --blademaster-config V3_BM.json
 Each OUT is a different run directory. Analytic MPC has no checkpoint.
 Training: [WM+BPTT recipe](../RUNNING.md#current-wmbptt-training-command-pose_depth_v3);
 SAC: scripts/train_sac_multi.py with an explicit plan/budget and online W&B.
-Historical smoke recipes and exact resume/integrity coverage remain in the archive.
 These templates do not launch or authorize an additional experiment.
 
 ## Cutting MPC literature and our provenance
@@ -160,17 +148,3 @@ closes the execution loop. Historical DP3 examples connect wm_policy, wm_mppi
 and analytic_mpc on native BladeMaster. SAC visual handoff is not implemented.
 This is separate from task-version coverage and is not a core learning claim.
 See [VISION_ROUTE1](VISION_ROUTE1.md) for exact source identities and scope.
-
-## Ledger audit — 2026-11-19
-
-Checked against main 6d109cd, including the check_pose_depth board-state input
-fix. All four evaluator CLI choices and the two backend config switches were
-verified from source. On GPU9: root 672 passed / 5 legacy checks skipped,
-backend 41 passed. 119 Markdown files / 417 relative links and fragments checked,
-no broken targets detected. Logs:
- /dataHDD/dong/Experiments/Cutting_DEV/runs/controller_docs_20261119/.
-
-This documentation reorganization did not run new MPC episodes or alter
-training/task code. GPU7's ongoing 3072-world capacity/memory check was not
-interrupted or used for these tests. Historical controller notes remain in the
-archive, and all checkpoints, buffers and frozen worktrees are retained.

@@ -97,7 +97,7 @@ def save_episode(output, row, states, transitions):
 
 
 def episode_metrics(row, totals):
-    """Derived per-episode metrics from per-step integrals (see https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/BENCHMARK.md)."""
+    """Derived per-episode metrics from per-step integrals (fixed-prism benchmark contract)."""
     seconds = row['simulation_seconds']
     return {
         'mean_material_force_n': totals['material_impulse'] / seconds if seconds > 0 else 0.,

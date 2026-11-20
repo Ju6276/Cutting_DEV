@@ -2,7 +2,7 @@
 
 This is the per-paper evidence ledger requested by the user, produced by Codex
 with one literature subagent. It covers the named method papers in the reading list below
-and the former [NOVELTY synthesis](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/NOVELTY.md), with separately identified simulator and data references.
+and the former NOVELTY synthesis, with separately identified simulator and data references.
 [PAPER](../PAPER.md) defines current claims; [PLAN](../PLAN.md) defines current work.
 
 Each record states **what was actually read**, method and data, relevant
@@ -26,8 +26,6 @@ conservative-risk branch is selected. Pose-task success is evaluated by the
 approved arrival/failure rules; material-connection diagnostics do not relabel
 a successful episode as a policy failure.
 
-The November10 research hypotheses are retained only in
-[the dated interpretation archive](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/LITERATURE_POSITIONING_20261110.md).
 Original reading dates, paper findings and code-access limitations remain in
 the individual notes. This cleanup is not a new full-paper or code review.
 

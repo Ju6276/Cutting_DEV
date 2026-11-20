@@ -20,7 +20,7 @@ springs while keeping the pre-split mesh would instead change the initial body
 into disconnected pieces. Switching to another complete cutting backend is a
 different, explicit choice.
 
-The new shared depth reward uses board-normal knife progress, not released
+The shared depth reward uses board-normal knife progress, not released
 spring fraction. Physical damage remains available as a diagnostic.
 Reference: [DiSECt](https://arxiv.org/abs/2203.10263);
 local `backends/mujoco/third_party/disect/disect/dflex/sim.py`,
@@ -49,7 +49,7 @@ There are three distinct mechanisms:
    need for a preselected cut plane. The side-label mechanism is distinct from D;
    a topology result cannot be inferred from a damage-threshold count alone.
 
-The current UR5e interface uses our reproduced forward `Solver`, not every
+The robot interface uses our reproduced forward `Solver`, not every
 newer cohesive/adjoint experimental module present in the external repository.
 It does not establish exact fracture-energy calibration or exact global energy
 conservation in the coupled robot simulation.

@@ -1,9 +1,13 @@
-# Shared cutting scene — 2026-11-16
+# Shared cutting scene
 
 Authoritative input: [scene_v1.json](../configs/shared/scene_v1.json).
 Both backend configurations are generated from this file; do not independently
 edit their generated JSONs. Case sampling is identical in checks and eventual
 training. Old runs retain their frozen configuration and are not paired runs.
+The UR10e + ATI + CAD-knife platform under integration has its own contract,
+[ur10e_ati_ikea_v1.json](../configs/shared/ur10e_ati_ikea_v1.json); see
+[the integration handoff](hardware/UR10E_INTEGRATION_REVIEW.md). This page describes
+the UR5e `scene_v1` contract.
 
 ## Starting the cut as on the intended robot
 
@@ -25,11 +29,9 @@ sampling generates explicit per-world clearances before either backend starts;
 changing backend RNG use or object-group order does not change a case.
 The sampled gap stays fixed for that world. After reset/settling the knife is
 repositioned to the new surface height with that same gap. Other worlds retain
-their state exactly. This follows the former main run's once-per-world sampling;
-it does not mean a new gap is sampled every episode.
+their state exactly. A new gap is not sampled every episode.
 
-There is no separate fixed-5-mm debug task. Checks replay selected cases from
-this same definition. Small worlds_per_object is a resource setting, not a
+Checks replay selected cases from this same definition. Small worlds_per_object is a resource setting, not a
 different initialization/reward implementation. Material state is not teleported
 to fit the knife. If the requested start is outside the robot workspace, setup
 fails rather than expanding the workspace silently.
@@ -74,9 +76,7 @@ moving object or from the rendered board edge. Both modes retain force/workspace
 
 ## Shared physical knife and mounting
 
-Merged from the former SHARED_KNIFE.md on 2026-11-18. Revision
-`disect_knife_rigid_mount_v1`: the knife of this shared scene (introduced with
-pose_depth_v2, unchanged in pose_depth_v3).
+Revision `disect_knife_rigid_mount_v1`.
 The reference is the **actual main DiSECt contact blade**, not the URDF appearance mesh.
 
 ### Common geometry and installation
@@ -93,16 +93,14 @@ then ordinary FK moves the blade. Tests compare the transformed vertices at
 several joint configurations, not just one initial image. The along-edge axis
 matches the source sawing direction in robot-base X.
 
-- BladeMaster: a new optional two-slope signed-distance profile replaces the
-  old vertical broad faces. Contact normals, contact points, broad-face transport
+- BladeMaster: a two-slope signed-distance profile (instead of vertical broad
+  faces). Contact normals, contact points, broad-face transport
   constraints and board vertices all use this profile. Changing only the mesh
   or bounding-box dimensions would leave inconsistent physical contact.
-- DiSECt: the new tool revision follows the rigid EE mount, interpolated over
-  material substeps. It removes accumulated tool/robot pose drift from the old
-  velocity-only, plane-projected coupling. The finite-tool swept joint-path
-  board interlock remains active.
-- Force and moment transformations continue to use the actual tool/material and
-  sensor origins. There is no display-only translation masquerading as a fix.
+- DiSECt: the tool follows the rigid EE mount, interpolated over material
+  substeps (no velocity-only, plane-projected coupling drift). The finite-tool
+  board boundary applies (TASK_FREE_CUT).
+- Force and moment transformations use the actual tool/material and sensor origins.
 
 The BladeMaster profile implementation is in the separately versioned
 `BladeMaster-Warp-shared-knife-20261116` worktree. It is a change to our
@@ -117,50 +115,16 @@ the BladeMaster external-tool port holds its supplied tool pose over the
 2 ms material exchange. Those coupling approximations have not been made
 identical by this knife change.
 
-The existing frozen policies were trained with different original knives,
-task progress signals, conditions and interaction budgets. They are historical
-results. This change neither retrains them nor converts their old results into
-a controlled backend comparison. New training must use an explicit shared-tool
-configuration and new run identity.
+Policies trained before this revision used different knives, progress signals
+and conditions; their results are not a controlled backend comparison.
 
 The renderer draws recorded physical blade vertices and the retained original
-URDF handle. The previously invented cylindrical shank and collar have been
-removed: neither had measured CAD provenance or user authorization. No
-replacement connector or visual blade displacement is introduced. A measured
+URDF handle. No connector, shank or collar is drawn (none has measured CAD
+provenance), and no visual blade displacement is introduced. A measured
 adapter mesh remains unavailable; rigid-transform checks do not validate real
 hardware mounting. No second blue blade is displayed.
 
-### Knife commands
-
-Use the shared contract preparation and replay commands in
-[Preparation and replay](#preparation-and-replay). They generate both backend
-inputs from `configs/shared/scene_v1.json` and verify their manifest hashes.
-The former `shared_knife_check.json` inputs now live in
-`configs/archive/scene_checks_20261116/`; they describe historical probes, not
-current launch instructions. Numeric probe results remain in RESULTS.
-
 Material mechanisms and arrival-counter semantics: [CUTTING_MECHANISMS](reference/CUTTING_MECHANISMS.md).
-
-### Historical scene alignment audit (superseded reset settings)
-
-Condensed; the full text is in
-[SHARED_KNIFE.md at 4dfbc0c](https://github.com/Ju6276/Cutting_DEV/blob/4dfbc0c/docs/SHARED_KNIFE.md).
-Earlier 2026-11-16 captures, before the shared reset contract (nominal materials,
-one world/object, requested 5 mm clearance, 30 mm/s feed, no policy, no control
-step). They are evidence of the mismatch, not current settings. Actual lowest
-blade height above the topmost material sample after settling:
-
-| Object | DiSECt (mm) | BladeMaster (mm) |
-|---|---:|---:|
-| Cucumber | 5.52 | 17.45 |
-| Half potato | 4.47 | 29.45 |
-| Prism | 4.71 | 5.59 |
-
-The historical BladeMaster implementation computed the initial height from the
-maximum object height across its groups; DiSECt used each group's scene/start
-lift. The shared reset contract above supersedes this. Outputs:
-runs/shared_scene_views_20261116/{disect,blademaster}/ (close views, cucumber_wide.png,
-recorded geometry, camera metadata, render_audit.json).
 
 ## Explicit differences and remaining work
 
@@ -168,7 +132,6 @@ recorded geometry, camera metadata, render_audit.json).
   `paper-banana`; geometry, E, Poisson ratio and density are overridden, but the
   nominal yield stress (30000 Pa) and cutting energy (700 J/m²) remain preset
   values. These are not calibrated fracture properties for these three objects.
-  See [framework audit](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/archive/FRAMEWORK_AUDIT_20261116.md).
 - Material physics: FEM / pre-inserted cutting springs versus MPM / native damage.
   Equal E, density or friction coefficients do not imply equal resulting forces.
 - Geometry discretization: each backend samples the same intended object with its
@@ -179,7 +142,7 @@ recorded geometry, camera metadata, render_audit.json).
   Each reset draws E, density, a cutting-resistance multiplier and target speed.
   Cutting-spring stiffness and cutting energy retain their different meanings;
   matching their scale distributions does not equate fracture physics.
-- BladeMaster now applies per-world GPU coefficient buffers, restores selected
+- BladeMaster applies per-world GPU coefficient buffers, restores selected
   worlds to their raw state and settles them with the new material. It does not
   reuse a nominal-material settled snapshot. The group timestep is chosen for
   maximum E / minimum density so changes do not require new captured graphs.
@@ -208,10 +171,9 @@ $PY scripts/check_pose_depth.py --backend disect --shared-contract configs/share
 $PY scripts/check_pose_depth.py --backend blademaster --shared-contract configs/shared/scene_v1.json --prepared runs/NEW_SHARED_SCENE/assets/manifest.json --output runs/NEW_SHARED_SCENE/blademaster.json --seconds 900
 ~~~
 
-The contract fingerprint includes task.version: assets prepared for the archived
-pose_depth_v2 contract are rejected for the current file; regenerate them (the
-DiSECt scene bytes are unchanged by the version, so the per-object scene and
-geometry hashes stay equal).
+The contract fingerprint includes the task block: assets prepared for an older
+contract (e.g. pose_depth_v2, 180 steps or another board motion) are rejected;
+regenerate them.
 
 Reports contain requested and actual blade gaps, settled tops, EE/goal poses,
 loaded friction, pitch settings, observation width, physical-versus-WM reward
@@ -243,22 +205,20 @@ before the horizon gives timeout, not a successful cut.
 With path control on, each 50 ms endpoint subtracts
 20/500 * clamp((distance-.025)/(.060-.025),0,1)^2.
 Above 60 mm the task ends with failure -100 once; exactly 60 mm remains inside.
-These are configurable engineering settings. The 2026-11-16 shared long runs used final-only; their launch records do not establish
-that optional path constraints improve learned behavior.
+These are configurable engineering settings; final-only is selected. No result
+establishes that the optional path constraint improves learned behaviour.
 
 Reward-equation audit: append --tool-reward-audit to either check_pose_depth.py
 command above. It evaluates both switches using measured transitions and
 counterfactual goal offsets; it does not assert learned motion improvement.
 
-Shared-tool studio and overview renderers now use the existing main-run
-24 x 16 cm board exterior for both backends. Original recorded display corners
+Shared-tool studio and overview renderers use a 24 x 16 cm board exterior for both backends. Original recorded display corners
 are preserved in studio exports. This is a visual footprint, not a finite
 support boundary; physics remains an infinite support plane.
 
-## Actual prepared DiSECt cut planes — audited 2026-11-17
+## Prepared DiSECt cut planes (audited 2026-11-17)
 
-These are the prepared assets loaded by the GPU7 shared long run, not merely
-the source mesh defaults. Reconstructing virtual cut-edge points from
+These are the prepared UR5e scene_v1 assets, not merely the source mesh defaults. Reconstructing virtual cut-edge points from
 cut_edge_indices and cut_edge_coords gives the following initial interface.
 Material axes: y is up, x is the cut normal (object length direction), z follows
 the knife edge. Each plane is x=0 within numerical precision.
