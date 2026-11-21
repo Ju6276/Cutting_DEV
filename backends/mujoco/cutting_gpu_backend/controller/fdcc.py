@@ -195,7 +195,9 @@ class FDCCController:
         self.previous_position_command = q.clone()
         frames, _, _ = self.chain(q, mass_matrix=False)
         self.cached_tip_pose = frames[self.chain.tip].clone()
-        self.tare_compensation = q.new_tensor((*[self.config.tool_mass*g for g in self.config.gravity], 0., 0., 0.)).expand(q.shape[0], -1).clone()
+        # The input sensor is tared at reset. Store its gravity baseline in
+        # that same sensor frame, including the payload COM moment.
+        self.tare_compensation = self._gravity_sensor_wrench(frames)
 
     def _gravity_sensor_wrench(self, frames):
         orientation = frames[self.config.sensor_ref_link][:, 3:]

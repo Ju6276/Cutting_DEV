@@ -265,3 +265,30 @@ on GPU7 (DiSECt) and A6000 (BladeMaster), including check JSON, nominal config,
 reference/report.json, transitions.pt, snapshot_initial/final, source status and
 probe SHA. Source base b501c28 with the recorded candidate working-tree changes;
 not represented as a clean main run. No long training was started.
+
+
+## 2026-11-21: FDCC reset tare-frame correction before the A6000 run
+
+The BladeMaster half-potato stop above target was traced to a shared FDCC bug:
+reset stored a base-frame gravity vector as sensor-frame tare compensation and
+omitted the COM torque. With a zero tared sensor reading the UR10e controller
+therefore produced a false base-Z force of 6.8768 N. At recorded step120 the
+combined controller force/Kzz predicted 2.7523 mm static height error, versus
+the observed 2.7584 mm target error (2.7594 mm geometric board clearance).
+
+FDCC.reset now uses its existing _gravity_sensor_wrench(frames), including the
+sensor rotation and payload COM moment. Robot/payload mass, inertia, gravity,
+material contact, task, stiffness and limits are unchanged. This is a shared
+controller implementation correction, not subtraction from ATI observations.
+Old checkpoints/records retain their original code provenance.
+
+GPU9 corrected nominal half-potato: success step50, arrival count11, target
+height error1.8317 mm, XY error0.0330 mm, no force/workspace/timeout failure.
+Final sensor Fz=-8.739 N: physical contact feedback remains present.
+Initialization and full reset give zero controller external force for zero
+tared readings. Runtime211 s. No broad random-material success claim follows.
+
+Regression: new tests fail twice on the old implementation; all four pass after
+the fix. GPU7 base-environment root suite781 passed/25 skipped; backend48 passed.
+Evidence: runs/fdcc_tare_20261121 and runs/blademaster_potato_tare_fixed_20261121
+under /dataHDD/dong/Experiments/Cutting_DEV on GPU7.
