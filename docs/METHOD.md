@@ -699,3 +699,54 @@ identify the scene and original world indices. BladeMaster restores the robot's
 high preparation pose before raw material reset/settling and uses the shared
 post-settling alignment; its separate material reset does not execute the faulty
 DiSECt ordering. Existing running checkouts are not hot-patched.
+
+### Analytic MPC sensor tare correction (2026-11-21)
+
+The nonlearned FDCC surrogate previously called controller.reset at every
+predicted step, thereby replacing the real sensor's initial gravity tare with
+the predicted orientation's gravity. The input wrench retained the real
+measurement baseline, so nonzero payloads could acquire a fictitious contact
+force during rotation. This affected analytic MPC, not SB3 SAC or the learned
+WM transition.
+
+Both physical backends now export controller_tare_compensation as read-only
+execution context (DiSECt already did so). It is not appended to WM state,
+actor/critic observations or checkpoint state_shapes. Each analytic MPPI
+rollout has a distinct cloned sensor-frame baseline for its physical world;
+candidate batches and horizon steps reuse that baseline. Observe and explicit
+reset refresh context from the actual frame; masked reset updates only selected
+worlds. Missing context with nonzero gravity/payload is an error, not an inferred
+retare. Zero-load historical models retain their zero baseline without requiring
+this field. Standalone AnalyticFDCCModel callers must set the physical context
+with set_tare_compensation before predicting a nonzero-load platform. The
+SharedMPPIPolicy.model prototype is not a per-world bound model; use the relevant
+rollout model for direct diagnostic prediction.
+
+This correction does not replace the held last-supplied-history-wrench
+approximation, its existing delay, coarse FDCC recurrence or ideal joint
+tracking. It does not establish accurate material-force forecasting, real-time
+planning or improved task success. Reward, task events and SAC are unchanged.
+
+Validation: the actual AnalyticFDCCModel.predict regression fails numerically
+with the previous implementation (up to 1.614 N fictitious component under
+gravity-only rotation); the corrected case is below 1e-12. Targeted CPU tests:
+24 passed. The CPU root suite: 805 passed, 22 skipped, with one CUDA-only
+runner-resume case excluded; that case and the four new regression tests
+subsequently passed on A6000 (5 passed). CPU backend: 35 passed, 13 skipped.
+These counts include overlapping targeted checks, not independent samples.
+
+A6000 forward simulation probes used two UR10e cucumber worlds per backend:
+DiSECt and BladeMaster both passed initialization, 8-candidate/two-step MPC,
+one physical step, observe, masked reset, and another plan. Exported tare
+equals actual controller tare; the unselected world's frame/context remains
+unchanged. Elapsed probe times were 67.9 s and 52.8 s respectively. These are
+interface/context checks, not full-episode success-rate evaluations.
+CPU/old-code evidence is on GPU9 under
+/dataHDD/dong/Experiments/Cutting_DEV/runs/analytic_mpc_tare_fix_20261121/.
+Physical probe evidence is on A6000 under
+/dataHDD/dong/Experiments/Cutting_DEV/runs/mpc_tare_fix_20261121/{disect,blademaster}_v2/.
+Initial probe attempts lacked the temporary checkout's prepared-assets symlink;
+they failed before physics construction. The reruns above used the existing
+prepared assets, without changing task parameters.
+
+A6000 backend suite with CUDA: 47 passed, 1 skipped (full log retained).

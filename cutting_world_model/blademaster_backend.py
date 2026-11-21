@@ -481,6 +481,8 @@ class BladeMasterBatch(CuttingBatch):
         gap=gap_from_pose(pose,self.board_geometry)
         return dict(joint_q=self.robot.q.clone(),joint_qd=self.robot.qd.clone(),
             target_pose=self.target.clone(),ee_pose=pose.clone(),
+            # Controller context for analytic MPC; not a WM/policy state field.
+            controller_tare_compensation=self.controller.tare_compensation.clone(),
             wrench_history=self.wrench_queue[:,:self.task['environment']['wrench_hist_size']].clone(),
             peak_wrench=self.peak.clone(),motion_command=self.mapper.added_motion_command.clone(),
             cut_progress=self.progress.clone(),depth_span=self.reward_depth_span.clone(),knife_board_gap=gap[:,None],

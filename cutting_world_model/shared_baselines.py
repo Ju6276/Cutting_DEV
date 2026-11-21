@@ -5,6 +5,7 @@ joint tracking under the existing FDCC controller, holding the last supplied
 wrench-history sample over the horizon. It is NOT a calibrated material/fracture model.
 """
 from dataclasses import asdict
+import copy
 import importlib.metadata
 import json
 import time
@@ -71,8 +72,8 @@ def validate_current_interface(saved, actual, allow_backend_transfer=False):
 class AnalyticFDCCModel:
     """No fitted parameters, material labels, particles or fracture progress.
 
-    Controller internal state is reinitialized from q/qd at each coarse model
-    step; actual robot inertia/servo and changing contact wrench are approximated.
+    Controller recurrence is approximated from q/qd at each coarse model
+    step, but the actual sensor tare baseline is supplied separately and held fixed; actual robot inertia/servo and changing contact wrench are approximated.
     Replanning corrects the state with new proprioception/wrench every real step.
     """
     def __init__(self, metadata, controller_parameters, substeps=5, device='cpu'):
@@ -88,6 +89,26 @@ class AnalyticFDCCModel:
             metadata['robot_tip'], metadata['joint_names']).to(device=device, dtype=torch.float64)
         self.controller_config = ControllerConfig.from_parameters(controller_parameters)
         self.substeps = substeps
+        self.tare_compensation = None
+        self.requires_tare = bool(self.controller_config.tool_mass and
+                                  any(self.controller_config.gravity))
+
+    def tare_from_frame(self, frame):
+        """Read execution context, not a material label or a network state field."""
+        tare = frame.get('controller_tare_compensation')
+        if tare is None:
+            if self.requires_tare:
+                raise ValueError('Analytic MPC requires controller_tare_compensation from the physical controller')
+            tare = frame['joint_q'].new_zeros((len(frame['joint_q']), 6))
+        if tare.shape != (len(frame['joint_q']), 6) or not bool(torch.isfinite(tare).all()):
+            raise ValueError('Finite [worlds,6] controller_tare_compensation required')
+        return tare.detach().clone()
+
+    def set_tare_compensation(self, tare):
+        if tare.ndim != 2 or len(tare) == 0 or tare.shape[-1] != 6 or not bool(torch.isfinite(tare).all()):
+            raise ValueError('Finite [worlds,6] controller_tare_compensation required')
+        self.tare_compensation = tare.detach().clone()
+
 
     @torch.no_grad()
     def predict(self, state, action, goal):
@@ -98,6 +119,17 @@ class AnalyticFDCCModel:
         q = q0.clone()
         controller = FDCCController(self.chain, self.controller_config)
         controller.reset(q, spec.field(state, 'joint_qd').double())
+        if self.tare_compensation is None:
+            if self.requires_tare:
+                raise ValueError('Set the physical controller tare before analytic prediction')
+        else:
+            tare = self.tare_compensation.to(q)
+            if len(tare) not in (1, len(q)):
+                raise ValueError('Tare batch must be one planned world or match prediction batch')
+            # reset() initializes the approximate recurrence; it must NOT retare
+            # the force supplied by the real environment. All candidates and
+            # horizon steps retain the same physical sensor-frame baseline.
+            controller.tare_compensation = tare.expand(len(q), -1).clone()
         mapper = SlicingActionMapper(
             max_twist=spec.metadata['controller']['max_twist'],
             robot_control_dt=spec.metadata['environment']['robot_control_dt'],
@@ -179,7 +211,10 @@ class SharedMPPIPolicy:
         self.worlds = env.worlds
         self.rollouts, self.planners = [], []
         for _ in range(env.worlds):
-            rollout = ModelRollout(self.model, config.discount, self.critic)
+            # Separate execution context for every physical world; learned
+            # weights and the analytic geometry/spec may still be shared.
+            rollout_model = self.model if checkpoint is not None else copy.copy(self.model)
+            rollout = ModelRollout(rollout_model, config.discount, self.critic)
             planner = MPPI(rollout.dynamics, rollout.running_cost, self.spec.state_dim+3,
                 noise_sigma=torch.eye(6, device=env.device)*config.noise_std**2,
                 num_samples=config.samples, horizon=config.horizon, device=env.device,
@@ -193,6 +228,8 @@ class SharedMPPIPolicy:
         self.steps = [0]*env.worlds
         self.plans = []
         self.state = self.spec.pack_batch(env.current).float()
+        self._update_tare(env.current)
+
         self.manifest = dict(cross_backend_transfer=bool(checkpoint and saved['metadata']['physical_backend'] != metadata['physical_backend']),
             training_backend=saved['metadata']['physical_backend'] if checkpoint else None,
             execution_backend=metadata['physical_backend'],
@@ -204,10 +241,22 @@ class SharedMPPIPolicy:
             model=('frozen learned model' if checkpoint else
                    'FDCC coarse ideal-joint tracking; measured wrench held constant; no material prediction'),
             analytic_substeps=analytic_substeps if checkpoint is None else None,
+            analytic_tare=('physical_controller_context_per_world_v1' if checkpoint is None else None),
             parallelism='independent plans evaluated sequentially; shared dynamics weights')
+
+    def _update_tare(self, frame, mask=None):
+        if not isinstance(self.model, AnalyticFDCCModel):
+            return
+        if len(frame['joint_q']) != self.worlds:
+            raise ValueError('Analytic MPC frame world count changed')
+        tare = self.model.tare_from_frame(frame)
+        indices = range(self.worlds) if mask is None else mask.nonzero().flatten().tolist()
+        for w in indices:
+            self.rollouts[w].wm.set_tare_compensation(tare[w:w+1])
 
     @torch.no_grad()
     def act(self, frame, active=None):
+        self._update_tare(frame, active)
         goal = frame['target_pose'].float()
         if self.spec.goal_dim == 8:
             goal = torch.cat((goal,frame['target_speed'].float().reshape(self.worlds,1)),-1)
@@ -232,9 +281,11 @@ class SharedMPPIPolicy:
         return actions
 
     def observe(self, frame):
+        self._update_tare(frame)
         self.state = self.spec.pack_batch_transition(frame,self.state)
 
     def reset(self, frame, mask):
+        self._update_tare(frame, mask)
         self.state = self.spec.reset_batch_history(frame,self.state,mask)
         for w in mask.nonzero().flatten().tolist():
             self.planners[w].U.zero_()

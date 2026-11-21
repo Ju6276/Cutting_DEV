@@ -233,7 +233,7 @@ def blademaster(sp, fk, serial, q0, monkeypatch):
                         sim_time=torch.zeros(N, dtype=torch.double), depth_task=True,
                         progress=torch.zeros(N, 1, dtype=torch.double),
                         reward_depth_span=torch.full((N, 1), 1e-3, dtype=torch.double),
-                        condition_sampler=None, _controller_initial={}, controller=SimpleNamespace(),
+                        condition_sampler=None, _controller_initial={}, controller=SimpleNamespace(tare_compensation=torch.zeros(N,6,dtype=torch.double)),
                         _filter_initial={}, _reset_batched=lambda mask: None)
     p.frames = chain(robot.q)[0]
     p.tool_pose = lambda: p.frames[TIP].clone()
