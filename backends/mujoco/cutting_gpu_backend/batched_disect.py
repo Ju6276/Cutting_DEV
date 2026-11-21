@@ -173,8 +173,13 @@ class BatchedDiSECt(DiSECt):
         scratch.restore_rows(all_rows, tuple({k: pad(v) for k, v in group.items()}
                                             for group in (state, contact, motion)))
         peak = scratch.advance_stationary(seconds)
-        if bool((peak[:n] > 0).any()):
-            raise ValueError('The knife touches the object while it settles; settling needs a free start')
+        bad = (peak[:n] > 0).nonzero(as_tuple=False).flatten()
+        if len(bad):
+            shown = bad[:8]
+            raise ValueError(
+                'The knife touches the object while it settles; settling needs a free start'
+                f'; scene={self._scene_path}; offending_worlds={indices[shown].tolist()}'
+                f'; contact_peak_n={peak[shown].tolist()}; total_offending={len(bad)}')
         saved = scratch.capture_rows(all_rows)
         self.restore_rows(mask, tuple({k: v[:n] for k, v in group.items()} for group in saved))
 

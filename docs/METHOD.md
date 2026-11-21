@@ -685,3 +685,17 @@ BladeMaster uses mesh contact and curved-edge forward kernels at native commit
 loading. Task rewards and controller action dimensions remain unchanged.
 Implementation, estimates and verification evidence are in the
 [review handoff](hardware/UR10E_INTEGRATION_REVIEW.md).
+
+### Reset preparation correction (2026-11-21)
+
+The DiSECt adapter restores the selected raw export geometry before aligning the
+stationary knife for material settling, then aligns again to the settled surface
+for the episode start. Previously the first alignment used the previous settled
+snapshot, so restoring a taller raw soft object could introduce knife contact and
+abort reset. This is an implementation-order correction, not a change to the
+5–30 mm episode clearance, material distribution, reward or termination rules.
+Non-reset worlds remain untouched. Contact checking is retained; failures now
+identify the scene and original world indices. BladeMaster restores the robot's
+high preparation pose before raw material reset/settling and uses the shared
+post-settling alignment; its separate material reset does not execute the faulty
+DiSECt ordering. Existing running checkouts are not hot-patched.

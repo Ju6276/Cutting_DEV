@@ -292,3 +292,37 @@ Regression: new tests fail twice on the old implementation; all four pass after
 the fix. GPU7 base-environment root suite781 passed/25 skipped; backend48 passed.
 Evidence: runs/fdcc_tare_20261121 and runs/blademaster_potato_tare_fixed_20261121
 under /dataHDD/dong/Experiments/Cutting_DEV on GPU7.
+
+### 2026-11-21 — Reset ordering diagnosis
+
+GPU9 SAC on 6258561 stopped after 46,080 recorded interactions in DiSECt's
+stationary-settling contact check. The original exception did not identify the
+object/world; the exact historical sample cannot be recovered from its log.
+
+A two-world tofu reproduction with legal 5/6 mm clearances and seed-0 material
+randomization triggered the same exception on the first repeated reset. World
+0's previously settled top was about 65.154 mm, versus the raw export's 70.800 mm:
+restoring geometry after placing the knife at the previous top consumed the
+clearance. Restoring geometry before preparation alignment eliminated the error
+in the paired temporary-code test (initialization plus two repeated resets).
+The regression fails on the old code for both full and selected reset.
+
+A separate current BladeMaster check used five foods, two worlds each, and
+alternating selected resets. Initial settling and both selected resets produced
+zero knife/material contact force. Unselected observations and material positions
+and velocities stayed bit-identical; final start-clearance error was at most
+3.80e-7 m. Material settling took 44.13 s initially and 37.95/38.25 s on the two
+selected resets, each advancing 1 s simulated time via 500 exchanges per object
+group (2,500 exchanges across five serial groups). This bounded check does not
+show the DiSECt ordering defect in BladeMaster and does not establish all-seed
+correctness or the throughput of a 320-world run.
+
+Evidence (GPU9):
+/dataHDD/dong/Experiments/Cutting_DEV/runs/sac_reset_diagnosis_20261121/
+includes the paired reproduction, original failure state, regression logs,
+BladeMaster reset report, and production-fix physical/suite logs.
+No checkpoint interval, reward, force limit or success rule was changed.
+
+The production correction also passed a real DiSECt two-world tofu check: initialization, reset world 0, reset world 1, then reset both; unselected observations were bit-identical and maximum final clearance error was 5.72e-08 m. The original contact guard remained enabled.
+
+GPU9 regression verification: root suite 784 passed / 26 skipped; backend suite 48 passed. Four targeted reset-order/error-context tests passed. Existing A6000/GPU7 runs were not modified or restarted.

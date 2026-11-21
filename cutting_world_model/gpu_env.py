@@ -224,6 +224,12 @@ class GPUEnvironment:
             mask = torch.ones(self.worlds, dtype=torch.bool, device=self.device)
         mask = mask.to(self.device, torch.bool)
         self.reset(mask)
+        # The previous reset snapshot contains the last settled/deformed surface.
+        # Restore raw geometry BEFORE positioning the knife for stationary settling:
+        # expanding a soft object under a knife aligned to its old top can cause contact.
+        self.physics.material.restore_export(mask)
+        from .scene_alignment import align_reset
+        align_reset(self, self.physics.frame(), mask)
         self.physics.settle(seconds, mask)
         self.metadata['settle_seconds'] = float(seconds)
         self.metadata['reset_material_protocol'] = 'export_per_material_settle_v1'
