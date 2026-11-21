@@ -1,6 +1,6 @@
 # SAC 与 WM+MPPI 仿真路径审阅（2026-11-21）
 
-## 最终实际 GPU 验收：两后端均通过
+## 实际 GPU 短检查：两后端均通过
 
 2026-11-21 在 A6000 两张独立显卡上，以当前 main 和 UR10e 五食材配置执行了真实仿真短检查：
 
@@ -24,11 +24,36 @@ A6000 证据目录：
 最初一次直接调用 Python 缺少统一运行环境的 TORCH_EXTENSIONS_DIR，在物理构造之前退出；改为 source 仓库正式环境入口后完成以上检查。旧的 `disect/report.json` 是这次启动配置失误的记录，不能与最终 `disect_cuda/report.json` 混用。
 
 
+## 去皮修复后的独立代码复核
+
+复核对象为已包含解析 MPC 去皮修复的当前代码（内部基准 d7392ff）。本节是逐段读代码的结论，不是把上面的两步 CUDA probe 扩大解释成完整算法审阅。本轮未确认新的 SAC 或学习 WM+MPPI 实现错误，没有因此修改算法代码，也没有重复运行全套测试。
+
+### 坐标、控制器状态与去皮基准
+
+- `shared_baselines.py:190–202` 的学习分支加载 `CuttingWorldModel` 和可选 critic，冻结参数；解析 FDCC 模型只在另一分支构造。`world_model.py:63–68,128–129` 的学习预测路径依次执行动作映射、神经动力学预测、物理字段积分和解析任务派生，不构造 FDCCController，也不在预测姿态上调用它的 reset。这是学习 WM+MPPI 不存在本次“重新去皮”错误的调用链依据，不只是输入字段没有变化。
+- `sac_vector.py:63–85` 将动作交给真实物理环境，随后记录观测和奖励；SAC 不运行解析 MPC 的预测控制器。物理 FDCC 沿既有 `update` 路径推进，只有物理 reset 时更新初始状态。当前 DiSECt 控制入口见 `environment.py:309–319`，传感器观测选择见 `coupling.py:77–81`；没有在 SAC 适配器里额外旋转受力或再次去皮。
+- 限制：当前学习 WM 使用可观测历史与解析历史字段，并未显式输入全部 FDCC 递推量、滤波器内部状态或去皮基准。它是有限历史预测模型，不能由上述调用链保证任意初始姿态和未知负载下的准确性。本轮没有把这种建模近似改成另一种状态设计，也没有把解析 MPC 的“固定未来受力”假设误套到学习 WM 上。
+
+### 部分 reset、终止与 bootstrap
+
+- `sac_vector.py:69–90` 先用最后真实观测和当时目标生成 terminal_observation，再仅重置结束环境的历史与回合统计；非结束环境历史不清空。`TimeLimit.truncated=False` 对应本项目有限时域任务的真正终止，交给 SB3 后终止样本不 bootstrap。当前 500 步时限不是应保留 bootstrap 的外部截断。
+- `control_state.py:78–105` 将上一状态的历史向前移动；`reset_batch_history` 只替换 mask 为真的环境。`shared_baselines.py:212–227,257–292` 每个 world 各有 rollout、目标、规划序列和步数；只有模型权重共享。部分 reset 清选中 world 的 U 和步数，不重新加载或改动冻结 WM 权重。
+- `mpc.py:69–97` 使用转移前的存活权重支付当前奖励，并用当前解析终止结果吸收后续回报。当前 V3 的 learned termination logits 不参与存活权重；`mpc.py:103–118` 的可选 critic 只在存活状态上求值，并使用 horizon 折扣。critic 的位姿误差方向与 `trainer.py:377–379` 相同。
+
+### 目标、候选与续训
+
+- `shared_baselines.py:181–202` 校验任务折扣与检查点接口；`shared_baselines.py:260–274` 逐 world 绑定目标位姿和速度，候选动作经 `ModelRollout.task_action` 映射后再执行。未发现候选共用可变目标或跨 world 继承规划序列的路径。
+- `scripts/train_sac_multi.py:79–94` 恢复模型、优化器和 replay，并检查历史长度、更新频率、环境数及接口一致性。`sac_vector.py:128–143` 保留并随模型保存剩余交互信用；`scripts/train_sac_multi.py:115–122` 在上一轮数据插入和更新完成之后保存，避免在 SB3 插入当前转移之前保存一半状态。
+- `baseline_checkpoint.py:18–44` 先写完 payload、最后替换 manifest，读取时检查配对摘要；它能拒绝保存中断留下的混合文件，不保证自动恢复上一代检查点。SAC 续训明确重新开始物理回合，保留的 replay 是独立一步转移加观测历史，不声称逐位恢复现场。学习 WM+MPPI 加载冻结检查点进行评估，规划序列重建，不属于持续训练的 checkpoint 恢复。
+- `evaluate_pose_policy.py:226–299` 只累计仍 active 的首个回合，记录完成后再 reset；已完成 world 不重复记入成功率。冻结模型前后检查和提前预算耗尽的失败记录仍保留。
+
+这些审阅没有发现需要新增复现的具体错误场景，因此没有以“再跑更多测试”替代结论。已有两后端 CUDA 证据支持短执行路径；长时域模型准确性、成功率、实时性和长期稳定性仍应由各自实验结果回答。
+
 ## 结论与范围
 
 本次独立阅读当前 main 的 SAC 多环境训练/评估和冻结 WM+MPPI 实现，未确认新的算法实现错误，因此没有修改奖励、动作、终止规则或训练代码。这个结论只覆盖下列路径，不代表没有任何 bug，也不是对真机或切割成功率的认证。
 
-解析 MPC 的工具去皮基准错误已在之前修复；它位于 AnalyticFDCCModel，不等于 SAC 或冻结学习 WM 使用同一错误模型。本次核对该上下文没有进入两者的网络输入。
+解析 MPC 的工具去皮基准错误已在之前修复；它位于 AnalyticFDCCModel，不等于 SAC 或冻结学习 WM 使用同一错误模型。仅检查该上下文没有进入网络输入不足以排除其他错误；后续独立代码审阅沿实际执行调用链核对，见上面的独立代码复核。
 
 内部复核基准：main b7c8e5f；GPU9 空闲开发 checkout Cutting_DEV_reset_settling。只运行 CPU 定向测试，没有变更或暂停 GPU9/GPU7 的现有训练，没有操作机器人。
 
