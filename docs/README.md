@@ -24,6 +24,8 @@ is not a training instruction.
   (Chinese UR10e + ATI FDCC bring-up handoff); [UR10E_MPC_HANDOFF_ZH](hardware/UR10E_MPC_HANDOFF_ZH.md)
   (entry point for real-robot MPC and eye-to-hand calibration); [REAL2SIM](hardware/REAL2SIM.md)
   (Chinese UR10e/ATI/food calibration protocols, friction identification, paper evidence and deployment limits).
+  Current field records: [tamsCage controller and offline alignment](hardware/TAMSCAGE.md),
+  [ju-ROG Nano capture and missing calibration](hardware/MECH_EYE_NANO_CHECKLIST_ZH.md).
 - [reference/](reference/): [CUTTING_MECHANISMS](reference/CUTTING_MECHANISMS.md)
   (DiSECt/BladeMaster cutting mechanisms and task signals);
   [SOURCES](reference/SOURCES.md) (upstream revisions, patches and provenance).

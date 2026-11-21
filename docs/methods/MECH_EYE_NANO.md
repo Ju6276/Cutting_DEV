@@ -9,14 +9,22 @@ Field collection and editable handoff: [Linux camera checklist](../hardware/MECH
 
 - Mech-Eye NANO V4, colour, nominal object distance 550 mm. The matching
   catalogue variant is NANO-V4D550C (not a directly captured device-model string).
-- Hardware 4.0.0 and firmware 2.3.4: reported by the user after querying the
-  device on Linux on 2026-11-21. This supersedes the earlier tentative V3 guess.
-- Serial TAC5522CA302E001: read from the supplied label photograph.
-  Label IP 192.168.122.101 is historical label information, not verified live IP.
+- ju-ROG API capture on 2026-11-21 confirms hardware 4.0.0, firmware 2.3.4,
+  serial TAC5522CA302E001 and live IP 192.168.122.101. API model text is
+  `Mech-Eye NANO`; retain it separately from the catalogue variant.
+- Camera PC: Ubuntu 22.04.5, MechEyeAPI 2.6.0, Python 3.10.12;
+  enp108s0 at 192.168.122.100/24, 1000 Mbps. No robot commands were sent.
 - Official recommended working distance for this variant: 450--600 mm.
   See [official V4 model table](https://docs.mech-mind.net/en/eye-3d-camera/2.3.2/hardware/camera-models.html).
-- Factory intrinsics, depth scale, camera-to-base calibration and installed pose
-  remain to be captured/validated. A confirmed model is not a completed calibration.
+- RGB and depth each return 1280 x 1024; API intrinsics separately read as
+  fx=1728.8903839489603, fy=1728.8846096722514,
+  cx=642.6250682011389, cy=512.2956888349067 px.
+  API depth/XYZ unit is millimetres, invalid samples are NaN; convert once by 0.001
+  for metre-based planning. SDK XYZ axes are right/down/forward in the optical frame.
+- One desk connectivity capture is recorded (0.870 s, not measured frame rate).
+  Empty-board/food samples, independent physical scale check, camera-to-base
+  calibration and installed pose remain missing. API self-consistency is not
+  physical calibration. Full raw values and evidence paths are in the field checklist.
 
 The existing 350 mm simulation profile below does **not** represent this
 confirmed 550 mm device. This documentation update does not change its optics,

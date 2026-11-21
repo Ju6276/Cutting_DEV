@@ -1,6 +1,6 @@
 # Machines and access
 
-Checked 2026-11-20. Secrets are never printed, committed, or copied between hosts;
+Checked 2026-11-21. Secrets are never printed, committed, or copied between hosts;
 this page names where credentials live, not their contents.
 
 ## Hosts
@@ -12,7 +12,20 @@ this page names where credentials live, not their contents.
 | A6000 (tamsGPU5) | 134.100.13.216 | Run host | 2x RTX A6000; check occupancy before use (other users run there) |
 | GPU9 (tamsGPU9) | 134.100.13.219 | Run host | 1x RTX 4090 (GPU0) |
 
-Each run host has the project at /dataHDD/dong/Projects/Cutting_DEV on branch `main`.
+Hardware computers (separate from GPU training hosts):
+
+- **tamsCage**: dong@134.100.13.143 via tams61; Ubuntu 20.04.6 / ROS Noetic,
+  UR10e control PC. Repository /homeL/dong/Cutting_DEV; original FDCC workspace
+  /homeL/dong/ur10e_fdcc_ws, offline aligned candidate /homeL/dong/ur10e_fdcc_alignment_ws.
+  See [field record](hardware/TAMSCAGE.md); robot is powered off at the user's latest update.
+- **ju-ROG**: Mech-Eye capture PC, Ubuntu 22.04.5; camera NIC enp108s0
+  192.168.122.100/24 to camera 192.168.122.101. This camera subnet is not a
+  verified remote SSH address. Camera environment /home/ju/Downloads/mechmind-camera/.venv,
+  evidence /home/ju/Downloads/mechmind-camera/checklist-20261121-round1.
+  See [Nano field record](hardware/MECH_EYE_NANO_CHECKLIST_ZH.md).
+
+Each run host has the project at /dataHDD/dong/Projects/Cutting_DEV. Active runs
+retain their launched source version; do not assume all live checkouts follow current main.
 Confirm the commit with `git rev-parse HEAD` before a run. Runs: /dataHDD/dong/Experiments/Cutting_DEV/runs
 (GPU7; local `runs/` directories on A6000/GPU9). Locations of data and frozen runs: [DATA](DATA.md).
 
