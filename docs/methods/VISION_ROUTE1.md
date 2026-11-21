@@ -241,3 +241,5 @@ The analytic case has two material components; this count alone is not a
 validated intact intended-slice metric. Planning averaged0.469/0.460s per
 step, exceeding the50ms physical control period. Offline simulation videos do
 not demonstrate real-time control. See RESULTS for full limitations.
+
+Current provisional Mech-Eye NANO simulation and capture adapter: [MECH_EYE_NANO](MECH_EYE_NANO.md).

@@ -15,6 +15,8 @@ def arguments():
     p.add_argument('--recording',type=Path)
     p.add_argument('--source-root',type=Path,action='append',default=[])
     p.set_defaults(show_contact_blade=False,highlight_cut_faces=False)
+    p.add_argument('--sensor-rig',type=Path)
+    p.add_argument('--sensor-camera',type=Path,help='Calibrated perspective sensor view; same studio scene/materials')
     p.add_argument('--view',choices=['close','wide'],default='close')
     p.add_argument('--surface-map',type=Path)
     p.add_argument('--material',choices=['generic','cucumber','potato','prism'],default='generic')
@@ -138,6 +140,40 @@ def render(a):
     links.new(noise.outputs['Fac'],ramp.inputs[0]);links.new(ramp.outputs[0],nodes.get('Principled BSDF').inputs['Base Color'])
     cube('Recorded board plane with display thickness',bc-[0,0,.006],
          [*profile['board_size_m'],profile['board_thickness_m']],boardmat)
+    if a.sensor_rig:
+        rig=json.loads(a.sensor_rig.read_text())
+        h=dict(np.load(rig['housing_asset'],allow_pickle=False))
+        camera_obj=mesh('Provisional Mech-Eye NANO official CAD',h['vertices'],h['faces'],
+                        mat('Mech-Eye black housing',(.018,.02,.022),.35,.36),True)
+        camera_obj.matrix_world=Matrix(rig['world_from_camera'])
+        appearance=rig.get('housing_appearance')
+        if appearance:
+            # Official STEP is monochrome. Assign only documented visible regions.
+            rotation=np.asarray(appearance['cad_to_optical_rotation'],float)
+            origin=np.asarray(appearance['cad_origin_mm'],float)
+            cad=np.einsum('ij,jk->ik',h['vertices']*1000.,rotation)+origin
+            silver=mat('Nano silver connectors',(.55,.57,.60),.85,.23)
+            camera_obj.data.materials.append(silver)
+            centres=cad[h['faces']].mean(axis=1)
+            selected=centres[:,0] < appearance['silver_connector_max_cad_x_mm']-1e-5
+            for face,index in zip(camera_obj.data.polygons,selected):face.material_index=int(index)
+            label=appearance['warning_label']
+            x0,x1,y0,y1,z=label['cad_rect_mm']
+            corners=np.array([[x0,y0,z],[x1,y0,z],[x1,y1,z],[x0,y1,z]])
+            optical=np.einsum('ij,kj->ik',corners-origin,rotation)*.001
+            labelmat=mat('Official Nano warning label',(1,1,1),rough=.55)
+            photo=bpy.data.images.load(label['image'],check_existing=True)
+            texture=labelmat.node_tree.nodes.new('ShaderNodeTexImage');texture.image=photo
+            labelmat.node_tree.links.new(texture.outputs['Color'],labelmat.node_tree.nodes.get('Principled BSDF').inputs['Base Color'])
+            lm=mesh('Official Nano label on CAD label face',optical,np.array([[0,1,2],[0,2,3]]),labelmat)
+            lm.matrix_world=Matrix(rig['world_from_camera'])
+            px0,py0,px1,py1=label['image_crop_px'];iw,ih=photo.size[:]
+            uv=[(px0/iw,1-py1/ih),(px1/iw,1-py1/ih),(px1/iw,1-py0/ih),(px0/iw,1-py0/ih)]
+            layer=lm.data.uv_layers.new(name='Official label photo')
+            for polygon in lm.data.polygons:
+                for li in polygon.loop_indices:
+                    layer.data[li].uv=uv[lm.data.loops[li].vertex_index]
+        meta['sensor_rig']=rig
     # One scene for both views: only the camera changes.
     cube('Floor',[bc[0],bc[1],-.015],[4,4,.03],mat('Floor',(.32,.35,.37),rough=.8))
     cube('Display board support',[bc[0],bc[1],(top-profile['board_thickness_m'])/2],
@@ -173,6 +209,36 @@ def render(a):
                         ortho_scale=camera.data.ortho_scale,type=camera.data.type)
     scene.camera=camera
     scene.render.resolution_x=1100;scene.render.resolution_y=780;scene.render.resolution_percentage=100
+    if a.sensor_camera:
+        sensor=json.loads(a.sensor_camera.read_text())
+        t=np.array(sensor['base_from_camera'],float)
+        # Snapshot capture validates world == base before invoking this entry.
+        t[:3,:3]*=np.array([1.,-1.,-1.])
+        camera.matrix_world=Matrix(t.tolist())
+        camera.data.type='PERSP';camera.data.sensor_fit='HORIZONTAL'
+        camera.data.sensor_width=36.;camera.data.lens=sensor['fx']*36./sensor['width']
+        scene.render.resolution_x=sensor['width'];scene.render.resolution_y=sensor['height']
+        ratio=sensor['fx']/sensor['fy']
+        scene.render.pixel_aspect_x=max(1.,1./ratio);scene.render.pixel_aspect_y=max(1.,ratio)
+        camera.data.shift_x=-(sensor['cx']+.5-sensor['width']/2)/sensor['width']
+        camera.data.shift_y=(sensor['cy']+.5-sensor['height']/2)*ratio/sensor['width']
+        camera.data.clip_start=.01;camera.data.clip_end=2.
+        meta['camera']=dict(type='PERSP',intrinsics=sensor,scope='Provisional sensor view, canonical studio appearance')
+        from bpy_extras.object_utils import world_to_camera_view
+        bpy.context.view_layer.update()
+        optical=np.array([[0.,0.,.4],[.02,.03,.35],[-.04,-.02,.43]])
+        base_from_camera=np.array(sensor['base_from_camera'])
+        # Small fixed 3D transforms avoid Blender 2.82's crashing system BLAS kernel.
+        world=np.einsum('ij,kj->ik',optical,base_from_camera[:3,:3])+base_from_camera[:3,3]
+        projected=np.array([world_to_camera_view(scene,camera,Vector(x))[:2] for x in world])
+        pixels=np.c_[projected[:,0]*sensor['width']-.5,(1-projected[:,1])*sensor['height']-.5]
+        expected=np.c_[sensor['fx']*optical[:,0]/optical[:,2]+sensor['cx'],
+                       sensor['fy']*optical[:,1]/optical[:,2]+sensor['cy']]
+        pixel_error=float(np.abs(pixels-expected).max())
+        if pixel_error>.002:raise ValueError('RGB/depth projection mismatch: '+str(pixel_error))
+        meta['projection_pixel_max_error']=pixel_error
+
+
     scene.view_settings.view_transform='Filmic';scene.view_settings.look='None'
     scene.view_settings.exposure=.5;scene.view_settings.gamma=1
     scene.render.image_settings.file_format='PNG';scene.render.filepath=str(a.output.resolve())

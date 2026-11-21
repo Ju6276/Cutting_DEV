@@ -1,0 +1,77 @@
+{
+  "revision": "mecheye_nano_provisional_v1",
+  "status": "approximate_simulation_not_factory_digital_twin",
+  "model": "Mech-Eye NANO, nominal 350 mm focus; lab version unconfirmed",
+  "width": 1280,
+  "height": 1024,
+  "fx": 1745.4545454545455,
+  "fy": 2048,
+  "cx": 639.5,
+  "cy": 511.5,
+  "depth_range_m": [
+    0.3,
+    0.45
+  ],
+  "board_distance_m": 0.43,
+  "tilt_from_vertical_deg": 30,
+  "intrinsics_source": "Pinhole fit to published 220 x 150 mm FOV at 300 mm; NOT measured factory intrinsics",
+  "capture_time_s": [
+    0.6,
+    1.1
+  ],
+  "noise_model": "none; ideal geometric depth, not calibrated structured light",
+  "housing_asset": "/dataHDD/dong/Assets/Cutting_DEV/cameras/mecheye_nano_v4/housing_optical_approx.npz",
+  "hardware_source": "https://docs.mech-mind.net/en/eye-3d-camera/2.4.0/hardware/specifications-nano.html",
+  "simulation_source": "https://docs.mech-mind.net/en/suite-software-manual/2.2.0/viz-tools/picking-simulation-tool-configuration.html",
+  "not_simulated": [
+    "fringe projection and stereo reconstruction",
+    "material-dependent missing depth",
+    "lens distortion",
+    "measured noise",
+    "hardware trigger latency"
+  ],
+  "housing_appearance": {
+    "source": "Official NANO(V4) STEP and NANO.png; visual finishes, not measured reflectance",
+    "cad_origin_mm": [
+      24.563,
+      -48.557,
+      176.4
+    ],
+    "cad_to_optical_rotation": [
+      [
+        -1,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        -1
+      ],
+      [
+        0,
+        -1,
+        0
+      ]
+    ],
+    "silver_connector_max_cad_x_mm": -43.49507808,
+    "warning_label": {
+      "image": "/dataHDD/dong/Assets/Cutting_DEV/cameras/mecheye_nano_v4/NANO.png",
+      "image_crop_px": [
+        1205,
+        277,
+        1301,
+        332
+      ],
+      "cad_rect_mm": [
+        55.2549219,
+        90.2549219,
+        -46.5369282,
+        -26.5369282,
+        200.9086037
+      ],
+      "registration": "35x20mm CAD label face984, image label bounds; +0.02mm display offset"
+    },
+    "omitted": "No invented lens, mounting support or logo decal; no isolated logo texture supplied"
+  }
+}

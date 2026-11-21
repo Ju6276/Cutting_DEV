@@ -52,7 +52,7 @@ optional process constraint; current long runs select final-position-only.
 
 | Purpose | Entry |
 |---|---|
-| RGB/depth from shared scene or settled snapshot | `capture_visual_cut_camera.py`, `capture_visual_studio.py` |
+| RGB/depth from shared scene or settled snapshot | `capture_visual_studio.py` (canonical studio appearance; optional named camera profile) |
 | Geometric or learned midpoint to calibrated goal | `plan_visual_cut.py` |
 | Ideal-depth training data | `generate_visual_center_data.py` |
 | DP3 XYZ encoder + midpoint head (default); local comparator | `train_visual_center.py --architecture dp3_xyz_v1|local_v1` |

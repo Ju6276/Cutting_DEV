@@ -1,5 +1,5 @@
 """Canonical presentation entry: recorded geometry, pinned appearance and explicit robot."""
-import argparse,json,subprocess,sys,tempfile
+import argparse,json,subprocess,sys,tempfile,os
 from pathlib import Path
 import numpy as np
 from cutting_world_model.render_contract import load_profile,appearance_reference,validate_platform
@@ -16,6 +16,7 @@ def main():
     p.add_argument("--backend",choices=("DiSECt","BladeMaster"),required=True)
     p.add_argument("--source-root",type=Path,action="append",required=True)
     p.add_argument("--output",type=Path,required=True)
+    p.add_argument("--sensor-rig",type=Path,help="Optional fixed external camera assembly JSON")
     p.add_argument("--view",choices=("close","wide"),default="close")
     p.add_argument("--video",action="store_true")
     p.add_argument("--samples",type=int,default=96)
@@ -49,8 +50,9 @@ def main():
         subprocess.run(command,check=True)
     command=[a.blender,"-b","-t","12","--python-exit-code","1","-P",str(scripts/"render_episode_still.py"),"--",
              "--scene",str(scene),"--output",str(a.output),"--view",a.view,"--samples",str(a.samples)]
+    if a.sensor_rig:command+=["--sensor-rig",str(a.sensor_rig)]
     if a.video:command+=["--video"]
-    subprocess.run(command,check=True)
+    subprocess.run(command,check=True,env=dict(os.environ,OPENBLAS_NUM_THREADS="1",OMP_NUM_THREADS="1"))
 
 if __name__=="__main__":main()
 
