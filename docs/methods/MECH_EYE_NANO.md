@@ -1,7 +1,26 @@
 # Mech-Eye NANO simulation adapter
 
-Status (2026-11-21): provisional, not a calibrated vendor digital twin.
-The lab camera version/focal-distance variant has not been confirmed.
+Status (2026-11-21): lab hardware identified; simulation remains provisional,
+not a calibrated vendor digital twin.
+
+Field collection and editable handoff: [Linux camera checklist](../hardware/MECH_EYE_NANO_CHECKLIST_ZH.md).
+
+## Confirmed lab camera
+
+- Mech-Eye NANO V4, colour, nominal object distance 550 mm. The matching
+  catalogue variant is NANO-V4D550C (not a directly captured device-model string).
+- Hardware 4.0.0 and firmware 2.3.4: reported by the user after querying the
+  device on Linux on 2026-11-21. This supersedes the earlier tentative V3 guess.
+- Serial TAC5522CA302E001: read from the supplied label photograph.
+  Label IP 192.168.122.101 is historical label information, not verified live IP.
+- Official recommended working distance for this variant: 450--600 mm.
+  See [official V4 model table](https://docs.mech-mind.net/en/eye-3d-camera/2.3.2/hardware/camera-models.html).
+- Factory intrinsics, depth scale, camera-to-base calibration and installed pose
+  remain to be captured/validated. A confirmed model is not a completed calibration.
+
+The existing 350 mm simulation profile below does **not** represent this
+confirmed 550 mm device. This documentation update does not change its optics,
+sensor configuration, or training results.
 
 ## Available upstream systems
 
