@@ -1,5 +1,29 @@
 # SAC 与 WM+MPPI 仿真路径审阅（2026-11-21）
 
+## 最终实际 GPU 验收：两后端均通过
+
+2026-11-21 在 A6000 两张独立显卡上，以当前 main 和 UR10e 五食材配置执行了真实仿真短检查：
+
+- **DiSECt（GPU0）：通过，269.5 秒。**
+- **BladeMaster（GPU1）：通过，116.6 秒。**
+
+每个后端均包含黄瓜、半颗土豆、香蕉、豆腐和午餐肉各一个实际物理环境。WM+MPPI 使用匹配的已有 WM 检查点，8 个候选、2 步规划时域，执行两次真实物理 step；模型、规划状态和动作均断言为 CUDA，冻结 WM 权重未变。中途只重置一个环境，其他环境的状态、观测、末次受力、接触标志及规划序列精确不变，随后继续规划。
+
+SAC 每个后端执行两次真实批量 step（10 次交互），完成两次 CUDA 优化；actor、critic、梯度与训练采样 batch 都在 CUDA，确认权重实际更新。保存模型及 replay 后在 CUDA 重新加载，权重逐值一致、恢复的 replay 采样仍在 CUDA。SB3 的 replay 存储使用 CPU NumPy，是其正常数据存储设计，不等于优化在 CPU 上运行。
+
+通过标准来自上述内容断言及逐项 report，不只是进程退出码。此次没有新增算法修复，没有重新采集 40 步 WM 数据，也没有运行纯 MPC。范围是当前真实 GPU 接口与学习/规划执行流程的短验收，不是整回合成功率或长期稳定性评估。两项验收均已结束释放显卡；现有训练未被停止或修改。
+
+A6000 证据目录：
+`/dataHDD/dong/Experiments/Cutting_DEV/runs/baseline_gpu_audit_20261121/`
+
+- `probe.py`：实际验收脚本。
+- `disect_cuda/report.json`、`disect_cuda.log`：DiSECt 逐项结果。
+- `blademaster_cuda/report.json`、`blademaster_cuda.log`：BladeMaster 逐项结果。
+- 两个输出目录各保存本轮 SAC 模型与 replay；report 同时记录物理 GPU 映射、CUDA device 和冻结权重检查结果。
+
+最初一次直接调用 Python 缺少统一运行环境的 TORCH_EXTENSIONS_DIR，在物理构造之前退出；改为 source 仓库正式环境入口后完成以上检查。旧的 `disect/report.json` 是这次启动配置失误的记录，不能与最终 `disect_cuda/report.json` 混用。
+
+
 ## 结论与范围
 
 本次独立阅读当前 main 的 SAC 多环境训练/评估和冻结 WM+MPPI 实现，未确认新的算法实现错误，因此没有修改奖励、动作、终止规则或训练代码。这个结论只覆盖下列路径，不代表没有任何 bug，也不是对真机或切割成功率的认证。
