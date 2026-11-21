@@ -55,7 +55,7 @@
     "banana": {
       "kind": "procedural",
       "material": "banana",
-      "source": "Deterministic synthetic appearance; not an OmniObject3D scan"
+      "source": "Deterministic peeled banana flesh appearance; single-material BladeMaster preset, no skin layer; not an OmniObject3D scan"
     },
     "tofu": {
       "kind": "procedural",
@@ -72,5 +72,11 @@
       "material": "luncheon_meat",
       "source": "Deterministic synthetic appearance; not an OmniObject3D scan"
     }
+  },
+  "particle_surface": {
+    "sinc_iterations": 160,
+    "pass_band": 0.001,
+    "max_display_displacement_m": 0.0005,
+    "scope": "display-only smoothing; fixed topology; no particle or contact changes"
   }
 }

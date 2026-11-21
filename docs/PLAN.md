@@ -96,7 +96,7 @@ or training is scheduled.
 
 ## Real-robot bring-up
 
-UR10e + ATI Mini45-E (SI-580-20). First validate driver, motion and FDCC wrench
+UR10e + ATI Mini45 (installed variant/range pending certificate verification). First validate driver, motion and FDCC wrench
 feedback on the control PC without a knife, RL, MPC or vision
 ([Chinese handoff](hardware/UR10E_FDCC_SETUP_ZH.md), [REAL2SIM](hardware/REAL2SIM.md)).
 The Mech-Mind camera is a later input. Hardware installation, calibration and

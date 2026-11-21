@@ -93,6 +93,6 @@ def procedural_colors(kind, points):
     elif kind=="luncheon_meat":
         base=np.array([.72,.42,.40]);shade=.055*grain+.025*fine
     elif kind=="banana":
-        base=np.array([.85,.70,.16]);shade=.035*grain+.015*fine
+        base=np.array([.93,.88,.69]);shade=.015*grain+.006*fine
     else:raise ValueError("Unknown synthetic food appearance: "+kind)
     return np.clip(base+shade[:,None],0,1)

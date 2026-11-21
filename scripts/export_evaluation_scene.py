@@ -134,7 +134,8 @@ def main():
   splat.SetRadius(radius/max(hi-lo));splat.SetExponentFactor(-5);splat.SetAccumulationModeToSum()
   splat.ScalarWarpingOff();splat.NormalWarpingOff()
   contour=vtk.vtkFlyingEdges3D();contour.SetInputConnection(splat.GetOutputPort());contour.SetValue(0,.60)
-  smooth=vtk.vtkWindowedSincPolyDataFilter();smooth.SetInputConnection(contour.GetOutputPort());smooth.SetNumberOfIterations(80);smooth.SetPassBand(.01);smooth.NormalizeCoordinatesOn()
+  baseline=vtk.vtkWindowedSincPolyDataFilter();baseline.SetInputConnection(contour.GetOutputPort());baseline.SetNumberOfIterations(80);baseline.SetPassBand(.01);baseline.NormalizeCoordinatesOn()
+  smooth=vtk.vtkWindowedSincPolyDataFilter();smooth.SetInputConnection(contour.GetOutputPort());smooth.SetNumberOfIterations(profile['particle_surface']['sinc_iterations']);smooth.SetPassBand(profile['particle_surface']['pass_band']);smooth.NormalizeCoordinatesOn()
   normals=vtk.vtkPolyDataNormals();normals.SetInputConnection(smooth.GetOutputPort());normals.SplittingOff()
  # Static triangle data and animated coordinates share the historical studio schema.
  out=dict(mounted_cad_knife=bool(task.get('cad_tool')),ground=r.presentation_ground(d,task),recorded_ground=d['ground'],center=(points.min(0)+points.max(0))/2,
@@ -147,7 +148,15 @@ def main():
   for t,st in enumerate(states):
    poly.GetPoints().SetData(numpy_to_vtk(np.ascontiguousarray(st['particles']),deep=True));poly.Modified()
    normals.Update();mesh=normals.GetOutput()
-   out[f'points_{t}']=vtk_to_numpy(mesh.GetPoints().GetData()).copy()
+   display=vtk_to_numpy(mesh.GetPoints().GetData()).copy()
+   baseline.Update()
+   raw=vtk_to_numpy(baseline.GetOutput().GetPoints().GetData())
+   # Sinc filtering preserves connectivity. Bound movement relative to the
+   # prior display surface, never merge components or replace a real cut.
+   delta=display-raw
+   bound=profile['particle_surface']['max_display_displacement_m']
+   scale=np.minimum(1.,bound/np.maximum(np.linalg.norm(delta,axis=1),1e-15))
+   out[f'points_{t}']=raw+delta*scale[:,None]
    cells=vtk_to_numpy(mesh.GetPolys().GetData()).reshape(-1,4)
    if not np.all(cells[:,0]==3):raise ValueError('Particle display surface must be triangular')
    out[f'faces_{t}']=cells[:,1:].copy()

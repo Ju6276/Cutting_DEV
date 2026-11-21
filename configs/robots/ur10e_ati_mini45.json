@@ -10,15 +10,8 @@
   "sensor_height_m": 0.0157,
   "sensor_inertia_status": "Uniform-cylinder estimate, not an ATI measured inertia",
   "sensor_source": "https://www.ati-ia.com/products/ft/ft_models.aspx?id=Mini45",
-  "sensor_ranges_N_Nm": [
-    580,
-    580,
-    1160,
-    20,
-    20,
-    20
-  ],
-  "sensor_range_status": "SI-580-20 from existing hardware record; verify calibration certificate; not task limits",
+  "sensor_ranges_N_Nm": null,
+  "sensor_range_status": "Unknown for installed hardware; verify its calibration certificate. No user confirmation or certificate established. Task force limits are separate.",
   "sensor_clocking_rad": -1.5707963267948966,
   "sensor_clocking_status": "Proposed clocking; verify physical axes/cable before hardware use",
   "assembly_mount_CAD_m": [
@@ -44,5 +37,17 @@
   "robot_tip": "knife_control",
   "sensor_frame": "ati_sensing_frame",
   "board_height_m": 0.37,
-  "deployment_status": "Simulation development only; tool mass distribution and robot calibration unmeasured"
+  "deployment_status": "Simulation development only; tool mass distribution and robot calibration unmeasured",
+  "sensor_range_example": {
+    "calibration": "SI-580-20",
+    "ranges_N_Nm": [
+      580,
+      580,
+      1160,
+      20,
+      20,
+      20
+    ],
+    "source": "ATI official model table; example only, not verified for this hardware"
+  }
 }

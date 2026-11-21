@@ -1,176 +1,284 @@
-# Real-robot deployment interface and calibration plan
+# UR10e 食材切割：真机标定与 Real2Sim 实施方案
 
-**Hardware:** the first physical platform is UR10e with an
-external ATI Mini45-E, user-confirmed SI-580-20 calibration, and a Mech-Mind camera
-(model pending). Start with the [UR10e FDCC setup handoff](UR10E_FDCC_SETUP_ZH.md):
-no-knife motion and compliance tests, without RL, MPC or vision. This is a plan,
-not completed hardware validation. Later stages below are conditional.
+更新：2026-11-21。本文是实施方案，**不是已经完成的真机标定报告**。
+当前仿真集成证据见 [UR10e 审阅交接](UR10E_INTEGRATION_REVIEW.md)，
+驱动与无刃接触检查见 [FDCC 配置](UR10E_FDCC_SETUP_ZH.md)。
+本文不改奖励、任务阈值或物理参数，不运行真实机器人。
 
-Goal: make the simulated benchmark (robot + FDCC compliance controller + material backend) match the real setup closely enough that (1) material parameters can be
-fitted from real cutting data, (2) policies trained in simulation can be evaluated
-on the real robot with the same metrics, and (3) the remaining sim–real gap is
-measured, not assumed. Nothing here runs before the open items are settled.
+建议先用现有 UR10e、ATI Mini45、IKEA 刀、PLA 安装件和 Mech-Mind Nano
+采集**真实刀位姿与六轴切割力**，拟合少量有效参数；不要求先训练新策略。
+仅凭现有一把刀和单条力曲线，不能独立、唯一测出 E、泊松比、摩擦、断裂能全部参数。
+独立的压缩与摩擦测量需要适当的接触几何或夹持工具，下面明确区分。
 
-## Deployment interface
+## 1. 当前平台与参数来源
 
-The current shared pose_depth_v3 policy interface uses a policy with ten 34-value frames
-and an 8-value goal (position3, quaternion4, commanded speed1). Per frame:
-selected pose error3, velocity3, jerk3, previous action6, three samples of the
-six-axis normalized sensor wrench18, remaining episode time1. The policy has
-six outputs: two stiffness settings, two controller gain settings, accumulated
-sawing target displacement and optional pitch. Pitch is currently disabled.
-The outputs pass through the same SlicingActionMapper and FDCC semantics;
-they are not joint torques or a six-axis Cartesian command.
+当前配置为 [ur10e_ati_ikea_v1.json](../../configs/shared/ur10e_ati_ikea_v1.json)，
+机器人资产 `/dataHDD/dong/Assets/Cutting_DEV/robots/ur10e_ati_ikea_fdcc_v2`。
+实际 CAD 刀形已接入两个材料后端；FDCC 刚度坐标已修正。
+软件接口已接入不等于本机伺服、传感器和食材参数已实测标定。
 
-Deployment path: robot joint/FK state + compensated sensor wrench -> timestamped
-filter/history and goal construction -> frozen policy -> action mapper ->
-Cartesian compliance controller -> UR hardware interface. Policy updates are
-50 ms in the present simulation. Hardware controller rate, latency, filtering
-and stop response must be measured and matched; no 1 kHz real-driver claim.
-Only the policy is needed online for this route. WM and critic train the policy;
-they need not be deployed. Image input is absent; pre-cut localization may
-supply the board frame, desired cutting location and estimated object height.
+| 项目 | 当前来源 | 需要实测/核对 |
+|---|---|---|
+| UR10e | 名义模型；保留来源连杆惯性，不按整机商品重量统一缩放 | 本机出厂运动学标定、基座安装、实际控制响应 |
+| IKEA 刀 | 用户确认净重 0.170 kg；CAD 几何、均匀分布惯量估计 | 安装变换、总工具重心；必要时复称 |
+| PLA 刀架/法兰 | CAD 体积 × 暂定实心密度；纯白是外观，不影响质量 | 实物重量、打印填充率/壁厚；重心/惯量误差 |
+| ATI Mini45 | 官方标称 0.0917 kg（含标准接口板）；本机标定量程待核对 | 本机型号/序列号/证书、采集接口、坐标原点及绕轴安装角 |
+| Mech-Mind Nano | 用户指定相机型号系列 | 具体代际、内参、深度标度、基座外参 |
+| 正式食材 | 黄瓜、半个土豆，自由摆放 | 样品几何、质量、表面状态、材料与支撑摩擦 |
+| 候选食材 | 用户 BladeMaster-Warp 复现预设中的香蕉、豆腐、午餐肉 | 当前 UR10e 运行结果单独登记；不是已完成真机标定 |
 
-The repository has simulation inference and pinned SliceIt/ROS integration
-sources, but no completed, validated current-policy real-robot deployment runner.
-The physical URDF/mount/sensor frames, gravity compensation, controller parameter
-mapping, communication timeout and real board/force stop remain deployment work.
-The simulated finite-blade stop must not be copied as a claim that real contact
-can be undone or that hardware stopping distance is zero.
+Mini45 有不同标定量程；现有证据未核实用户这台传感器的证书。
+下面 SI-580-20 仅是官方型号示例：Fx/Fy 580 N、Fz 1160 N、三个力矩轴 20 N·m，
+不表示当前实物就是此量程；本机参数以匹配序列号的证书为准。量程不是任务停止阈值，也不代表 PLA 组件可承受它。
+仿真 50 N / 5 N·m 不因此更改。[ATI 官方表](https://www.ati-ia.com/products/ft/ft_models.aspx?id=Mini45)。
 
-User-selected modes: constrain final knife/robot position only, or additionally
-constrain path deviation. Both now use robot-base XY EE distance to the prescribed
-goal (final radius40 mm; optional path25 mm free/60 mm failure), observable from
-calibrated robot kinematics. Particle/fragment opening is no longer a penalty in
-the shared configuration. These defaults still require physical validation;
-they are not sensor calibration or guarantees of real stopping distance.
+当前香蕉是单一材料的合成几何，没有单独外皮层。豆腐/午餐肉是复现预设的命名，
+不能据此宣称原论文对真实同名食材完成了标定。参数来源见
+[候选目录](../../configs/blademaster_disect/catalog.json)。
+带皮扫描香蕉与去皮果肉不是同一实验对象；纹理不能替代材料建模。
 
-Controller references: [FZI Cartesian controllers](https://github.com/fzi-forschungszentrum-informatik/cartesian_controllers),
-[UR hardware interface](https://docs.universal-robots.com/Universal_Robots_ROS_Documentation/rolling/doc/ur_robot_driver/ur_robot_driver/doc/hardware_interface.html).
-The matching ROS version and controller integration are selected during deployment,
-not by mixing the historical ROS1 patch set with ROS2 commands.
+## 2. 用已有设备，现在能做什么
 
-## Hardware and open items
+**无需新增专用试验仪器的第一轮：**
 
-| Item | Status |
-|---|---|
-| UR10e | User-confirmed physical platform; a UR10e simulation profile is under integration ([handoff](UR10E_INTEGRATION_REVIEW.md)). Robot calibration, tool installation and controller transfer require validation. |
-| Mech-Mind camera | User-confirmed; model and extrinsics pending. Not required for initial FDCC tests. |
-| ATI Mini45-E | User-confirmed SI-580-20: Fx/Fy ±580 N, Fz ±1160 N, Mx/My/Mz ±20 N·m. Installed calibration file, acquisition interface and mounting transform remain to verify. Sensor ranges are not task stop limits; simulation 50 N / 5 N·m is not a hardware prescription. |
-| Knife and mount | User CAD knife (IKEA) integrated in simulation with user-provided net mass 0.170 kg; inertials are CAD-volume estimates. Measured mounting transform and payload remain open. |
-| Object placement | Current task uses freely placed objects. Measure the real support/friction and initial pose; historical bottom-held contracts remain separate. |
-| Foods / specimens | **Open:** proposal below. |
+1. Nano 采切前点云，建立板面、食材高度/切口位置；用已标定基座外参转成刀具目标。
+   反光刀面和湿食材的缺测需记录，不把补洞网格当成精确实测。
+2. UR10e 执行低速、有限行程的参考下压，ATI 同步记录六轴力；
+   保存实际刀位姿，而不仅是目标位姿。先校准空载反馈、方向、延迟和停止链路。
+3. 在新切口上分别做几种下压速度，再做带横向拉锯的轨迹。
+   初期不启用学习策略，固定控制器参数，才能判断变化来自材料还是控制。
+4. 切前/切后点云或照片记录物体位置、压缩和分离情况。若相机具备经验证的动态采集能力，
+   可追加中途观测；切前视觉不是自动具备连续毫米级运动跟踪。
+5. 用真实运动重放仿真，拟合刀—材料接触与切割的**有效参数**，
+   再用未拟合的样品、速度/拉锯轨迹验证。
 
-## Prerequisite: force quantity and completion
+**现有设备不能直接单独给出的量：**
 
-Current shared scenes use net contact force/moment in the sensor frame, with
-corrected contact coordinates and timing (METHOD). The scalar proxy belongs to
-historical configurations. Interface tests do not calibrate the physical sensor
-or mount. Current completion is prescribed pose arrival without higher-priority
-failure, using the board-aligned task; material separation remains independent.
-Neither a prescribed spring-release fraction nor board height proves separation.
+- 刀刃压入的 F–位移斜率混合了刀形、接触、滑动和损伤，不是直接的杨氏模量。
+- 没有已知法向载荷的纯滑动试验，不能从切割阻力中单独读出刀面摩擦系数。
+- 没有质量/体积测量，不能从点云单独得到密度；需要称重工具或其他可验证质量测量。
+- 没有横向应变或充分的额外激励，不能仅凭一条法向力曲线唯一确定泊松比。
+- 总机械功混合摩擦、弹性储能、塑性与新表面生成，不直接等于断裂能。
 
-## Steps (one change each)
+若现有工具无法实现某项独立测量，先使用有来源的先验和不确定范围；
+不要假定实验室已有压板、拉带、配重或材料试验机。需要这些附件时单独准备，
+它们不是当前机器人平台已经交付的组成部分。
 
-### R0 — Software path and geometry
+## 3. R0：机器人、工具与板面
 
-- UR10e via the matching Universal Robots ROS 2 driver and the FZI `cartesian_controllers`
-  FDCC implementation (Scherzinger et al., IROS 2017). Identify and validate
-  parameters on this hardware; do not copy UR5e simulation gains as approved settings.
-- Record the knife-tip and sensor frames on the real tool (CAD plus a touch-off
-  measurement) and update the simulated chain only if they differ.
-- Measure the command-to-motion latency and the F/T sampling rate.
-- Recorder: write real episodes with the same fields as simulated episodes
-  (joint state, wrench history, commands, targets, timestamps), so the existing
-  episode metrics and value analyses read them unchanged.
+1. 提取这台 UR10e 的出厂运动学标定，驱动与仿真生成模型使用同一份版本；
+   多组关节姿态对比示教器/驱动/仿真 FK。
+   [UR 官方标定提取说明](https://docs.universal-robots.com/Universal_Robots_ROS2_Documentation/jazzy/doc/ur_robot_driver/ur_robot_driver/doc/installation/robot_setup.html)。
+2. 记录基座、法兰、ATI 测量原点、刀架、刀具控制点、刀刃曲线、板面的变换。
+   显式定义 T_A_B 是“B 坐标到 A 坐标”，单位 m/rad、四元数顺序。
+3. 对照实物核对轴标识和安装角；三孔对称不足以确定 ATI 轴向。
+   刀尖远离基座、刀刃向下；弧形刀最低点不等于整条刃都到板。
+4. 用可重复参考点和无刃标定工具做 TCP 定位，记录重复误差；
+   换回刀具后核对刀尖、刀跟及切割使用的中央刃段。
+5. 多点测板面并拟合平面，记录平整度和安装误差。
+   目标由真实刀形/安装/板面计算，不能未经测量就令真板面等于世界 z=0。
+6. 分别称量刀、刀架、转接件和紧固件；PLA 实心体积估计不能当作打印件实测值。
+   多姿态静载拟合下游工具总质量/重心，惯量先保留 CAD 估计及误差范围。
 
-Decision: proceed when the robot executes the reference knife trajectory in air
-under the compliance controller and the recorder output loads in the benchmark
-metric code.
+UR 法兰负载包含法兰之后的全部组件；ATI 重力补偿只包含测量截面下游组件，
+不要重复加入上游转接件和传感器外壳。先识别质量/重心，
+只有动态残差影响控制时再增加惯性辨识，不同时拟合所有机器人连杆参数。
 
-### R1 — Force/torque sensor calibration
+## 4. R1：ATI 信号与时间同步
 
-- Bias and tool payload: hold the tool still in 12 or more orientations, then
-  fit the bias, tool mass and centre of mass by least squares. Wrist-sensor
-  studies report that ordinary least squares is noise-sensitive because the
-  measured force appears in both regressor and target, and use total least
-  squares instead (arXiv 1904.06158). The ROS `force_torque_tools` package
-  implements the least-squares variant.
-- Validate the gravity compensation with known masses at new orientations.
-- Noise floor at rest and during free motion. Compare with the simulated wrench
-  filter and tare (`tensor_filter_controller`); adopt the real filter in the
-  simulation only if they differ.
+- 核对标定文件、单位、六轴顺序、测量原点；保留 raw/compensated/filtered 三路。
+- 建议先取 12 个方向分散的静止姿态，拟合零偏、下游质量与重心；
+  用未参加拟合的新姿态验证。只围绕一根轴转动可能使部分参数不可辨识。
+- 若可准备已知小载荷/力臂，分别核对方向与取矩点。坐标错误应修变换，
+  不能翻转某个增益去掩盖。若 p 是目标参考点指向原测量点并在目标系表达，
+  F_target=R F_source，M_target=R M_source+p×F_target。
+- 单姿态去皮不等于任意姿态的重力补偿；自由运动还包含工具惯性与电缆牵拉。
+  残差未排除前，不将其解释为食材接触。
+- 记录传感器采集时间、接收时间、机器人时间及各自周期、丢包和时钟偏移；
+  测量滤波延迟，先对齐再生成模型历史。不用过强滤波隐藏峰值。
+- 原点和轴向按 [Mini45-E 图纸](https://www.ati-ia.com/app_content/Documents/9230-05-1315.auto.pdf)核对。
 
-Decision: residual force after compensation, in free motion, is below a
-threshold fixed from the measured noise floor before any cutting data is used.
+当前策略输入为 10×34 维历史加 8 维目标；完整六轴力已进入观测。
+三组 wrench 的抽样顺序、归一化、滤波与重置填充以代码为准，
+不能真机另取三帧却称同一接口。动作经过 mapper 和 FDCC，不是直接关节力矩。
+策略周期为 50 ms；它不是 ATI 或底层控制器的采样周期。
 
-### R2 — Robot and controller real2sim
+## 5. R2：先匹配控制响应，再拟合食物
 
-- Free-space step and ramp commands in each Cartesian axis; pressing into a
-  rigid surface at several target forces. Repeat the same commands in the
-  simulation.
-- Compare end-effector trajectories and contact wrench responses; identify
-  latency and any robot-model mismatch. Align joint torque limits with the real
-  UR10e here (deferred from the simulation work).
+在空中做逐轴有限幅度阶跃、斜坡、停止，比较目标与实际位姿、延迟、
+稳态误差、超调、耦合和停止距离。再用无刃工具与可测柔性测试件验证柔顺响应。
+不要同时更改控制器增益、食材刚度和接触摩擦。
 
-Decision: simulated and real tracking agree within a tolerance set after the
-first repeated real measurements (real repeat spread is the reference).
+特别核对 knife_compliance 的物理方向：UR10e 更换安装坐标后，
+下压方向必须对应预期刚度；不能复制 UR5e 的局部矩阵就假设方向没变。
+[FZI 控制器](https://github.com/fzi-forschungszentrum-informatik/cartesian_controllers)
+的 ROS2 实现与本项目离散实现、限幅和伺服接口需逐项对齐。
 
-### R3 — Material calibration
+当前 V3 是 project_continue_v2：无永久冻结；500 个策略步为 25 s 仿真上限，
+累计到位 >10、2 mm 高度容差和原失败优先级保留。
+板面只是几何防穿透，**没有刀—板反力模型**。不能拿真机板面反力去拟合食材 E，
+也不能假定仿真零穿透意味着真机零停止距离。真实执行持续读力，
+停止延迟/板高误差需要独立验证；本计划不新增终止规则。
 
-- **Specimens.** Start with a controlled phantom (gelatin of fixed concentration,
-  close to the jello config) plus two foods with different stiffness (proposal:
-  potato and apple, which have published compression data and DiSECt
-  calibrations). Cut specimens with a mould to the simulated prism dimensions.
-  Current simulation direction is free placement with passive sliding. The old
-  bottom-held fixture proposal is retired. Establish the real support/friction
-  and safe tool/board boundary before claiming matching sim-to-real conditions.
-- **Measurements per material.**
-  1. Slow indentation/compression with the robot and the Mini45, giving an
-     elastic-modulus prior. Food is viscoelastic and moduli depend on geometry
-     and loading rate, so this is used as a prior only.
-  2. Vertical cuts at three constant speeds, at least 5 repetitions each.
-  3. Slicing (sawing) motions for validation only.
-- **Fit.** Infer DiSECt parameters by gradient descent on the force-profile
-  error, as in DiSECt (Heiden et al., RSS 2021: apple MAE 0.253 N, potato
-  0.379 N on the Jamdagni and Jia data). SliceIt reports that one real slice per
-  food item suffices for its fit. Here: fit on one speed, validate on held-out
-  speeds and on the slicing motions. Earlier free-bottom optimization trials produced
-  nonfinite adjoints; that observation does not establish that all gradient fitting
-  requires a static bottom. Use matching fixture conditions and validate the chosen
-  fitting procedure before adopting it.
-- **Variability.** Real repetitions define the noise band. The randomization
-  ranges for a future multi-object task come from the fitted
-  parameter spread across specimens, not from guessed multipliers.
+## 6. R3：食材、几何与摩擦
 
-Decision: validation force-profile error within the real repeat spread for each
-material; otherwise report the gap and which phase (pressing, fracture, friction)
-it comes from.
+### 6.1 每份样品都记录
 
-### R4 — Closed-loop evaluation on the real robot
+种类/品牌/批次、温度、成熟度、存放时间、去皮与否、切割前等待、
+干湿/沥水方式、质量、尺寸/点云、摆放面、切口与刀方向。
+半土豆平面朝下，香蕉明确去皮果肉；豆腐记录品类与含水状态，午餐肉记录品牌/配方。
+重复试验必须用新切口；反复切同一条损伤缝不是独立样本。
 
-- Run the reference trajectory, then frozen policies (to be selected from the
-  version-compatible WM+BPTT runs and the vector SAC baseline) on calibrated materials, with a workspace bound and an emergency
-  stop. **Open:** how the force limit is detected and enforced on the real robot
-  (sensor, filter, rate, stop mechanism, reaction time); no hardware guarantee is
-  assumed until this is measured.
-- Metrics follow the current task definition in TASK_FREE_CUT (success = goal-pose counter,
-  terminal reasons separately); material separation is recorded as its own
-  measurement, not as success. Also steps/time, sensor peak and mean force,
-  limit exceedances. Compare with the simulation of the same calibrated material.
+正式物体不要求都加工成棱柱。标准块体可用于材料试验，
+但标定参数仍需在实际几何上验证。密度独立由质量/体积得到；
+不规则样品点云缺底面、排液吸水/气泡等误差应单独记录。
 
-## Later
+### 6.2 食材—砧板摩擦
 
-- A second arm or another robot is outside the initial UR10e FDCC validation.
-  Holding with a compliant arm adds its own dynamics (Mitsioni et al., 2019).
-- Skin or hard-core objects (low priority, per the user).
+若能准备低位置牵引连接/合适夹具，可用机器人与 ATI 水平拉动样品，
+避免翻滚并同步记录开始滑动和稳定滑动。单纯用刀刃推压不是纯摩擦试验。
+近似无垂直加速度时，水平拉动 N≈mg；有向上牵引力时 N=mg−F_pull,z，
+应测量而非忽略。有效 μ_s≈F_breakaway/N，μ_k≈mean(F_slide)/N。
 
-## References
+改变滑动方向、速度、干湿状态并重复。倾斜板 tan(临界角) 只适用于先滑而非先滚、
+黏附可忽略的情况；豆腐黏附/渗水可能不满足简单 Coulomb 模型，
+应保留 F_t–N 曲线而不是强行用一个 μ 解释全部现象。
+只有现有刀时，可以采“横推—滑移”作为联合模型验证，不能声称已独立测得板面 μ。
 
-- Heiden et al., DiSECt, RSS 2021 — [arXiv 2105.12244](https://arxiv.org/abs/2105.12244); extended version [arXiv 2203.10263](https://arxiv.org/abs/2203.10263)
-- SliceIt! (ICRA 2024) — [arXiv 2404.02569](https://arxiv.org/abs/2404.02569), [code](https://github.com/omron-sinicx/sliceit)
-- Jamdagni and Jia, robotic slicing of fruits and vegetables (ICRA 2021) — [project page](https://robolab-iastate.github.io/ResearchRoboticCutting)
-- ATI Mini45 calibrations — [ATI](https://www.ati-ia.com/Products/ft/ft_models.aspx?id=Mini45)
-- FDCC and `cartesian_controllers` — [arXiv 2009.11888](https://arxiv.org/abs/2009.11888) (follow-up); UR10e evaluation [arXiv 2303.12440](https://arxiv.org/abs/2303.12440)
-- Wrist F/T calibration with total least squares — [arXiv 1904.06158](https://arxiv.org/abs/1904.06158); payload identification [Sensors 2022](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8777628/); [force_torque_tools](https://index.ros.org/r/force_torque_tools/)
-- Mitsioni et al., data-driven MPC for food cutting — [arXiv 1903.03831](https://arxiv.org/abs/1903.03831)
+当前 μ=0.2 是未标定默认值；不要为阻止策略拖动物体而调大它。
+两个后端使用相同实测约束，但接触实现差异仍需分别验证。
+
+### 6.3 刀—食材摩擦
+
+独立辨识需要同刀侧面/无刃平面接触、可测法向载荷与切向滑动。
+预切缝内轻载拉出可提供有效阻力，但仍混合夹紧、黏附与黏弹性。
+刀侧接触受力分布未知时，不能把净法向力当作两个刀面的总法向载荷：
+两侧压力可相互抵消，ATI 只量合力/合矩。
+
+因此仅凭当前刀具切割数据，先拟合“有效刀面阻力/接触参数”，
+明确可辨识范围。若需要物理 μ，另准备单面可控载荷的摩擦试验；
+采 F_t 对 F_n 及速度的关系，记录黏附截距。与板面摩擦分开归档。
+
+## 7. R4：材料辨识与数据划分
+
+### 7.1 现有刀具的可执行方案
+
+先采参考下压（不同速度）及拉锯，记录真实位姿和 ATI 六轴力；
+切前点云确定几何，切后照片/点云记录滑移和分离。
+先按真实刀运动重放材料仿真，减少控制器误差混入材料拟合；
+再闭环执行相同目标指令验证完整系统。
+
+从少量参数开始：已知 E/ν/ρ 先验、刀接触与切削有效阻力。
+每个参数先做小范围敏感性检查，确认当前 forward 路径中它确实影响可测量量。
+不要配置里有 damage/cutting_energy 就认定已产生可识别分离；已有 BM 记录曾出现
+damage 全程为 0，必须区分切削侧别、材料损伤和独立分离指标。
+
+密度有独立质量/体积后固定；没有横向应变时 ν 作为先验。
+如需独立 E，另准备平头压板并在适用的小应变、近似均匀单轴条件下用
+E_eff≈(F/A)/(δ/h)；刀刃压入不满足这个简式。保载/卸载与变速可识别松弛/迟滞，
+后端不能表达的现象应报告模型差距，不编造参数补丁。
+
+### 7.2 两后端独立拟合，同一实测留出集
+
+DiSECt 是预设切面与切割弹簧；BladeMaster-Warp 是 MPM/接触与切削机制，
+不预设材料切面。可共享 E/ν/ρ 的物理先验；
+DiSECt 弹簧软化与 BladeMaster cutting_energy/yield 不能直接数值互换。
+
+目标函数比较六轴曲线、峰值、冲量、接触起点、刀位姿和食材位移；
+按测量噪声/重复散布归一化后固定权重。不要任意时间平移每条曲线以掩盖延迟。
+先使用参数扫描或无梯度优化即可；当前任务不要求物理求导。
+可微拟合是另一个选项，需要另外证明其数值可靠，不作为采集前提。
+
+### 7.3 建议先导规模
+
+每种食物先取 3 份独立样品，在现场已验证的 3 个速度下各采 1 条新切口，
+合计 9 条；2 份用于拟合，整份第 3 份留出。再用新样品做拉锯验证。
+这是流程先导，不是统计充分性要求，也不是把仿真 1–5 cm/s 自动授权为真机速度。
+
+按样品/批次划分，不能把同一回合相邻帧随机拆到训练和测试。
+重复差异较大时增加批次与每条件重复，并逐步增加尺寸；初期可固定朝向。
+未来材料随机化范围来自拟合分布与识别不确定度；
+当前 ×0.5–2 等范围仍属仿真设置，不能回写成实测结果。
+
+## 8. 哪些论文真正提供了食材标定
+
+下列区分“实测拟合”“文献/名义参数”和“学习动力学”，避免把三者混为一谈。
+
+- **DiSECt，RSS 2021 / 扩展论文 2022，§5.3、§6。**
+  苹果/土豆用真实扫描网格和腕部测力切割曲线，Adam 拟合仿真参数；
+  扩展实验用 Panda 切黄瓜、苹果、香蕉，关节力矩估计刀力，再做轨迹优化。
+  实验固定底部/把食材粘在板上，不等同本项目自由摆放。
+  [论文](https://arxiv.org/pdf/2203.10263)。
+  官方另发的 E/ν/ρ 表对应 **LS-DYNA 合成数据**，
+  不能当作所有真实食材的独立标定证书。
+  [数据说明](https://github.com/NVlabs/DiSECt/blob/main/dataset/README.md)。
+
+- **SliceIt，2024，§III-B.1、IV-A.2、Table I。**
+  UR5e 与腕部力传感器采番茄/黄瓜/土豆的恒速切割运动及力；
+  先 Optuna/TPE、再 Adam 拟合 DiSECt 的切割弹簧刚度/软化、
+  接触刚度/阻尼/摩擦刚度/摩擦系数。胡萝卜是泛化测试，不是标定食材。
+  支撑臂持物，与自由摆放不同；论文中的拟合范围不是本机可直接复用的实测值。
+  [原文](https://arxiv.org/html/2404.02569v1#S4.SS1.SSS2)。
+
+- **Jamdagni & Jia，ICRA 2021，§V、Table II。**
+  土豆、茄子；ADEPT Cobra 800 + ATI Delta IP65，直刃/弧刃、不同 slice-push 比，
+  速度 6.25 mm/s。E/ν 先取文献值，再依据破裂前力—位移初始斜率调参；
+  列出摩擦与断裂韧性，去皮块体/完整带皮分别处理。
+  这是有实验约束的模型参数，不是给所有食材的通用常数。
+  [作者 PDF](https://faculty.sites.iastate.edu/jia/files/inline-files/ICRA21.pdf)。
+
+- **Mu & Jia，ICRA 2022，§III、V。**
+  苹果、茄子、橙子、土豆、西葫芦；利用几何和切割力递推最小二乘，
+  估计 ν、断裂韧性与“摩擦系数 × 刀面平均压力”。
+  后一项不是独立 μ；模型假设物体不动，实验采用稳定/约束，不能原样套自由滑动物体。
+  [作者 PDF](https://faculty.sites.iastate.edu/jia/files/inline-files/ICRA22.pdf)。
+
+- **BladeMaster，§IV-B/C。**
+  真机部分报告香蕉单次竖直切割，以机器人关节力矩估计阻力；
+  列出 E=0.4 MPa、ν=0.45、ρ=1100 kg/m³、屈服30 kPa、摩擦0.2、
+  Gc=700 J/m² 等配置，但未给出各值的独立测量/系统辨识流程。
+  图中20条曲线来自不同粒子采样的仿真，不是20次真机重复。
+  Fig7 与 Fig6/8 称为 deformable block；“豆腐/午餐肉”是我们复现中的命名，
+  不能称论文已标定了真实同名食品。
+  [原文 §IV-B/C](https://arxiv.org/html/2609.27342v1#S4.SS2)、
+  [官方项目页](https://jango6324.github.io/blademaster/)。
+
+- **RoboNinja，§III-D、IV-A/D。**
+  UR5 + 单轴应变计/HX711，连续读数转换成按食材手调阈值的二值碰撞信号；
+  仿真采用通用软材料参数，不是逐食材拟合 E/μ/Gc。
+  真实实验含 kinetic sand/打印硬核，以及鳄梨、芒果、李子、熟牛尾；
+  有外部固定和水果往复切割等实验条件。
+  适合借鉴碰撞反馈与跨材料部署，不作为本项目六轴切割力标定的证据。
+  [原文](https://arxiv.org/html/2302.11553#S3.SS4)。
+
+最接近本项目“实测力/刀路 → 仿真参数”的是 DiSECt 和 SliceIt；
+Mu & Jia 的在线辨识也有价值，但它估计的是摩擦与压力的乘积且假设物体不动。
+BladeMaster 的给定参数可作先验，RoboNinja 的阈值调节不替代物理标定。
+
+## 9. 数据、验收和更换对象
+
+建议服务器数据目录：
+`/dataHDD/dong/Experiments/Cutting_DEV/real2sim/<date>/<session>/`。
+这是待落实的记录规范，不声称已有经过真机验证的 recorder。
+
+保存 session（软件/硬件标识与模型哈希）、transforms、payload、sensor、
+specimens、raw 时间序列/bag、视频/点云、拟合参数/范围及 train/held-out 样品 ID。
+时间序列包括 q/qd、目标/实际 TCP、原始/补偿/滤波六轴力、
+动作/映射后命令、采集/接收时间、终止和控制器状态。
+
+每个参数注明 measured / estimated / literature_prior / unverified，
+单位、方法、日期、样品批次和误差。GPU 单元测试不能将其改为 measured。
+留出验证前固定误差标准，报告绝对误差、重复散布、最坏情况和样本数；
+不能看到结果再放宽阈值。
+
+阶段验收分别为几何/传感器、控制响应、留出食材拟合、冻结策略/规划器执行。
+当前成功仍按目标到位与失败规则；实际材料分离独立记录。
+仅部署策略不需运行 WM/critic；WM+MPPI 还需模型状态构造及在线时延验证。
+
+换同类食材：记录几何/状态并抽样复查；换品类/皮层/干湿：补材料与摩擦；
+换刀/刀架：重查 TCP、负载、刀形、反馈和控制；
+换板：重查板高/平整度/摩擦；移动相机：更新外参。
+不要把每次换食物都变成机器人全套重标定，也不要把一份样品外推为整个品类。
+
+Mech-Mind Nano 可只做切前定位；视觉目标与底层力控分别验证。
+当前重点是实测数据、正确同步和参数可辨识性，而非提前扩大视觉或策略网络。

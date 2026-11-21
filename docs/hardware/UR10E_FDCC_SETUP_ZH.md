@@ -1,6 +1,6 @@
 # UR10e + ATI Mini45-E：FDCC 真机配置与验证交接
 
-更新：2026-11-17。给另一台 Linux 控制电脑及接手开发者阅读。
+更新：2026-11-21（安装步骤保留 2026-11-17 的固定版本基线）。给另一台 Linux 控制电脑及接手开发者阅读。
 **状态：配置方案，尚未在这台 UR10e 上安装或通过真机验收。本文不启动机器人，不授权远程无人值守运动。**
 
 ## 1. 本轮目标与已确认硬件
@@ -12,11 +12,11 @@
 | 项目 | 已确认 / 待确认 |
 |---|---|
 | 机器人 | UR10e；PolyScope 版本、机器人 IP、实际运动学标定文件待读取 |
-| 外置传感器 | ATI Mini45-E，用户确认标定 SI-580-20 |
-| 标定量程 | 传感器坐标系 Fx/Fy ±580 N，Fz ±1160 N；Mx/My/Mz ±20 N·m；不是任务停止阈值 |
+| 外置传感器 | 用户提供 ATI Mini45 / Mini45-E 图纸；本机具体变体与标定量程待证书核对 |
+| 标定量程 | 未确认。SI-580-20 的 Fx/Fy ±580 N、Fz ±1160 N、Mx/My/Mz ±20 N·m 仅为官方型号示例，不是本机已核实值或任务停止阈值 |
 | ATI 采集 | 接口类型、采集盒固件、IP/协议、有效标定文件与序列号待现场确认；历史记录提到 Net F/T 9105-NETBA，不能据此直接假定当前接线 |
 | 连接件、刀具 | 2026-11-20 已提供组合/法兰 STL 和独立刀具 USDZ；刀具净重 170 g，PLA 件惯性为估算，见文末仿真记录；真机第一轮不装刀 |
-| 相机 | 梅卡曼德，型号待确认；本轮不接 |
+| 相机 | 用户指定 Mech-Mind Nano；准确代际/内外参待核对；初始 FDCC 测试不接 |
 | 控制电脑 | Ubuntu/ROS 版本、网卡、管理员权限待确认；不要求训练 GPU |
 
 SI-580-20 的量程不等于可任意同时施加的六轴载荷，更不等于刀架/工具允许载荷。
@@ -156,7 +156,7 @@ FZI 运动控制器和柔顺控制器之间的切换需在集成 launch 中明�
 **目前 Cutting_DEV 没有提供已经验证的该包**。建议交付：
 - `urdf/ur10e_ati_tool.urdf.xacro`：本机运动学标定、ATI/转接件/测试 TCP。
 - `config/controllers.yaml`：FZI 插件、六关节、坐标系、调度及逐项验证后的参数。
-- `config/ati.yaml`：采集接口、SI-580-20 标定、序列号、时间戳/单位，不提交凭据。
+- `config/ati.yaml`：采集接口、本机证书对应的标定、序列号、时间戳/单位，不提交凭据；不预填 SI-580-20。
 - `launch/bringup.launch.py`：UR 驱动、传感器、补偿、日志，FDCC 默认 inactive。
 - 目标发送和状态监督：初始化目标为当前实际姿态；启动不自动走向零位。
 - 数据过期、目标发布者退出、通信丢失及停止处理；测试完再允许接触。
@@ -222,8 +222,8 @@ FZI 的 `error_scale=0` 可用于零响应初始化，但不是硬件安全停�
 ## 9. 与当前仿真、后续 MPC/RL 的关系
 
 当前仿真正式任务是 pose_depth_v3，v2 只作旧实验复核。本轮不修改仿真任务或训练。
-FDCC 真机闭环不复制仿真的 board_contact 锁存/冻结材料/冻结 wrench；
-“内部规则一致性修复”不是已完成真机迁移。
+当前仿真已去掉永久锁存/冻结，使用几何防穿透投影；真机不能复制投影的零停止距离，
+仍需持续采力并验证实际停止行为。仿真内部一致不等于已完成真机迁移。
 真机先确认 FDCC 实际行为，后续再决定任务的停止与结算如何对应。
 
 FDCC 通过后，固定轨迹、解析 MPC、RL 可以共用底层驱动与反馈接口。
@@ -242,109 +242,40 @@ UR5e 仿真策略/WM 不能直接认定适用于 UR10e；MPC 的在线时延与�
 - 未在目标控制电脑安装 ROS，未编译该 FDCC 工作空间，未连接 UR10e/ATI，
   未发送运动指令。这些 GPU 回归不构成 FDCC 真机验收。
 
-## 2026-11-20 仿真平台与用户 CAD 接入状态
+## 2026-11-21 当前仿真平台状态（替代旧的“尚未接入”说明）
 
-这一节是新的仿真准备结果，不代表上文的真机验收已经完成。
-代码在 `codex/ur10e-platform`，基于审阅过的 `9ea91b2`。
-旧 UR5e 场景和新 UR10e 机器人资产可由同一个
-`cutting_world_model.robot_platform.RobotPlatform` 加载。
+当前代码已经合入 main；具体版本和运行证据见
+[UR10e 审阅交接](UR10E_INTEGRATION_REVIEW.md)。
+当前 bundle：
+`/dataHDD/dong/Assets/Cutting_DEV/robots/ur10e_ati_ikea_fdcc_v2/`；
+配置入口 [ur10e_ati_ikea_v1.json](../../configs/shared/ur10e_ati_ikea_v1.json)。
+旧 estimated_v1/midblade 资产只用于解释对应历史记录，不再作为本节启动建议。
 
-已完成：
+已接入真实 IKEA CAD 网格与弧形刃：DiSECt 使用重导出的 SDF/预切几何，
+BladeMaster 使用网格接触与曲线刃，不是仅更换外观。
+两后端加载同一 UR10e/ATI/装配；FDCC 的 knife_compliance 方向已经修正，
+不再把 UR5e 的竖直高刚度错误地旋到水平方向。
+实际参考下压和学习接口检查的条件、结果及限制均以审阅交接为准；
+不把单条黄瓜成功当作所有食材/真机已经验收。
 
-- 用户提供的 `IKEA_365_Knife.usdz` 单独刀具与组合 STL 露出的刀刃做刚体配准；
-  不缩放、不改变安装方向，表面最大误差约 14 nm（网格数值一致性，不是实物精度）。
-- 刀具采用用户确认的 **净重 0.170 kg**。IKEA 商品页的 0.17 kg 位于包装栏，
-  本参数的来源明确记为用户确认，不冒称网页证实了净重。
-- 从组合 CAD 中做布尔差，得到 PLA 刀架。刀架约 147.323 cm³、法兰约 89.392 cm³。
-  暂用实心 PLA 密度 1240 kg/m³，分别估算为 0.182681 kg 和 0.110846 kg。
-  未测量打印填充率、壁厚和实际耗材密度；不是打印件称重结果。
-- 由闭合网格计算重心和完整惯量张量。刀具按均匀体积分布缩放到 170 g，
-  ATI 按官方 91.7 g、45 mm × 15.7 mm 圆柱包络估算惯量。
-  三者的内部质量分布均不是实测。
-- 法兰侧总负载约 **0.555227 kg**；ATI 测量平面下游的刀和刀架约
-  **0.352681 kg**。重力补偿只用下游负载，不能把上游法兰和传感器外壳再加进去。
-- 官方标称 UR10e 各连杆惯性保留，不为匹配产品总重而统一缩放。
-- 生成 URDF、碰撞网格、MuJoCo 二进制模型、FDCC 帧配置以及文件校验和。
-  碰撞采用 MuJoCo 网格凸包；这不是材料切割接触所需的 SDF。
-- ATI 节点是下游负载的祖先。保留固定连杆上的惯性，不把它们全部搬到 wrist_3。
-  MuJoCo 输出的 parent-on-child wrench 在新平台取负，统一成下游载荷作用于传感器；
-  旧 UR5e 默认符号不改。
-- 机器人 FK、Jacobian、WM FK 与 MuJoCo 一致；静态载荷约 3.45627 N；
-  已知外力/力矩与力臂换算核对通过。六个 wrench 通道都会影响 FDCC。
-- GPU 上两个世界运行 50 步、传感器数值有限、部分重置隔离通过；
-  初始姿态的机器人自身碰撞未发现穿透。并非整个工作空间的碰撞验收。
+当前 V3 为 project_continue_v2，无永久锁存/冻结，保留累计到位条件；
+板面仅做几何防穿透，**还没有刀—板接触反力模型**。
+不能用仿真板面投影代替真机停止距离和受力响应验证。
 
-**尚未完成，不能把新平台标成可长训：**
+保留的负载估算来源：
+- IKEA 刀 0.170 kg 是用户确认净重，不是从商品包装栏推断。
+- PLA 刀架 147.323 cm³、法兰 89.392 cm³；暂用实心密度1240 kg/m³，
+  估重0.182681 kg与0.110846 kg。打印填充率、壁厚和真实质量未测。
+- 刀惯量按均匀 CAD 分布缩放到170 g；ATI 惯量按91.7 g、45×15.7 mm包络估计。
+- 当前估计法兰总负载0.555227 kg；ATI测量截面下游刀和刀架0.352681 kg。
+  这两种负载口径不能混用。称重和多姿态补偿应覆盖这些估计值。
+- 保留来源UR10e连杆惯性，不按整机商品重量统一缩放。
+- 传感器安装角和运动学仍需实物轴标识/本机标定核对；名义模型不是已标定真机。
 
-- 真实 IKEA 刀的材料接触几何尚未接入两个材料后端。当前 DiSECt 导出场景和
-  BladeMaster 解析接触仍约定旧的共用楔形刀。直接换显示网格或只换 robot.mjb 会造成
-  物理与显示不一致，因此新 bundle 的 `require_cutting_ready()` 明确拒绝这种使用。
-- 新平台的材料坐标系、切割场景重导出、目标/工作空间、两后端的采集/更新/续训
-  仍需在新刀形接入之后一起验证。旧 UR5e 策略不能称为已经适配 UR10e。
-- 传感器绕轴安装角仍是按三孔对称给出的候选；需对照实物轴标识。
-  名义机器人运动学不是这台 UR10e 的标定文件。
-- FDCC 使用来源配置的增益和位置执行模型，不能等同于已识别的 UR10e 真机伺服响应。
-  任务力限没有改成 ATI 的量程，也没有启动长训或真机运动。
+统一渲染入口为 `scripts/render_scene.py`；只显示真实记录的机器人和刀具，
+白色 PLA、金属 ATI/刀，不能补画连接杆。渲染一致不等于动力学已经标定。
 
-资产目录：
-`/dataHDD/dong/Assets/Cutting_DEV/robots/ur10e_ati_ikea_estimated_v1/`。
-验证报告：
-`runs/ur10e_platform_20261120/robot_check.json`、`ur5e_check.json`。
-复用原有 studio 渲染器；只渲染一个金属刀、用户 PLA 件和 ATI 包络，不加连接杆。
-
-复现（GPU7，在仓库根目录）：
-
-```bash
-# CAD 用独立环境，安装 requirements/cad.txt；不修改训练环境。
-/dataHDD/dong/Envs/cutting-cad/bin/python scripts/prepare_ur10e_tool.py \
-  --assets /dataHDD/dong/Assets/Cutting_DEV/user_tools/ati_mini45_20261119 \
-  --urdf /dataHDD/dong/tmp/ur10e_ati_preview.urdf \
-  --output /dataHDD/dong/Assets/Cutting_DEV/robots/ur10e_ati_ikea_estimated_v1
-source scripts/env/cutting_env.sh
-python scripts/compile_robot_platform.py \
-  --platform /dataHDD/dong/Assets/Cutting_DEV/robots/ur10e_ati_ikea_estimated_v1 \
-  --controller-source backends/mujoco/runs/controller_source/controller_params.json
-python scripts/check_robot_platform.py \
-  --platform /dataHDD/dong/Assets/Cutting_DEV/robots/ur10e_ati_ikea_estimated_v1 \
-  --output runs/ur10e_platform_20261120/robot_check.json
-# 同一入口检查原 UR5e
-python scripts/check_robot_platform.py --platform backends/mujoco \
-  --output runs/ur10e_platform_20261120/ur5e_check.json
-```
-
-本轮新增代码回归：主仓库 764 passed / 5 skipped，后端 44 passed。
-最后的 CAD 可视面分区及导出改动另外实跑；检查脚本新增跟踪误差断言后，
-两个机器人均重新执行 GPU 检查，新增 9 项测试再次通过。
-日志为上述 runs 目录的 root.log、backend.log、targeted_final.log、robot_check.log。
-50 个 GPU 步后，1 mm 位置目标的误差降至 UR10e 0.453 mm、UR5e 0.404 mm。
-
-渲染环境的 MuJoCo 与训练环境版本不同，所以渲染读取已验证运行导出的机器人
-body 变换，不在渲染环境加载训练的 MJB；URDF 哈希必须一致。刀与 PLA 的显示
-面来自原始组合 CAD 的不重叠分区，避免布尔差数值薄片造成双面闪烁。
-
-```bash
-CUTTING_ENV=render source scripts/env/cutting_env.sh
-python scripts/export_robot_platform.py \
-  --platform /dataHDD/dong/Assets/Cutting_DEV/robots/ur10e_ati_ikea_estimated_v1 \
-  --verification runs/ur10e_platform_20261120/robot_check.json \
-  --output runs/ur10e_platform_20261120/scene.npz
-blender -b -t 4 --python scripts/render_episode_still.py -- \
-  --scene runs/ur10e_platform_20261120/scene.npz \
-  --output runs/ur10e_platform_20261120/close.png --view close
-```
-
-
-2026-11-20 补充：共用渲染器明确读取每个组件的材质标记。ATI Mini45 外壳和刀为金属，
-用户刀架和法兰为 PLA，不再依据灰度猜测它们的金属度。装配和几何没有改变；
-新图仍为 robot-only 装配预览，不是材料切割验收。
-
-实际 IKEA 刀接入需要处理的代码约定已经查明：
-- DiSECt 的自由刀具支持三角网格，但预切面生成默认把第 4、9 号顶点当成直刀刃；
-  新刀有弧形刀刃，必须显式提供刀刃曲线并据此重新导出场景，不能沿用旧编号。
-- 当前 KnifeBoard 的覆盖诊断也假定最低点组成一条直边；新刀需按实际刀刃处理。
-  板面不穿透检查使用整把刀的几何包络。
-- BladeMaster 当前解析接触、切削阻力作用区和 side-code 更新使用旧楔形刀的直刃。
-  三处都要适配新刀，不能只更换接触外观或 bounding box。
-- 两后端用同一份米制刀形和安装变换，反力和力矩均换算到 ATI 测量原点。
-  然后才验证新 UR10e 场景的采集、更新、部分重置与续训。以上接入尚未验收，
-  require_cutting_ready 的拒绝保护保留。
+下一步真机工作依 [REAL2SIM](REAL2SIM.md) 的顺序：
+本机运动学/TCP/板面 → ATI补偿与时间同步 → 空中/柔顺响应 →
+食材几何、板面和刀面摩擦、切割曲线 → 留出条件验证。
+这些尚未完成的实测不能被仿真单元测试替代。

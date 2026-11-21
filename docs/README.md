@@ -22,7 +22,7 @@ is not a training instruction.
 - [hardware/](hardware/): [UR10E_INTEGRATION_REVIEW](hardware/UR10E_INTEGRATION_REVIEW.md)
   (UR10e/ATI/CAD-knife simulation integration); [UR10E_FDCC_SETUP_ZH](hardware/UR10E_FDCC_SETUP_ZH.md)
   (Chinese UR10e + ATI FDCC bring-up handoff); [REAL2SIM](hardware/REAL2SIM.md)
-  (real-robot interface and calibration plan).
+  (Chinese UR10e/ATI/food calibration protocols, friction identification, paper evidence and deployment limits).
 - [reference/](reference/): [CUTTING_MECHANISMS](reference/CUTTING_MECHANISMS.md)
   (DiSECt/BladeMaster cutting mechanisms and task signals);
   [SOURCES](reference/SOURCES.md) (upstream revisions, patches and provenance).

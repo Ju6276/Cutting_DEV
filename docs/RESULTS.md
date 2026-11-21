@@ -178,3 +178,45 @@ Evidence: GPU7 `runs/mem_headroom_20261117/bm6_separation.json`.
   the 50 ms period. Single illustrations, not a ranking. GPU9
   `runs/vision_closedloop_20261117`, `runs/visual_center_closedloop_20261117`,
   `runs/dp3_controllers_20261117`.
+
+## 2026-11-21 — UR10e V3 candidate foods and calibration documentation
+
+Current corrected FDCC bundle, actual IKEA CAD blade and virtual ATI frame were
+used for one nominal BladeMaster reference press per candidate. Conditions:
+10 mm start clearance, 30 mm/s requested feed, original homogeneous material
+presets, unchanged V3 force/workspace/arrival/horizon rules. No policy was loaded.
+Source-at-start is a70a6d5 with presentation-only edits; the experiment directory
+preserves the exact recorder and configs.
+
+Banana / tofu / luncheon reached pose-task success at 39 / 67 / 51 steps,
+returns 108.0911 / 108.8698 / 108.5837, final blade gaps 1.472 / 1.432 / 1.467 mm.
+No force-limit or workspace failure or nonfinite state was observed. Largest
+absolute sensor Fz component during each episode was 1.992 / 0.801 / 0.663 N;
+these are simulated components, not real-food calibrated forces.
+All terminal component diagnostics report one component; these runs do not
+establish complete material separation. Only one nominal condition was run per
+food, not a generalization or policy-performance assessment.
+
+Evidence: /dataHDD/dong/Experiments/Cutting_DEV/runs/ur10e_candidate_foods_20261121/
+(record.py, individual configs, report.json, geometry, summary.json).
+The three presets are candidates, not added to formal two-food training defaults.
+Tofu/luncheon are names in our reproduction of paper deformable-block scenarios,
+not proof of real-food parameter identification in the BladeMaster paper.
+
+Banana appearance is peeled flesh, consistent with the single-material preset;
+the downloaded skin-bearing scan remains separate. The common MPM surface display
+uses additional sinc smoothing with unchanged mesh connectivity and at most
+0.5 mm extra display-vertex displacement relative to the previous reconstruction
+(up to float32 rounding). The banana check measured 0.500032 mm and identical faces.
+This is not physical mesh refinement or evidence about submillimetre fracture gaps.
+No particles, contact parameters or task rules were changed for appearance.
+
+The real-to-sim plan is rewritten in hardware/REAL2SIM.md, including existing-tool
+data collection, identifiability limits, separate support/blade friction and
+primary-source calibration references. Installed ATI range is unknown pending
+its certificate; SI-580-20 is only an official example, not a verified hardware
+specification. Task force limits remain unchanged.
+
+Verification: root suite 771 passed, 25 skipped; backend suite 44 passed.
+These tests and three reference episodes do not certify absence of all bugs or
+real-hardware readiness. No long training or real robot operation was performed.
