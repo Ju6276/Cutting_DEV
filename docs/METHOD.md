@@ -699,3 +699,26 @@ identify the scene and original world indices. BladeMaster restores the robot's
 high preparation pose before raw material reset/settling and uses the shared
 post-settling alignment; its separate material reset does not execute the faulty
 DiSECt ordering. Existing running checkouts are not hot-patched.
+
+### UR10e assumed-state MPC diagnostic (2026-11-21)
+
+`scripts/hardware/capture_mpc_feedback.py` records ROS joint feedback, TF, the
+calibrated URDF and controller parameters using read-only interfaces.
+`replay_mpc_assumed.py` runs the existing analytic FDCC/MPPI implementation on
+that UR10e chain, a hypothetical tool0 point, zero external wrench and a virtual
+5 mm downward target. `run_mpc_assumed.sh` keeps ROS system Python separate from
+the CPU planner environment in `requirements/hardware-mpc.txt`.
+
+This is an offline diagnostic with no robot command interface, training changes
+or physical material simulation. Scene geometry and initial history assumptions
+are recorded explicitly. Existing backend/tool metadata tags satisfy the state
+schema only and must not be interpreted as verified material or blade geometry.
+Rewards, force limits, cumulative arrival rules and the disabled pitch setting
+remain unchanged. The predictor also supplies the virtual closed-loop plant,
+so a completed episode is only a model self-consistency result.
+
+The first local run reached the existing task completion rule with 39.529 mm
+XY error and planning times up to 4.879 s, which does not validate precise tracking
+or the 50 ms control period. Live FZI force mixing and solver settings also differ
+from this surrogate. Commands, measured results, validation gaps and local evidence
+locations are in the [hardware handoff](hardware/UR10E_MPC_HANDOFF_ZH.md).

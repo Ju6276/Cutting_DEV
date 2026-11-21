@@ -1,0 +1,7 @@
+# CPU-only offline diagnostic, Python 3.12. ROS capture uses system Python.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.4.1+cpu
+numpy==1.26.4
+munch==4.0.0
+arm-pytorch-utilities==0.5.0
+pytorch-mppi @ git+https://github.com/UM-ARM-Lab/pytorch_mppi.git@e04a569cd4215e705f9013145c496fc59cb25ed6

@@ -21,6 +21,7 @@
 已有纯 MPC 实现在 cutting_world_model/shared_baselines.py，方法名 analytic_mpc。
 scripts/evaluate_pose_policy.py 是仿真评估入口，不能通过填机器人 IP 就当作真机入口。
 当前尚无在用户 UR10e 上验收的完整 ROS 真机 MPC 桥接包。
+仓库现有只读采集与假设条件离线回放入口，使用方式和实测限制见下文。
 
 2026-11-21 的整回合仿真评估使用 6258561：两个后端各五种食物、每种一个案例。
 DiSECt 3/5 到位成功（香蕉、黄瓜、午餐肉），半土豆/豆腐超时；
@@ -99,3 +100,87 @@ T_base_camera、标定残差及独立位置验证结果。
 记录 Git SHA、依赖版本、时间戳、q/qd、原始及补偿后 wrench、目标、动作、
 规划耗时、命令年龄和终止原因。测试结果按实际完成阶段报告。
 不要改任务奖励、力限或控制目标来掩盖接口/时序问题。
+
+## 只读采集与假设条件离线 MPC 诊断
+
+`scripts/hardware/capture_mpc_feedback.py` 使用 ROS Noetic 系统 Python，
+只订阅关节和 TF、读取参数及查询控制器列表，不发布控制目标或切换控制器。
+`scripts/hardware/replay_mpc_assumed.py` 使用独立 Python 3.12 环境，
+从快照运行原仓库 `AnalyticFDCCModel` 与 `SharedMPPIPolicy`，没有机器人命令接口。
+这个入口属于离线软件诊断，不是在线影子运行或真机运动入口。
+
+在仓库根目录安装 CPU 诊断依赖。ROS 环境由系统单独提供。
+
+```bash
+python3.12 -m venv .venv
+.venv/bin/python -m pip install -r requirements/hardware-mpc.txt
+```
+
+已有 ROS 驱动运行且加载 `/robot_description`、`/fdcc` 时，可执行完整流程。
+脚本默认读取 `/joint_states`、`base_link`、`tool0` 和根命名空间的控制器管理器。
+默认输出为仓库 `runs/` 下带时间戳的新目录。已有输出目录会被拒绝，避免覆盖证据。
+
+```bash
+bash scripts/hardware/run_mpc_assumed.sh
+```
+
+可用 `ROS_SETUP` 指定 ROS 工作区的 `devel/setup.bash`，用 `ROS_PYTHON` 和
+`MPC_PYTHON` 分别指定两个解释器。脚本不负责启动驱动。
+只重放已有快照时无需 ROS 或连接机器人。
+
+```bash
+.venv/bin/python scripts/hardware/replay_mpc_assumed.py \
+  --snapshot /absolute/path/to/captured_snapshot \
+  --output runs/ur10e_mpc_replay_new --steps 30
+```
+
+快照包含 `feedback.json`、`joints.json` 和 `robot_description.urdf`。
+输出包含完整 `configuration.json` 及 `report.json`，后者记录 Git SHA、工作区是否
+有未提交修改、依赖版本、初始反馈时间、目标、动作、关节预测、耗时和终止原因。
+原始快照、校准 URDF、环境及运行日志留在本机，不提交 Git。
+
+### 假设和适用范围
+
+- 使用实测关节位置和标定 UR10e URDF，控制参考点为 `tool0` 单点。
+  未使用实测刀尖安装变换、刀具 CAD、负载动力学或 ATI 受力。
+- 外力历史为明确标注的零值假设，回合历史重置后按原状态规范填充。
+  不能将它解释为新鲜的真实六轴传感器反馈。
+- 虚拟目标在初始参考点下方 5 mm，目标速度 0.01 m/s，虚拟工作空间为初始点
+  各方向 ±100 mm。虚拟板面由 `board_pose_geometry` 定义，无板面反力模型。
+- 复用 `configs/public_prism` 的动作／观测接口和控制器近似参数，机器人几何全部
+  来自快照中的 UR10e。未加载历史 UR5e 机器人资产。
+- 原状态规范只接受已有后端和工具标签，因此配置保留 `mujoco_warp_disect`、
+  `ikea_cad_mesh_v1` 与材料高度字段，同时在 `diagnostic_actual_backend` 和
+  `diagnostic_actual_tool` 明确记录实际为解析模型及 tool0 单点。
+  这些配置仅供该离线诊断，不得作为已验证的材料场景或训练／检查点兼容性依据。
+- 预测与虚拟执行使用同一解析模型，结果只检查软件自洽性。保持原奖励、力限、
+  到位阈值及累计到位 >10 规则，倾角仍禁用。
+
+### tamsCage 首轮记录，2026-11-21
+
+首轮基于 main `40a2e8a316cd7d4c02d28ae5a05585679d8f77a6` 和当时位于 ROS
+工作区的诊断脚本，CPU 单线程，Python 3.12.16、PyTorch 2.4.1+cpu、NumPy 1.26.4、
+固定上游 MPPI 提交 `e04a569cd4215e705f9013145c496fc59cb25ed6`。
+以下是该轮已有测量，不是迁入仓库后的新一轮性能测试。
+
+| 检查 | 结果 |
+| --- | --- |
+| 4 秒关节采样 | 约 500.01 Hz，最大消息时间戳延迟 0.989 ms |
+| FK 与 ROS TF 位置差 | 约 0.040 mm，非严格同步采样，不是 TCP 标定精度 |
+| 8 候选、8 步窗口、5 子步 | 热身后 3 次规划中位耗时 0.759 s |
+| 512 候选、8 步窗口、5 子步 | 固定初始状态热身后 3 次规划中位耗时 1.318 s |
+| 512 候选虚拟闭环 | 21 步，规划耗时中位数 3.847 s，最大 4.879 s |
+| 原规则终止 | 累计到位 11 次，`hypothetical_pose_success` |
+| 最终位置误差 | XY 约 39.529 mm，Z 约 0.0022 mm |
+| 机器人运动命令 | 0 条，运动控制器未激活 |
+
+XY 偏差接近原规则 40 mm 范围，任务规则的成功不能作为精确路径跟踪通过。
+规划耗时超过 50 ms，不能按原控制间隔直接接真机。
+本机 FZI 的 `computeComplianceError` 为 `spring + force`，解析模型的 parallel
+模式为 `selection * spring + (1-selection) * force`。本机 solver iterations 为
+10，诊断近似模型为 1，两者尚未完成等价性验证。此轮没有写入真实控制器参数。
+
+首轮已有相关测试 41 项通过，另 4 项因缺少 `runs/source/task.json` 等源场景
+资产失败，未将其计作通过；未完成 4090 上的全套回归。
+现场证据保存在 tamsCage 的 `/homeL/dong/ur10e_fdcc_records/mpc_assumed_20261121/`。
+继续工作应先排查横向偏移、规划时序和控制器差异，再按前述分阶段流程验证真机。
