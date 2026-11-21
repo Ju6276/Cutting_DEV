@@ -10,7 +10,7 @@ import pytest
 pytest.importorskip("stable_baselines3")
 
 ROOT = Path(__file__).resolve().parents[1]
-ARCHIVE = ROOT / 'configs/archive/shared_scene_v1_pose_depth_v2_20261116/scene_v1.json'
+ARCHIVE = ROOT / 'configs/evaluate_only/scene_v1_pose_depth_v2_20261116.json'
 
 
 # Each retired case must be refused with its own message (not merely any refusal).

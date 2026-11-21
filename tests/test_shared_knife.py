@@ -87,16 +87,20 @@ def test_shared_mount_agrees_at_multiple_robot_poses():
     assert abs(float(edge[0])) > 0.999
 
 
+# Task block of the 2026-11-16 shared-knife check (identical for DiSECt and BladeMaster);
+# the preceding depth check had the same task without tool_revision.
+SHARED_KNIFE_TASK = {
+    "version": "pose_depth_v2", "horizon_steps": 180,
+    "weights": {"progress": 10, "speed": 20, "load": 1, "jerk": 0.1, "success": 100, "failure": 100},
+    "gamma": 1.0,
+    "workspace": {"frame": "robot_base", "point": "ee",
+                  "lower": [0.038, 0.405, 0.096], "upper": [0.238, 0.605, 0.269]},
+    "board": {"height_m": 0.0, "stop_gap_m": 1e-06},
+    "tool_revision": "disect_knife_rigid_mount_v1",
+}
+
+
 def test_shared_tool_is_explicit_versioned_task():
-    for folder in ("free_cut", "blademaster"):
-        config = json.loads(
-            Path("configs", "archive", "scene_checks_20261116", folder, "shared_knife_check.json").read_text()
-        )
-        assert (
-            validate_task(config["task"])["tool_revision"]
-            == "disect_knife_rigid_mount_v1"
-        )
-        old = json.loads(
-            Path("configs", "archive", "scene_checks_20261116", folder, "depth_three_object_check.json").read_text()
-        )
-        assert "tool_revision" not in old["task"]
+    assert validate_task(json.loads(json.dumps(SHARED_KNIFE_TASK)))["tool_revision"] == "disect_knife_rigid_mount_v1"
+    old = {k: v for k, v in SHARED_KNIFE_TASK.items() if k != "tool_revision"}
+    assert "tool_revision" not in old

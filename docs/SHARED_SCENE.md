@@ -254,5 +254,5 @@ Loaded files under
 ## Current food selection (2026-11-21)
 The current UR5e and UR10e shared configs select cucumber_003 and potato_half.
 Generic prism has no food calibration and is removed from new food-training defaults.
-Old three-object source configs are retained under configs/archive/three_object_*.json.
+
 Episode randomization and task/reward rules are unchanged.

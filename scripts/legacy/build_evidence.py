@@ -356,7 +356,7 @@ def build(args):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, default=ROOT / "configs/archive/evidence_20261110.json")
+    parser.add_argument("--config", type=Path, required=True)  # the 2026-11-10 evidence config was removed; pass it explicitly
     parser.add_argument("--runs-root", type=Path, default=ROOT / "runs")
     parser.add_argument("--legacy-root", type=Path,
                         default=Path("/dataHDD/dong/Experiments/Cutting_DEV/legacy_metrics/metrics_eval_20261106"))

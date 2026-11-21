@@ -115,8 +115,8 @@ Real A6000 reference comparison: old cucumber capture ended at step 80 with
 reference condition, not a learned-policy result or all-material acceptance.
 Evidence: new_knife_fdcc_v2/motion.json and new_knife_video/motion.json.
 
-The current food configs contain cucumber and HALF potato; former three-object
-configs are retained under configs/archive/three_object_*.json. New formal UR10e
+The current food configs contain cucumber and HALF potato (prism removed by user
+decision, 2026-11-21). New formal UR10e
 config uses the corrected fdcc_v2 bundle. Source-scene physics is not changed by
 the presentation renderer.
 

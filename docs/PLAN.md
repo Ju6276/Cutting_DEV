@@ -47,7 +47,7 @@ Keep the UR5e profile runnable and preserve V3 reward/arrival/force/horizon rule
 Implementation: immutable canonical knife mesh + curved edge; mesh-derived SDF
 for DiSECt (old analytic wedge remains legacy); arbitrary-mesh contact/edge rules
 for the BladeMaster forward solver; same fixed mounting and sensor wrench origin.
-Re-export the three free objects with explicit knife provenance. Robot profile,
+Re-export the current free objects (cucumber_003, half potato) with explicit knife provenance. Robot profile,
 workspace and board placement are explicit; observations and action semantics stay
 documented; checkpoint robot/geometry mismatches must fail.
 

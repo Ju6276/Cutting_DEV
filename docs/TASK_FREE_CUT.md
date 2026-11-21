@@ -226,3 +226,4 @@ is not separation of the prescribed cut. Fields:
 - 2026-11-17: pose_depth_v3 — board-state/last-wrench WM fields, per-step fresh-sample force rule, analytic imagined survival.
 - 2026-11-19: horizon aligned with SliceIt, 180 -> 500 steps; old manifests keep 180.
 - 2026-11-19: permanent board latch removed (`project_continue_v1`, f12ca04), then replaced by pure-normal projection and state-property contact (`project_continue_v2`).
+- 2026-11-21: prism removed from the current scene by user decision; objects are cucumber_003 and half potato (results with three objects are not directly comparable).

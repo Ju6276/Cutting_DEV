@@ -10,7 +10,7 @@ from cutting_world_model.free_cut import CURRENT_POSE_DEPTH, refuse_retired_trai
 
 ROOT = Path(__file__).resolve().parents[1]
 CURRENT = ROOT / 'configs/shared/scene_v1.json'
-ARCHIVE = ROOT / 'configs/archive/shared_scene_v1_pose_depth_v2_20261116/scene_v1.json'
+ARCHIVE = ROOT / 'configs/evaluate_only/scene_v1_pose_depth_v2_20261116.json'
 
 
 def test_current_shared_scene_preserves_archive_except_version_and_authorized_horizon():
