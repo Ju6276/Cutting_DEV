@@ -5,6 +5,10 @@
 目标是使用当前非学习 MPC 串通 UR10e、ATI Mini45 SI-580-20 和 Mech-Mind Nano。
 不需要先训练神经网络；仍需要标定、反馈桥接与控制时序验证。
 
+现场控制电脑与只读检查结果：[tamsCage 记录](TAMSCAGE.md)。
+当前 ROS1 控制器未与仿真的刀具/ATI 坐标和力位加权形式对齐，
+不要将旧离线检查视为真机 MPC 验收。
+
 ## 先读哪些文件
 
 1. [UR10E_FDCC_SETUP_ZH](UR10E_FDCC_SETUP_ZH.md)：UR 驱动、FZI FDCC、ATI 接线与重力补偿。先完成它的底层控制步骤，再接 MPC；其中“不接 MPC/相机”指第一阶段。
