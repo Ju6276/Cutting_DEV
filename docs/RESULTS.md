@@ -213,9 +213,9 @@ No particles, contact parameters or task rules were changed for appearance.
 
 The real-to-sim plan is rewritten in hardware/REAL2SIM.md, including existing-tool
 data collection, identifiability limits, separate support/blade friction and
-primary-source calibration references. Installed ATI range is unknown pending
-its certificate; SI-580-20 is only an official example, not a verified hardware
-specification. Task force limits remain unchanged.
+primary-source calibration references. The user subsequently explicitly confirmed Mini45 SI-580-20 on 2026-11-21.
+Official capacities are 580/580/1160 N and 20/20/20 N m; serial-specific
+calibration and acquisition interface remain to verify. Task force limits remain unchanged.
 
 Verification: root suite 771 passed, 25 skipped; backend suite 44 passed.
 These tests and three reference episodes do not certify absence of all bugs or
