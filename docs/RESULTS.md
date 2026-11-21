@@ -220,3 +220,48 @@ calibration and acquisition interface remain to verify. Task force limits remain
 Verification: root suite 771 passed, 25 skipped; backend suite 44 passed.
 These tests and three reference episodes do not certify absence of all bugs or
 real-hardware readiness. No long training or real robot operation was performed.
+
+## 2026-11-21: UR10e five-food candidate and baseline adapters
+
+Candidate contract: configs/shared/ur10e_five_food_v1.json. The original two-food
+contract is retained unchanged. These checks do not establish five-food long-run
+physical validity or learned success.
+
+- Randomized 15-world checks: both backends passed reward/done agreement and
+  partial-reset isolation. Maximum errors: DiSECt 1.4833e-8, BladeMaster 1.5715e-8.
+- Nominal reference probe: one world per food, 30 mm/s, 10 mm initial clearance,
+  120 control-step inspection budget; the task horizon remained 500.
+- DiSECt all five reached pose success: cucumber step 51, half potato 53,
+  peeled banana 40, tofu 115, luncheon 52. Nine natural ends/resets were recorded,
+  including another physical step after the final reset. Reward error <=3.71e-6.
+- BladeMaster cucumber/banana/tofu/luncheon succeeded at steps 50/39/67/51.
+  Half potato had not finished at inspection step 120: not a 500-step timeout.
+  Eight ends/resets were recorded; reward error <=3.71e-6.
+- Corrected the tofu ground diagnostic: the previously reported 6.740 mm
+  depth was over ALL FEM nodes, including empty-side auxiliary nodes, not the
+  represented material surface. These nodes still participate in FEM/cut-edge
+  interpolation and must not be deleted or arbitrarily made contact-active.
+  A dedicated GPU9 nominal tofu run reconstructed tri + cut_tri surface vertices
+  at every 50 ms control boundary: maximum surface penetration 0.296627 mm,
+  versus 11.010555 mm over all nodes. Pose success occurred at step 141;
+  terminal data were saved before reset. This is a new single-world run, not
+  a bit-identical replay of the five-world step-115 result, and does not bound
+  unrecorded material substeps. No physics parameter was changed.
+  Evidence: GPU9 /dataHDD/dong/Experiments/Cutting_DEV/runs/tofu_surface_20261121/report.json.
+- SAC and frozen WM+MPPI/non-learning MPC interface checks passed on both backends
+  with five food groups; see methods/CURRENT_BASELINES.md. These were tiny fresh
+  fits and execution tests, not comparative trained results. Planner runtime
+  remains above the 50 ms control interval.
+- GPU7 final integrated suite: 797 passed / 9 skipped; backend 44 passed.
+  Logs: final_root_env.log and final_backend.log. An earlier launch overwrote
+  the environment script's PYTHONPATH and failed collection because SciPy's
+  extra-module path was removed; it is retained as final_root.log, not counted
+  as a pass. The final launch preserved the official environment setup.
+  Five canonical sensor-view captures passed separately; no learning semantics
+  were changed. Skipped tests are not counted as passes.
+
+Evidence: /dataHDD/dong/Experiments/Cutting_DEV/runs/ur10e_five_food_20261121
+on GPU7 (DiSECt) and A6000 (BladeMaster), including check JSON, nominal config,
+reference/report.json, transitions.pt, snapshot_initial/final, source status and
+probe SHA. Source base b501c28 with the recorded candidate working-tree changes;
+not represented as a clean main run. No long training was started.

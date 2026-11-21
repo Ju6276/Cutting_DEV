@@ -4,10 +4,11 @@ Authoritative input: [scene_v1.json](../configs/shared/scene_v1.json).
 Both backend configurations are generated from this file; do not independently
 edit their generated JSONs. Case sampling is identical in checks and eventual
 training. Old runs retain their frozen configuration and are not paired runs.
-The UR10e + ATI + CAD-knife platform under integration has its own contract,
-[ur10e_ati_ikea_v1.json](../configs/shared/ur10e_ati_ikea_v1.json); see
-[the integration handoff](hardware/UR10E_INTEGRATION_REVIEW.md). This page describes
-the UR5e `scene_v1` contract.
+The UR10e + ATI + CAD-knife platform has an explicit five-food contract,
+[ur10e_five_food_v1.json](../configs/shared/ur10e_five_food_v1.json), described at
+the end of this page. The earlier [two-food contract](../configs/shared/ur10e_ati_ikea_v1.json)
+remains reproducible. See [the integration handoff](hardware/UR10E_INTEGRATION_REVIEW.md)
+for platform evidence. Earlier sections describe UR5e `scene_v1` unless specified.
 
 ## Starting the cut as on the intended robot
 
@@ -256,3 +257,43 @@ The current UR5e and UR10e shared configs select cucumber_003 and potato_half.
 Generic prism has no food calibration and is removed from new food-training defaults.
 
 Episode randomization and task/reward rules are unchanged.
+
+## UR10e five-food distribution v1 (2026-11-21)
+
+Use `configs/shared/ur10e_five_food_v1.json` for cucumber_003, potato_half,
+peeled banana, tofu and luncheon. This adds a scene distribution without changing
+task rules. The previous two-food contract remains reproducible; its replay must
+not be mixed with five-food metadata.
+
+The small default assigns 3 worlds per food (15 total). An environment keeps its
+food group across resets; materials and target speed are resampled per episode.
+Equal world allocation does not imply equal completed-episode counts.
+
+The added geometries originate from `configs/blademaster_disect/catalog.json`,
+created by our BladeMaster reproduction. Banana represents homogeneous peeled
+flesh. Tofu/luncheon are reproduction block presets, not published calibration of
+these real foods. E / Poisson ratio / density are respectively: banana 400000 Pa /
+.45 / 1100 kg/m3; tofu 6000 Pa / .35 / 1100 kg/m3; luncheon 20000 Pa / .4 /
+1200 kg/m3. Shared scale ranges remain unchanged. FEM spring failure and MPM
+cutting laws remain different.
+
+Prepare DiSECt with `scripts/export_ikea_scenes.py --contract
+configs/shared/ur10e_five_food_sources_v1.json --platform
+/dataHDD/dong/Assets/Cutting_DEV/robots/ur10e_ati_ikea_fdcc_v2 --output
+/dataHDD/dong/Assets/Cutting_DEV/ur10e_ikea_five_food_scenes_v1`, using
+`MPLBACKEND=Agg` and the SliceIt Python environment. This uses the actual IKEA
+curved edge; preprocessing below the board does not permit physical penetration.
+
+Prepare intact BladeMaster geometry with `scripts/prepare_blademaster_mesh.py`
+from the corresponding uncut `.msh` volumes: banana/luncheon spacing 6 mm,
+tofu 10 mm; destination `Assets/Cutting_DEV/five_food_intact_v1`. BladeMaster
+receives no predefined cut plane.
+
+Finally run `scripts/prepare_shared_scenes.py --contract
+configs/shared/ur10e_five_food_v1.json --output
+/dataHDD/dong/Assets/Cutting_DEV/ur10e_shared_five_food_v1` in the base environment.
+Keep the generated manifest/hashes with the run. The DiSECt exporter and shared
+config generator refuse to overwrite existing outputs; use fresh destinations
+also when sampling intact BladeMaster meshes. Both generated runtime configs retain UR10e/ATI/IKEA, V3,
+500 steps, 50 N / 5 Nm and the final-position-only rule. Rendering uses the same
+canonical studio profile, not a separate scene or material pipeline.

@@ -440,8 +440,10 @@ Upstream: [FZI Cartesian Controllers](https://github.com/fzi-forschungszentrum-i
 ([FDCC](https://github.com/fzi-forschungszentrum-informatik/cartesian_controllers/blob/ros2/cartesian_compliance_controller/README.md)).
 
 Robot profiles: `scene_v1` uses the UR5e asset. The UR10e + ATI + CAD-knife
-profile (`configs/shared/ur10e_ati_ikea_v1.json`) is under integration; its
-assets, commands and verification status are in
+profile uses `configs/shared/ur10e_five_food_v1.json` for the newly authorized
+five-food distribution; `ur10e_ati_ikea_v1.json` retains the earlier two foods.
+Generate backend configs as described in [SHARED_SCENE](SHARED_SCENE.md).
+Platform assets, commands and verification status are in
 [UR10E_INTEGRATION_REVIEW](hardware/UR10E_INTEGRATION_REVIEW.md) and
 [UR10E_FDCC_SETUP_ZH](hardware/UR10E_FDCC_SETUP_ZH.md). Same joint dimensions do
 not make a UR5e-trained WM or policy robot-independent; checkpoint robot

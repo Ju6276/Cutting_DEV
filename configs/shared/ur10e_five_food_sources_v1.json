@@ -1,0 +1,17 @@
+{
+  "scope": "Preparation inputs only; historical unheld tetrahedral foods, regenerated with current IKEA mesh. Not a runtime task config.",
+  "objects": [
+    {
+      "name": "banana",
+      "disect_source_scene": "runs/sweep/bm_banana_20261114/scene.pt"
+    },
+    {
+      "name": "tofu",
+      "disect_source_scene": "runs/sweep/bm_tofu_20261114/scene.pt"
+    },
+    {
+      "name": "luncheon",
+      "disect_source_scene": "runs/sweep/bm_luncheon_20261114/scene.pt"
+    }
+  ]
+}

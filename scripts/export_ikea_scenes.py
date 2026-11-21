@@ -1,4 +1,4 @@
-"""Export three unheld objects with the actual IKEA mesh and curved-edge sweep."""
+"""Export unheld objects with the actual IKEA mesh and curved-edge sweep."""
 import argparse,json,types,sys,hashlib
 import collections, collections.abc
 # Upstream DiSECt targets Python 3.8; explicit import compatibility for its settings.
@@ -61,16 +61,29 @@ def export(source,platform,output,cutting,source_root):
  print(json.dumps(dict(output=str(output),springs=sim.model.cut_spring_count,particles=sim.model.particle_count,
                        source_sha256=hashlib.sha256(source.read_bytes()).hexdigest(),start_center_y=start)),flush=True)
 
+def select_objects(contract,names=None):
+ objects=contract["objects"]
+ available=[obj["name"] for obj in objects]
+ if len(set(available))!=len(available):raise ValueError("Duplicate object names")
+ if names:
+  unknown=set(names)-set(available)
+  if unknown:raise ValueError("Unknown objects: "+", ".join(sorted(unknown)))
+  objects=[obj for obj in objects if obj["name"] in names]
+ if not objects:raise ValueError("No objects selected")
+ return objects
+
 def main():
  p=argparse.ArgumentParser(description=__doc__);p.add_argument("--platform",type=Path,required=True);p.add_argument("--output",type=Path,required=True)
  p.add_argument("--source-root",type=Path,default=Path("/dataHDD/dong/Projects/SliceIt/disect"))
  p.add_argument("--objects",nargs="+")
- a=p.parse_args();a.output.mkdir(parents=True,exist_ok=True)
- cutting=import_disect_cutting(a.source_root)
+ p.add_argument("--contract",type=Path,default=Path(__file__).resolve().parents[1]/"configs/shared/scene_v1.json")
+ a=p.parse_args()
  root=Path(__file__).resolve().parents[1]
- contract=json.loads((root/"configs/shared/scene_v1.json").read_text())
- for obj in contract["objects"]:
-  if a.objects and obj["name"] not in a.objects:continue
+ contract=json.loads(a.contract.read_text())
+ objects=select_objects(contract,a.objects)
+ a.output.mkdir(parents=True,exist_ok=True)
+ cutting=import_disect_cutting(a.source_root)
+ for obj in objects:
   dest=a.output/(obj["name"]+".pt")
   if dest.exists():raise FileExistsError(dest)
   export(root/"backends/mujoco"/obj["disect_source_scene"],a.platform,dest,cutting,a.source_root)

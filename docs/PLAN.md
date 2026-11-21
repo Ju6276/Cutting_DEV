@@ -7,12 +7,14 @@ wall/GPU budget) and online W&B.
 
 ## Fixed task and algorithm
 
-Source of scene truth: [SHARED_SCENE](SHARED_SCENE.md) and
+Source of scene truth: [SHARED_SCENE](SHARED_SCENE.md), the UR10e
+[five-food contract](../configs/shared/ur10e_five_food_v1.json), and retained UR5e
 [scene_v1.json](../configs/shared/scene_v1.json); task rules: [TASK_FREE_CUT](TASK_FREE_CUT.md).
 Resource counts may differ; task settings must not be edited independently per backend.
 
-- Freely placed cucumber003 and flat-bottom half potato; equal object
-  allocation within a run. One shared policy per backend (DiSECt or BladeMaster).
+- UR10e five-food distribution: freely placed cucumber003, flat-bottom half
+  potato, peeled banana, tofu and luncheon. Earlier two-food configs remain
+  reproducible. Equal world allocation; one policy per backend (DiSECt or BladeMaster).
 - Same robot, FDCC, mounted finite blade, sensor frame and action meaning.
   Six output channels, pitch off; five effective controls.
 - Task pose_depth_v3 with `board.motion=project_continue_v2`: no permanent
@@ -135,3 +137,26 @@ fixed presentation entry and docs-prune branch after current regression checks.
 Synchronize GPU7, GPU9, A6000 and tams61. No formal long training is launched by this
 merge. Use the two-food configs (cucumber, half potato); new candidate foods require
 their own scene preparation. Do not repeat unrelated native differentiation tests.
+
+## 2026-11-21 five-food scene (user authorized)
+
+Add peeled banana, tofu and luncheon to cucumber and half potato for UR10e.
+The new distribution is explicit in
+[ur10e_five_food_v1.json](../configs/shared/ur10e_five_food_v1.json);
+the two-food contract remains reproducible. Each object receives three worlds
+in the small default config (15 total), with the same episode parameter scales,
+clearance sampling, task, robot and knife. This is not a long-run capacity choice.
+
+Rebuild the three candidate DiSECt scenes with the mounted IKEA CAD knife.
+Sample intact BladeMaster bodies from the same uncut tetrahedral volumes, without
+a preset cut interface. Material E/nu/density provenance stays in the candidate
+catalog; tofu/luncheon are reproduction block presets, not measured food fits.
+Keep native fracture mechanisms separate. Do not introduce a banana skin layer.
+
+Checks: both backends' five-group placement, finite state, physical/WM reward and
+termination agreement, selected reset isolation; candidate reference episodes
+and ground contact diagnostics. Baseline adaptation is delegated separately:
+SAC, frozen WM+MPPI and nonlearned MPC on current UR10e task metadata.
+No formal long training is authorized by this preparation.
+
+Five-food check update (2026-11-21): both adapters and baselines passed execution checks. The tofu -6.74 mm raw-node diagnostic included empty-side auxiliary nodes and is not a valid surface-penetration claim; the dedicated nominal replay measured maximum actual surface penetration 0.296627 mm at control boundaries and pose success at step 141. No physics parameters were changed. BladeMaster half potato remained 2.759 mm above the board at step 120 (zero arrival count), whereas DiSECt half potato succeeded at step 53. See RESULTS for scope, not an inference of impossible cutting.
