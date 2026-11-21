@@ -87,10 +87,75 @@ backends/mujoco/cutting_gpu_backend/controller/fdcc.py。
 
 ## 接下来的现场工作顺序
 
-先在不发布运动指令的条件下补齐 ATI 的实际采集与 ROS 输入，
+以下为原先顺序；用户随后要求先跳过 ATI，现按下节执行离线对齐。
+恢复 ATI 工作后，在不发布运动指令的条件下补齐实际采集与 ROS 输入，
 核对测量原点/轴向、单位、时间戳和补偿方式；不能拿 UR /wrench 代替 ATI。
 再把实际安装几何加入机器人描述，对齐控制点、工具负载和坐标变换。
 选定并验证与当前算法相符的控制律、参数与动作映射，然后做只计算不下发的 MPC
 影子运行，检查预测、时延和命令映射。完成这些后才制定明确的现场运动测试。
 
 本次没有改动以上现场状态，没有因用户在旁就自动启动 fdcc。
+
+## 2026-11-21：ATI 暂缓后的离线对齐候选
+
+用户要求暂缓 ATI 连接排查，先对齐末端坐标、控制律和动作映射。
+以下内容已经在 tamsCage 创建并验证，**没有加载到活动 ROS 驱动**：
+
+- 独立控制器工作区：/homeL/dong/ur10e_fdcc_alignment_ws。
+- 配置、脚本、日志与模型：/homeL/dong/ur10e_fdcc_records/alignment_candidate_20261121。
+- 从活动 /robot_description 只读导出原机器人描述，保留所有原机械臂节点，
+  在 tool0 下增加仿真平台的九个固定工具链接。检查原节点不变、链接唯一、
+  三个控制/传感器参考点可达，check_urdf 解析通过。
+  文件是 robot_description.original.urdf 和 robot_description.candidate.urdf。
+  这里保留的是现场现有机械臂参数，不声称已验证它的机器人序列号或工厂标定来源。
+- fdcc.candidate.yaml 从仿真平台 controller.json 生成，反序列化逐值一致。
+- 控制器使用项目固定的 SliceIt/cambel cartesian_controllers 源码及现有补丁，
+  在新工作区用 catkin_make -j2 -l2 编译通过，没有覆盖旧工作区或热替换驱动库。
+  该分支实现 S*K*位姿误差 + (I-S)*力误差，与仿真力位加权的来源一致。
+- action_mapping_check.json 使用原样复制的 SlicingActionMapper，未另写一套公式。
+  在现场既有 Python 环境进行三个离线动作检查：刚度/增益上下界、
+  正向动作累计 2 mm、反向抵消、第六通道禁用及有限值检查均通过。
+  映射器每个策略步调用一次（20 Hz）；不能每个 500 Hz 伺服周期重复累计。
+  这是映射检查，不是已实现 ROS 命令发送桥，也不代表完整 MPC 已现场运行。
+
+### 离线检查发现的参数范围不匹配
+
+SliceIt C++ 分支 dynamic_reconfigure 将 trans_x 的上限设为 5000 N/m，
+而当前仿真动作映射可输出 10000 N/m。直接传相同动作，会在 ROS 配置层被裁掉，
+即使两个控制器同源，动作仍不等价。
+
+使用真实生成的 C++ ComplianceControllerConfig::__clamp__ 验证：
+原配置将 10000 改成 5000，检查返回失败；只在独立候选工作区把 trans_x
+允许上限对齐到 10000，重新生成和编译后，相同检查保留 10000 并通过。
+没有改变默认刚度、任务力限、仿真动作或任何活动机器人参数。
+证据：check_config_range.cpp、range_before.log、range_after.log、
+controller_range.patch、build.log、build_range.log。
+候选修改用于排除部署接口失真，**不是已经允许真机按最大刚度运行**。
+
+### 尚不能声称完成的部分
+
+- ATI 轴向和安装角目前仍是仿真几何假设，需要现场核对；质量、重心仍含 CAD 估算。
+- 有负载时，C++ 初始化的重力基准不等于已完成去皮。
+  恢复 ATI 后必须在同一静止姿态同步传感器清零与 FDCC 的 signal_taring，
+  并测零力残差；本次没有调用清零或 taring 服务。
+- 同源控制律和相同参数不代表完整数值/时序等价，仍需固定输入的一步关节输出
+  对照，以及不下发指令的影子运行；动态参数传输也需要保证一致的生效时刻。
+- 真机闭环、实测工具坐标、ATI 输入、机器人伺服及停止行为尚未验收。
+  现有 fdcc 仍保持原状态，未发布目标或关节指令。
+
+## 两种六维力信号的区别
+
+UR10e 自带末端六维力/力矩传感器；现场 UR 驱动发布 /wrench，
+本次消息坐标为 tool0_controller。它和外置 ATI Mini45 是不同的传感器，
+测量位置、下游负载及标定不同，不能直接交换数据源。
+依据：[UR10e 官方数据表](https://www.universal-robots.com/media/1807466/ur10e_e-series_datasheets_web.pdf)。
+
+当前仿真不连接真实 ATI，也不是读取真机 UR /wrench：
+在虚拟 ati_sensing_frame 处，由 MuJoCo 机器人内部力和材料后端计算的
+接触反力/力矩组成读数，按测量原点和坐标变换，经过源滤波/去皮链路送入 FDCC。
+DiSECt 与 BladeMaster 的材料计算不同，但都使用该传感器坐标约定。
+当前砧板仍只有几何防穿透边界，没有板面反力模型；不能把仿真 wrench
+称为包含真实砧板反力、ATI 噪声或已标定的全部传感器特性。
+
+SAC 与 WM+MPPI 的当前审阅另见
+[审阅记录](../methods/SAC_WM_MPPI_AUDIT_20261121.md)，包括未决的 CPU 原生运行故障。
