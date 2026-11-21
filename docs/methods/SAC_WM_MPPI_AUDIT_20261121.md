@@ -99,3 +99,24 @@ CUDA_VISIBLE_DEVICES='' PYTHONPATH=.:backends/mujoco:tests OMP_NUM_THREADS=1 \
 TORCH_COMPILE_DISABLE=1 timeout 60 /dataHDD/dong/Projects/Cutting_DEV/.venv-sac/bin/python \
 -X faulthandler /dataHDD/dong/Experiments/Cutting_DEV/runs/sac_wm_mppi_audit_20261121/cutting_cpu_sigill_repro_20261121.py
 ```
+
+## 本轮后续限定：CPU 专项不是当前 GPU 训练/规划验收的阻塞项
+
+用户随后明确当前算法计算使用 GPU，不要求把本次 CPU 专项扩大为新的验收工程。因此停止进一步 CPU 实验，未更换训练依赖，未新增 CPU 环境入口，未保留 MKL 强制派发默认值。
+
+只读核对实际设备路径：
+- scripts/train_sac_multi.py 新建和续训 SB3 模型均明确 device='cuda'。VecEnv 会把观测转为 NumPy/replay 主机数据，但 actor/critic 的优化由 SB3 CUDA 模型执行；这条路径不调用测试中的 at_gap/joints_for。
+- SharedMPPIPolicy 将学习 WM/critic 放到 env.device；MPPI 候选、控制序列和状态在同一设备。当前仿真 env.device 是 CUDA。
+- 解析 MPC 在同一共享入口显式把 env.device 传给 AnalyticFDCCModel；其状态规格、SerialChain 和控制器预测也随该设备运行。
+- 出错复现的 at_gap 位于 tests/test_board_continue.py，joints_for 位于 tests/test_pose_depth_v3.py，均是为边界断言构造姿态的测试 fixture。生产 cutting_world_model/ 和 scripts/ 没有调用它们。生产代码也使用 FK/投影数学，但不等于在 GPU 路径调用这段 CPU fixture。
+
+没有证据表明这次 CPU 原生崩溃沿当前 CUDA SAC/WM+MPPI/解析 MPC 路径触发；也不能据此保证所有 CPU 初始化或所有将来的平台均安全。不能把未解决的 CPU fixture 故障冒称当前 GPU 算法失败。
+
+补充定位证据均保存到上述 runs 目录：
+- 官方同版本 CUDA wheel 的 libtorch_cpu.so 哈希与当前文件及安装 RECORD 一致；未发现多套 torch/MKL 同时加载，LD_PRELOAD 为空。不能将其定性为已证实的库损坏或硬件损坏。
+- 最小 standalone_fk_repro.py 只依赖 torch 与同目录的 kinematics/JSON fixture，不导入 pytest、WM 或材料后端；当前 CUDA wheel 在 CPU 运算时仍复现 SIGSEGV。
+- MKL_ENABLE_INSTRUCTIONS=AVX2 曾两次通过 30 轮循环和一次 35 项组合，但第三次独立循环仍崩溃。该候选不成立，环境入口和相应候选测试已撤回。MKL_CBWR=AVX2 也未解决；两者不是同一个设置。
+- 隔离环境 cutting-cpu-audit-20261121 使用官方 torch 2.4.1+cpu（仍为 MKL 2022.2），原 FK fixture 30 轮在 3 个独立进程均通过；71 项定向组合通过，另 2 个独立进程原 35 项组合通过。该环境仅作调查对照，没有链接为正式运行入口，也没有替换训练 CUDA 环境；收尾已删除该临时环境和本轮下载的 wheel，保留环境信息、日志及 wheel_comparison.json。
+- 原生底层根因仍未完全确定。最终交付没有算法修补、没有数学替代、没有宣称已修复当前 CUDA wheel 的全部 CPU 路径。
+
+Intel 的 [ISA 派发说明](https://www.intel.com/content/www/us/en/docs/onemkl/developer-guide-linux/2024-0/instruction-set-specific-dispatch-on-intel-archs.html) 说明了 MKL_ENABLE_INSTRUCTIONS 的用途；官方支持该开关并不意味着本次未通过重复验证的设置可作为修复。

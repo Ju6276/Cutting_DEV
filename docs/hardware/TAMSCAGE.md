@@ -138,8 +138,8 @@ controller_range.patch、build.log、build_range.log。
 - 有负载时，C++ 初始化的重力基准不等于已完成去皮。
   恢复 ATI 后必须在同一静止姿态同步传感器清零与 FDCC 的 signal_taring，
   并测零力残差；本次没有调用清零或 taring 服务。
-- 同源控制律和相同参数不代表完整数值/时序等价，仍需固定输入的一步关节输出
-  对照，以及不下发指令的影子运行；动态参数传输也需要保证一致的生效时刻。
+- 同源控制律和相同参数不代表完整数值/时序等价，固定输入的关节输出
+  对照已按后文完成；仍需实际输入的影子运行，动态参数传输也需要保证一致的生效时刻。
 - 真机闭环、实测工具坐标、ATI 输入、机器人伺服及停止行为尚未验收。
   现有 fdcc 仍保持原状态，未发布目标或关节指令。
 
@@ -159,3 +159,45 @@ DiSECt 与 BladeMaster 的材料计算不同，但都使用该传感器坐标约
 
 SAC 与 WM+MPPI 的当前审阅另见
 [审阅记录](../methods/SAC_WM_MPPI_AUDIT_20261121.md)，包括未决的 CPU 原生运行故障。
+
+## 同输入的 ROS C++ / Python 控制器对照（2026-11-21）
+
+离线对照已完成，不再只以“编译通过”作为依据。使用上述候选 URDF 和配置，
+在 tamsCage 的隔离 ROS master http://127.0.0.1:11349 上初始化真实
+CartesianComplianceController C++ 模板及其已编译 IK solver。硬件接口由
+内存中的六个关节 handle 提供，未连接活动 UR 驱动；测试结束关闭隔离 master。
+
+输入包括连续 30 次变化的关节位置、末端目标和六维 sensor wrench；
+保留非零工具质量/重心，初始同步去皮，控制器内部速度连续演化。
+同一输入送入当前 Python FDCCController，比较六关节位置指令：
+最大绝对误差 **1.3322676295501878e-15 rad**，阈值 1e-10，检查通过。
+不是重写一个独立 C++ 公式来与 Python 互证，而是调用候选控制器的
+init/starting/update 和实际力输入回调；force/target 的单位与原点保持一致。
+
+证据位于 alignment_candidate_20261121：
+controller_fixture.cpp、controller_fixture_input.txt、
+controller_fixture_expected.json、controller_fixture_actual.log、
+controller_output_comparison.json、prepare_controller_fixture.py。
+覆盖固定控制参数下的数值计算和递推，不覆盖实际机器人伺服、网络时延、
+在线动态参数同步、硬件关节饱和及真实 ATI 采集。实际控制器没有切换。
+与仿真同源的 FDCC 将运行在 tamsCage 的 ROS 进程，通过 UR 驱动发送关节目标，
+不是写入或替换 UR 控制箱固件。
+
+## UR 内置 F/T 作为可选输入的边界
+
+用户设备是 **UR10e**。不要和无实体末端 F/T 的旧 CB3 UR10 混称。
+[UR 官方数据表](https://www.universal-robots.com/media/1807466/ur10e_e-series_datasheets_web.pdf)
+列出各轴标称力范围 ±100 N、力矩范围 ±10 N·m；力准确度 ±5.5 N、
+力矩准确度 ±0.5 N·m，precision 分别为 ±5 N 和 ±0.2 N·m。
+准确度不等于分辨率，也不等于每个采样点都必然有该幅度噪声。
+[e-Series/CB3 的官方论坛说明](https://forum.universal-robots.com/t/internal-force-sensor-properties/229/4)
+区分 e-Series 工具末端实体 F/T 与 CB3 关节电流估算。
+
+可以把 UR 自带传感器作为独立的输入方案用于链路测试，但本次没有切换：
+必须核对驱动给出的 wrench 原点/坐标、TCP 与负载设置、已有重力补偿和清零，
+然后变换到控制器约定，避免把已补偿的 UR 输出再当作 ATI 原始读数补偿一次。
+ATI 及其上游转接件在 UR 内置传感器下游，而在 ATI 自身测量中不属于同一负载。
+即使它们都输出六维数，也不能只改 topic 名称就认为接口等价。
+
+对于很软食材的细小力特征，是否采用 UR 内置传感器，需比较实际静态噪声、
+重复性和目标信号幅度；连接方便本身不证明更适合材料辨识。
