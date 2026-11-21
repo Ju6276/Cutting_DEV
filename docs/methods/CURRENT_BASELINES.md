@@ -66,6 +66,74 @@ checkout's runs/dp3_controllers_20261117; their manifests also record v2.
 The analytic example completed one cucumber pose case at step 105.
 The current header/default config must never imply these records were v3 tests.
 
+
+## UR10e five-food interface checks — 2026-11-21
+
+The current UR10e + ATI Mini45 + IKEA CAD knife/FDCC-v2 platform was exercised
+on cucumber, half potato, peeled homogeneous banana, tofu and luncheon candidates,
+with one world per food. Both generated backend configs retain `pose_depth_v3`,
+`project_continue_v2`, the 500-step horizon, 50 N / 5 N·m component limits and
+the same six-action interface. This is executable interface evidence, not a
+trained-policy result or a full-episode controller comparison.
+
+On GPU9, `check_baseline_adapters.py --config ... --live BACKEND` collected
+40 real parallel control steps (200 transitions), fitted a fresh, matching WM
+for two updates, then ran each planner for two real control steps. Eight
+candidates and an eight-step planning horizon were used; neither planner changed
+the frozen WM weights. SAC additionally ran eight parallel steps / eight updates
+and its saved/reloaded weights matched exactly. Total adapter-check time was
+814.9 s for DiSECt and 588.3 s for BladeMaster. No episode naturally ended during
+this short collection.
+
+The production `train_sac_multi.py --smoke` entry was also executed separately
+for both backends: five worlds, 40 transitions, six optimizer updates, normal
+transition-budget completion, and model plus replay saved. Reload checks verified
+checkpoint/replay hashes, 40 replay transitions, finite outputs, a `[5,348]`
+observable-history/goal input and `[5,6]` action output. Wall times were 228.8 s
+(DiSECt) and 123.1 s (BladeMaster). These small schedules test the entry only;
+they are not long-training schedules.
+
+A separate physical reset check selected worlds `[0,2,4]`, then `[1,3]`.
+Both backends preserved every unselected **frame field** bit-for-bit, reset each
+selected world's counter to zero, and advanced it to one on the next real step.
+This covers all five groups without shortening the task horizon; it is forced
+reset coverage, not evidence of natural termination. Times: DiSECt 282.8 s,
+BladeMaster 97.7 s.
+
+Planning is still not 50 ms real-time: even with only eight candidates, median
+planning time per world/command was 0.205–0.215 s for WM+MPPI and
+0.489–0.511 s for nonlearned MPC. Formal 512-candidate latency was not measured.
+No hardware-ready timing or cutting-performance claim follows from these checks.
+
+Evidence on GPU9:
+ /dataHDD/dong/Experiments/Cutting_DEV/runs/ur10e_baselines_20261121/:
+
+- runtime_check_baseline_adapters.py (exact pre-guard runtime probe source);
+- {bm,disect}_five_adapters/report.json;
+- {blademaster,disect}_sac_cli_five/;
+- sac_cli_restore_verification.json;
+- {blademaster,disect}_reset_groups.json and reset_groups.py.
+
+Reports retain actual runtime metadata, config/probe hashes and the base source
+identity (`b501c28` plus the recorded probe/config changes). The subsequent
+front-door refusal of historical tasks affects rejected inputs only; the
+current-V3 physical path above is unchanged.
+
+The adapter probe now selects recorded worlds from each group's actual count,
+instead of assuming three groups of three. Its `--config --live` mode creates
+fresh paired WM evidence when no compatible current-robot checkpoint exists.
+Live fitting refuses historical task/board versions; `--evidence` recorded
+evaluation remains available. This changes verification tooling, not a reward,
+controller, physics law or training algorithm. The exact five-group recorded-CPU
+path also passed (2.24 s, all five foods selected; two SAC updates from 100 real
+recorded transitions, no new physics), with evidence in
+five_food_recorded_cpu/report.json.
+
+Merged-candidate GPU7 regression: 776 root tests passed / 25 skipped; 44 backend
+tests passed. Independent food support/penetration limitations remain in
+[SHARED_SCENE](../SHARED_SCENE.md); an adapter pass does not clear those physical
+scene checks.
+
 ## Inputs, outputs and model limitations
 
 Policy and SAC receive 10 observable frames x 34 values plus the 8D commanded

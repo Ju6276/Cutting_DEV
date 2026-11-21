@@ -11,7 +11,7 @@ sys.path[:0] = [str(ROOT), str(ROOT / "backends/mujoco")]
 import numpy as np
 import torch
 from cutting_world_model.world_model import CuttingWorldModel
-from cutting_world_model.shared_baselines import SharedMPPIPolicy
+from cutting_world_model.shared_baselines import SharedMPPIPolicy, frame_metadata
 from cutting_world_model.controller_profile import controller_parameters
 from cutting_world_model.mpc import MPPIConfig
 from cutting_world_model.sac_vector import CuttingVecEnv, TransitionSAC
@@ -36,13 +36,91 @@ def recorded_frame(spec, state, goal):
     frame["target_speed"] = goal[:, 7:]
     return frame
 
+
+def representative_worlds(config, worlds):
+    """First actual world of each group; never assume three groups x three worlds."""
+    indices, offset = [], 0
+    for group in config["groups"]:
+        count = group["worlds"]
+        if type(count) is not int or count < 1:
+            raise ValueError("Positive integer group world count required")
+        indices.append(offset)
+        offset += count
+    if not indices or offset != worlds:
+        raise ValueError("Replay world count does not match evidence config")
+    return indices
+
+
+def validate_live_config(config):
+    """Live checks fit WM/SAC weights, so historical tasks are evaluation-only."""
+    from cutting_world_model.free_cut import CURRENT_POSE_DEPTH, refuse_retired_training
+    from cutting_gpu_backend.tool_mount import CONTINUE_BOARD
+    task = config.get("task") or {}
+    refuse_retired_training(task)
+    if task.get("version") != CURRENT_POSE_DEPTH or task.get("board", {}).get("motion") != CONTINUE_BOARD:
+        raise ValueError("Live baseline fitting requires the explicit current pose task and board motion")
+
+
+def prepare_live_evidence(env, config, output, steps=40):
+    """Fit a tiny amount of actual data solely to exercise the frozen-WM adapter."""
+    from cutting_world_model.online_replay import BatchedOnlineReplay
+    from cutting_world_model.policy import SliceItPolicy, SliceItCritic
+    from cutting_world_model.trainer import OnlineLearner
+    from third_party.supermimic.trainer_config import WMTrainerCfg, PolicyTrainerCfg
+    output.mkdir()
+    metadata = frame_metadata(env)
+    wm = CuttingWorldModel(metadata).to(env.device)
+    learner = OnlineLearner(wm, SliceItPolicy(8, 34).to(env.device),
+        SliceItCritic(wm.spec.state_dim, 8).to(env.device), microbatch=4,
+        wm_cfg=WMTrainerCfg(batch_size=8, window=8, batches_per_update=1, compile=None),
+        policy_cfg=PolicyTrainerCfg(gamma=config["task"]["gamma"], compile=None),
+        critic_target="real", actor_horizon=8, wm_only_updates=500)
+    replay = BatchedOnlineReplay(env.worlds, wm.spec.state_dim, env.device,
+        capacity=128, goal_dim=8)
+    frame = env.current
+    state = wm.spec.pack_batch(frame).float()
+    episodes = 0
+    with torch.no_grad():
+        for step in range(steps):
+            action = torch.zeros(env.worlds, 6, device=env.device)
+            goal = env.goal(frame).float()
+            frame, reward, done, truncated, _ = env.step(action)
+            nxt = wm.spec.pack_batch_transition(frame, state).float()
+            if not torch.isfinite(nxt).all() or not torch.isfinite(reward).all():
+                raise FloatingPointError("Nonfinite live WM collection")
+            replay.add(state, action, wm.spec.execute(action), goal,
+                reward.float(), nxt, done, truncated)
+            state = nxt
+            ended = done | truncated
+            if ended.any():
+                frame = env.reset(ended)
+                state = wm.spec.reset_batch_history(frame, state, ended).float()
+                episodes += int(ended.sum())
+            if step % 10 == 0:
+                print("collect", step+1, "of", steps, flush=True)
+    metrics = [learner.fit_world_model(replay.buffer) for _ in range(2)]
+    if not all(np.isfinite(v) for item in metrics for v in item.values()):
+        raise FloatingPointError("Nonfinite WM fitting metrics")
+    (output/"metadata.json").write_text(json.dumps(metadata, indent=2))
+    (output/"config.json").write_text(json.dumps(config, indent=2))
+    torch.save(learner.checkpoint(), output/"learner.pt")
+    torch.save(replay.state_dict(), output/"replay.pt")
+    return dict(physical_steps=steps, physical_transitions=steps*env.worlds,
+                natural_episodes=episodes, wm_updates=2, metrics=metrics,
+                scope="fresh interface-test WM, not a trained controller")
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--evidence", type=Path, required=True)
+    inputs = p.add_mutually_exclusive_group(required=True)
+    inputs.add_argument("--evidence", type=Path)
+    inputs.add_argument("--config", type=Path, help="Current live config; collect and fit a fresh matched WM")
     p.add_argument("--output", type=Path, required=True)
     p.add_argument("--live", choices=["disect", "blademaster"])
     p.add_argument("--seconds", type=int, default=900)
     a = p.parse_args()
+    if a.config and not a.live:
+        p.error("--config requires --live")
     a.output.mkdir(parents=True, exist_ok=False)
     started = time.monotonic()
     report = {"status": "running", "mode": a.live or "recorded_cpu", "checks": {},
@@ -55,26 +133,46 @@ def main():
     env = vec = None
     try:
         torch.set_num_threads(2); torch.manual_seed(0)
-        metadata = json.loads((a.evidence / "metadata.json").read_text())
-        learner = torch.load(a.evidence / "learner.pt", map_location="cpu", weights_only=False)
-        checkpoint = a.output / "paired_wm.pt"
-        torch.save({"metadata": metadata, "learner": learner}, checkpoint)
-        spec = CuttingWorldModel(metadata).spec
-        data = torch.load(a.evidence / "replay.pt", map_location="cpu", weights_only=False)["buffer"]["tensors"]
-        if a.live:
-            cfg = json.loads((a.evidence / "config.json").read_text())
+        if a.config:
+            cfg = json.loads(a.config.read_text())
+            validate_live_config(cfg)
             if a.live == "disect":
                 from cutting_world_model.multi_env import MultiConditionEnvironment
                 env = MultiConditionEnvironment.from_config(ROOT / "backends/mujoco", cfg)
             else:
                 from cutting_world_model.blademaster_backend import BladeMasterEnvironment
                 env = BladeMasterEnvironment(ROOT / "backends/mujoco", cfg)
-        else:
+            a.evidence = a.output/"fresh_evidence"
+            report["fresh_wm"] = prepare_live_evidence(env, cfg, a.evidence)
+            report["evidence"] = str(a.evidence)
+            report["config_source"] = str(a.config)
+            report["config_sha256"] = hashlib.sha256(a.config.read_bytes()).hexdigest()
+        metadata = json.loads((a.evidence / "metadata.json").read_text())
+        learner = torch.load(a.evidence / "learner.pt", map_location="cpu", weights_only=False)
+        checkpoint = a.output / "paired_wm.pt"
+        torch.save({"metadata": metadata, "learner": learner}, checkpoint)
+        spec = CuttingWorldModel(metadata).spec
+        data = torch.load(a.evidence / "replay.pt", map_location="cpu", weights_only=False)["buffer"]["tensors"]
+        cfg = json.loads((a.evidence / "config.json").read_text())
+        if a.live:
+            validate_live_config(cfg)
+        indexes = representative_worlds(cfg, data["s"].shape[0])
+        if a.live and env is None:
+            if a.live == "disect":
+                from cutting_world_model.multi_env import MultiConditionEnvironment
+                env = MultiConditionEnvironment.from_config(ROOT / "backends/mujoco", cfg)
+            else:
+                from cutting_world_model.blademaster_backend import BladeMasterEnvironment
+                env = BladeMasterEnvironment(ROOT / "backends/mujoco", cfg)
+        elif not a.live:
             # One actual recorded state per object, not fabricated geometry.
-            indexes = torch.tensor([0, 3, 6])
+            indexes = torch.tensor(indexes)
             state, goal = data["s"][indexes, 10], data["xi"][indexes, 10]
-            env = SimpleNamespace(worlds=3, device=torch.device("cpu"), metadata=metadata,
+            env = SimpleNamespace(worlds=len(indexes), device=torch.device("cpu"), metadata=metadata,
                 current=recorded_frame(spec, state, goal))
+        report["metadata"] = metadata
+        report["worlds"] = env.worlds
+        report["groups"] = [g["name"] for g in cfg["groups"]]
         cfg = MPPIConfig(horizon=8, samples=8, discount=metadata["free_cut_task"]["gamma"])
         for name, weights in (("wm_mppi", checkpoint), ("analytic_mpc", None)):
             begin = time.monotonic()
@@ -112,7 +210,7 @@ def main():
                 buffer_size=1024, batch_size=8, gamma=metadata["free_cut_task"]["gamma"],
                 policy_kwargs={"net_arch": [256, 256]}, seed=0, verbose=0)
             model.set_logger(configure(str(a.output / "sac_log"), []))
-            for world in (0, 3, 6):
+            for world in indexes:
                 for t in range(10, 30):
                     assert data["valid"][world,t] and data["valid"][world,t+1]
                     assert not data["terminal"][world,t] and data["ep_id"][world,t] == data["ep_id"][world,t+1]
