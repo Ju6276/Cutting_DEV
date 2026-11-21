@@ -88,7 +88,6 @@ versions and [RESULTS](../docs/RESULTS.md).
   collection bridges retain independent upstream reproduction.
 - `train_official_supermimic.py`: separate official SuperMimic adaptation (fixed prism).
 - `check_wm_latch_learning.py`: latch-era V3 loss probe; refuses the current board motion.
-- `legacy/`: retired perturbation, B1 and model-fit diagnostics.
 
 Importable historical helpers are retained for compatibility.
 
