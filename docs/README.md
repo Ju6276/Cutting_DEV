@@ -21,7 +21,8 @@ is not a training instruction.
   midpoint predictor and physical handoffs).
 - [hardware/](hardware/): [UR10E_INTEGRATION_REVIEW](hardware/UR10E_INTEGRATION_REVIEW.md)
   (UR10e/ATI/CAD-knife simulation integration); [UR10E_FDCC_SETUP_ZH](hardware/UR10E_FDCC_SETUP_ZH.md)
-  (Chinese UR10e + ATI FDCC bring-up handoff); [REAL2SIM](hardware/REAL2SIM.md)
+  (Chinese UR10e + ATI FDCC bring-up handoff); [UR10E_MPC_HANDOFF_ZH](hardware/UR10E_MPC_HANDOFF_ZH.md)
+  (entry point for real-robot MPC and eye-to-hand calibration); [REAL2SIM](hardware/REAL2SIM.md)
   (Chinese UR10e/ATI/food calibration protocols, friction identification, paper evidence and deployment limits).
 - [reference/](reference/): [CUTTING_MECHANISMS](reference/CUTTING_MECHANISMS.md)
   (DiSECt/BladeMaster cutting mechanisms and task signals);
