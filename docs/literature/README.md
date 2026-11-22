@@ -1,9 +1,9 @@
-# Literature review index — current scope updated 2026-11-19
+# 文献资料库（按需阅读）
 
 This is the per-paper evidence ledger requested by the user, produced by Codex
-with one literature subagent. It covers the named method papers in the reading list below
+during the recorded literature review. It covers the named method papers in the reading list below
 and the former NOVELTY synthesis, with separately identified simulator and data references.
-[PAPER](../PAPER.md) defines current claims; [PLAN](../PLAN.md) defines current work.
+[研究](../RESEARCH.md) defines current claims; [研究](../RESEARCH.md#next-work) defines current work.
 
 Each record states **what was actually read**, method and data, relevant
 experiments/metrics, limitations, and inspected code/version where available.
@@ -13,6 +13,11 @@ counted as an implementation review. None of these external algorithms was
 trained or numerically reproduced in this review. No sealed test was opened.
 
 ## Current use and historical interpretation
+
+This is a reference library, not a list of current implementations or required setup steps.
+Start with SliceIt/DiSECt/BladeMaster for the task, SuperMimic/TD3+BC for the learner,
+and DeepMPC/Mitsioni for learned predictive cutting. Safety/calibration papers are
+background; they do not introduce a selected risk-head method into this project.
 
 Use these existing readings to build the current comparison of force-feedback
 compliant cutting, learned cutting models/MPC, sim-to-real cutting policies,
@@ -135,7 +140,7 @@ limitations. Current pages can differ from an older manuscript.
 
 Merged from the former READING_LIST.md on 2026-11-18. Literature and data entry
 points for the RA-L paper (research question in
-[PLAN](../PLAN.md)). Each entry says why it matters here and links its
+[研究](../RESEARCH.md#next-work)). Each entry says why it matters here and links its
 per-paper record above when one exists. The 2026-11-10 review distinguishes
 retrieved versions, author code, community implementations and unavailable
 releases. A source inspection is not a run.
@@ -192,7 +197,7 @@ alone therefore do not define a DiSECt food.
 
 | Source | Contents | Status |
 |---|---|---|
-| DiSECt dataset ([repo](https://github.com/NVlabs/DiSECt), 96 MB, CC BY-NC 4.0) | Meshes plus ANSYS LS-DYNA simulated knife forces and nodal motion: prism, cylinder (jello), sphere (apple). Configs in `examples/config/`. | Used; prism is our L1 object. |
+| DiSECt dataset ([repo](https://github.com/NVlabs/DiSECt), 96 MB, CC BY-NC 4.0) | Meshes plus ANSYS LS-DYNA simulated knife forces and nodal motion: prism, cylinder (jello), sphere (apple). Configs in `examples/config/`. | Historical fixed-prism source; prism is not in the current five-food distribution. |
 | SliceIt OSX dataset (link in `SliceIt/disect/README.md`, CC BY-NC 4.0) | Real knife-force profiles (`calibrated/*.npy`) referenced by `examples/config/osx/` for cucumber (E 2.6 MPa), potato (2.0 MPa) and tomato (40 kPa). The three configs share default cut-spring parameters (ke 200, softness 200, surface softness 300), so they are not fitted DiSECt materials. | Google Drive link returned "page not found" on 2026-11-07; ask the authors. A cucumber mesh is in `catkin_ws/src/o2ac_gazebo/models/cucumber`. |
 | Sawhney et al. *Playing with Food*. [arXiv:2101.02252](https://arxiv.org/abs/2101.02252) Note: [playing_with_food](playing_with_food.md). | Real robot cutting of multiple foods with force, audio, images and proprioception; publicly downloadable. | See the data/module review in the note; dataset access and task labels differ from our online transitions. |
 | Luo, Yuan (robocutting). [arXiv:2607.04367](https://arxiv.org/abs/2607.04367) Note: [robocutting](robocutting.md). | Force, velocity and displacement from trial cuts on 14 foods with a UR5e. | Release not confirmed. |
@@ -204,4 +209,4 @@ alone therefore do not define a DiSECt food.
 
 ### Still to do
 
-Current work is tracked in [PLAN](../PLAN.md) and [PAPER](../PAPER.md). 
+Current work is tracked in [研究](../RESEARCH.md#next-work).

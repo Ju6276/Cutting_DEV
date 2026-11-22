@@ -4,8 +4,8 @@ These files preserve recorded task versions and checkpoint compatibility.
 **None of the pose_*.json files in this directory selects the current
 pose_depth_v3**: they still contain free_cut_pose_v1.
 Generate current paired backend inputs from
-[shared/scene_v1.json](../shared/scene_v1.json), following
-[SHARED_SCENE](../../docs/SHARED_SCENE.md). Use the generated files recorded
+[shared/ur10e_five_food_v1.json](../shared/ur10e_five_food_v1.json), following
+[场景](../../docs/METHOD.md#scene). Use the generated files recorded
 in the run manifest for training/evaluation.
 
 | Files | Historical purpose |

@@ -48,7 +48,7 @@ python scripts/train_gpu.py --help
 ```
 
 Host GPU defaults are not reservations; inspect occupancy before launch.
-All long runs use online W&B as specified in [RUNNING](../../docs/RUNNING.md).
+All long runs use online W&B as specified in [运行](../../docs/OPERATIONS.md).
 The separate native BladeMaster repository has development dependencies for
 its own experiments, including differentiable-physics tests. Those are not
 required for this project's WM+BPTT training pipeline.

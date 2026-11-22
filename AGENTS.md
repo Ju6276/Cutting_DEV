@@ -5,19 +5,18 @@
 - Repository organization changes preserve physics, training settings and task
   thresholds. Keep active runs on their existing checkouts until they finish.
 - Validate both root and backend suites on the 4090 before committing. Use the
-  commands in `docs/RUNNING.md`; exclude assets, runs, credentials and environments
+  commands in `docs/OPERATIONS.md`; exclude assets, runs, credentials and environments
   from Git. Document source modifications in METHOD and preserve licenses.
 
-- Follow PLAN; it is the single current task list. The current task is
-  pose_depth_v3 with `task.board.motion=project_continue_v2` (docs/TASK_FREE_CUT.md,
-  docs/SHARED_SCENE.md): cumulative arrival >10, 2 mm tolerance, +100/-100,
+- Follow docs/RESEARCH.md; it is the single current task list. The current task is
+  pose_depth_v3 with `task.board.motion=project_continue_v2` (docs/METHOD.md): cumulative arrival >10, 2 mm tolerance, +100/-100,
   existing failure rules, 500-step horizon, no permanent board latch, no
   first-arrival/V4 task and no board reaction-force model. Older task versions
   (v2, latch-era V3, project_continue_v1, pose-v1, free_cut, fixed prism) are
   evaluate-only; do not mix replay/checkpoints across task metadata.
 - Pose success is not validated separation; scalar material feedback is not a
   Mini45 contact wrench. The force-spike premise and S3 comparison are retired.
-  Sawing and geometry input are user-favoured directions; start them from PLAN,
+  Sawing and geometry input are user-favoured directions; start them from docs/RESEARCH.md,
   not because old code remains runnable.
 - Retained implementation: SuperMimic-Reproduced `ba610534` adapted to the SliceIt
   FDCC + DiSECt/BladeMaster task in the unified MuJoCo Warp environment.
@@ -33,7 +32,7 @@
 - Frozen-controller comparisons may retain different training budgets and inputs
   when disclosed. Matched-data/sample-efficiency claims require their own
   budget and information-access protocol.
-- New material/geometry distributions are explicit, versioned tasks under PLAN;
+- New material/geometry distributions are explicit, versioned tasks under docs/RESEARCH.md;
   record physical parameter provenance and do not change a contract silently.
   No scene-specific success shortcuts, damage projection or invented reward head.
 - Action-perturbation evaluations are retired and excluded from the paper.

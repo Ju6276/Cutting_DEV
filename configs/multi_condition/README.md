@@ -1,7 +1,7 @@
 # Multi-condition configurations
 
 2026-11-12: reproduction inputs for the old task, not approved settings for a
-new long run. See [PLAN](../../docs/PLAN.md) and [RESULTS](../../docs/RESULTS.md).
+new long run. See [研究](../../docs/RESEARCH.md#next-work) and [RESULTS](../../docs/RESULTS.md).
 
 - `s0_train.json`, `s0_eval_train.json`: old S3 training/in-distribution evaluation.
 - `s0_heldout_material_low.json`, `s0_heldout_material_high.json`,
@@ -11,5 +11,5 @@ new long run. See [PLAN](../../docs/PLAN.md) and [RESULTS](../../docs/RESULTS.md
 Numbers/paths remain for provenance and checkpoint compatibility. They still
 use the pose-goal task and inherited reward. No corrected separation rule or
 fixture is supplied. S0's 50 N / 5 N·m were simulation choices, not Mini45
-calibration or real safety guarantees. The bottom hold and fixed-displacement
-reference are diagnosed issues. A corrected task needs an explicit new version.
+calibration or real safety guarantees. The bottom hold and fixed-displacement reference belong to those old tasks;
+the current free-object V3 task is documented in the method guide.

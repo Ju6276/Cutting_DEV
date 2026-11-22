@@ -21,7 +21,7 @@ Section 3 separates marginal coverage from adaptivity and conditional coverage. 
 
 The variability of coverage conditional on the calibration sample is described by a Beta law; finite validation samples add a beta-binomial component. The tutorial's rough recommendation of 1,000 calibration examples is an illustration under its setup, not a universal requirement to impose on our project.
 
-For our 13 force-limit events, discovery count is an event-detection metric, not a conformal coverage proof. Correlated frames from one episode must not be passed off as independent calibration trials. Calibration, development selection and final evaluation have different roles.
+A count of detected force-limit events is an event-detection metric, not a conformal coverage proof. Correlated frames from one episode must not be passed off as independent calibration trials. Calibration, development selection and final evaluation have different roles.
 
 ## Shift, sequential data and risk control
 

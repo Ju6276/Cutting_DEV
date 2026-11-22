@@ -12,5 +12,5 @@ Its binary decoder receives a stopped latent representation. Appendix F compares
 ## Data and evidence
 Visual DMC/Meta-World with distracting backgrounds; reported evaluation averages across four training seeds. The final paper also includes robot lane following. Masks are training supervision, not a mandatory policy input. Removing task-relevant ground pixels can hurt contact modeling, illustrating that the choice of “irrelevant” information matters.
 
-## Relation to A
-This is an actual precedent for isolating an auxiliary prediction head's fitting gradient. It concerns mask prediction, not success/force termination, and does not prove our A improves control. The actor's gradient estimator and physical-state versus latent-state representation also differ. A's completed negative primary control result remains unchanged.
+## Relevance
+This is an actual precedent for isolating an auxiliary prediction head's fitting gradient. It concerns mask prediction, not success/force termination, and does not establish that detaching terminal BCE improves cutting control. The actor's gradient estimator and physical-state versus latent-state representation also differ. The current cutting method retains the terminal BCE gradient; this paper is background, not a selected component.

@@ -13,4 +13,4 @@ Code registers three trainable scales for reward/image/KL. Discount/continuation
 
 ## Evidence and implications
 Meta-World, RLBench, distracted DMC and game experiments report success/return versus environment steps and ablations. Observation domination can create wrong action–object–reward relations, even with plausible reconstructions. Clean tasks have smaller gains.
-Our BCE-gradient dominance concerns supervised physical state and termination, not identical image-loss dominance. Reweighting would be an attributed comparator, not a new contribution by itself; equal losses do not imply equal parameter gradients.
+The project’s historical BCE-gradient analysis concerned supervised physical state and termination, not identical image-loss dominance. Reweighting would be an attributed comparator, not a new contribution by itself; equal losses do not imply equal parameter gradients.

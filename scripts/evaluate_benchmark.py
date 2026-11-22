@@ -2,7 +2,7 @@
 """Historical fixed-prism controller evaluation.
 
 For the current pose_depth_v3 task (and read-only pose_depth_v2 checkpoints) use evaluate_pose_policy.py with the recorded
-generated shared configuration; see docs/methods/CURRENT_BASELINES.md."""
+generated shared configuration; see docs/METHOD.md."""
 import argparse
 import importlib.metadata
 import json

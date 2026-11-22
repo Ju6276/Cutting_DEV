@@ -36,5 +36,5 @@ publisher supplements. No public algorithm implementation was inspected.
 
 An integrated cutting system can be a valid contribution without a new generic
 RL optimizer. But our claimed contribution must match the actual learned module.
-This paper does not establish that simply adding objects to our current fixed
+This paper does not establish that simply adding objects to our single-cut
 task constitutes a comparable system contribution.

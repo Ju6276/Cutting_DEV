@@ -12,7 +12,7 @@ A recurrent latent state-space model uses discrete stochastic latents, reconstru
 Crucially, this version uses REINFORCE actor gradients, including continuous-action settings. It is not the same actor gradient estimator as SuperMimic's pathwise BPTT.
 
 ## Source findings that constrain our claims
-The continuation head reads the representation without a stop-gradient switch. A configurable reward gradient is a separate feature. Therefore A (detaching terminal BCE from our physical-state model during fitting) is not a direct copy of DreamerV3's continuation training.
+The continuation head reads the representation without a stop-gradient switch. A configurable reward gradient is a separate feature. Detaching terminal BCE from a physical-state model during fitting would not be a direct copy of DreamerV3's continuation training. That detach is not part of the selected project method.
 
 The slow critic exists, but the supplied default configuration has `slowtar: False`; slow-value regularization and using a slow network as bootstrap target are different operations. Reading only a function's default argument would misdescribe the executed configuration. Actor loss multiplies log-policy by a stopped advantage.
 

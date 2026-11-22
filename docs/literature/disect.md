@@ -15,7 +15,7 @@ Direct trajectory optimization differentiates the complete physical rollout with
 The example uses a public sphere/apple configuration, 0.6-s rollout, 2e-5-s material step and 100 optimization iterations. It initializes a five-waypoint sawing motion and invokes `cut()` preprocessing before optimization; `mean_force.backward()` supplies trajectory gradients. The example's single sine frequency and settings must not be silently equated with every equation/configuration in the paper.
 
 ## Results and limits
-The simulated example reports approximately 89.7 to 76.7 N mean force; real apple/banana/cucumber experiments report substantially larger relative reductions. Those robot results use their own calibrated scenes, attachment and execution, not our current prism. They do not guarantee convergence on every public mesh or our modified configuration. A prepared interface limits where new cuts can be optimized.
+The simulated example reports approximately 89.7 to 76.7 N mean force; real apple/banana/cucumber experiments report substantially larger relative reductions. Those robot results use their own calibrated scenes, attachment and execution, not our UR10e five-food setup. They do not guarantee convergence on every public mesh or our modified configuration. A prepared interface limits where new cuts can be optimized.
 
 Useful role: per-scene physical optimization reference, with explicit geometry/trajectory/robot-interface differences. It does not replace a feedback policy over unknown materials and should not block the current shared-policy research route.
 

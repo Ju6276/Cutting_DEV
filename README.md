@@ -1,61 +1,26 @@
 # Cutting DEV
 
-Force-conditioned robotic cutting with a learned world model and BPTT policy
-optimization. A robot with FDCC compliance control is shared by two material
-backends: DiSECt (FEM, prepared cutting interface) and native BladeMaster (MPM,
-damage). The current task is **pose_depth_v3** with `project_continue_v2` board
-handling: prescribed final pose without failure (cumulative arrival >10, 2 mm
-tolerance, +100/-100, 500 steps at 0.05 s), geometric nonpenetration and
-continuing material/sensor updates at the board. Pose success is not proof of
-material separation.
+Force-conditioned food cutting: learned world model + BPTT policy,
+UR10e / ATI Mini45 / IKEA knife, with DiSECt or native BladeMaster material physics.
+Current task: pose_depth_v3 / project_continue_v2, cumulative pose arrival;
+no permanent board freeze and no simulated board reaction.
 
-## Entry points
+## Documentation
 
-| Purpose | Source |
-|---|---|
-| Decisions and next work | [PLAN](docs/PLAN.md) |
-| Scene, robot, knife, reset distribution and cut locations | [SHARED_SCENE](docs/SHARED_SCENE.md) |
-| Completion, rewards and constraints | [TASK_FREE_CUT](docs/TASK_FREE_CUT.md) |
-| Learning implementation | [METHOD](docs/METHOD.md) |
-| All four controllers: code, task versions and tested coverage | [CURRENT_BASELINES](docs/methods/CURRENT_BASELINES.md) |
-| Vision goal selection | [VISION_ROUTE1](docs/methods/VISION_ROUTE1.md) |
-| Measured outcomes and limits | [RESULTS](docs/RESULTS.md) |
-| Installation, tests, training/evaluation commands, recording and rendering | [RUNNING](docs/RUNNING.md) |
-| Main requirements and isolated baseline/render/CAD environments | [Dependencies](scripts/env/README.md) |
-| Server data and run provenance | [DATA](docs/DATA.md) |
-| UR10e + ATI + CAD knife integration | [Integration evidence](docs/RESULTS.md#ur10e-platform-integration-evidence), [Chinese setup handoff](docs/hardware/UR10E_FDCC_SETUP_ZH.md) |
-| Full documentation index | [docs](docs/README.md) |
+[Start here](docs/README.md). Five daily guides:
 
-**One current task, not one task per algorithm:** WM+BPTT, SB3 SAC, frozen
-WM+MPPI and nonlearned FDCC+MPPI all use pose_depth_v3. DiSECt/BladeMaster
-select material physics, not an RL algorithm. Older task versions are
-evaluate-only; never bypass physics/task metadata to present old weights as
-current-task results.
+- [Research](docs/RESEARCH.md): question, paper comparisons, next work.
+- [Method](docs/METHOD.md): algorithms, inputs/outputs, task, rewards and scenes.
+- [Operations](docs/OPERATIONS.md): machines, dependencies, commands and data.
+- [Hardware](docs/HARDWARE.md): UR10e, ATI, Nano, real deployment and calibration.
+- [Results](docs/RESULTS.md): dated measurements and evidence.
 
-Every server runs from /dataHDD/dong/Projects/Cutting_DEV with
-`source scripts/env/cutting_env.sh` (SAC/planners: `CUTTING_ENV=sac` / `planner`;
-see [RUNNING](docs/RUNNING.md#remote-only-development-and-storage)). Frozen
-training checkouts keep their recorded revisions. All long runs require an
-approved plan, a recorded budget and online W&B.
+WM+BPTT is compared with SAC and frozen WM+MPPI. Analytic MPC remains an
+engineering/controller-chain test tool; all methods use the shared FDCC execution layer.
+Five foods: cucumber, half potato, peeled banana, tofu and luncheon.
+Pose completion does not certify material separation.
 
-Current training uses UR10e + ATI Mini45 + the mounted IKEA CAD knife with
-cucumber, half potato, peeled banana, tofu and luncheon:
-`configs/shared/ur10e_five_food_v1.json`. The retained UR5e `scene_v1` has
-cucumber and half potato; prism is not a current food-training default.
-Both profiles use full six-axis wrench, fixed knife heading and final-only
-position constraints. Material parameters and simulated limits remain uncalibrated.
-The main paper comparisons are SAC and frozen WM+MPPI; analytic MPC is retained
-as an engineering/controller-chain test tool.
-
-## Repository map
-
-- cutting_world_model/: learning, task adapters and perception handoff.
-- backends/mujoco/: robot, material coupling and parallel simulation.
-- integrations/sliceit/: pinned upstream integration and provenance.
-- scripts/: [execution and diagnostic entry points](scripts/README.md).
-- configs/: [versioned configuration index](configs/README.md).
-- runs/: server-only data, checkpoints and evidence, excluded from Git.
-
-[Paper scope](docs/PAPER.md) · [Literature](docs/literature/README.md) ·
-[Real robot plan](docs/hardware/REAL2SIM.md) · [Sources](docs/reference/SOURCES.md) ·
-[Licenses](NOTICE.md)
+Code: cutting_world_model/ (learning/task), backends/mujoco/ (robot/physics),
+scripts/ (entries), configs/ (contracts), integrations/ (source provenance).
+Start from the [runtime guide](docs/OPERATIONS.md); assets and runs remain outside Git.
+[Sources](docs/reference/SOURCES.md) · [Licenses](NOTICE.md).

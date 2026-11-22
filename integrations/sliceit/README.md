@@ -1,14 +1,12 @@
-# SliceIt integration
+# Historical SliceIt / Gazebo reproduction
 
-Run `python3 scripts/checkout_sliceit.py` from the project root to reconstruct
-the pinned SliceIt source and all eight installed Git repositories. It restores
-the public prism configurations and the local bridge/controller/stepping fixes.
-`--local-source /path/to/SliceIt` uses an existing checkout's Git objects.
+This directory preserves pinned upstream sources and local integration patches.
+It is not required to switch the current MuJoCo task to Gazebo.
+Current training/evaluation: [Operations](../../docs/OPERATIONS.md).
 
-The checkout requires ROS Noetic, a built catkin underlay, the SliceIt Python
-3.8 environment, and the public DiSECt dataset. The scene uses the public prism
-material and the scene-aligned Gazebo knife. Author food-calibration data remain
-a separate download.
-
-SAC and Gazebo WM entry points are documented in [RUNNING](../../docs/RUNNING.md).
-Sources and exact revisions: [lock](patches/sources.json).
+scripts/checkout_sliceit.py reconstructs the source trees in
+[the lock](patches/sources.json), including public-prism and bridge/controller fixes.
+Its --local-source option uses existing Git objects. Rebuilding this historical
+stack requires ROS Noetic, the SliceIt Python environment, catkin and source assets;
+it is not a new current-baseline training instruction.
+Attribution and patch scope: [Sources](../../docs/reference/SOURCES.md).
