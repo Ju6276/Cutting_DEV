@@ -1,18 +1,24 @@
-# Visual goals — geometric and learned centers
+# 视觉模块：几何选面与 DP3 定位
 
-This page owns the visual algorithm and inference/training interface.
-Actual Nano device parameters belong in the
-[hardware record](../HARDWARE.md#nano-capture);
-the provisional simulated sensor is described below.
-Historical scores and physical handoffs belong in [RESULTS](../RESULTS.md#vision-2026-11-17).
+原 VISION_ROUTE1.md 的算法说明已合并到本页，并未删除 DP3 实现或权重。
+本页只维护视觉；主方法与任务在[方法](../METHOD.md)，
+真实 Nano 参数和标定在[硬件](../HARDWARE.md#nano-capture)，
+历史实测分数在[结果](../RESULTS.md#vision-2026-11-17)。
+
+## 在当前方法中的位置
+
+- **主方法已定：**WM+BPTT 学习低层切割策略，SAC 和冻结 WM+MPPI 为主要对照。
+- **视觉方案一：**点云几何选切面，不训练定位网络。
+- **视觉方案二：**DP3 官方点云编码器加本项目定位回归头；不是完整的 DP3 扩散策略。
+- 两方案都先生成目标，再交给低层控制。切割过程中策略使用运动/力历史，不持续输入图像。
+- 现有 DP3 权重来自旧三形状定位实验；当前五食物 UR10e 控制策略训练完成，
+  不代表视觉也已在这五种食物上重训或通过闭环验证。
+
+统一流程：刀移出食材视野 → 采集、分割点云 → 几何/DP3 选位置 →
+安装变换生成目标 → 移到起刀位置 → 运动与力反馈切割。
+仿真的 reset/IK 衔接不能当作真机避碰接近规划。
 
 ## Current implementation
-
-Vision selects a goal before cutting. The tool is parked outside the food ROI
-for acquisition, then moved to the cut start before motion/wrench feedback
-drives execution. The existing simulation reset/IK handoff is not a real-robot
-collision-checked approach planner. There is no continuous visual servoing or
-image input to the low-level policy.
 
 visible-midpoint uses metric optical-axis depth, camera/board calibration and
 mounted blade geometry. It masks known robot pixels, segments the largest
@@ -89,7 +95,8 @@ python scripts/plan_visual_cut.py --selection learned-midpoint --center-checkpoi
 ~~~
 
 For a geometric selector choose visible-midpoint or fixed-midpoint and omit
---center-checkpoint. The optional --checkpoint checks frozen-policy interface
+--center-checkpoint. Always specify --selection: the CLI default prescribed
+is the old target/height diagnostic, not visual center selection. The optional --checkpoint checks frozen-policy interface
 compatibility; plan_visual_cut does not execute the robot.
 
 ## Physical integration status
@@ -197,12 +204,6 @@ points; tolerance 0.002 pixel). RGB and depth use identical physical meshes and
 board dimensions; differing rasterizers still have distinct antialiasing and
 edge coverage. This is geometric alignment, not a calibrated photometric model.
 
-On GPU7 Blender 2.82, two small NumPy matrix products in the new sensor-camera
-path triggered a system libblas dgemm_oncopy_BARCELONA segmentation fault before
-rendering. The same rigid transforms are now computed with elementwise axis
-sign changes and einsum, without BLAS. Failed run logs remain in the run folder;
-successful renders must be reported from the new validated_* folders.
-
 2026-11-21 evidence: all five captures in
 /dataHDD/dong/Experiments/Cutting_DEV/runs/mecheye_nano_20261121/validated_{cucumber,potato_half,banana,tofu,luncheon}
 completed with 1280 x 1024 RGB, metric depth, robot mask, cloud and metadata.
@@ -210,30 +211,12 @@ All five Blender projection checks measured 0.000255 pixel maximum error.
 The 868,752--928,466 valid depth pixels include the board and robot, not just
 food. Related camera/visual geometry tests: 32 passed.
 
-### Housing appearance audit
+### 外壳与坐标限制
 
-Reinspection of the official STEP found five solids: the complete camera housing
-(3761 faces, 610105 mm3), one mounting bracket, and three FOV solids. There is no
-separate omitted lens or panel solid. The housing includes the two front window
-frames, cooling fins and side connectors. Its STEP colour declarations are white,
-not the finishes in the vendor illustration.
+统一渲染器使用官方 STEP 中的完整外壳，排除支架和视场实体；
+实际接头显示为银色，警告标签来自官方图片，未虚构镜头内构或支架。
+外壳主色为黑色，未标定外观不等于真实成像模型。
+CAD 的 -Y 朝向窗外，当前装配将其映射到光学 +Z；
+光学原点与外壳的配准仍是近似值。换观察角度不改变机器人、食品或传感器位姿。
 
-The canonical renderer now assigns silver to the actual protruding connector
-geometry (source CAD x < -43.495078 mm). The official 35 x 20 mm warning-label
-plane (STEP housing face 984) receives the corresponding rectangle of NANO.png,
-with a 0.02 mm display-only offset to prevent z fighting. The profile records
-the image rectangle and CAD plane; this is a visual label registration, not
-optical calibration. No logo decal, optical lens interior or support stand was
-invented. The supplied photograph contains a logo, but there is no isolated
-texture or verified mapping for it, so the rendered housing still omits that logo.
-
-The fixed wide view sees mainly the back/side; it cannot be compared directly
-with the vendor's front-side product illustration. nano_detail.png is a close
-inspection of the same scene and asset with only the observer camera changed.
-The physical sensor pose, robot, food, lighting and geometry stay unchanged.
-
-CAD orientation check: the two windows lie near CAD y=-48.44 mm and the supplied
-FOV solids extend along CAD -Y. The current rotation maps CAD -Y to optical +Z,
-so the viewing direction faces out of the windows. The optical origin remains
-an approximate registration, not a measured camera centre or hand-eye transform.
-Appearance corrections do not calibrate this unknown.
+更早的外壳审计与渲染调试过程保留在 Git 历史，日常使用不需阅读。

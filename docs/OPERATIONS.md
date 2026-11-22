@@ -104,6 +104,17 @@ SIGUSR1在迭代边界保存；正常结束/SIGTERM写last.pt和progress.json。
 
 ## Evaluation
 
+已有 UR10e 五食物模型可先评估控制策略，不以视觉重训或真机标定为前提。
+DiSECt 和 BladeMaster 各加载自己的 checkpoint/训练配置；
+冻结 WM+MPPI 从对应 WM checkpoint 规划，SAC 从已保存的 model.zip 加载。
+旧 UR5e、v2 或锁存期模型只按各自历史任务评估，不能直接套当前配置。
+
+每次评估固定模型、物体、随机种子、目标速度/材料分布、回合数和时间预算；
+先核对模型与场景元数据，再运行本节统一入口。分开记录：
+位姿成功率、失败/超时、回报、速度偏差、六轴受力和材料分离诊断。
+学习轮数或交互量不同必须披露，不把现有 checkpoint 对比称为等预算对比。
+评估无需 replay；replay 配对是续训要求。视频使用已有统一渲染入口。
+
 统一evaluate_pose_policy.py；配置需匹配checkpoint的机器人/工具/任务。
 每世界预定首回合，不探索、不学习；超墙钟/未完不算完整评估。
 位姿成功与材料分离分开报告。

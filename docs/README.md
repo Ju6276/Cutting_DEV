@@ -12,7 +12,7 @@ V3任务无永久砧板冻结。日常按问题打开一份：
 主对照是SAC和冻结WM+MPPI。解析MPC仍是非学习MPC算法，
 本项目用于工程/控制链联调，不列作论文必需对照，也不等于FDCC。
 
-按需查[视觉](methods/VISION.md)、[资产候选](reference/OMNIOBJECT3D_FOOD_CANDIDATES.md)、
+按需查[视觉：几何方案与 DP3 编码器](methods/VISION.md)、[资产候选](reference/OMNIOBJECT3D_FOOD_CANDIDATES.md)、
 [切割机制](reference/CUTTING_MECHANISMS.md)、[代码来源](reference/SOURCES.md)。
 [文献库](literature/README.md)是可选阅读，不是运行前提。
 

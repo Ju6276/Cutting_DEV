@@ -1,5 +1,10 @@
 # 方法、任务与仿真配置
 
+当前算法路线已确定：WM+BPTT 为主方法，SAC 与冻结 WM+MPPI 为主要对照；
+解析 MPC 用于控制链工程测试。DP3 视觉只负责切前目标定位，
+独立接口与适用范围统一见[视觉模块](methods/VISION.md#在当前方法中的位置)，
+不在本文重复相机参数或视觉实验。
+
 当前主线：UR10e + ATI Mini45 + IKEA CAD刀，五食材，
 pose_depth_v3 / project_continue_v2。本页统一说明算法、任务和场景；
 命令见[运行](OPERATIONS.md)，实机见[硬件](HARDWARE.md)，研究取舍见[研究](RESEARCH.md)。
