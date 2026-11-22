@@ -102,7 +102,7 @@ compatibility; plan_visual_cut does not execute the robot.
 ## Physical integration status
 
 evaluate_visual_cut.py supports wm_policy, wm_mppi and analytic_mpc on one
-native BladeMaster world, with matching --policy, --backend-checkpoint,
+native BladeMaster world, with matching --policy, explicit --group, --blademaster-config (or --backend-checkpoint),
 --render-python and optional --center-checkpoint/--model-checkpoint.
 SAC visual execution is not implemented. DiSECt prepared cut topology is not
 silently moved when a new visual plane is selected.
@@ -141,13 +141,15 @@ on the official example image, not a measured texture or factory optical frame.
 
 ## Implemented approximation
 
-configs/vision/mecheye_nano_provisional_v1.json selects ordinary NANO,
-nominal 350 mm focus: 1280 x 1024, 0.3--0.45 m depth range, fixed eye-to-hand.
-Its pinhole fx/fy are fitted to the published 220 x 150 mm FOV at 0.3 m.
-This approximation is NOT factory calibration; the published FOV alone cannot
-determine distortion or the exact effective depth ROI.
-The optical axis points to the recorded board origin from 0.43 m away,
-30 degrees off vertical, in front of the robot along +base X.
+The current visual suite uses configs/vision/mecheye_nano_v4_550_lab_v1.json:
+confirmed NANO V4 D550C, 1280 x 1024, measured ROG API intrinsics, proposed
+0.55 m board distance, 30 degrees off vertical in front of the robot along
++base X. Extrinsics are a simulation placement, not an eye-to-hand calibration.
+The 0.45--0.60 m depth clipping window is a nominal operating envelope, not
+the camera's configured hardware DepthRange. Real-camera details stay in HARDWARE.
+
+The older mecheye_nano_provisional_v1 profile is retained for replaying historical
+350 mm approximation captures; it must not be described as the actual lab camera.
 CAD-to-optical registration is an approximate assembly fit, not factory extrinsics.
 The support structure is not modelled. No fictitious bracket is attached to the arm.
 
@@ -166,7 +168,7 @@ Not simulated: fringe projection/reconstruction, wet/specular material-dependent
 dropouts, lens distortion, measured noise and real acquisition timing.
 The manufacturer's 0.1 mm repeatability is not used as Gaussian noise: it was
 measured on a particular ceramic target. Real captures are needed to fit these.
-The advertised 0.6--1.1 s capture interval is metadata, not a 20 Hz sensor claim.
+The provisional capture-time field is descriptive metadata, not a measured 20 Hz sensor claim.
 This camera is used before cutting; it does not add an image input to the policy.
 
 ## Reproduce
@@ -220,3 +222,21 @@ CAD 的 -Y 朝向窗外，当前装配将其映射到光学 +Z；
 光学原点与外壳的配准仍是近似值。换观察角度不改变机器人、食品或传感器位姿。
 
 更早的外壳审计与渲染调试过程保留在 Git 历史，日常使用不需阅读。
+
+
+## 当前 UR10e 五食材视觉接入（2026-11-23，验证中）
+
+运行顺序保持：将实际机器人模型放到当前工作空间的观察位 → 同一场景渲染 RGB-D → 512点归一化输入冻结DP3 → 生成目标 → IK放置到起刀位 → 冻结策略执行。
+观察位不再写死旧UR5e坐标；移刀后传感器滤波零点与FDCC重力基准一起重置。材料粒子位置保持不变；这里的IK放置仍不是连续避碰接近轨迹。
+
+`evaluate_visual_suite.py` 对配置中的每种食材各运行一次，单独保存感知、目标、控制轨迹、回合结果和错误，并设置单物体与总时长上限。旧DP3权重只训练过三形状；香蕉、豆腐、午餐肉此次属于冻结视觉模型的新形状流程测试。之后再生成五食材数据训练视觉网络，不能把入口接通写成视觉训练已完成。
+
+相机配置 `configs/vision/mecheye_nano_v4_550_lab_v1.json` 使用ROG记录的 Nano V4内参，0.55 m拟定物距、机器人前方30度俯视。外参仍是仿真设计，不是实测眼在手外标定。理想深度不模拟结构光重建或湿表面缺测。外观继续使用统一Blender场景。
+
+~~~bash
+export CUTTING_ENV=planner
+source scripts/env/cutting_env.sh
+python scripts/evaluate_visual_suite.py --policy FROZEN_ACTOR.pt --blademaster-config FIVE_FOOD_CONFIG.json --center-checkpoint DP3_CENTER.pt --render-python .venv-render/bin/python --output NEW_OUTPUT_DIR --wall-seconds 7200 --per-food-seconds 1200
+~~~
+
+当前执行BladeMaster。DiSECt视觉选出的新切面需要重新生成匹配的预切拓扑；不能直接移动终点或用预设切面替换视觉输出来假装完成闭环。

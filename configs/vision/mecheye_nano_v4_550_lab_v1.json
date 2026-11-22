@@ -1,0 +1,81 @@
+{
+  "revision": "mecheye_nano_v4_550_lab_v1",
+  "status": "measured_intrinsics_with_proposed_simulation_extrinsics",
+  "model": "Mech-Eye NANO V4 D550C",
+  "width": 1280,
+  "height": 1024,
+  "fx": 1728.890384,
+  "fy": 1728.88461,
+  "cx": 642.625068,
+  "cy": 512.295689,
+  "depth_range_m": [
+    0.45,
+    0.6
+  ],
+  "board_distance_m": 0.55,
+  "tilt_from_vertical_deg": 30,
+  "intrinsics_source": "ROG MechEyeAPI readout 2026-11-21, rounded values recorded in docs/HARDWARE.md",
+  "capture_time_s": [
+    0.6,
+    1.1
+  ],
+  "noise_model": "none; ideal geometric depth, not calibrated structured light",
+  "housing_asset": "/dataHDD/dong/Assets/Cutting_DEV/cameras/mecheye_nano_v4/housing_optical_approx.npz",
+  "hardware_source": "https://docs.mech-mind.net/en/eye-3d-camera/2.4.0/hardware/specifications-nano.html",
+  "simulation_source": "https://docs.mech-mind.net/en/suite-software-manual/2.2.0/viz-tools/picking-simulation-tool-configuration.html",
+  "not_simulated": [
+    "fringe projection and stereo reconstruction",
+    "material-dependent missing depth",
+    "lens distortion",
+    "measured noise",
+    "hardware trigger latency"
+  ],
+  "housing_appearance": {
+    "source": "Official NANO(V4) STEP and NANO.png; visual finishes, not measured reflectance",
+    "cad_origin_mm": [
+      24.563,
+      -48.557,
+      176.4
+    ],
+    "cad_to_optical_rotation": [
+      [
+        -1,
+        0,
+        0
+      ],
+      [
+        0,
+        0,
+        -1
+      ],
+      [
+        0,
+        -1,
+        0
+      ]
+    ],
+    "silver_connector_max_cad_x_mm": -43.49507808,
+    "warning_label": {
+      "image": "/dataHDD/dong/Assets/Cutting_DEV/cameras/mecheye_nano_v4/NANO.png",
+      "image_crop_px": [
+        1205,
+        277,
+        1301,
+        332
+      ],
+      "cad_rect_mm": [
+        55.2549219,
+        90.2549219,
+        -46.5369282,
+        -26.5369282,
+        200.9086037
+      ],
+      "registration": "35x20mm CAD label face984, image label bounds; +0.02mm display offset"
+    },
+    "omitted": "No invented lens, mounting support or logo decal; no isolated logo texture supplied"
+  },
+  "hardware_version": "4.0.0",
+  "firmware_version": "2.3.4",
+  "extrinsics_source": "Proposed front-of-robot 30-degree view; NOT measured eye-to-hand calibration",
+  "hardware_version_confirmed": true
+}

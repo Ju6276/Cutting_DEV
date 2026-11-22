@@ -6,6 +6,8 @@ optional appearance map. Board/floor visuals and illumination are display assets
 """
 import argparse, json, sys, subprocess
 from pathlib import Path
+# Blender does not add a -P script directory to sys.path.
+sys.path.insert(0,str(Path(__file__).resolve().parent))
 import numpy as np
 
 def arguments():
@@ -211,18 +213,8 @@ def render(a):
     scene.render.resolution_x=1100;scene.render.resolution_y=780;scene.render.resolution_percentage=100
     if a.sensor_camera:
         sensor=json.loads(a.sensor_camera.read_text())
-        t=np.array(sensor['base_from_camera'],float)
-        # Snapshot capture validates world == base before invoking this entry.
-        t[:3,:3]*=np.array([1.,-1.,-1.])
-        camera.matrix_world=Matrix(t.tolist())
-        camera.data.type='PERSP';camera.data.sensor_fit='HORIZONTAL'
-        camera.data.sensor_width=36.;camera.data.lens=sensor['fx']*36./sensor['width']
-        scene.render.resolution_x=sensor['width'];scene.render.resolution_y=sensor['height']
-        ratio=sensor['fx']/sensor['fy']
-        scene.render.pixel_aspect_x=max(1.,1./ratio);scene.render.pixel_aspect_y=max(1.,ratio)
-        camera.data.shift_x=-(sensor['cx']+.5-sensor['width']/2)/sensor['width']
-        camera.data.shift_y=(sensor['cy']+.5-sensor['height']/2)*ratio/sensor['width']
-        camera.data.clip_start=.01;camera.data.clip_end=2.
+        from blender_camera import configure_sensor_camera
+        configure_sensor_camera(scene,camera,sensor)
         meta['camera']=dict(type='PERSP',intrinsics=sensor,scope='Provisional sensor view, canonical studio appearance')
         from bpy_extras.object_utils import world_to_camera_view
         bpy.context.view_layer.update()

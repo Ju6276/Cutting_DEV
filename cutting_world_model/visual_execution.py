@@ -45,6 +45,10 @@ def place_before_episode(env, pose, goal=None):
         raise AssertionError("Visual starting pose IK mismatch: "+str(error.cpu().tolist()))
     if float(gap_from_pose(actual,env.metadata["board_pose_geometry"])[0])<=0:
         raise ValueError("Visual start must remain above board")
+    # Sensor and FDCC must share the new pre-contact tare pose. Reusing the
+    # old filter baseline after IK would reintroduce a gravity-frame bias.
+    raw=-p.robot.sensor_wrench(p.config.sensor_ref_link).double()
+    p.filter.reset(raw)
     p.controller.reset(p.robot.q.double(),p.robot.qd.double())
     p.mapper.reset(env.worlds,env.device,torch.float64)
     desired=p.tool_pose()
@@ -58,7 +62,9 @@ def place_before_episode(env, pose, goal=None):
     p.reward_depth_span=(gap_from_pose(actual,p.board_geometry)-p.stop_gap)[:,None]
     env.depth_span=p.reward_depth_span.clone()
     p.progress.zero_();p.sim_time.zero_()
-    p.contacted.zero_();p.peak.zero_();p.net.zero_();p.wrench_queue.zero_()
+    from cutting_gpu_backend.tool_mount import board_contact
+    p.contacted.copy_(board_contact(gap_from_pose(actual,p.board_geometry)))
+    p.peak.zero_();p.net.zero_();p.wrench_queue.zero_()
     p.feedback["sensor_wrench"].zero_()
     env.previous_pose=actual.clone()
     env.previous_velocity.zero_();env.previous_acceleration.zero_();env.success_counter.zero_()

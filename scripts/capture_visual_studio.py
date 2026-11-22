@@ -81,7 +81,7 @@ def main():
         depth_kind="optical-axis metres; invalid=0",coordinates="robot_base",
         appearance="Canonical Blender studio renderer, same materials/board/lights; sensor perspective",
         sensor_fidelity="Ideal depth with visibility/range clipping; no structured-light reconstruction",
-        hardware_version_confirmed=False),indent=2))
+        hardware_version_confirmed=bool(sensor and sensor.get("hardware_version_confirmed",False))),indent=2))
     if a.capture_only:
         return
     plan=visual_midpoint_plan(depth,cam,cfg,mask);object_mask=plan.pop("object_mask")

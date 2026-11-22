@@ -3,7 +3,7 @@ import numpy as np
 from .visual_cut import DepthCamera
 
 def nano_camera(profile, board_origin):
-    if profile["revision"] != "mecheye_nano_provisional_v1":
+    if profile["revision"] not in ("mecheye_nano_provisional_v1", "mecheye_nano_v4_550_lab_v1"):
         raise ValueError("Unsupported camera profile")
     lo,hi=np.asarray(profile["depth_range_m"],float)
     distance=float(profile["board_distance_m"])
