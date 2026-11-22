@@ -31,16 +31,26 @@ def test_real_ur10e_analytic_controller_predicts_with_ati_frame():
     evidence=Path('/dataHDD/dong/Experiments/Cutting_DEV/runs/ur10e_platform_20261120/blademaster_winding_scene.json')
     if not evidence.exists() or not root.exists():pytest.skip('UR10e integration assets absent')
     meta=json.loads(evidence.read_text())['metadata'];platform=RobotPlatform.load(root)
-    model=AnalyticFDCCModel(meta,controller_parameters(meta,root),substeps=1)
+    device='cuda' if torch.cuda.is_available() else 'cpu'
+    model=AnalyticFDCCModel(meta,controller_parameters(meta,root),substeps=1,device=device)
     spec=model.spec
-    frame={k:torch.zeros((1,*shape),dtype=torch.float32) for k,shape in meta['state_shapes'].items()}
-    q=torch.tensor(platform.q,dtype=torch.float32)[None]
+    frame={k:torch.zeros((1,*shape),dtype=torch.float32,device=device) for k,shape in meta['state_shapes'].items()}
+    q=torch.tensor(platform.q,dtype=torch.float32,device=device)[None]
     frame['joint_q']=q
     pose=spec.fk(q)
     for k,v in frame.items():
         if 'pose' in k and v.shape==(1,7):frame[k]=pose.clone()
     frame['depth_span'].fill_(.1)
     state=spec.pack_batch(frame).float()
-    goal=torch.cat((pose,torch.full((1,1),.03)),dim=-1)
-    predicted,reward,done=model.predict(state,torch.zeros(1,6),goal)
+    goal=torch.cat((pose,torch.full((1,1),.03,device=device)),dim=-1)
+    action=torch.zeros(1,6,device=device)
+    with pytest.raises(ValueError,match='physical controller tare'):
+        model.predict(state,action,goal)
+    # Match a physical controller freshly reset at this fixture's actual pose.
+    # Prediction must retain that baseline, not infer a new one from its rollout.
+    from cutting_gpu_backend.controller.fdcc import FDCCController
+    physical=FDCCController(model.chain,model.controller_config)
+    physical.reset(q.double(),frame['joint_qd'].double())
+    model.set_tare_compensation(physical.tare_compensation)
+    predicted,reward,done=model.predict(state,action,goal)
     assert torch.isfinite(predicted).all() and torch.isfinite(reward).all()
