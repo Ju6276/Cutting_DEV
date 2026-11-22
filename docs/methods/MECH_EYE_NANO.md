@@ -7,28 +7,11 @@ Field collection and editable handoff: [Linux camera checklist](../hardware/MECH
 
 ## Confirmed lab camera
 
-- Mech-Eye NANO V4, colour, nominal object distance 550 mm. The matching
-  catalogue variant is NANO-V4D550C (not a directly captured device-model string).
-- ju-ROG API capture on 2026-11-21 confirms hardware 4.0.0, firmware 2.3.4,
-  serial TAC5522CA302E001 and live IP 192.168.122.101. API model text is
-  `Mech-Eye NANO`; retain it separately from the catalogue variant.
-- Camera PC: Ubuntu 22.04.5, MechEyeAPI 2.6.0, Python 3.10.12;
-  enp108s0 at 192.168.122.100/24, 1000 Mbps. No robot commands were sent.
-- Official recommended working distance for this variant: 450--600 mm.
-  See [official V4 model table](https://docs.mech-mind.net/en/eye-3d-camera/2.3.2/hardware/camera-models.html).
-- RGB and depth each return 1280 x 1024; API intrinsics separately read as
-  fx=1728.8903839489603, fy=1728.8846096722514,
-  cx=642.6250682011389, cy=512.2956888349067 px.
-  API depth/XYZ unit is millimetres, invalid samples are NaN; convert once by 0.001
-  for metre-based planning. SDK XYZ axes are right/down/forward in the optical frame.
-- One desk connectivity capture is recorded (0.870 s, not measured frame rate).
-  Empty-board/food samples, independent physical scale check, camera-to-base
-  calibration and installed pose remain missing. API self-consistency is not
-  physical calibration. Full raw values and evidence paths are in the field checklist.
-
-The existing 350 mm simulation profile below does **not** represent this
-confirmed 550 mm device. This documentation update does not change its optics,
-sensor configuration, or training results.
+The real camera is NANO V4 colour, 550 mm, catalogue variant NANO-V4D550C.
+The authoritative serial, API/firmware, intrinsics, units and ju-ROG capture
+record are in [the hardware record](../hardware/MECH_EYE_NANO_CHECKLIST_ZH.md).
+The 350 mm simulation profile below is still provisional; it does not represent
+the measured 550 mm lab camera. No optical calibration is implied by its CAD.
 
 ## Available upstream systems
 
@@ -99,24 +82,15 @@ Outputs use the same canonical rendering entry; no independent food palette.
 
 ## Vision network and the five foods
 
-Current learned midpoint pilot: DP3 official XYZ encoder, 64 feature channels,
-plus our bounded one-scalar regression head. It is not the complete DP3 diffusion
-policy. Visible object points are randomly sampled to 512 XYZ rows, with
-replacement only if fewer than 512 are visible (minimum 50 required).
-Input origin: visible cloud mean X/Y and measured board height Z, divided by
-0.1 m. Output: a residual along fixed base Y from the observed centroid,
-scaled back to metres (bounded to +/-50 mm). The geometry adapter constructs
-the cutting plane and end-effector goal. It does not estimate arbitrary
-orientation or material parameters.
+The network and point-cloud preprocessing contract is maintained in
+[VISION_ROUTE1](VISION_ROUTE1.md#dp3-encoder): official DP3 XYZ encoder plus
+our scalar midpoint head, not the diffusion policy. The existing pilot uses
+512 visible points. Five current physical food assets do not automatically
+extend that training set or validate an old vision checkpoint on the UR10e.
 
-New five-food geometry does not automatically train this network. A five-food
-visual benchmark needs train/held-out captures for all five, preparation-consistent
-geometry (half potato, peeled banana), object translations and calibrated
-visibility; fixed-orientation pilot scope remains explicit. Actual UR10e target
-orientation/frame compatibility must be tested before applying an old frozen
-vision checkpoint. The policy interface remains 34 x 10 + 8 = 348 inputs and
-6 mapped control outputs; pitch remains disabled. Neither the vision network
-nor its material labels enter the policy as hidden inputs.
+New captures need preparation-consistent food geometry, translations and
+visibility, then held-out checks. The policy still receives motion/force
+history and an8D goal, not pixels or material labels.
 
 ## Capture validation and remaining visual execution scope
 

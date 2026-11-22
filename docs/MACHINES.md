@@ -53,8 +53,10 @@ Confirm the commit with `git rev-parse HEAD` before a run. Runs: /dataHDD/dong/E
 
 ## Host differences that matter
 
-- Environments are identical by construction (`scripts/env/`): base `.venv` (torch 2.4.1, warp 1.18.0,
-  mujoco 3.16.0), `.venv-sac` (SAC and planners), `.venv-render`, BladeMaster scipy extras. See [RUNNING](RUNNING.md).
+- Tracked environment builders/entry points are shared (`scripts/env/`):
+  base `.venv`, SAC/planners `.venv-sac`, renderer `.venv-render` and BladeMaster
+  extras. This does not prove installed packages/drivers are identical;
+  each run records its runtime versions. See [RUNNING](RUNNING.md).
 - ROS Noetic (UR meshes for the source-URDF test and studio export): GPU7 and GPU9 only; A6000 has none.
 - Blender: 2.82 on GPU7 and GPU9 (the studio script's target); 3.4.1 on A6000 (not validated).
 - `cutting_env.sh` defaults: A6000 GPU1 and CUDA arch 8.6, GPU7/GPU9 GPU0 and 8.9; `CUDA_VISIBLE_DEVICES` overrides.

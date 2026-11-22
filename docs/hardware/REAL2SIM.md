@@ -1,7 +1,7 @@
 # UR10e 食材切割：真机标定与 Real2Sim 实施方案
 
 更新：2026-11-21。本文是实施方案，**不是已经完成的真机标定报告**。
-当前仿真集成证据见 [UR10e 审阅交接](UR10E_INTEGRATION_REVIEW.md)，
+当前仿真集成证据见 [UR10e集成证据](../RESULTS.md#ur10e-platform-integration-evidence)，
 驱动与无刃接触检查见 [FDCC 配置](UR10E_FDCC_SETUP_ZH.md)。
 本文不改奖励、任务阈值或物理参数，不运行真实机器人。
 
@@ -16,7 +16,7 @@
 
 ## 1. 当前平台与参数来源
 
-当前配置为 [ur10e_ati_ikea_v1.json](../../configs/shared/ur10e_ati_ikea_v1.json)，
+当前五食材配置为 [ur10e_five_food_v1.json](../../configs/shared/ur10e_five_food_v1.json)，
 机器人资产 `/dataHDD/dong/Assets/Cutting_DEV/robots/ur10e_ati_ikea_fdcc_v2`。
 实际 CAD 刀形已接入两个材料后端；FDCC 刚度坐标已修正。
 软件接口已接入不等于本机伺服、传感器和食材参数已实测标定。
@@ -77,7 +77,8 @@ Fz ±1160 N、三个力矩轴 ±20 N·m。后续核对序列号对应的校准�
 
 1. 提取这台 UR10e 的出厂运动学标定，驱动与仿真生成模型使用同一份版本；
    多组关节姿态对比示教器/驱动/仿真 FK。
-   [UR 官方标定提取说明](https://docs.universal-robots.com/Universal_Robots_ROS2_Documentation/jazzy/doc/ur_robot_driver/ur_robot_driver/doc/installation/robot_setup.html)。
+   按 tamsCage 已安装的 ROS1 ur_calibration 核对提取入口；
+   当前不是 ROS2/Jazzy 接入路线，见 [现场记录](TAMSCAGE.md)。
 2. 记录基座、法兰、ATI 测量原点、刀架、刀具控制点、刀刃曲线、板面的变换。
    显式定义 T_A_B 是“B 坐标到 A 坐标”，单位 m/rad、四元数顺序。
 3. 对照实物核对轴标识和安装角；三孔对称不足以确定 ATI 轴向。

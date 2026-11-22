@@ -28,14 +28,19 @@ or frozen sources based on age.
 | Planner/SAC environment (all servers) | checkout `.venv-sac` -> /dataHDD/dong/Envs/cutting-sac (scripts/env/make_sac_env.sh) |
 | BladeMaster runtime extras (all servers) | /dataHDD/dong/Envs/cutting-bm-extra (scripts/env/make_bm_extra.sh, requirements/blademaster.txt) |
 | Renderer environment (all servers) | checkout `.venv-render` -> /dataHDD/dong/Envs/cutting-render (scripts/env/make_render_env.sh, requirements/render.txt) |
-| UR10e/ATI/IKEA knife robot bundle | /dataHDD/dong/Assets/Cutting_DEV/robots/ur10e_ati_ikea_midblade_v1 |
-| UR10e paired scene configuration | /dataHDD/dong/Assets/Cutting_DEV/ur10e_shared_midblade_20261120/ |
+| UR10e/ATI/IKEA knife robot bundle | /dataHDD/dong/Assets/Cutting_DEV/robots/ur10e_ati_ikea_fdcc_v2 |
+| UR10e five-food paired scene configuration | /dataHDD/dong/Assets/Cutting_DEV/ur10e_shared_five_food_v1/ |
 
 Older environments (cutting-mppi-20261108, render-20261108, A6000
 blademaster-extra-20261114) are kept only for the runs that used them.
 
-Current DiSECt scenes under prepared/sweep are free_cucumber_003, free_prism
-and free_potato_half_20261114 (1 s settling for all three).
+The current UR10e contract points cucumber/half-potato to
+/dataHDD/dong/Assets/Cutting_DEV/ur10e_ikea_midblade_scenes_v1 and the three
+added foods to /dataHDD/dong/Assets/Cutting_DEV/ur10e_ikea_five_food_scenes_v1;
+BladeMaster intact geometry is under Assets/Cutting_DEV/five_food_intact_v1.
+The prepared/sweep free_cucumber_003, free_prism and free_potato_half_20261114
+files are retained source/UR5e-era assets, not the current five-food launch.
+Run-specific generated JSONs remain authoritative for exact paths and world counts.
 
 - Source scans: /dataHDD/dong/Research/food_meshes/omniobject3d/<object>/.
   [OmniObject3D](https://omniobject3d.github.io/), CC BY 4.0, downloaded from
@@ -49,7 +54,7 @@ and free_potato_half_20261114 (1 s settling for all three).
 - Half-potato stability evidence: runs/potato_preparation_20261114 and
   runs/half_potato_randomized_20261114 (144 production reset cases).
 - BladeMaster intact assets: /dataHDD/dong/Assets/Cutting_DEV/blademaster_intact_20261114.
-- BladeMaster-derived DiSECt candidates (not used in training):
+- Historical BladeMaster-derived DiSECt exports (superseded for current training):
   /dataHDD/dong/Assets/Cutting_DEV/blademaster_disect_20261114;
   prepared/sweep/bm_{banana,cake,tofu,luncheon}_20261114.
 
@@ -62,7 +67,7 @@ Paths relative to /dataHDD/dong/Experiments/Cutting_DEV/ on the named host.
 - DiSECt reference reward audit: A6000 runs/audit_pose_reward_362d15e_20261119/.
 - GPU memory headroom: GPU7 runs/mem_headroom_20261117/.
 - SliceIt rule audit: GPU7 runs/sliceit_task_rule_audit_20261119/evidence.json.
-- UR10e integration: runs/ur10e_platform_20261120/ (GPU7 and A6000; see the integration handoff).
+- UR10e integration: runs/ur10e_platform_20261120/ (GPU7 and A6000; see RESULTS).
 
 ## Historical runs and checkpoints
 

@@ -1,14 +1,14 @@
 # Shared cutting scene
 
-Authoritative input: [scene_v1.json](../configs/shared/scene_v1.json).
-Both backend configurations are generated from this file; do not independently
-edit their generated JSONs. Case sampling is identical in checks and eventual
-training. Old runs retain their frozen configuration and are not paired runs.
-The UR10e + ATI + CAD-knife platform has an explicit five-food contract,
-[ur10e_five_food_v1.json](../configs/shared/ur10e_five_food_v1.json), described at
-the end of this page. The earlier [two-food contract](../configs/shared/ur10e_ati_ikea_v1.json)
-remains reproducible. See [the integration handoff](hardware/UR10E_INTEGRATION_REVIEW.md)
-for platform evidence. Earlier sections describe UR5e `scene_v1` unless specified.
+Current UR10e training input:
+[ur10e_five_food_v1.json](../configs/shared/ur10e_five_food_v1.json).
+Generate both backend configs from this contract; do not edit generated task
+settings independently. The retained UR5e contract is
+[scene_v1.json](../configs/shared/scene_v1.json), and the earlier UR10e
+[two-food contract](../configs/shared/ur10e_ati_ikea_v1.json) remains reproducible.
+The table and wedge-knife section below explicitly describe UR5e; the UR10e CAD
+platform and five-food section are separate. Neither is a substitute for the
+other platform's checkpoint metadata. Evidence is in [RESULTS](RESULTS.md).
 
 ## Starting the cut as on the intended robot
 
@@ -37,7 +37,7 @@ different initialization/reward implementation. Material state is not teleported
 to fit the knife. If the requested start is outside the robot workspace, setup
 fails rather than expanding the workspace silently.
 
-## Complete shared configuration
+## Retained UR5e shared configuration
 
 | Item | Both backends under scene_v1 |
 |---|---|
@@ -75,7 +75,7 @@ configuration has no particle-displacement penalty: fragment opening is not char
 Tool distance is measured from the prescribed goal in robot-base XY, not from a
 moving object or from the rendered board edge. Both modes retain force/workspace/board limits.
 
-## Shared physical knife and mounting
+## Retained UR5e physical knife and mounting
 
 Revision `disect_knife_rigid_mount_v1`.
 The reference is the **actual main DiSECt contact blade**, not the URDF appearance mesh.
@@ -252,11 +252,27 @@ Loaded files under
 | prism.pt | 53b979a7efdaf9be4b41523806be8f2cab5dc3d9d3e04dad6eb116c12482b641 |
 
 
-## Current food selection (2026-11-21)
-The current UR5e and UR10e shared configs select cucumber_003 and potato_half.
+## Retained two-food selection
+
+The UR5e scene_v1 and UR10e two-food contracts select cucumber_003 and potato_half.
+Current UR10e training uses the five-food contract below.
 Generic prism has no food calibration and is removed from new food-training defaults.
 
 Episode randomization and task/reward rules are unchanged.
+
+## Current UR10e CAD platform
+
+The fdcc_v2 asset bundle contains the mounted IKEA CAD mesh and 56-point curved
+edge. Its fixed central-edge support pose is approximately8.25 degrees tip-down;
+the policy pitch channel remains disabled. DiSECt uses the mesh-derived SDF and
+prepared cut topology; BladeMaster uses mesh contact and curve-edge updates.
+The named knife_control, ati_sensing_frame and knife_compliance transforms come
+from the same bundle; camera/board/render assets cannot redefine those transforms.
+
+Robot bundle: /dataHDD/dong/Assets/Cutting_DEV/robots/ur10e_ati_ikea_fdcc_v2.
+Load estimates and actual hardware status:
+[FDCC setup](hardware/UR10E_FDCC_SETUP_ZH.md).
+Integration checks and timings: [RESULTS](RESULTS.md#ur10e-platform-integration-evidence).
 
 ## UR10e five-food distribution v1 (2026-11-21)
 

@@ -1,6 +1,6 @@
 # UR10e 真机纯 MPC 流程：给另一台电脑的 Codex
 
-更新：2026-11-21。代码基线：main 4827d31 或之后版本。
+更新：2026-11-22。使用当前 main（包含解析MPC去皮修复），不使用旧硬件分支作为正式部署入口。
 本文是接入交接入口，不是已经通过真机测试的启动脚本。
 目标是使用当前非学习 MPC 串通 UR10e、ATI Mini45 SI-580-20 和 Mech-Mind Nano。
 不需要先训练神经网络；仍需要标定、反馈桥接与控制时序验证。
@@ -11,7 +11,7 @@
 
 ## 先读哪些文件
 
-1. [UR10E_FDCC_SETUP_ZH](UR10E_FDCC_SETUP_ZH.md)：UR 驱动、FZI FDCC、ATI 接线与重力补偿。先完成它的底层控制步骤，再接 MPC；其中“不接 MPC/相机”指第一阶段。
+1. [UR10E_FDCC_SETUP_ZH](UR10E_FDCC_SETUP_ZH.md)：当前 ROS1 候选、ATI 接线与重力补偿。先完成它的底层控制步骤，再接 MPC；其中“不接 MPC/相机”指第一阶段。
 2. [REAL2SIM](REAL2SIM.md)：机器人、TCP、力传感器、食材与摩擦标定。
 3. [CURRENT_BASELINES](../methods/CURRENT_BASELINES.md)：MPC 模型、输入输出、实测覆盖和时延。
 4. [MECH_EYE_NANO](../methods/MECH_EYE_NANO.md) 与 [VISION_ROUTE1](../methods/VISION_ROUTE1.md)：预切扫描、视觉目标与相机仿真限制。
@@ -26,13 +26,10 @@
 scripts/evaluate_pose_policy.py 是仿真评估入口，不能通过填机器人 IP 就当作真机入口。
 当前尚无在用户 UR10e 上验收的完整 ROS 真机 MPC 桥接包。
 
-2026-11-21 的整回合仿真评估使用 6258561：两个后端各五种食物、每种一个案例。
-DiSECt 3/5 到位成功（香蕉、黄瓜、午餐肉），半土豆/豆腐超时；
-BladeMaster 4/5 到位成功，半土豆超时。不是多种子成功率，也不是材料分离率。
-证据在 GPU9：
-/dataHDD/dong/Experiments/Cutting_DEV/runs/ur10e_analytic_mpc_fivefood_20261121/
-下的 disect/summary.json、blademaster/summary.json 和对应轨迹。
-后续已修复 DiSECt 静置重置顺序，以及解析 MPC 重设去皮基准的问题；不将上述旧结果重标为修复后评估。修复后的两后端短物理检查见 [现场记录](TAMSCAGE.md)。
+解析MPC的去皮基准错误已修复，两个后端的短物理规划/执行/部分重置检查通过。
+旧整回合结果和修复后证据只在
+[RESULTS](../RESULTS.md#ur10e-baseline-verification)维护，不将修复前结果重标为新结果。
+纯MPC保留为工程测试工具，论文主对照为SAC和WM+MPPI。
 
 MPC 使用运动学/FDCC 近似模型与 MPPI 优化，预测窗口内保持一个已有力历史样本，
 不预测食材接触力的变化或断裂。不能把它称作已经标定的切割力模型。
@@ -103,35 +100,3 @@ T_base_camera、标定残差及独立位置验证结果。
 记录 Git SHA、依赖版本、时间戳、q/qd、原始及补偿后 wrench、目标、动作、
 规划耗时、命令年龄和终止原因。测试结果按实际完成阶段报告。
 不要改任务奖励、力限或控制目标来掩盖接口/时序问题。
-
-## tamsCage 当天早期回放记录（历史测量）
-
-来源为 [现场工作分支](https://github.com/Ju6276/Cutting_DEV/tree/66f76c9/scripts/hardware)。只读采集与假设状态回放脚本仍保留在该分支，本轮只归并文档，不把其 CPU/tool0/零外力诊断入口作为当前真机部署入口。
-
-
-首轮基于 main `40a2e8a316cd7d4c02d28ae5a05585679d8f77a6` 和当时位于 ROS
-工作区的诊断脚本，CPU 单线程，Python 3.12.16、PyTorch 2.4.1+cpu、NumPy 1.26.4、
-固定上游 MPPI 提交 `e04a569cd4215e705f9013145c496fc59cb25ed6`。
-以下是该轮已有测量，不是迁入仓库后的新一轮性能测试。
-
-| 检查 | 结果 |
-| --- | --- |
-| 4 秒关节采样 | 约 500.01 Hz，最大消息时间戳延迟 0.989 ms |
-| FK 与 ROS TF 位置差 | 约 0.040 mm，非严格同步采样，不是 TCP 标定精度 |
-| 8 候选、8 步窗口、5 子步 | 热身后 3 次规划中位耗时 0.759 s |
-| 512 候选、8 步窗口、5 子步 | 固定初始状态热身后 3 次规划中位耗时 1.318 s |
-| 512 候选虚拟闭环 | 21 步，规划耗时中位数 3.847 s，最大 4.879 s |
-| 原规则终止 | 累计到位 11 次，`hypothetical_pose_success` |
-| 最终位置误差 | XY 约 39.529 mm，Z 约 0.0022 mm |
-| 机器人运动命令 | 0 条，运动控制器未激活 |
-
-XY 偏差接近原规则 40 mm 范围，任务规则的成功不能作为精确路径跟踪通过。
-规划耗时超过 50 ms，不能按原控制间隔直接接真机。
-本机 FZI 的 `computeComplianceError` 为 `spring + force`，解析模型的 parallel
-模式为 `selection * spring + (1-selection) * force`。本机 solver iterations 为
-10，诊断近似模型为 1，两者尚未完成等价性验证。此轮没有写入真实控制器参数。
-
-首轮已有相关测试 41 项通过，另 4 项因缺少 `runs/source/task.json` 等源场景
-资产失败，未将其计作通过；未完成 4090 上的全套回归。
-现场证据保存在 tamsCage 的 `/homeL/dong/ur10e_fdcc_records/mpc_assumed_20261121/`。
-此处描述的是早期回放时的现场状态。之后已完成独立 FDCC 候选的离线输出对齐，见 [tamsCage 当前记录](TAMSCAGE.md)；在线时序、ATI 与闭环仍待验证。上述回放没有测真实材料或接触力，也不是修复后 MPC 的 GPU 性能记录。

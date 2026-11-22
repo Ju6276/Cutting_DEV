@@ -22,7 +22,9 @@ geometric maximum-depth progress shaping. Material separation is reported
 independently. The board is a geometric nonpenetration boundary
 (`project_continue_v2`), not a board-force model; force thresholds and material
 parameters have not been calibrated to the real robot. The hardware target is
-UR10e + ATI Mini45 with the user's CAD knife (integration in progress).
+UR10e + ATI Mini45 with the user's CAD knife. Simulation integration is merged;
+offline ROS1 FDCC numerical alignment passed, but real closed-loop deployment
+and physical calibration remain unverified.
 
 DiSECt uses prepared material cut interfaces; native BladeMaster does not
 require that topology. Shared robot/task settings do not make their contact
@@ -40,12 +42,14 @@ generalization or a paper contribution by itself. See [VISION_ROUTE1](methods/VI
 
 ## Comparisons and evidence still needed
 
-- WM+BPTT versus SAC and fixed feedback/reference control under explicit common
-  task conditions; matched-budget claims need actual matched data accounting.
+- WM+BPTT versus SAC under explicit common task conditions; matched-budget
+  claims need actual matched data accounting.
 - Frozen WM+MPPI separates online planning from policy execution; its input
   access and computational cost must be disclosed.
-- Nonlearned approximate FDCC+MPPI is an engineering baseline, not a reproduction
-  of a published cutting-MPC method or calibrated material dynamics.
+- Nonlearned approximate FDCC+MPPI is retained for engineering/controller-chain
+  tests, not required in the paper comparison. It is not a reproduction of a
+  published cutting-MPC method or calibrated material dynamics. A fixed FDCC
+  trajectory may be an optional reference, not a newly authorized experiment.
 - Contact/force/action traces and controlled ablations are needed to support
   adaptation claims. Feature clusters or a successful clip alone do not prove
   material identification or causal use of force history.

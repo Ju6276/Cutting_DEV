@@ -23,7 +23,7 @@ material separation.
 | Installation, tests, training/evaluation commands, recording and rendering | [RUNNING](docs/RUNNING.md) |
 | Main requirements and isolated baseline/render/CAD environments | [Dependencies](scripts/env/README.md) |
 | Server data and run provenance | [DATA](docs/DATA.md) |
-| UR10e + ATI + CAD knife integration | [Integration handoff](docs/hardware/UR10E_INTEGRATION_REVIEW.md), [Chinese setup handoff](docs/hardware/UR10E_FDCC_SETUP_ZH.md) |
+| UR10e + ATI + CAD knife integration | [Integration evidence](docs/RESULTS.md#ur10e-platform-integration-evidence), [Chinese setup handoff](docs/hardware/UR10E_FDCC_SETUP_ZH.md) |
 | Full documentation index | [docs](docs/README.md) |
 
 **One current task, not one task per algorithm:** WM+BPTT, SB3 SAC, frozen
@@ -38,10 +38,14 @@ see [RUNNING](docs/RUNNING.md#remote-only-development-and-storage)). Frozen
 training checkouts keep their recorded revisions. All long runs require an
 approved plan, a recorded budget and online W&B.
 
-The `scene_v1` scene uses freely placed cucumber003, half potato and prism on a
-UR5e, full six-axis wrench observations, fixed knife heading and final-position-
-only constraints; the UR10e/ATI/CAD-knife profile is under integration. Material
-parameters and simulated limits are not real-robot calibration.
+Current training uses UR10e + ATI Mini45 + the mounted IKEA CAD knife with
+cucumber, half potato, peeled banana, tofu and luncheon:
+`configs/shared/ur10e_five_food_v1.json`. The retained UR5e `scene_v1` has
+cucumber and half potato; prism is not a current food-training default.
+Both profiles use full six-axis wrench, fixed knife heading and final-only
+position constraints. Material parameters and simulated limits remain uncalibrated.
+The main paper comparisons are SAC and frozen WM+MPPI; analytic MPC is retained
+as an engineering/controller-chain test tool.
 
 ## Repository map
 

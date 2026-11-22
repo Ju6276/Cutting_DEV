@@ -101,6 +101,8 @@ transitions, terminal labels and short windows.
 Task-terminal handling follows the episodic bootstrap rule in
 [Gymnasium](https://gymnasium.farama.org/tutorials/gymnasium_basics/handling_time_limits/):
 true termination removes bootstrap; an external time truncation does not.
+The current pose task's500-step horizon is part of the task and is a true
+termination, not an external truncation; it does not bootstrap.
 The correction adds one task-head evaluation per imagined step, changes neither
 physical trajectories nor task rewards/thresholds, and does not retrain the world
 model's terminal classifier using predicted labels.
@@ -138,8 +140,8 @@ Controller motion accumulation, finite-difference velocity, acceleration, jerk,
 observation, success counter and target follow the existing SliceIt equations;
 targets and derived observations are not learned outputs. Wrench uses the
 force/torque limits as scale; history is decoded component-major. No damage
-projection is applied. Only SliceIt's existing observation noise/randomization
-is used.
+projection is applied. Observation noise follows the SliceIt interface; per-episode material and
+target-speed sampling is the project distribution described in SHARED_SCENE.
 
 URDF FK returns the same quaternion sign convention as
 [KDL Rotation::GetQuaternion](https://github.com/orocos/orocos_kinematics_dynamics/blob/master/orocos_kdl/src/frames.cpp).
@@ -155,7 +157,7 @@ are implementation failures to repair before interpreting training quality.
 
 | Item | Existing source behavior | GPU collection |
 |---|---|---|
-| Physical backend | Gazebo/ROS robot and single DiSECt instance | MuJoCo Warp UR5e/FDCC plus packed DiSECt worlds; equations and source clocks retained, details in CuttingGpuBackend METHOD |
+| Physical backend | Gazebo/ROS robot and single DiSECt instance | MuJoCo Warp selected UR5e/UR10e profile plus packed DiSECt worlds; equations and source clocks retained, details in CuttingGpuBackend METHOD |
 | Replay and updates | 4096 worlds × 1000 rows; one source step collects 4096 transitions; 40-step warmup, UTD 0.4 | 1000 rows per world; asynchronous terminal rows and resets; schedule historically advanced per completed vector step, now counts physical transitions (below) |
 | Reset observation | Corrected ROS task returns an observation sampled after physical reset | GPU reset already uses the restored pose and zero derivative histories; the shared corrected reward head applies to physical steps and model imagination |
 | Wrench samples | Oldest three entries of a 25-entry sensor queue, appended at filter callbacks | Same queue ordering at the deterministic 500 Hz exchange; initialize queue from the reset sensor baseline |
@@ -199,26 +201,17 @@ rejects the old reward interpretation.
 
 ## Trajectory baselines
 
-Sources: backend reference branch (`CuttingBatch.step(reference=True)`);
-DiSECt `SlicingMotion` and NVlabs
-[`optimize_slicing.py`](https://github.com/NVlabs/DiSECt/blob/main/examples/optimize_slicing.py),
-run through the DiSECt-Optimization wrapper (`372e8ac`).
+Reference execution uses CuttingBatch.step(reference=True) and the same physical
+FDCC/sensor/task path, bypassing the six-action mapper. In shared scenes the
+default reference follows the episode target speed and stops its commanded
+target at the prescribed endpoint. An explicitly installed KnifeTrajectory
+takes priority; piecewise velocities are converted from the material frame
+before integration. Actual motion still depends on compliance and contact.
 
-| Item | Source | Cutting implementation |
-|---|---|---|
-| Reference target | Constant DiSECt-frame knife velocity `v` for the scene duration `T`: target = reset tip + `R v min(t + dt, T)` | `KnifeTrajectory`: piecewise-constant DiSECt-frame velocities; target = reset tip + `sum_i R v_i (clamp(t + dt, t_i, t_i+1) - t_i)`. The default is the one-interval scene trajectory (`v = (0, -0.05, 0)` m/s, `T = 1.3` s); velocities are rotated before integration, so its targets are bit-identical to the previous formula |
-| Frame | `R` = rotation of the fixed URDF transform `b_bot_base_link -> cutting_board_disect` | Same `coupling.base_from_disect`; DiSECt -y maps to base -z |
-| Execution | Same compliance controller, coupling and task heads | Unchanged; the 6-D action mapper is bypassed and the recorded action is zero |
-| DiSECt motion | Velocity `v_y = sum_k w_k(t) p_k`, `v_z = sin(f t) sum_k w_k(t) a_k`, `w_k = exp(-(t - t_k)^2 / 0.02)`, five waypoints over 0.6 s, evaluated at each 1e-5 s substep | Exported as 600 intervals of 1 ms, each the mean of its substep velocities (float64; DiSECt evaluates in float32). Against the recorded free-knife positions the exported displacement differs by at most 1.1e-5 m |
-| Start pose | Free knife at (0, 0.0895, 0) m, identity rotation | The trajectory is applied as a displacement from the robot's reset knife: (0, 0.08822, 4.9e-5) m in the DiSECt frame, rotation about x by 6.7e-4 rad |
-| Time | DiSECt time from 0 to 0.6 s, knife free of the robot | Episode simulated time; after 0.6 s the target holds, and the episode continues until SliceIt success, a force/workspace terminal or 500 steps |
-
-The trajectory is open loop: tracking error and force feedback in the compliance
-controller decide the knife's actual path. Determinism: two runs of the identical
-default reference at `71be9ec` differ in the last digits (peak 9.9746 vs 9.9763 N,
-return 80.2903 vs 80.2899; both 40 steps, 288 springs) because the material uses
-FP32 atomic force sums, so bit identity is tested on controller targets, not on
-whole rollouts.
+The historical fixed-prism velocity/start-pose recipe is not the current
+five-food reference. Reference audits use explicit trajectories and verify the
+executed commands, including stall and sawing, rather than only checking exit
+status. Measurements: [RESULTS](RESULTS.md).
 
 ## Variant `critic_target=real`
 
@@ -278,6 +271,10 @@ an adaptation of the SuperMimic source to the cutting task, not a novelty claim.
 
 ## Variant `critic_target=real_wm` with `actor_horizon`
 
+The real_wm critic is a retained experimental option, not the selected current
+real-data critic. The observations below are historical fixed-prism evidence,
+not a current UR10e policy result.
+
 Measured on the held-out episodes of `wm_frozen_fit_20261105` with frozen
 policy62/WM562 (`runs/critic_real_c3_20261105/{horizon_probe,drift_probe,field_probe}.py`):
 450 of 648 imagined H32 paths end in a workspace failure although every physical
@@ -300,6 +297,9 @@ imagined steps of the actor objective and its `gamma^h c_h V(s_h)` bootstrap
 the variant with `--critic-reset`.
 
 ## Variant `actor_bc_alpha`
+
+The option is current (selected value0.25); the motivation measurement below
+predates UR10e and is not evidence of current-policy failure.
 
 Measured in run `critic_real_v2_20261106` (real_wm, actor horizon 8, from
 policy62/WM562): the H8 bootstrap carries most of the actor objective (survival
@@ -377,32 +377,25 @@ the terminal callback are implemented by
 
 ## Recorded geometry and offline video
 
-The recorder observes reset and completed physical transitions. It stores raw
-joint/particle states and forces, plus world-frame material, knife, robot-body
-and collision-geometry poses; DiSECt and BladeMaster episode files include the
-base/world transform and every world's physical blade vertices and triangles.
-URDF joint names select the MuJoCo qpos addresses. DiSECt virtual cut vertices
-are rendered as in DiSECt (`(1-t)*particle[i] + t*particle[j]`, both
-`tri_indices` and `cut_tri_indices`).
+Physical recordings retain joint/particle states, forces, actual blade vertices
+and faces, body poses and platform identity. DiSECt reconstructs its virtual
+cut-surface vertices from the recorded interpolation; BladeMaster uses its own
+material-surface representation. These representations are not interchangeable.
 
-Frozen evaluations use `evaluate_pose_policy.py --record-geometry`,
-`export_evaluation_scene.py` and `render_episode_still.py --video` (commands in
-RUNNING). The shared studio renderer keeps the original UR5e visual meshes, scan
-appearance and one actual physical blade; it clips only the old URDF blade beyond
-the mesh shoulder (source x=-0.04786805 m), retaining the gripped handle. No
-connector, shank or collar is drawn; the URDF cable envelope is hidden. A
-full-trajectory rigidity check rejects relative blade motion over 10 micrometres;
-it does not validate a real mounting. Cucumber scan appearance is reused only
-after topology and rigid-geometry checks; half potato and particle surfaces use
-explicitly approximate PCA-aligned color transfer. No crack bands are drawn and
-geometric gaps are not filled; board grain, lights and shading are decorative.
-`--highlight-cut-faces` is an explicit diagnostic option. The all-world overview
-(`render_training_snapshot.py`) uses the same robot/handle clipping and
-illustrative colors; snapshots without per-world blade data are rejected.
-`capture_environment_batch.py` / `render_environment_batch.py` record and display
-settled initial worlds (initialization previews, not training screenshots).
-Recording and rendering do not change physics, rewards or weights.
+The presentation entry is scripts/render_scene.py, using
+configs/render/studio_v1.json. The recorded UR5e or UR10e platform selects its
+actual robot/tool assets; UR10e includes metal ATI/IKEA and pure-white PLA.
+No fabricated connector or overlay blade is added. Pinned food identity,
+appearance, board, lighting and fixed camera apply across videos and stills;
+missing required assets fail instead of substituting a palette or robot.
 
+Half potato stays half potato; the current homogeneous banana has peeled-flesh
+appearance. Tofu/luncheon have explicit synthetic materials. Mesh reconstruction
+and display smoothing are presentation approximations, not physical fracture
+evidence. Cut-face highlighting is diagnostic only. Sensor RGB uses the same
+appearance path with its own optical camera; depth is geometric rasterization.
+Recording/rendering never changes physical states, rewards or learned weights.
+Commands: [RUNNING](RUNNING.md); camera model: [MECH_EYE_NANO](methods/MECH_EYE_NANO.md).
 
 ## Material feedback and diagnostic labels
 
@@ -534,8 +527,8 @@ controller/coupling, graph/eager comparisons and scratch eviction; passing these
 
 ## Tool mounting
 
-Both backends use the shared finite blade `disect_knife_rigid_mount_v1` and a
-canonical rigid EE mount ([SHARED_SCENE](SHARED_SCENE.md#shared-physical-knife-and-mounting));
+The retained UR5e profile in both backends uses `disect_knife_rigid_mount_v1`
+with a canonical rigid EE mount ([SHARED_SCENE](SHARED_SCENE.md#retained-ur5e-physical-knife-and-mounting));
 the UR10e profile uses the mounted CAD knife (below). This is a kinematic
 coupling, not a frictional gripper grasp or tool slippage model. The inherited
 `sr305` camera meshes are not policy image inputs: `GPUEnvironment._observe`
@@ -595,8 +588,9 @@ sizes, gradient accumulation or optimizer schedule. Measured numbers: RESULTS
 
 ## Shared scene, reset and episode sampling
 
-`shared_scene.py` generates both backend configurations and paired
-initial-clearance cases from `configs/shared/scene_v1.json`; `scene_alignment.py`
+`shared_scene.py` generates paired backend configurations from the selected
+contract (current UR10e: `configs/shared/ur10e_five_food_v1.json`; retained UR5e:
+`configs/shared/scene_v1.json`); `scene_alignment.py`
 measures settled particle height, solves the robot start pose, updates the
 physical rigid tool and validates the resulting gap. The once-per-world clearance
 is recorded but is not an actor feature. The DiSECt reference path follows the
@@ -628,63 +622,31 @@ status. Checkpoint payload hashes reject mixed model/replay generations.
 
 ## Baselines and vision
 
-Baseline adapters (SB3 SAC, frozen WM+MPPI, nonlearned FDCC+MPPI) share the
-current physics/reward/recording; see [CURRENT_BASELINES](methods/CURRENT_BASELINES.md).
+[CURRENT_BASELINES](methods/CURRENT_BASELINES.md) owns controller interfaces,
+comparison scope and planner approximations. Physical execution uses one
+action mapper/FDCC per platform for WM policy, SAC and both planners. A planner's
+internal surrogate is not the physical execution controller.
 
-Pre-cut vision ([VISION_ROUTE1](methods/VISION_ROUTE1.md)):
-`visual_cut.visual_midpoint_plan` chooses a visible geometric mid-section from
-depth (ambiguous axes reject); calibration maps the physical blade edge to an 8D
-base-frame goal. `visual_execution` places the robot only before an episode
-(native BladeMaster, single world), verifying IK, board clearance, goal validity
-and unchanged material positions; it is not a real-robot approach planner. The
-optional `visual_center` module predicts a one-dimensional midpoint offset from
-observed local point clouds; training supervision uses full surface bounds
-offline. `evaluate_visual_cut` dispatches `wm_policy`, `wm_mppi` and
-`analytic_mpc`; planners are constructed after the visual start is installed.
-Frozen controllers see motion/force observations and the goal, not the image.
+[VISION_ROUTE1](methods/VISION_ROUTE1.md) owns geometric/learned goal selection,
+DP3 encoder details and historical visual results. Vision selects the goal
+before cutting; it is not a policy image input. The current native BladeMaster
+visual handoff supports wm_policy, wm_mppi and analytic_mpc, not SAC.
 
+WM transfer between material backends is explicit (--allow-backend-transfer);
+task, controller, action/observation/model and robot metadata must still match.
+Evaluation checks frozen weights and marks premature budget exhaustion as
+incomplete. Diagnostic scripts reject non-finite predicted/replayed values;
+unavailable separation measurements are null.
 
-The visual selector defaults, when newly trained, to the official
-DP3 PointNetEncoderXYZ at commit47385d9d6f5bde3f2ebdf2400ecb8261cc9e6b97.
-The class is vendored verbatim under cutting_world_model/vendor/dp3 with MIT
-license and SOURCE.json; only colored terminal printing is suppressed. Its AST
-was checked against the pinned upstream class. Official dp3.yaml settings:
-XYZ3-64-128-256, ReLU, LayerNorm, max pooling,256-to64 projection + LayerNorm.
-Our64-64-1 SiLU/tanh midpoint head is additional, not part of DP3. No diffusion
-policy, action model or pretrained weights are imported.
+## UR10e CAD knife integration
 
-The original local_v1 encoder stays available solely for paired comparison and
-existing checkpoint loading. Versioned checkpoints dispatch explicitly; legacy
-checkpoints without architecture load local_v1, unknown architectures fail.
-Both consume the same512 observed-local XYZ points, fixed0.1m scaling, fixed
-base-frame axes, and output the same +-50mm residual in base Y. The board/goal
-conversion and frozen RL interfaces are unchanged. There is no arbitrary cut
-orientation prediction. New runs use a dedicated shuffle RNG independent of
-model parameter initialization so unequal architecture sizes do not alter data
-order. Same epochs/optimizer, not same capacity or compute time, is the comparison.
-
-WM transfer between backends is explicitly opt-in (`--allow-backend-transfer`).
-It admits only the DiSECt/BladeMaster contact-solver distinction and equivalent
-blade/board descriptions (unordered blade vertex sets within 1e-8 m, normal
-within 1e-10, plane offset within 1e-8 m, identical stop gap). Task, controller,
-action/observation/prediction layouts and robot metadata must match exactly;
-full checkpoint actor tensors must match the reference frozen policy.
-`SharedMPPIPolicy` reshapes `target_speed` to one scalar per world for both
-backend layouts.
-
-Evaluation scripts close the physical environment even if persistence fails and
-mark the progress state failed. `diagnose_pose_predictions.py` rejects
-non-finite replayed/imagined values instead of dropping them; only unavailable
-separation measurements become explicit null.
-
-## UR10e CAD knife integration (in progress)
-
-Both backends load the mounted CAD geometry; DiSECt uses its signed grid distance,
-BladeMaster uses mesh contact and curved-edge forward kernels at native commit
-166a269. Robot, controller and sensor identities are checked across checkpoint
-loading. Task rewards and controller action dimensions remain unchanged.
-Implementation, estimates and verification evidence are in the
-[review handoff](hardware/UR10E_INTEGRATION_REVIEW.md).
+Both material backends load the mounted IKEA CAD geometry: DiSECt uses its
+signed grid distance and prepared cut topology; BladeMaster uses mesh contact
+and curved-edge forward kernels without a preset cut plane. Robot/controller/
+sensor identities are checked when loading checkpoints. Five-food assets and
+mounts: [SHARED_SCENE](SHARED_SCENE.md); measured checks: [RESULTS](RESULTS.md).
+Real-controller alignment and pending hardware work:
+[FDCC setup](hardware/UR10E_FDCC_SETUP_ZH.md).
 
 ### Reset preparation correction (2026-11-21)
 
@@ -727,26 +689,6 @@ approximation, its existing delay, coarse FDCC recurrence or ideal joint
 tracking. It does not establish accurate material-force forecasting, real-time
 planning or improved task success. Reward, task events and SAC are unchanged.
 
-Validation: the actual AnalyticFDCCModel.predict regression fails numerically
-with the previous implementation (up to 1.614 N fictitious component under
-gravity-only rotation); the corrected case is below 1e-12. Targeted CPU tests:
-24 passed. The CPU root suite: 805 passed, 22 skipped, with one CUDA-only
-runner-resume case excluded; that case and the four new regression tests
-subsequently passed on A6000 (5 passed). CPU backend: 35 passed, 13 skipped.
-These counts include overlapping targeted checks, not independent samples.
-
-A6000 forward simulation probes used two UR10e cucumber worlds per backend:
-DiSECt and BladeMaster both passed initialization, 8-candidate/two-step MPC,
-one physical step, observe, masked reset, and another plan. Exported tare
-equals actual controller tare; the unselected world's frame/context remains
-unchanged. Elapsed probe times were 67.9 s and 52.8 s respectively. These are
-interface/context checks, not full-episode success-rate evaluations.
-CPU/old-code evidence is on GPU9 under
-/dataHDD/dong/Experiments/Cutting_DEV/runs/analytic_mpc_tare_fix_20261121/.
-Physical probe evidence is on A6000 under
-/dataHDD/dong/Experiments/Cutting_DEV/runs/mpc_tare_fix_20261121/{disect,blademaster}_v2/.
-Initial probe attempts lacked the temporary checkout's prepared-assets symlink;
-they failed before physics construction. The reruns above used the existing
-prepared assets, without changing task parameters.
-
-A6000 backend suite with CUDA: 47 passed, 1 skipped (full log retained).
+Validation and old-code regression evidence are recorded once in
+[RESULTS](RESULTS.md#ur10e-baseline-verification). This fix does not activate
+or certify the real-robot command bridge.

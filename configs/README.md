@@ -1,8 +1,10 @@
 # Configurations
 
-Current shared scene: [shared/scene_v1.json](shared/scene_v1.json), task pose_depth_v3
-(UR5e). UR10e + ATI + CAD knife: [shared/ur10e_ati_ikea_v1.json](shared/ur10e_ati_ikea_v1.json)
-(integration in progress).
+Current training: [shared/ur10e_five_food_v1.json](shared/ur10e_five_food_v1.json),
+UR10e + ATI + IKEA CAD knife, task pose_depth_v3/project_continue_v2.
+Retained profiles: UR5e [shared/scene_v1.json](shared/scene_v1.json) and the
+earlier UR10e [two-food contract](shared/ur10e_ati_ikea_v1.json).
+These platforms/distributions have distinct checkpoint metadata.
 All four controller entries use this same current task; backend choice is
 independent of controller choice. Old checkpoint loading must retain the task
 metadata embedded in that checkpoint. See the [controller ledger](../docs/methods/CURRENT_BASELINES.md).

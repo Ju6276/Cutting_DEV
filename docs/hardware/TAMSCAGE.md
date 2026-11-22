@@ -1,7 +1,8 @@
 # tamsCage：UR10e 控制电脑与现场控制器
 
-记录日期：2026-11-21（Europe/Berlin）。以下为 SSH、ROS 只读查询和三秒反馈采样结果，
-不是运动或切割验收。此次没有激活控制器、发布目标、清零传感器或改动现场参数。
+现场记录：2026-11-21；文档整理：2026-11-22。原工作区保持不变，
+独立候选已经通过离线输出对齐，但未接入活动UR驱动。以下查询状态是当日快照，
+不是当前正在运行的进程断言；用户随后已关闭机器人。没有发送机器人运动指令。
 
 ## 电脑与目录
 
@@ -41,9 +42,9 @@ FDCC 力输入消息 0 条。UR wrench 的 header.frame_id 是 tool0_controller�
 关节消息顺序从 elbow_joint 开始，而控制器配置从 shoulder_pan_joint 开始。
 桥接必须按 joint name 映射，不可直接假定数组排列一致。
 
-## 与当前 UR10e 仿真控制器的具体差异
+## 原有现场控制器与仿真的差异（尚未切换候选）
 
-两边都基于 FDCC，但不是同一配置，也不是完全相同的控制律。
+以下描述原有 /homeL/dong/ur10e_fdcc_ws，不是后文已经离线对齐的候选。
 
 1. **坐标与工具**：现场 end_effector_link、ft_sensor_ref_link、
    compliance_ref_link 都是 tool0；当前仿真分别为 knife_control、
@@ -73,28 +74,13 @@ backends/mujoco/cutting_gpu_backend/controller/fdcc.py。
 现场公式来源：cartesian_compliance_controller.hpp 的 computeComplianceError；
 负载缺省来源：cartesian_force_controller.hpp 的初始化逻辑。
 
-## MPC 当前已完成的范围
+## 接入文档的分工
 
-解析 MPC 的去皮基准错误已经修复并进入 main：每个世界的预测固定使用
-实际物理控制器导出的基准。DiSECt 和 BladeMaster 各两世界的短物理验证，
-覆盖规划、一步物理执行、observe、部分 reset 和再次规划，均通过。
-旧代码同一无外力转动回归会产生虚假力；修复后该断言通过。
-完整验证范围与日志见 [METHOD](../METHOD.md)。
-
-这没有改变原来的恒定历史力近似、粗略控制器递推和理想关节跟踪；
-也不证明上述现场 ROS1 控制器已等价于仿真控制器。
-[真机 MPC 交接](UR10E_MPC_HANDOFF_ZH.md) 的仿真评估入口不能直接下发真机指令。
-
-## 接下来的现场工作顺序
-
-以下为原先顺序；用户随后要求先跳过 ATI，现按下节执行离线对齐。
-恢复 ATI 工作后，在不发布运动指令的条件下补齐实际采集与 ROS 输入，
-核对测量原点/轴向、单位、时间戳和补偿方式；不能拿 UR /wrench 代替 ATI。
-再把实际安装几何加入机器人描述，对齐控制点、工具负载和坐标变换。
-选定并验证与当前算法相符的控制律、参数与动作映射，然后做只计算不下发的 MPC
-影子运行，检查预测、时延和命令映射。完成这些后才制定明确的现场运动测试。
-
-本次没有改动以上现场状态，没有因用户在旁就自动启动 fdcc。
+本页只维护现场盘点、原控制器和独立候选及其对齐证据。
+步骤见 [FDCC接入](UR10E_FDCC_SETUP_ZH.md)，上层接口见
+[MPC交接](UR10E_MPC_HANDOFF_ZH.md)，标定方法见 [REAL2SIM](REAL2SIM.md)。
+仿真解析MPC修复和SAC/WM+MPPI审阅结果统一在
+[RESULTS](../RESULTS.md#ur10e-baseline-verification)。
 
 ## 2026-11-21：ATI 暂缓后的离线对齐候选
 
@@ -157,8 +143,6 @@ DiSECt 与 BladeMaster 的材料计算不同，但都使用该传感器坐标约
 当前砧板仍只有几何防穿透边界，没有板面反力模型；不能把仿真 wrench
 称为包含真实砧板反力、ATI 噪声或已标定的全部传感器特性。
 
-SAC 与 WM+MPPI 的当前审阅另见
-[审阅记录](../methods/SAC_WM_MPPI_AUDIT_20261121.md)，包括未决的 CPU 原生运行故障。
 
 ## 同输入的 ROS C++ / Python 控制器对照（2026-11-21）
 

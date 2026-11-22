@@ -6,7 +6,7 @@ and its server evidence path. Superseded entries (free_cut, pose-v1, v2 interfac
 checks, latch-era V3 checks, fixed-prism development) were removed; the full
 previous record is [RESULTS at d7e05a2](https://github.com/Ju6276/Cutting_DEV/blob/d7e05a2/docs/RESULTS.md).
 [PLAN](PLAN.md) says what happens next. UR10e integration evidence is in
-[UR10E_INTEGRATION_REVIEW](hardware/UR10E_INTEGRATION_REVIEW.md).
+[UR10e platform evidence](RESULTS.md#ur10e-platform-integration-evidence).
 
 ## Board continuation (`project_continue_v2`)
 
@@ -326,3 +326,132 @@ No checkpoint interval, reward, force limit or success rule was changed.
 The production correction also passed a real DiSECt two-world tofu check: initialization, reset world 0, reset world 1, then reset both; unselected observations were bit-identical and maximum final clearance error was 5.72e-08 m. The original contact guard remained enabled.
 
 GPU9 regression verification: root suite 784 passed / 26 skipped; backend suite 48 passed. Four targeted reset-order/error-context tests passed. Existing A6000/GPU7 runs were not modified or restarted.
+
+## UR10e platform integration evidence
+
+The UR10e/ATI/IKEA platform and board-contact fixes are merged. The former
+branch handoff is removed; current scene/asset identity is in SHARED_SCENE,
+implementation in METHOD and deployment in hardware/UR10E_FDCC_SETUP_ZH.
+
+Retained evidence under
+/dataHDD/dong/Experiments/Cutting_DEV/runs/ur10e_platform_20261120/ on GPU7:
+disect_learning_midblade9/report.json and bm_learning_midblade9/report.json
+each recorded 9-world WM20 / actor2 / critic40 optimizer steps, selected reset
+and save/restore. They did not contain naturally ended episodes. Later
+five-food reference checks and long runs supersede the pending acceptance
+status, not the original measurements.
+sdf_winding.log records 10,000 near-surface points and maximum mesh/grid
+distance discrepancy 0.06352 mm.
+
+The compliance-axis correction introduced knife_compliance without moving
+the physical TCP/knife/ATI. In one A6000 cucumber reference case, the earlier
+configuration had no success by step 80 (5.713 mm gap); the corrected one
+succeeded at step 63 (1.482 mm gap, arrival 11). Evidence:
+new_knife_fdcc_v2/motion.json and new_knife_video/motion.json in the platform
+run. This is a reference-controller result, not a learned-policy ranking.
+
+### Paired platform timing
+A6000 GPU0, current code,9 worlds each, unchanged material/action dt.
+Two warmup steps, then three timed steps, CUDA synchronization around components:
+UR5e mean5.494s/action (material2.570s);
+UR10e mean9.354s/action (material6.064s).
+Most of the increase is in material advance. Geometry/topology changed along with
+the robot, so this is a whole-platform comparison, not isolated robot inertia cost.
+Evidence: `paired_platform_timing_gpu0.json` / A6000.
+The reference check also includes WM reward/termination checks.
+No11-second wait is configured.
+
+
+## UR10e baseline verification
+
+The following are recorded checks, not newly rerun by documentation cleanup.
+
+- Five-food interfaces (2026-11-21, GPU9): each backend collected 40 parallel
+  steps / 200 transitions and fit a small matching WM for two updates, followed
+  by two physical steps of each planner (8 samples, horizon 8). SAC ran eight
+  vector steps/updates and exact saved-weight reload. DiSECt 814.9 s;
+  BladeMaster 588.3 s. The separate production SAC smoke saved/reloaded
+  model/replay after 40 transitions and six optimizer updates.
+  Partial resets [0,2,4] then [1,3] preserved unselected frame fields exactly.
+  Evidence: runs/ur10e_baselines_20261121 on GPU9, *_five_adapters/report.json,
+  *_sac_cli_five, sac_cli_restore_verification.json, *_reset_groups.json.
+- Post-tare-fix CUDA SAC and learned WM+MPPI (A6000): five foods per backend,
+  two actual steps; frozen WM unchanged, candidates/model/actions on CUDA,
+  selected reset isolated. SAC completed two CUDA optimizations and exact
+  model/replay reload. DiSECt 269.5 s, BladeMaster 116.6 s.
+  Evidence: /dataHDD/dong/Experiments/Cutting_DEV/runs/baseline_gpu_audit_20261121/,
+  probe.py and {disect_cuda,blademaster_cuda}/report.json.
+- Independent code review traced SAC terminal_observation-before-reset,
+  task timeouts as terminated, transition-credit/checkpoint pairing,
+  per-world MPPI goal/sequence isolation, analytic absorption paying the terminal
+  reward once, and optional critic only on surviving states. No new confirmed
+  SAC/learned-MPPI implementation bug was found. Learning WM never constructs
+  AnalyticFDCCModel; SAC steps the actual environment. Neither uses the faulty
+  surrogate retare path. Finite-history WM still approximates hidden controller/
+  filter state; this is not an accuracy guarantee for new poses or loads.
+- Analytic MPC: physical per-world tare is now reused across candidates/horizon.
+  Old-code regression gave up to 1.614 N false force; fixed error <1e-12.
+  Two-world physical probes on both backends passed plan/step/observe/partial
+  reset/replan (67.9/52.8 s). Evidence:
+  A6000 runs/mpc_tare_fix_20261121/{disect,blademaster}_v2/;
+  GPU9 runs/analytic_mpc_tare_fix_20261121/. Here '_v2' is a probe-directory
+  suffix, not pose_depth_v2.
+- Earlier full-episode analytic MPC at 6258561 scored DiSECt 3/5 and
+  BladeMaster 4/5 pose completions. Those runs predate the MPC tare fix; they
+  are not a post-fix result or a paper benchmark.
+  GPU9 runs/ur10e_analytic_mpc_fivefood_20261121/{disect,blademaster}/summary.json.
+- Eight-candidate five-food planning measured median 0.205–0.215 s/world
+  for WM+MPPI and 0.489–0.511 s for analytic MPC. This exceeds the 50 ms
+  task interval; no real-time claim is made.
+
+An unrelated CPU FK-fixture native crash remained unresolved; its investigation
+was stopped at the user's request and did not change algorithms or CUDA
+dependencies. It is not a confirmed CUDA SAC/MPPI failure or a GPU-training gate.
+Raw reproduction and environment logs remain in GPU9
+runs/sac_wm_mppi_audit_20261121/. The removed dated audit document is retained
+in Git history; these raw files were not deleted.
+
+## UR10e long-run snapshot (2026-11-22)
+
+Read from progress.json on the run hosts; these are fixed records, not live
+status assertions. Run root: /dataHDD/dong/Experiments/Cutting_DEV/runs/.
+
+- A6000 DiSECt: ur10e_disect_fivefood_20261121_resume_resetfix/train,
+  budget_complete, 2560 worlds, 624640 cumulative transitions, 926 WM rounds,
+  425 policy rounds; resume wall time 52793.48 s. It resumed the old run after
+  the reset-order fix, so roughly 30 h combined is not 30 h continuously on
+  repaired code. Remaining queued rounds: 2. This supports the measured
+  configuration's run completion, not all GPU capacities.
+- GPU7 BladeMaster: ur10e_blademaster_fivefood_20261121_30h/train,
+  budget_complete, 320 worlds, 366720 transitions, 524 WM rounds, 24 policy
+  rounds, 108037.11 s; one queued round remains.
+- Both use 500 initial WM-only learning rounds. Unequal achieved data and policy
+  updates prevent a matched-budget comparison; completed budgets do not prove
+  converged policies. Paired model/replay files are retained.
+- GPU9 SAC uses ur10e_sac_disect_fivefood_20261121_resetfix_30h/train;
+  consult its progress and process for current status. Its SB3 gradient-update
+  count is not the WM+BPTT learning-round unit.
+
+Final held-out performance of these checkpoints has not been established by
+this documentation update.
+
+## Documentation consolidation (2026-11-22)
+
+Removed the superseded UR10e integration handoff and duplicated SAC/WM+MPPI
+audit document; retained their useful measurements and external evidence paths
+here. Current hardware instructions use the existing ROS1 candidate, not the
+old ROS2 installation proposal. No runtime algorithm, reward or config changed.
+
+GPU7 root regression initially reported822 passed,5 skipped and one failure:
+the old standalone UR10e analytic-controller test omitted the now-required
+physical tare context. The test now derives that baseline from a controller
+reset at its fixture pose, checks rejection without it and predicts on CUDA
+when available. The unchanged production planner already supplies the context.
+After correction all8 controller-profile/tare tests passed; the other822 tests
+were not rerun. Backend suite48 passed. This is split verification, not a claim
+that the initial full-suite invocation passed.
+
+Document checks:95 Markdown files,291 relative links (including anchors),
+17 changed shell examples syntax-checked, no errors. Evidence:
+GPU7 /dataHDD/dong/Experiments/Cutting_DEV/runs/docs_consolidation_20261122/
+(root.log, tare_fixture.log, backend.log, docs_check.json).

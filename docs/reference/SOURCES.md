@@ -56,12 +56,22 @@ branch `codex/shared-disect-knife`. GPU7 checkout:
 This supplies the two-slope finite blade contact/constraint kernels; Cutting_DEV
 supplies the common UR5e rigid mount. The task identity is
 `disect_knife_rigid_mount_v1`; see the shared-knife section of
-[SHARED_SCENE](../SHARED_SCENE.md#shared-physical-knife-and-mounting) for geometry and commands.
+[SHARED_SCENE](../SHARED_SCENE.md#retained-ur5e-physical-knife-and-mounting) for geometry and commands.
 
 
-2026-11-16 current BladeMaster integration source: commit
+2026-11-16 historical UR5e BladeMaster integration source: commit
 `c51ef733364aa9cbbbceb6ba5b422cabf67ddefc` on `codex/shared-disect-knife`,
 same GPU7 checkout as above. Adds persistent per-world material coefficient
 buffers, masked raw/settled snapshots and generator support. Scalar physical
 formulae are unchanged. Full GPU7 regression: 2165 passed / 8 skipped /
 18 subtests passed (2140.56 s). SHARED_SCENE defines the paired episode distribution.
+
+
+The UR10e curved-CAD forward integration was reviewed against
+[BladeMaster-Lab 166a269](https://github.com/Ju6276/BladeMaster-Lab/commit/166a269),
+based on c51ef733364aa9cbbbceb6ba5b422cabf67ddefc, in
+/dataHDD/dong/Projects/BladeMaster-Warp-ur10e-ikea.
+Current configurations select this separate source root; run manifests retain
+the exact native revision used. Do not substitute the old straight-wedge
+checkout merely because both expose a BladeMaster API. This records the
+integration source, not acceptance of native differentiation.

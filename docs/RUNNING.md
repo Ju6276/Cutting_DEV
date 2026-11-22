@@ -44,6 +44,13 @@ The ROS logger uses `CUTTING_LOGGER_PYTHON`, defaulting to this root's
 
 ## Prepare robot and material assets
 
+For current UR10e training, use the five-food preparation instructions in
+[SHARED_SCENE](SHARED_SCENE.md#ur10e-five-food-distribution-v1-2026-11-21) and the
+fdcc_v2 robot bundle in DATA. The source-export recipe below is the retained
+UR5e/Gazebo reconstruction path; it is not how to select the current UR10e robot.
+
+### Historical UR5e source reconstruction
+
 The existing exported task contains the URDF, reset state and task settings.
 The DiSECt export contains the material model, cutting springs and initial
 state. The controller snapshot in `configs/public_prism/controller.json`
@@ -114,22 +121,26 @@ python scripts/train_gpu.py \
   --checkpoint-every 32 --seed 0 --wandb-mode online --wandb-project sliceit-supermimic
 ```
 
-PREPARED is the output of `prepare_shared_scenes.py` (SHARED_SCENE). For native
-BladeMaster replace `--conditions PREPARED/disect.json` with
-`--blademaster-config PREPARED/blademaster.json`. Check capacity first with
-`check_training_capacity.py --backend disect|blademaster --config ...`
-([Shared randomized scene inputs](#shared-randomized-scene-inputs)).
+PREPARED is generated from the explicit UR10e five-food contract
+(see SHARED_SCENE). For native BladeMaster replace
+`--conditions PREPARED/disect.json` with
+`--blademaster-config PREPARED/blademaster.json`.
+Existing validated configurations need not repeat capacity probes solely
+because another documentation update was made. If changing capacity, use a
+bounded `check_training_capacity.py --backend disect|blademaster --config ...`
+check ([Shared randomized scene inputs](#shared-randomized-scene-inputs)).
 
 **Environment count comes from the prepared JSON, not from `--worlds`.** With
 `--conditions` the trainer sets the count to the sum of the group `worlds`; with
 `--blademaster-config` to the file's `worlds`. Either overwrites `--worlds`, so
 changing that flag does not scale a run. The preparer writes
 `common.worlds_per_object` from the contract into every group. The default
-[scene_v1.json](../configs/shared/scene_v1.json) has 3, which gives
-2 objects x 3 = **6 worlds**. To run the approved scale:
+[UR10e five-food contract](../configs/shared/ur10e_five_food_v1.json) has 3,
+which gives 5 objects x 3 = **15 worlds**. Retained UR5e scene_v1 has
+2 objects x 3 = 6. To run an approved scale:
 
-1. Copy the contract and change only `common.worlds_per_object` (e.g. 1024 per
-   object, 3072 in total).
+1. Copy the selected contract and change only `common.worlds_per_object`
+   (e.g.512 per food gives2560 worlds for five foods).
 2. Run `prepare_shared_scenes.py --contract COPY` and the
    `check_pose_depth.py` checks on that copy.
 3. Before launch, confirm the per-group and total `worlds` in the generated
@@ -444,7 +455,7 @@ profile uses `configs/shared/ur10e_five_food_v1.json` for the newly authorized
 five-food distribution; `ur10e_ati_ikea_v1.json` retains the earlier two foods.
 Generate backend configs as described in [SHARED_SCENE](SHARED_SCENE.md).
 Platform assets, commands and verification status are in
-[UR10E_INTEGRATION_REVIEW](hardware/UR10E_INTEGRATION_REVIEW.md) and
+[UR10e platform evidence](RESULTS.md#ur10e-platform-integration-evidence) and
 [UR10E_FDCC_SETUP_ZH](hardware/UR10E_FDCC_SETUP_ZH.md). Same joint dimensions do
 not make a UR5e-trained WM or policy robot-independent; checkpoint robot
 mismatches are rejected.

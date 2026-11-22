@@ -39,100 +39,36 @@ and the `project_continue_v2` board boundary (TASK_FREE_CUT). WM state includes
 policy's observable input format is the same as in v2. Use the full task name in
 logs and comparison tables (free_cut_v3 is an unrelated older separation task).
 
-## Measured coverage by task version
+## Paper comparison scope
 
-This table distinguishes recorded physical tests from implemented interfaces.
-It is not a performance ranking. Operational run status changes separately;
-consult each run's progress/manifest rather than this table to see whether it
-is still running.
+Main comparisons: WM+BPTT, SB3 SAC and frozen WM+MPPI. The analytic planner
+remains an engineering tool for offline/real-controller interface checks; it is
+not a required paper baseline or a reproduction of cutting-MPC literature.
 
-| Controller | Recorded v3 evidence (latch-era, through 11-18) | Historical physical outcomes (v2 only) | Remaining current-task comparison work |
-|---|---|---|---|
-| WM+BPTT | Each backend: short collect/update/episode/reset/save/resume pipeline at 4dfbc0c; UR10e 9-world learning runs (integration handoff) | Two 11-16 long runs; unequal achieved interaction budgets | No v3 long run yet; no mature v3 result claimed |
-| SB3 SAC | GPU9, both main b2b3ea6 and 8f0a517: 6 worlds, 240 transitions; latest smoke saved model/replay with 216 updates | Separate bounded v2 SAC run; early 264-transition smoke scored 1/3 in the old comparison | v3 smoke is not a trained baseline or matched-budget comparison |
-| WM+MPPI | Compatible v3 state/analytic survival implemented and regression-covered | DiSECt 3/3 pose successes, 0/3 separated; one native-BladeMaster visual example timed out | No completed v3 physical evaluation established in the audited records; needs compatible v3 WM |
-| Nonlearned FDCC+MPPI | v3 task/board-state branch implemented | DiSECt 2/3 pose successes, 0/3 separated; one native-BladeMaster visual example reached pose goal | No completed v3 physical evaluation established in the audited records |
+WM+MPPI is itself MPC with a learned dynamics model. Use the same compatible WM
+checkpoint when isolating online planning versus learned-policy execution.
+Disclose planner state access, optional terminal critic, sample/horizon budget,
+latency and actual training interactions. Equal wall time is not equal data or
+equal optimizer updates. SAC provides the model-free RL comparison.
 
-Old comparison source:
-GPU9 /dataHDD/dong/Projects/Cutting_DEV_baselines_20261116/runs/baseline_validation_20261116/.
-Its analytic_mpc_eval/manifest.json explicitly records pose_depth_v2.
-It completed half potato in 151 steps, prism in 137, and timed out on cucumber
-at 180. Planner: horizon 4, 32 candidates, one refinement, no terminal critic.
-Mean planning cost ~0.134 s/world exceeds the 0.05 s control interval.
+The analytic model holds a supplied historical wrench during each candidate
+rollout. A comparison against it would isolate that particular approximation,
+not establish superiority over all analytical or adaptive MPC.
 
-The old WM comparison used an early checkpoint with WM105/policy0/critic0,
-not a mature trained WM. Native-BladeMaster visual examples are under the same
-checkout's runs/dp3_controllers_20261117; their manifests also record v2.
-The analytic example completed one cucumber pose case at step 105.
-The current header/default config must never imply these records were v3 tests.
+## Verified execution and remaining experiments
 
+Both material backends have passed actual five-food CUDA SAC/WM+MPPI short
+execution, learning/save/load and selected-reset checks. The main algorithms
+have also entered joint training; do not describe current V3 as untrained.
+Recorded scope, paths and fixed run counts are in
+[RESULTS](../RESULTS.md#ur10e-baseline-verification).
+Current long-run snapshots are in
+[RESULTS](../RESULTS.md#ur10e-long-run-snapshot-2026-11-22).
 
-## UR10e five-food interface checks — 2026-11-21
-
-The current UR10e + ATI Mini45 + IKEA CAD knife/FDCC-v2 platform was exercised
-on cucumber, half potato, peeled homogeneous banana, tofu and luncheon candidates,
-with one world per food. Both generated backend configs retain `pose_depth_v3`,
-`project_continue_v2`, the 500-step horizon, 50 N / 5 N·m component limits and
-the same six-action interface. This is executable interface evidence, not a
-trained-policy result or a full-episode controller comparison.
-
-On GPU9, `check_baseline_adapters.py --config ... --live BACKEND` collected
-40 real parallel control steps (200 transitions), fitted a fresh, matching WM
-for two updates, then ran each planner for two real control steps. Eight
-candidates and an eight-step planning horizon were used; neither planner changed
-the frozen WM weights. SAC additionally ran eight parallel steps / eight updates
-and its saved/reloaded weights matched exactly. Total adapter-check time was
-814.9 s for DiSECt and 588.3 s for BladeMaster. No episode naturally ended during
-this short collection.
-
-The production `train_sac_multi.py --smoke` entry was also executed separately
-for both backends: five worlds, 40 transitions, six optimizer updates, normal
-transition-budget completion, and model plus replay saved. Reload checks verified
-checkpoint/replay hashes, 40 replay transitions, finite outputs, a `[5,348]`
-observable-history/goal input and `[5,6]` action output. Wall times were 228.8 s
-(DiSECt) and 123.1 s (BladeMaster). These small schedules test the entry only;
-they are not long-training schedules.
-
-A separate physical reset check selected worlds `[0,2,4]`, then `[1,3]`.
-Both backends preserved every unselected **frame field** bit-for-bit, reset each
-selected world's counter to zero, and advanced it to one on the next real step.
-This covers all five groups without shortening the task horizon; it is forced
-reset coverage, not evidence of natural termination. Times: DiSECt 282.8 s,
-BladeMaster 97.7 s.
-
-Planning is still not 50 ms real-time: even with only eight candidates, median
-planning time per world/command was 0.205–0.215 s for WM+MPPI and
-0.489–0.511 s for nonlearned MPC. Formal 512-candidate latency was not measured.
-No hardware-ready timing or cutting-performance claim follows from these checks.
-
-Evidence on GPU9:
- /dataHDD/dong/Experiments/Cutting_DEV/runs/ur10e_baselines_20261121/:
-
-- runtime_check_baseline_adapters.py (exact pre-guard runtime probe source);
-- {bm,disect}_five_adapters/report.json;
-- {blademaster,disect}_sac_cli_five/;
-- sac_cli_restore_verification.json;
-- {blademaster,disect}_reset_groups.json and reset_groups.py.
-
-Reports retain actual runtime metadata, config/probe hashes and the base source
-identity (`b501c28` plus the recorded probe/config changes). The subsequent
-front-door refusal of historical tasks affects rejected inputs only; the
-current-V3 physical path above is unchanged.
-
-The adapter probe now selects recorded worlds from each group's actual count,
-instead of assuming three groups of three. Its `--config --live` mode creates
-fresh paired WM evidence when no compatible current-robot checkpoint exists.
-Live fitting refuses historical task/board versions; `--evidence` recorded
-evaluation remains available. This changes verification tooling, not a reward,
-controller, physics law or training algorithm. The exact five-group recorded-CPU
-path also passed (2.24 s, all five foods selected; two SAC updates from 100 real
-recorded transitions, no new physics), with evidence in
-five_food_recorded_cpu/report.json.
-
-Merged-candidate GPU7 regression: 776 root tests passed / 25 skipped; 44 backend
-tests passed. Independent food support/penetration limitations remain in
-[SHARED_SCENE](../SHARED_SCENE.md); an adapter pass does not clear those physical
-scene checks.
+The analytic MPC tare bug is fixed. Both backends passed the post-fix short
+physical planning/observe/reset check. Its older full-episode results predate
+that fix and are not post-fix performance evidence. No held-out controller
+ranking or real-time hardware acceptance follows from an interface pass.
 
 ## Inputs, outputs and model limitations
 
@@ -164,11 +100,13 @@ claim predictive force safety or faithful reproduction of a cutting-MPC paper.
 ## Commands
 
 All commands run from main with an explicitly generated CURRENT v3 config.
-Generate both backend configs from configs/shared/scene_v1.json using the
+For the current UR10e five-food task, generate both backend configs from
+configs/shared/ur10e_five_food_v1.json using the
 [shared-scene procedure](../SHARED_SCENE.md). Environment count comes from the
 generated config; historical launch recipes are not the current config.
 
-    CUTTING_ENV=sac source scripts/env/cutting_env.sh
+    export CUTTING_ENV=sac
+    source scripts/env/cutting_env.sh
     python scripts/evaluate_pose_policy.py --method wm_policy --checkpoint V3.pt --conditions V3_DISECT.json --output OUT
     python scripts/evaluate_pose_policy.py --method sac --checkpoint SAC_V3/model.zip --conditions V3_DISECT.json --output OUT
     python scripts/evaluate_pose_policy.py --method wm_mppi --checkpoint V3.pt --conditions V3_DISECT.json --output OUT
@@ -205,8 +143,8 @@ Real deployment is possible in principle: retain the planner/control structure,
 replace simulated feedback by measured robot/sensor state and match robot/tool/
 board frames, filtering and timing. That is a deployment plan, not an already
 validated result. Our current nonlearned baseline still needs model/FDCC tracking
-validation and acceptable planning latency; a simulated frozen board wrench must
-not replace live real-sensor readings. Learned WM+MPPI additionally needs its
+validation and acceptable planning latency; live real-sensor readings must continue after stopping; the current simulation
+has no board reaction model. Learned WM+MPPI additionally needs its
 predictions checked on real transitions. Replanning does not eliminate model error.
 
 ## Pre-cut vision

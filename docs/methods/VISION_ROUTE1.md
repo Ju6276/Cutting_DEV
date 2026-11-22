@@ -1,245 +1,112 @@
 # Visual goals — geometric and learned centers
 
+This page owns the visual algorithm and inference/training interface.
+Actual Nano device parameters belong in the
+[hardware record](../hardware/MECH_EYE_NANO_CHECKLIST_ZH.md);
+the provisional simulated sensor belongs in [MECH_EYE_NANO](MECH_EYE_NANO.md).
+Historical scores and physical handoffs belong in [RESULTS](../RESULTS.md#vision-2026-11-17).
+
 ## Current implementation
 
-Pre-cut vision selects the cut plane; motion/wrench feedback then drives
-execution. The prescribed-plane mode is retained only as a height/interface
-diagnostic. All physical trials below used the pose_depth_v2, 180-step task and
-frozen policies of that time.
+Vision selects a goal before cutting. The tool is parked outside the food ROI
+for acquisition, then moved to the cut start before motion/wrench feedback
+drives execution. The existing simulation reset/IK handoff is not a real-robot
+collision-checked approach planner. There is no continuous visual servoing or
+image input to the low-level policy.
 
-visual_cut.visual_midpoint_plan receives metric depth, camera/board calibration
-and mounted-tool geometry/orientation. It never receives prescribed target XY.
-Known robot pixels are masked, the largest foreground component is segmented,
-and horizontal PCA identifies its visible major axis. The selected cut is the
-midpoint of the 2–98% visible extent along that axis; its normal follows the axis.
-A near-round visible shape (axis ratio below 2) rejects rather than silently
-falling back to the old plane. This geometric rule is not an optimal cutting
-location or a full-volume midpoint. The prototype restricts heading changes to
-15 degrees; that restriction does not establish policy generalization.
+visible-midpoint uses metric optical-axis depth, camera/board calibration and
+mounted blade geometry. It masks known robot pixels, segments the largest
+foreground component and takes the 2–98% visible extent midpoint along its
+horizontal PCA major axis. Axis ratio below2 rejects ambiguity; the prototype
+heading restriction is15 degrees. This finds a visible midpoint, not equal
+volume, material identity or an optimal cutting plane. It does not receive a
+prescribed target XY. The prescribed mode remains a height/interface diagnostic.
 
-Calibration converts blade-edge placement into a starting EE pose and the 8D
-policy goal [x,y,z,qx,qy,qz,qw,target_speed] in robot-base coordinates. Raw goal
-quaternions must use the frozen policy's sign convention: q and -q are physically
-equal, but a network consuming the raw coordinates need not treat them equally.
-The optional policy_quaternion_reference_xyzw field supplies that convention.
-No object category, material label or food mesh enters the selector. It uses
-visible depth only. Synthetic mesh truth is audited separately.
-
-## Camera and commands
-
-The camera is +base Y of the workpiece, offset [0,0.32,0.55] m from board centre,
-looking back/down about 30 degrees from vertical. Image640x480, focal700 px.
-These are synthetic values, not real camera calibration. Pre-cut clearance is
-20 mm plus a 1 mm height margin (within the training5–30 mm range); commanded
-speed is3 cm/s (training1–5 cm/s). Board normal is calibrated, only board height
-is refined. Unknown/occluded tops or multiple objects can require another view.
-
-~~~sh
-PYTHONPATH=. .venv/bin/python scripts/plan_visual_cut.py \
-  --selection visible-midpoint \
-  --depth RUN/depth.npz \
-  --camera configs/vision/front_camera_v1.json \
-  --config configs/vision/visual_midpoint_v1.json \
-  --output RUN/visual_plan.json
-~~~
-
-NPZ inputs: depth_m (optical-axis depth, not ray distance), optional robot_mask.
-Optional --checkpoint validates the existing34D observation/8D goal contract,
-base frame and blade/board calibration. It does not run the policy. Goal-relative
-coordinates alone do not guarantee out-of-distribution robustness.
-
-capture_visual_studio.py renders the actual settled physics snapshot into RGB
-and metric depth, then selects the plane. RGB colors are the shared display
-palette, not a material measurement. The video still uses the approved shared
-studio renderer, single metallic blade and original robot/handle, with no blue
-knife overlay or invented adapter rod. Yellow lines show the selected plane's
-intersection with the board, not a material-separation prediction.
-
-## Bounded physical trial
-
-scripts/evaluate_visual_cut.py executes one native BladeMaster cucumber world.
-DiSECt's baked cut topology is not silently relocated to support a new plane.
-The trials used policy66 from GPU7 checkpoint128 (SHA256
-3bf6d7017bcfe31b5e38da68d61372156c2c85a77e8328b84989e126d138a8fd): explicitly
-**cross-backend frozen inference**, not a native BladeMaster-trained actor.
-
-The handoff verifies controller/task/observation compatibility, then uses
-simulation IK/reset placement before the episode, preserving material positions.
-This is not a collision-checked real approach trajectory. The policy thereafter
-receives measured simulated motion/force history and the visual goal at20 Hz.
-This is one-shot pre-cut vision followed by motion/force feedback, not continuous
-visual servoing. Each trial is one episode under an external timeout; no
-weights, reward or material law change.
-
-~~~sh
-PYTHONPATH=.:backends/mujoco timeout --kill-after=20s 1500 \
-  .venv/bin/python scripts/evaluate_visual_cut.py \
-  --policy RUN/frozen_policy66.pt --backend-checkpoint RUN/bm_checkpoint192.pt \
-  --allow-backend-transfer --wall-seconds 1450 \
-  --render-python /dataHDD/dong/Envs/vision-render-20261117/bin/python \
-  --output RUN/NEW_TRIAL
-~~~
-
-Outputs retain visual plan, provenance/source hashes, conditions, all physical
-transitions, per-step geometry and final task/force/material diagnostics.
-Do not interpret pose completion or reconstructed surface appearance as verified
-material separation. The active native policy is not modified by this test.
-
-## Evidence and provenance
-
-GPU7 runs/vision_variants_20261117 contains seven independently scanned assets:
-cucumber001/002/003, potato001/002/003, apple002. They come from
-[OmniObject3D](https://omniobject3d.github.io/) through the AlbertS666 HF mirror;
-source metric scale and textures are retained, with download/hash ledgers.
-Five pass the visual-axis rule. Potato003 and apple002 reject as ambiguous.
-These static ideal-depth examples have no robot occlusion and have not been
-physically settled or cutting-validated. Whole potato scans differ from the
-half-potato training asset. Scans supply geometry/colors, not calibrated physics.
-
-Real deployment additionally needs measured camera/tool/board calibration,
-noise/visibility checks, an actual approach controller and validated low-level
-goal coverage. The simulation board stop is not a real contact tolerance.
-
-Prescribed-plane depth checks: GPU7 runs/vision_route1_20261117. Physical
-trials: GPU9 runs/vision_closedloop_20261117 (trial06 is the scored PCA-heading
-run: timeout, blade gap 2.476 mm, no force-limit failure; earlier trials are
-retained interface diagnostics).
-
-## Integration status
-
-| Controller | Current-task evaluator | Visual-goal physical execution |
-|---|---|---|
-| Frozen WM+BPTT policy | Implemented | Implemented for geometric and learned selectors in one BladeMaster world; both latest trials timed out |
-| Vector SAC | Implemented | Not implemented |
-| Frozen WM+MPPI | Implemented | DP3 goal executed in native BladeMaster; one paired WM566 transfer trial timed out |
-| Nonlearned approximate FDCC+MPPI | Implemented | DP3 goal executed; one nominal case reached pose goal in105steps |
-
-evaluate_visual_cut.py dispatches --method wm_policy|wm_mppi|analytic_mpc.
-Its current physical adapter is one native-BladeMaster world. SAC remains
-available only in evaluate_pose_policy.py, without a visual-goal handoff.
-There is no arbitrary DiSECt topology re-export or real-robot approach planner.
-
-## Method 2: fixed-heading learned midpoint
-
-Default encoder: official DP3 (below). The local_v1 network remains for
-comparison and old checkpoints.
-
-local_v1: visual_center_features.cloud_input uses512 visible points,
-subtracts the **observed** XY centroid, and measures height from the observed
-board. Coordinates use a fixed0.1m scale; object size is not normalized away.
-The network receives no absolute XY, object ID, full mesh or target. A shared
-pointwise MLP3-32-64-128 with mean/max pooling and256-64-1 head predicts an
-offset from visible centroid along fixed +base Y. The output is bounded to
-+-50mm. This is a small local model, not a full PointNet++ reproduction.
-
-Full rendered-surface bounds generate offline labels; "middle" means the
-midpoint of the complete bounds along the fixed cut normal, not equal volume.
-The three input surfaces are the existing settled cucumber003, half-potato and
-prism studio snapshots.900 cases =300 unique static XY placements per shape
-on a20x15 grid covering +-15mm, with no rotation. They are rendered from the same
-front camera. These translated surfaces are perception data, not900 newly
-settled physical simulations. No real depth noise or robot occlusion is modeled
-in this dataset; the physical handoff masks the known parked robot projection.
-
-A shared placement-ID partition gives200/50/50 train/validation/test cases per
-object (600/150/150 total). No placement's repeated view crosses splits.
-The test contains seen shapes and nearby unseen positions, not unseen objects.
-CPU training120 epochs, Adam.001, batch32, seed20261117; validation MAE selects
-epoch117. The test was opened only after selection. No test-driven retuning.
-Online W&B run:
-[abn7qktr](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/Cutting_DEV/runs/abn7qktr).
-Remote state finished and120 logged epochs were verified.
-
-Held-out midpoint MAE: learned0.210mm, fixed-heading visible-extent midpoint
-5.499mm, constant world coordinate7.685mm, visible centroid15.129mm.
-The learned predictor can exploit these three known shape/view priors.
-These numbers do not demonstrate novel geometry reasoning or real localization.
-
-### Commands
-
-Run from the prepared GPU7 development checkout, preserving the source assets:
-
-~~~bash
-PYTHONPATH=.:scripts .venv-render/bin/python scripts/generate_visual_center_data.py --scenes runs/shared_scene_views_20261116/disect --output runs/NEW_CENTER/dataset --wall-seconds 1800
-source scripts/env/cutting_env.sh
-PYTHONPATH=. .venv-sac/bin/python scripts/train_visual_center.py --data runs/NEW_CENTER/dataset --output runs/NEW_CENTER/learning --epochs 120 --wall-seconds 900 --wandb-mode online
-PYTHONPATH=. .venv/bin/python scripts/plan_visual_cut.py --selection learned-midpoint --center-checkpoint runs/NEW_CENTER/learning/center.pt --depth RUN/depth.npz --camera RUN/camera.json --config RUN/visual_config.json --output RUN/learned_plan.json
-~~~
-
-No retraining of WM/policy is required for this interface trial; that is not
-a guarantee that an arbitrary new visual goal is executable by the policy.
-The approved physical trial used the same source policy66 as the earlier route1
-trial, explicitly transferred to native BladeMaster, with nominal cucumber
-and fixed heading. Reset/IK places the start; real approach planning is absent.
-
-Add --selection fixed-midpoint to evaluate_visual_cut.py for the geometric
-fixed-heading reference. For the learned route add --selection learned-midpoint
---center-checkpoint MODEL. Both reuse the same camera, task checks,8D goal,
-policy history, physical loop, recording and shared studio rendering. The original
---selection visible-midpoint remains the geometric PCA-heading prototype.
-The fair fixed-heading comparison does not silently rename it as learned vision.
-
-GPU9 results: runs/visual_center_closedloop_20261117.
-Both180-step episodes timed out; neither exceeded force/workspace limits.
-Geometric/learned plane errors8.852/0.688mm, final goal-height errors2.496/2.890mm
-against a2mm tolerance, and peak material forces2.747/8.605N.
-Both retained one connected material component. Improved localization did not
-make this frozen cross-backend controller complete the task. This is one nominal
-case per route, not a success-rate estimate or causal claim about force changes.
-
-The dataset/checkpoint stay on GPU7 under runs/visual_center_20261117.
-The full shape-source hashes, split membership, depth/RGB, input point clouds,
-labels, validation history and final test predictions are retained there.
-No active long-training configuration or low-level model was changed.
+fixed-midpoint and learned-midpoint use a fixed +baseY plane normal and a
+horizontal calibrated board. Geometry converts the selected location into
+start and final control-point poses through the mounted blade transform.
+The low-level goal is [x,y,z,qx,qy,qz,qw,target_speed] in robot-base coordinates.
+Quaternion sign must match the frozen policy convention, even though q and -q
+represent the same physical rotation. Arbitrary new goals are not guaranteed
+to lie in a policy's trained distribution.
 
 ## DP3 encoder
 
-New training defaults to --architecture dp3_xyz_v1; old checkpoints still load
-local_v1. The point encoder is pinned official DP3 code (see METHOD/SOURCE.json),
-with a task-specific midpoint regression head, not an action diffusion network.
-Inputs/outputs and local-base-axis coordinate convention remain unchanged.
-On three matched seeds, mean midpoint MAE improved0.2013 ->0.1370mm.
-This is known-shape/small-translation development evidence, not real deployment.
-The seed20261117 frozen-policy66 physical handoff still timed out; plane error
-0.8453mm vs previous local0.6880mm. Improved aggregate perception does not imply
-better control. See RESULTS for the complete negative outcome and limits.
+New visual training defaults to dp3_xyz_v1. The official PointNetEncoderXYZ is
+pinned at47385d9d6f5bde3f2ebdf2400ecb8261cc9e6b97, vendored in
+cutting_world_model/vendor/dp3 with its license and SOURCE.json.
+XYZ layers3–64–128–256, ReLU, LayerNorm and max pooling produce64 features;
+our64–64–1 SiLU/tanh regression head is additional. No diffusion-policy network
+or pretrained action weights are used.
+
+cloud_input in visual_center_features.py samples512 visible XYZ points
+randomly, with replacement only when fewer than512 exist; at least50 finite
+points are required. It subtracts the observed cloud's meanX/Y and the observed
+board heightZ, then divides by0.1 m. Axes remain robot-base axes, not a rotated
+object frame. Output is one residual along baseY from the observed centroid,
+bounded to ±50 mm after unit conversion. It does not output an8D robot goal;
+the geometric adapter constructs that goal.
+
+The encoder architecture can pool a different number of points, but current
+preprocessing and checkpoint validation explicitly require512. Changing to1024
+requires updating/verifying that contract; it is not an already-tested mode.
+local_v1 remains only for old checkpoints and paired architecture comparisons.
+Unknown architectures or mismatched point/scale metadata fail.
+
+## Training data and scope
+
+The existing pilot used settled cucumber003, half-potato and prism surfaces:
+900 ideal-depth cases,300 fixed-heading translations per shape on a20×15 grid
+covering ±15 mm. A shared placement-ID split gives600/150/150
+train/validation/test cases. Full-surface bounds provide offline midpoint labels;
+network inference sees only the visible cloud. No placement's repeated view
+crosses splits, but test shapes are known and nearby.
+
+The later DP3/local comparison reused this development test set. Historical
+small errors are not unseen-shape or real-depth generalization evidence.
+The five-food UR10e physical configuration does not automatically retrain vision;
+new data must respect half-potato/peeled-banana preparation, measured visibility
+and the actual tool orientation. Nominal desktop-camera captures are not a
+real-cutting benchmark.
+
+## Commands
+
+Use explicit calibrated camera/visual config and source snapshots. Historical
+front_camera_v1 is a synthetic pilot camera, not the real Nano.
+These templates do not authorize another training run.
 
 ~~~bash
+export CUTTING_ENV=render
 source scripts/env/cutting_env.sh
-PYTHONPATH=. .venv-sac/bin/python scripts/train_visual_center.py --data runs/visual_center_20261117/dataset --output runs/NEW_DP3 --architecture dp3_xyz_v1 --seed 20261117 --epochs 120 --wall-seconds 900 --wandb-mode online
-PYTHONPATH=. .venv-sac/bin/python scripts/compare_visual_centers.py --runs runs/dp3_center_20261117
+python scripts/generate_visual_center_data.py --scenes SCENES --camera CAMERA.json --config VISUAL.json --output DATASET --wall-seconds 1800
 ~~~
-
-Existing plan_visual_cut/evaluate_visual_cut commands accept the new center.pt
-without changing the policy or goal interface. Do not load DP3 weights into the
-legacy local network; architecture dispatch is explicit in the checkpoint.
-
-## DP3 controller video commands and result
-
-Use the same --policy goal-convention reference, --backend-checkpoint,
---center-checkpoint, --render-python and --selection learned-midpoint arguments
-as the frozen RL trial. For WM planning add:
 
 ~~~bash
---method wm_mppi --model-checkpoint FULL_MATCHING_POLICY66_CHECKPOINT --allow-backend-transfer --planner-horizon 8 --planner-samples 512 --planner-refinements 1
+export CUTTING_ENV=sac
+source scripts/env/cutting_env.sh
+python scripts/train_visual_center.py --data DATASET --output TRAIN --architecture dp3_xyz_v1 --epochs 120 --wall-seconds 900 --wandb-mode online
+python scripts/plan_visual_cut.py --selection learned-midpoint --center-checkpoint TRAIN/center.pt --depth CAPTURE/depth.npz --camera CAMERA.json --config VISUAL.json --output PLAN.json
 ~~~
 
-For nonlearned control add --method analytic_mpc --analytic-substeps 5.
-It uses the reference checkpoint only for goal convention/task metadata;
-learned weights are not used for action prediction. Both planners use MPPI
-with no terminal critic. Do not call it a reproduced cutting-paper MPC.
+For a geometric selector choose visible-midpoint or fixed-midpoint and omit
+--center-checkpoint. The optional --checkpoint checks frozen-policy interface
+compatibility; plan_visual_cut does not execute the robot.
 
-GPU9 runs/dp3_controllers_20261117 retains full runs/frames/force traces.
-The RL video reuses runs/dp3_center_closedloop_20261117/episode (policy66).
-Both RL and WM planning explicitly transfer DiSECt-trained weights to native
-BladeMaster; this is not the newer policy527 and not matched training across
-backends. DP3 is the pinned point encoder plus our midpoint head.
+## Physical integration status
 
-One case per controller: RL and WM+MPPI timed out at180steps; analytic MPC
-reached pose success at105steps. Peak material forces10.84/10.62/10.81N.
-The analytic case has two material components; this count alone is not a
-validated intact intended-slice metric. Planning averaged0.469/0.460s per
-step, exceeding the50ms physical control period. Offline simulation videos do
-not demonstrate real-time control. See RESULTS for full limitations.
+evaluate_visual_cut.py supports wm_policy, wm_mppi and analytic_mpc on one
+native BladeMaster world, with matching --policy, --backend-checkpoint,
+--render-python and optional --center-checkpoint/--model-checkpoint.
+SAC visual execution is not implemented. DiSECt prepared cut topology is not
+silently moved when a new visual plane is selected.
 
-Current provisional Mech-Eye NANO simulation and capture adapter: [MECH_EYE_NANO](MECH_EYE_NANO.md).
+Recorded visual closed-loop examples are historical pose_depth_v2/180-step
+runs with frozen cross-backend weights. They are not current UR10e five-food
+validation or matched-controller comparisons; details and paths are in RESULTS.
+Do not copy the old policy66 launch paths as a current deployment recipe.
+New checks must match robot/tool/task/goal metadata and preserve material state
+during pre-episode placement.
+
+The canonical renderer uses the recorded robot/food/tool identity. Presentation
+lines mark the chosen plane only, not verified material separation. Source
+meshes, RGB textures and simulated contact parameters have separate provenance.
