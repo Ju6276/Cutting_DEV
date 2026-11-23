@@ -9,7 +9,7 @@ import torch
 from torch import nn
 from .visual_cut import observe_depth, blade_points, estimate_plan
 
-from .visual_center_features import REVISION, SCALE_M, POINT_COUNT, heading, cloud_input
+from .visual_center_features import REVISION, SCALE_M, POINT_COUNT, heading, cloud_input, table_cloud_input, TABLE_FRAME, BASE_FRAME
 
 
 class CenterNet(nn.Module):
@@ -53,7 +53,11 @@ def load_center(path):
     data = torch.load(path, map_location="cpu", weights_only=False)
     if data.get("revision") != REVISION or data.get("scale_m") != SCALE_M or data.get("points") != POINT_COUNT:
         raise ValueError("Center checkpoint contract mismatch")
+    input_frame=data.get("input_frame",BASE_FRAME)
+    if input_frame not in (BASE_FRAME,TABLE_FRAME):
+        raise ValueError("Unknown center input frame: "+str(input_frame))
     model = make_center(data.get("architecture", "local_v1")).eval()
+    model.input_frame=input_frame
     model.load_state_dict(data["model"])
     model.requires_grad_(False)
     return model, data
@@ -65,7 +69,11 @@ def center_plan(depth, camera, config, robot_mask=None, model=None):
     seen = observe_depth(depth,camera,config,robot_mask)
     p = seen["points"]
     board_z = float(config["board_origin_base"][2])+seen["board_offset_m"]
-    features, origin = cloud_input(p, board_z)
+    if model is not None and getattr(model,"input_frame",BASE_FRAME)==TABLE_FRAME:
+        features,origin_table,table_origin=table_cloud_input(p,config,seen["board_offset_m"])
+        origin=origin_table+table_origin
+    else:
+        features, origin = cloud_input(p, board_z)
     quantiles = config.get("extent_quantiles", [.02,.98])
     geometric_y = float(np.quantile(p[:,1],quantiles).mean())
     if model is None:
@@ -88,5 +96,6 @@ def center_plan(depth, camera, config, robot_mask=None, model=None):
                   selected_plane_normal_base=normal.tolist(),prescribed_cut_pose_used=False,
                   predicted_centroid_offset_m=float(predicted_y-origin[1]),
                   geometric_midpoint_y_m=geometric_y,
-                  selection_scope="Fixed heading, existing shapes; full bounding-box midpoint target, not volume or material identity")
+                  input_frame=getattr(model,"input_frame",BASE_FRAME) if model is not None else BASE_FRAME,
+                  selection_scope="Fixed heading; full bounding-box midpoint target, not volume or material identity")
     return result

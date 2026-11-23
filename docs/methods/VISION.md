@@ -70,10 +70,36 @@ crosses splits, but test shapes are known and nearby.
 
 The later DP3/local comparison reused this development test set. Historical
 small errors are not unseen-shape or real-depth generalization evidence.
-The five-food UR10e physical configuration does not automatically retrain vision;
+The historical checkpoint is not trained on the current five-food UR10e configuration;
 new data must respect half-potato/peeled-banana preparation, measured visibility
 and the actual tool orientation. Nominal desktop-camera captures are not a
 real-cutting benchmark.
+
+## Current five-food dataset contract
+
+The current generator takes an explicit scene manifest: a JSON list of
+objects with `name` and `scene` (canonical pre-cut scene.npz) fields.
+It uses the settled cucumber, half-potato, peeled banana, tofu and luncheon surfaces.
+The approved next run fixes the current Nano camera and food heading, with 300
+translations per food on the same +/-15 mm grid: 1,500 samples, split into
+1,000 training / 250 validation / 250 test cases. Every food/view sharing a
+placement ID belongs to one partition. This tests known shapes, not unseen food.
+
+New checkpoints declare `table_aligned_base_v1`: the calibrated board origin
+is subtracted before visible-cloud centering; table axes currently stay parallel
+to the robot base. The returned Y residual is transformed back to the base frame
+before constructing the tool goal. Rotated table axes are rejected. This explicit
+frame contract does not create viewpoint invariance: with the current axes it is
+numerically equivalent to the old centered XYZ normalization. Old checkpoints
+without this field retain their base-frame convention.
+
+Only depth is rendered for dataset generation, with measured Nano intrinsics.
+No alternate RGB food textures are introduced. Ideal depth, no robot occlusion,
+fixed camera and one settled shape per food do not establish real-camera transfer.
+The optional camera-azimuth flag is available but disabled in this run.
+Training uses CUDA and online W&B, validation selects the checkpoint, and the test
+partition is evaluated only after selection. The frozen low-level RL actor is
+not retrained by this visual job.
 
 ## Commands
 
@@ -84,7 +110,7 @@ These templates do not authorize another training run.
 ~~~bash
 export CUTTING_ENV=render
 source scripts/env/cutting_env.sh
-python scripts/generate_visual_center_data.py --scenes SCENES --camera CAMERA.json --config VISUAL.json --output DATASET --wall-seconds 1800
+python scripts/generate_visual_center_data.py --scene-manifest SCENES.json --camera CAMERA.json --config VISUAL.json --sensor-profile configs/vision/mecheye_nano_v4_550_lab_v1.json --camera-azimuth-deg 0 --output DATASET --wall-seconds 3600
 ~~~
 
 ~~~bash

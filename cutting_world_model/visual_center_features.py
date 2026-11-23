@@ -43,3 +43,25 @@ def cloud_input(points, board_z, seed=0):
     features = ((p[indices]-origin)/SCALE_M).astype(np.float32)
     return features, origin
 
+
+
+TABLE_FRAME = "table_aligned_base_v1"
+BASE_FRAME = "base_axes_v1"
+
+def table_cloud_input(points, config, board_offset_m=0., seed=0):
+    """Current horizontal table, fixed axes parallel to the robot base.
+
+    Explicitly remove the calibrated table origin before cloud centering.
+    This changes no shape scale and consumes no target/mesh information.
+    """
+    if not np.allclose(config["board_normal_base"],[0,0,1],atol=1e-6):
+        raise ValueError("Table input requires a horizontal board")
+    if not np.allclose(config.get("board_x_base",[1,0,0]),[1,0,0],atol=1e-6):
+        raise ValueError("Current fixed-heading table axes must align with robot-base axes")
+    table_origin=np.asarray(config["board_origin_base"],dtype=float).copy()
+    if table_origin.shape!=(3,) or not np.isfinite(table_origin).all():
+        raise ValueError("Invalid table origin")
+    if not np.isfinite(board_offset_m):raise ValueError("Invalid board offset")
+    table_origin[2]+=float(board_offset_m)
+    features,origin_table=cloud_input(np.asarray(points)-table_origin,0.,seed)
+    return features,origin_table,table_origin

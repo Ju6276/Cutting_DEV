@@ -10,6 +10,12 @@ from collections import deque
 
 
 def connected_components(mask):
+    try:
+        from scipy.ndimage import label
+    except ImportError:
+        pass
+    else:
+        return label(mask,structure=np.array([[0,1,0],[1,1,1],[0,1,0]],dtype=np.uint8))
     labels=np.zeros(mask.shape,dtype=np.int32);count=0
     height,width=mask.shape
     for y,x in zip(*np.nonzero(mask)):
