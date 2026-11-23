@@ -164,3 +164,7 @@ GPU离线回放中，1/32/64候选的加速预测与原模型状态/奖励一致
 GPU7提交前回归：主仓库825通过、5跳过；后端48通过。
 日志：GPU7仓库runs/ur10e_module_review_20261123/；现场构建/解析记录在
 tamsCage的ur10e_fdcc_records/module_staging_20261123/。
+
+切换到本分支后，tamsCage的GTX1060离线GPU回放也通过：
+1/32/64候选状态和奖励最大差0，反馈推导一致；本次单次规划约0.594 s。
+记录在ur10e_fdcc_records/module_validation_20261123/，没有连接机器人。
