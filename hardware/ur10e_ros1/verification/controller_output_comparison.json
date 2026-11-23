@@ -1,0 +1,18 @@
+{
+  "status": "passed",
+  "updates": 30,
+  "command_max_error_rad": 1.3322676295501878e-15,
+  "robot_description": "actual arm description plus fixed simulation tool subtree",
+  "cpp": "SliceIt controller template + built IK solver, memory-only joint handles",
+  "python": "current FDCCController, unchanged",
+  "cases": "changing measured joint pose, target position, six-axis sensor wrench; nonzero payload; synchronized initial tare; persistent internal velocity",
+  "master": "isolated localhost:11349, stopped after check",
+  "hardware_commands": false,
+  "excludes": [
+    "actual robot servo response",
+    "network jitter and timing",
+    "live ATI measurement",
+    "dynamic parameter synchronization",
+    "joint saturation at hardware boundary"
+  ]
+}

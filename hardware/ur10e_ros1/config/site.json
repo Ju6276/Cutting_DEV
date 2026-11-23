@@ -1,0 +1,20 @@
+{
+  "site": "tamsCage",
+  "control_computer": "134.100.13.143",
+  "robot_ip": "192.168.0.123",
+  "reverse_ip": "192.168.0.1",
+  "external_control_port": 50002,
+  "sensor_profile": "UR native compensated /wrench -> ati_sensing_frame; external ATI electrically disconnected",
+  "payload_estimated_kg": 0.5552267424163818,
+  "payload_com_tool0_m": [
+    -0.000004809097723,
+    0.000004040572278,
+    0.107956210836
+  ],
+  "fdcc_extra_tool_mass_kg": 0,
+  "payload_note": "CAD estimates for the full assembly, not a measured dummy-knife calibration; never applied automatically.",
+  "default_error_scale": 0.0168,
+  "air_test_error_scale": 0.2,
+  "calibration_file": "/homeL/dong/ur10e_fdcc_ws/config/ur10e_calibration.yaml",
+  "validated_description_file": "/homeL/dong/ur10e_fdcc_records/alignment_candidate_20261121/robot_description.candidate.urdf"
+}

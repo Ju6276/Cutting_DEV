@@ -1,0 +1,5 @@
+<launch>
+  <arg name="kinematics_params"/>
+  <!-- Full calibrated arm + fixed tool subtree, prepared offline. -->
+  <param name="robot_description" textfile="$(env CUTTING_ROBOT_DESCRIPTION)"/>
+</launch>

@@ -1,0 +1,118 @@
+{
+  "name": "user_accepted_training_tool_pose_20261123",
+  "recorded_utc": "2026-11-23T20:18:39.529619+00:00",
+  "meaning": "User accepted this real pose after vertical 200 mm reposition and alignment of tip-down pitch with simulation. Saved reference only; never automatic motion on startup.",
+  "reference_frame": "base_link",
+  "control_frame": "knife_control",
+  "joint_names": [
+    "shoulder_pan_joint",
+    "shoulder_lift_joint",
+    "elbow_joint",
+    "wrist_1_joint",
+    "wrist_2_joint",
+    "wrist_3_joint"
+  ],
+  "joint_positions_rad": [
+    4.849518775939941,
+    -2.2252189121642054,
+    -1.72548246383667,
+    -0.9037568134120484,
+    -4.685917441044943,
+    3.3484466075897217
+  ],
+  "poses": {
+    "knife_control": {
+      "position_m": [
+        0.05752184613658001,
+        0.9614039594498289,
+        -0.0639620030477964
+      ],
+      "quaternion_xyzw": [
+        -0.038498545861640095,
+        -0.9966664568988383,
+        0.0718757859530133,
+        0.002776157937420522
+      ]
+    },
+    "knife_mount": {
+      "position_m": [
+        0.05061122262933743,
+        0.8723085079037647,
+        0.04453032256340725
+      ],
+      "quaternion_xyzw": [
+        0.03849854586164026,
+        0.9966664568988383,
+        -0.07187578595301344,
+        -0.0027761579374204525
+      ]
+    },
+    "knife_tip": {
+      "position_m": [
+        0.06332337911367478,
+        1.0366486137510025,
+        -0.05334839847237885
+      ],
+      "quaternion_xyzw": [
+        0.03849854586164026,
+        0.9966664568988383,
+        -0.07187578595301344,
+        -0.0027761579374204525
+      ]
+    },
+    "ati_sensing_frame": {
+      "position_m": [
+        0.05061122262933743,
+        0.8723085079037647,
+        0.04453032256340725
+      ],
+      "quaternion_xyzw": [
+        -0.6775270274097513,
+        0.7319721930989254,
+        -0.04886081554729371,
+        -0.0527868957536836
+      ]
+    },
+    "tool0_controller": {
+      "position_m": [
+        0.05144289316296604,
+        0.8834235188849844,
+        0.12139172857848478
+      ],
+      "quaternion_xyzw": [
+        -0.03849946309810058,
+        -0.9966616677593481,
+        0.07194087602598148,
+        0.002796733259935965
+      ]
+    }
+  },
+  "sensor_source": "UR native compensated F/T, transformed from tool0_controller to ati_sensing_frame; ATI hardware installed but not electrically used",
+  "tool": "User-installed dummy knife with ATI/PLA assembly; payload estimates, not measured dummy-tool calibration",
+  "training_tip_down_deg": 8.25,
+  "site": "tamsCage",
+  "robot_ip": "192.168.0.123",
+  "table_calibration": "Low table relative to base not surveyed; saved pose is not a verified cutting endpoint",
+  "controller_states": [
+    {
+      "name": "fdcc_shared",
+      "state": "stopped"
+    },
+    {
+      "name": "joint_state_controller",
+      "state": "running"
+    },
+    {
+      "name": "scaled_pos_joint_traj_controller",
+      "state": "stopped"
+    },
+    {
+      "name": "speed_scaling_state_controller",
+      "state": "running"
+    },
+    {
+      "name": "force_torque_sensor_controller",
+      "state": "running"
+    }
+  ]
+}

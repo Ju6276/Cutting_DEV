@@ -1,0 +1,11 @@
+diff --git a/cartesian_compliance_controller/cfg/ComplianceController.cfg b/cartesian_compliance_controller/cfg/ComplianceController.cfg
+index 014577e..6bb058f 100755
+--- a/cartesian_compliance_controller/cfg/ComplianceController.cfg
++++ b/cartesian_compliance_controller/cfg/ComplianceController.cfg
+@@ -8,4 +8,5 @@
+-gen.add("trans_x", double_t, 0, "Linear stiffness along x-axis [N/m]", 500.0, 0.0, 5000)
++# Offline deployment candidate: preserve the current SliceIt action mapper range.
++gen.add("trans_x", double_t, 0, "Linear stiffness along x-axis [N/m]", 500.0, 0.0, 10000)
+ gen.add("trans_y", double_t, 0, "Linear stiffness along y-axis [N/m]", 500.0, 0.0, 5000)
+ gen.add("trans_z", double_t, 0, "Linear stiffness along z-axis [N/m]", 500.0, 0.0, 5000)
+ gen.add("rot_x", double_t, 0, "Rotary stiffness along x-axis [Nm/rad]", 50.0, 0.0, 200)

@@ -19,7 +19,8 @@
   地址不是机器人控制箱IP。仓库 /homeL/dong/Cutting_DEV，
   原FDCC /homeL/dong/ur10e_fdcc_ws，候选 /homeL/dong/ur10e_fdcc_alignment_ws，
   ATI工具 /homeL/dong/ATI-Mini45-DEV，记录 /homeL/dong/ur10e_fdcc_records。
-  上次盘点的硬件工作分支不代表始终同步main。
+  真机模块在hardware/ur10e-commissioning分支，命令见
+  [模块README](../hardware/ur10e_ros1/README.md)。此分支尚未合入main。
 - **ju-ROG**：Nano采集电脑，Ubuntu22.04.5，相机网卡enp108s0为192.168.122.100/24，
   相机192.168.122.101；不是已验证的SSH网段。
   Python /home/ju/Downloads/mechmind-camera/.venv，采集目录同父级checklist-20261121-round1。
@@ -138,8 +139,8 @@ BladeMaster替换为--blademaster-config PREPARED/blademaster.json；输出目�
 
 ~~~bash
 CUTTING_ENV=planner source scripts/env/cutting_env.sh
-CUTTING_BACKEND_ROOT="$PWD/backends/mujoco" PYTHONPATH=.:backends/mujoco python -m pytest tests -q
-(CUTTING_ENV=base source scripts/env/cutting_env.sh; cd backends/mujoco; PYTHONPATH=. ../../.venv/bin/python -m pytest tests -q)
+CUTTING_BACKEND_ROOT="$PWD/backends/mujoco" python -m pytest tests -q
+(CUTTING_ENV=base source scripts/env/cutting_env.sh; cd backends/mujoco; PYTHONPATH=".:${CUTTING_BM_EXTRA:-/dataHDD/dong/Envs/cutting-bm-extra}" ../../.venv/bin/python -m pytest tests -q)
 ~~~
 
 skip明确记录；单元测试、实际接口/重置、策略效果是不同证据。

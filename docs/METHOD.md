@@ -251,3 +251,7 @@ Torch/Warp共享显存：默认physics/reset前释放空闲Torch缓存，
 支持expandable_segments，按Warp高水位+1 GiB检查余量；
 不自动减环境数、不吞OOM。日志区分当前阶段峰值与已结束阶段。
 实测修复/旧任务结果只在[结果](RESULTS.md)记录，不在方法里累积开发日记。
+
+现场ROS1控制器沿用同一SliceIt来源补丁，新增刚度参数范围修正。
+UR内置补偿力采用独立native配置；空中增益与训练参数分开，
+来源和运行边界见[真机模块](../hardware/ur10e_ros1/README.md)。

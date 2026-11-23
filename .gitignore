@@ -18,3 +18,6 @@ wandb/
 *.npz
 *.mjb
 *.patch.rej
+
+# Local hardware environment
+.venv-mpc-cu118

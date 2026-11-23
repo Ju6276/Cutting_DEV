@@ -172,7 +172,8 @@ FDCC力输入0条；UR wrench frame为tool0_controller。这是反馈频率，�
 原始证据 /homeL/dong/ur10e_fdcc_records/codex_readonly_20261121/。
 
 **独立候选：**保留机械臂描述，添加九个工具链接，URDF检查与同源控制器编译通过；
-YAML对应仿真配置、动作映射离线检查通过，未加载候选到活动UR驱动。
+当时YAML对应仿真配置、动作映射离线检查通过，尚未加载候选到活动UR驱动。
+随后现场空中测试见2026-11-23记录。
 原FZI使用tool0三参考点、不同力位组合/增益，不视为已对齐。
 发现候选dynamic_reconfigure将trans_x裁到5000 N/m；对齐仿真范围后，
 真实C++ __clamp__ 保留10000。只修接口范围，不是允许实机用最大刚度。
@@ -185,6 +186,23 @@ YAML对应仿真配置、动作映射离线检查通过，未加载候选到活�
 文件 controller_output_comparison.json、action_mapping_check.json、
 range_before.log、range_after.log、controller_range.patch、候选URDF/YAML。
 当前接入和标定见[硬件](HARDWARE.md)。
+
+**UR10e空中联调，2026-11-23：**ATI仅机械安装，使用UR内置已补偿力，转到ATI参考点；
+FDCC额外重力补偿为0。假刀负载仍用CAD估计。
+
+| 项目 | 实测结果 | 范围 |
+|---|---|---|
+| FDCC 20 mm往返 | 最大上移19.625 mm，返回误差0.546 mm | 增益0.2，无人接触，合力峰值2.021 N |
+| 连续FDCC＋GPU MPC返回 | 14.068 s、15次规划，误差0.947 mm | 64候选/4步，竖直空中，合力峰值1.689 N |
+| 位置轨迹下移200 mm | 实际200.012 mm，误差0.049 mm | 位置控制器，非MPC/FDCC |
+| 训练刀具朝向 | 下倾8.248°、侧倾0.0016°，朝向误差0.0041° | 保持控制点，未复制仿真桌高 |
+
+MPC连续运行FDCC，规划约0.6–0.8 s，不是20 Hz规划。
+先前向下10 mm的一次30 s试验仅走6.98 mm，且超出25 s模型时限，不能算到位通过；
+当前入口上限20 s。此空中联调关闭拉锯/倾角，未接触食材，不是论文策略切割验证。
+认可位姿见真机模块config/accepted_pose.json。日志保留在
+/homeL/dong/ur10e_fdcc_records/，具体文件与操作见[真机模块](../hardware/ur10e_ros1/README.md)。
+本次整理后仅做离线验证，未重新运动。
 
 **Nano，ju-ROG，2026-11-21：**设备/内参/配置读取和一次办公桌联合RGB-D/XYZ采集通过；
 采集前后配置相同。1280×1024，保留1,310,720点位（含NaN），未下采样。

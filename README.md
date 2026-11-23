@@ -21,6 +21,7 @@ Five foods: cucumber, half potato, peeled banana, tofu and luncheon.
 Pose completion does not certify material separation.
 
 Code: cutting_world_model/ (learning/task), backends/mujoco/ (robot/physics),
-scripts/ (entries), configs/ (contracts), integrations/ (source provenance).
+scripts/ (entries), configs/ (contracts), integrations/ (source provenance),
+[hardware/ur10e_ros1/](hardware/ur10e_ros1/README.md) (real UR10e controller and air commissioning).
 Start from the [runtime guide](docs/OPERATIONS.md); assets and runs remain outside Git.
 [Sources](docs/reference/SOURCES.md) · [Licenses](NOTICE.md).

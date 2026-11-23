@@ -1,11 +1,11 @@
 # 硬件、真机接入与标定
 
-更新：2026-11-22。统一维护 UR10e、ATI Mini45、Nano 和工具组件。
+更新：2026-11-23。统一维护 UR10e、ATI Mini45、Nano 和工具组件。
 电脑、地址与工作目录见[运行手册](OPERATIONS.md#machines)；算法见[方法](METHOD.md)。
 设备参数注明来源；无需手工提供提交号或文件哈希。原始文件保留在设备电脑上。
 
-**设备型号已确定；ROS1 FDCC 候选已完成离线计算对齐，尚未接入真机闭环。**
-机器人按用户要求保持关闭，目前只做离线工作。ATI 在控制电脑上的采集仍待接通；
+**ROS1 FDCC已用UR内置F/T完成空中往返，连续GPU MPC空中联调已有结果。**
+当前整理期间不移动机器人。ATI仅机械安装，电信号仍待接通；
 Nano 已能读取设备、内参和办公桌样本，食材采集及眼在手外标定尚未完成。
 测试日期、结果与证据目录统一在[结果](RESULTS.md#hardware-checks)。
 
@@ -37,7 +37,8 @@ UR10e也自带实体末端F/T传感器，不是旧CB3 UR10的电流估算。
 [UR数据表](https://www.universal-robots.com/media/1807466/ur10e_e-series_datasheets_web.pdf)
 列出各轴标称力范围±100 N、力矩±10 N·m，力准确度±5.5 N、力矩±0.5 N·m。
 驱动 /wrench 与外置ATI测量点、下游负载和补偿不同，不能只换topic。
-采用内置F/T需另验坐标、零偏、已有补偿及软食材信号的噪声/重复性。
+内置F/T已用于空中闭环，换算至ATI参考点后进入FDCC，额外工具重力补偿设为0。
+软食材信号噪声/重复性及接触精度尚待验证。
 
 ## Nano capture
 
@@ -80,7 +81,8 @@ camera必须是SDK点云光学系。保存标定板规格、采集位姿、变�
 候选是 SliceIt/cambel 修改版 FDCC 的 ROS1 C++实现，与仿真Python移植同源。
 它运行在控制电脑ROS进程，通过UR驱动发送关节目标，不修改控制箱固件。
 原现场FZI工作区未替换；独立候选已编译并通过30次连续输入的离线输出对照。
-这覆盖控制计算和递推，未覆盖网络、实机伺服、在线参数同步或ATI采集。
+离线对照覆盖计算和递推；随后已做内置F/T空中运动与在线参数同步。
+这不证明实机和仿真动态响应一致；ATI采集及接触切割未验收。
 
 候选配置来自当前平台 controller.json，使用 knife_control 控制点、
 ati_sensing_frame 测量点和 knife_compliance 柔顺系。
@@ -101,7 +103,10 @@ ati_sensing_frame 测量点和 knife_compliance 柔顺系。
   正确补偿姿态变化的重力与重心力矩，避免两次补偿。
 
 evaluate_pose_policy.py是仿真入口，不是填机器人IP就能用的真机桥。
-完整命令桥和时序尚未验收。纯MPC是工程测试用上层规划器，底层仍是FDCC；
+已有受限空中MPC桥，规划慢于50 ms，未完成切割闭环验收。
+构建、配置、保存位姿和操作只维护在[真机模块README](../hardware/ur10e_ros1/README.md)。
+默认增益0.0168，成功空中测试使用0.2，不能混称相同动态响应。
+纯MPC是工程测试用上层规划器，底层仍是FDCC；
 先用固定参考目标检验FDCC，可排除规划误差。
 MPC近似见[方法](METHOD.md#controllers)，规划耗时见[结果](RESULTS.md#ur10e-baseline-verification)。
 
