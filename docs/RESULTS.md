@@ -37,14 +37,50 @@ visual_five_foods_20261122/evaluation_v3 completed cucumber, banana, tofu and
 luncheon with pose success at 125/93/102/96 steps. Half-potato exhausted its
 1200 s wall budget around step 320; that is neither success nor a 500-step
 task timeout. Each completed case still reported one material component.
-New visual weights have started a separate frozen-actor execution in
-visual_center_five_foods_20261123/evaluation; inspect progress before claiming
-it complete. RL weights, task and physical parameters are unchanged.
+New visual weights finished a separate frozen-actor execution in
+visual_center_five_foods_20261123/evaluation (3184 s). Cucumber/banana/tofu/luncheon
+reached pose success at 123/90/101/96 steps; half-potato reached the actual
+500-step task time limit without success. No force-limit or workspace failure.
+Cucumber and banana each reported two large components (separation candidates),
+others one. One case per food is not a robust success-rate study.
+RL weights, task and physical parameters are unchanged.
 
 The data/inference contract changes passed GPU9 root tests (839 passed,
 6 skipped) and backend tests (48 passed). Current execution is native
 BladeMaster only; DiSECt still needs matching pre-cut topology for a newly
 selected plane.
+
+## WM+MPPI completion pass (2026-11-23)
+
+The original 4 h evaluation watchdog was insufficient: BladeMaster completed
+24/40 cases (banana, tofu, luncheon), DiSECt 7/40 (5 banana, 2 luncheon).
+All completed cases reached pose success; this is not 100% success over the
+full 40-case populations. Remaining cases were interrupted, not task failures.
+
+User requested completion and one representative video per food/method.
+The new --skip-completed-from entry validates model, planner, original case
+conditions and seed, retains original case IDs and restarts only unfinished
+cases from the original initial conditions. It does not resume a physics
+checkpoint. MPPI sampling restarts in a new process. The 31 completed rows
+remain authoritative; duplicate scored IDs are rejected when merging.
+
+GPU7 restarts 16 BladeMaster cases; A6000 GPU1 restarts 33 DiSECt cases.
+Same frozen weights, K=512, H=8, one refinement, no terminal critic, unchanged
+task 500-step horizon. A 48 h watchdog replaces the insufficient 4 h cap;
+execution exits as soon as all selected cases terminate.
+Runs: /dataHDD/dong/Experiments/Cutting_DEV/runs/wm_mppi_complete_20261123/
+blademaster/ and disect/. Their job_status.json separates evaluation, rendering
+and completion; merged/ contains the final unique-case report.
+The post-job renderer selects the original first case of each food (not the
+best case), uses the canonical scene and retains one MP4 per food.
+Original trajectories and episodes are preserved. Only disposable render
+frames/scenes are removed after video decode validation.
+
+Continuation/render changes: GPU9 841 root tests passed, 6 skipped; 48 backend
+tests passed. A6000 uses portable official Blender 2.82a for the same renderer:
+its system Blender lacks OpenImageDenoiser. Its one-frame render passed before
+queueing final video export. Do not claim the completion pass finished until
+its actual output confirms all 40 cases and five rendered videos.
 
 ## UR10e long-run snapshot (2026-11-22)
 
