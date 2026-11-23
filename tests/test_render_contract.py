@@ -66,3 +66,21 @@ def test_prepared_split_does_not_create_an_exterior_normal_seam():
 def test_old_presentation_export_is_rejected():
     from scripts.render_episode_still import export
     with pytest.raises(ValueError,match="render_scene.py"):export(None)
+
+
+def test_partial_recording_is_opt_in_and_never_success(tmp_path):
+    from cutting_world_model.render_contract import recorded_clip
+    group=dict(first_world=8,path="group_01")
+    for i in range(4):
+        p=tmp_path/"geometry"/f"{i:04d}"/"group_01"
+        p.mkdir(parents=True);(p/"world_states.npz").touch()
+    with pytest.raises(ValueError,match="no completed"):recorded_clip(tmp_path,group)
+    result=recorded_clip(tmp_path,group,True)
+    assert result["steps"]==3 and result["success"] is None and result["completed"] is False
+    assert result["ending"]=="evaluation_incomplete"
+    # A gap cannot be silently crossed.
+    p=tmp_path/"geometry"/"0005"/"group_01";p.mkdir(parents=True);(p/"world_states.npz").touch()
+    assert recorded_clip(tmp_path,group,True)["steps"]==3
+    row=dict(case=8,steps=2,ending="success",success=True)
+    (tmp_path/"episodes.jsonl").write_text(json.dumps(row)+"\n")
+    assert recorded_clip(tmp_path,group,True)==row

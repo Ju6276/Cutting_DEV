@@ -100,6 +100,28 @@ def evaluation_config(source, worlds_per_object, seed, blademaster=False):
     return config
 
 
+def completed_case_ids(previous, manifest, cases):
+    """Validate a prior run before excluding its truly completed cases."""
+    previous=Path(previous)
+    old=json.loads((previous/"manifest.json").read_text())
+    for key in ("checkpoint_sha256","config","seed","method"):
+        if old.get(key)!=manifest.get(key):
+            raise ValueError("Previous evaluation mismatch: "+key)
+    if old.get("planner")!=manifest.get("planner"):
+        raise ValueError("Previous planner configuration mismatch")
+    old_cases=json.loads((previous/"cases.json").read_text())
+    if old_cases!=cases:
+        raise ValueError("Previous case conditions differ")
+    rows=[json.loads(line) for line in (previous/"episodes.jsonl").read_text().splitlines()]
+    ids=[int(row["case"]) for row in rows]
+    if len(set(ids))!=len(ids) or any(i<0 or i>=len(cases) for i in ids):
+        raise ValueError("Duplicate or invalid completed case ID")
+    for row in rows:
+        if row.get("ending") not in ("success","collision","outside","time_limit","failure","tool_motion","object_slip") or int(row.get("steps",0))<1:
+            raise ValueError("Prior row is not a terminated episode")
+    return ids
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--checkpoint", type=Path)
@@ -116,6 +138,7 @@ def main():
     p.add_argument("--seed", type=int, default=20261115)
     p.add_argument("--max-hours", type=float, default=1)
     p.add_argument("--output", type=Path, required=True)
+    p.add_argument("--skip-completed-from",type=Path,help="Restart unfinished cases under original conditions; not a physical-state resume")
     p.add_argument("--record-geometry", action="store_true", help="Capture physical states for video; no change to policy or task")
     args = p.parse_args()
     if args.worlds_per_object < 1 or args.max_hours <= 0 or args.seed < 0:
@@ -141,6 +164,7 @@ def main():
     rows, traces = [], []
     expected = 0
     group_names = []
+    selected_ids = []
     try:
         torch.set_num_threads(2)
         torch.manual_seed(args.seed)
@@ -165,6 +189,7 @@ def main():
         groups = config["groups"]
         expected = sum(g["worlds"] for g in groups)
         group_names = [g["name"] for g in groups for _ in range(g["worlds"])]
+        selected_ids = list(range(expected))
         identity = {}
         if args.method == "wm_policy":
             policy = SliceItPolicy(int(metadata["goal_dim"]), int(metadata["state_shapes"]["observation"][0])).cuda().eval()
@@ -216,10 +241,22 @@ def main():
         write("manifest.json", manifest)
         conditions = env.conditions(range(env.worlds)) if hasattr(env, "conditions") else [
             {"object": name} for name in group_names]
-        write("cases.json", [{"case": w, "group": group_names[w], "condition": c} for w, c in enumerate(conditions)])
+        case_rows=[{"case":w,"group":group_names[w],"condition":c} for w,c in enumerate(conditions)]
+        write("cases.json",case_rows)
+        skipped=completed_case_ids(args.skip_completed_from,manifest,case_rows) if args.skip_completed_from else []
+        selected_ids=[i for i in selected_ids if i not in skipped]
+        if not selected_ids:
+            raise ValueError("No unfinished cases remain")
+        expected=len(selected_ids)
+        manifest.update(selected_cases=selected_ids,skipped_completed_cases=skipped,
+                        expected_cases=expected,previous_evaluation=str(args.skip_completed_from) if args.skip_completed_from else None,
+                        continuation="Unfinished cases restarted from original conditions; prior finished cases excluded, no mid-episode restoration")
+        write("manifest.json",manifest)
         history = frame["observation"].float()[None].repeat(policy_history, 1, 1)
         n, device = env.worlds, env.device
         finished = torch.zeros(n, dtype=torch.bool, device=device)
+        finished[skipped]=True
+        selected=torch.zeros_like(finished);selected[selected_ids]=True
         acc = {k: torch.zeros(n, device=device) for k in ("return", "steps", "force", "ratio", "impulse", "speed")}
         horizon = int(config["task"]["horizon_steps"])
         def capture(step):
@@ -281,7 +318,7 @@ def main():
                     log.flush()
                 finished |= ended
                 if step % 10 == 0 or bool(finished.all()):
-                    progress(state="running", phase="physics", step=step, cases_done=int(finished.sum()), expected_cases=expected)
+                    progress(state="running", phase="physics", step=step, cases_done=int((finished & selected).sum()), expected_cases=expected)
                 if bool(finished.all()):
                     break
                 history = torch.cat((history[1:], frame["observation"].float()[None]), 0)
@@ -306,7 +343,7 @@ def main():
             if planner is not None:
                 write("plans.json", planner.plans)
             summary = {"state": status["state"], "overall": summarize(rows, expected),
-                       "groups": {g: summarize([r for r in rows if r["group"] == g], group_names.count(g))
+                       "groups": {g: summarize([r for r in rows if r["group"] == g], sum(group_names[i]==g for i in selected_ids))
                                   for g in sorted(set(group_names))}}
             write("summary.json", summary)
         except BaseException as error:

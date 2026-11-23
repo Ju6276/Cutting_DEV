@@ -96,3 +96,24 @@ def procedural_colors(kind, points):
         base=np.array([.93,.88,.69]);shade=.015*grain+.006*fine
     else:raise ValueError("Unknown synthetic food appearance: "+kind)
     return np.clip(base+shade[:,None],0,1)
+
+
+def recorded_clip(evaluation, group, allow_partial=False):
+    """Return a real completed episode or explicitly labelled saved prefix."""
+    evaluation=Path(evaluation)
+    case=int(group["first_world"])
+    rows_path=evaluation/"episodes.jsonl"
+    rows=[json.loads(line) for line in rows_path.read_text().splitlines()] if rows_path.exists() else []
+    row=next((r for r in rows if r["case"]==case),None)
+    if row is not None:
+        return row
+    if not allow_partial:
+        raise ValueError("Recorded case has no completed episode; use --allow-partial for a labelled prefix")
+    root=evaluation/"geometry"
+    last=-1
+    while (root/f"{last+1:04d}"/group["path"]/"world_states.npz").is_file():
+        last+=1
+    if last<1:
+        raise ValueError("No recorded motion prefix")
+    return dict(case=case,steps=last,ending="evaluation_incomplete",success=None,
+                completed=False,scope="Saved trajectory prefix only; evaluation ended before this case terminated")

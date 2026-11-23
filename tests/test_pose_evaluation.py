@@ -68,3 +68,23 @@ def test_physical_mount_mismatch_rejected():
     other=copy.deepcopy(meta);other['board_pose_geometry']['vertices_in_ee'][0][2]=.01
     with pytest.raises(ValueError,match='board_pose_geometry'):
         validate_interfaces(meta,other,{'task':{}})
+
+def test_continuation_validates_original_cases_and_keeps_only_completed(tmp_path):
+    import json
+    from scripts.evaluate_pose_policy import completed_case_ids
+    manifest=dict(checkpoint_sha256="same",config={"task":{}},seed=4,method="wm_mppi",planner={"samples":512})
+    cases=[dict(case=0,group="food",condition={"speed":.03}),dict(case=1,group="food",condition={"speed":.04})]
+    (tmp_path/"manifest.json").write_text(json.dumps(manifest))
+    (tmp_path/"cases.json").write_text(json.dumps(cases))
+    row=dict(case=1,steps=20,ending="success")
+    (tmp_path/"episodes.jsonl").write_text(json.dumps(row)+"\n")
+    assert completed_case_ids(tmp_path,manifest,cases)==[1]
+    changed=copy.deepcopy(cases);changed[1]["condition"]["speed"]=.05
+    with pytest.raises(ValueError,match="conditions"):completed_case_ids(tmp_path,manifest,changed)
+    wrong=copy.deepcopy(manifest);wrong["planner"]["samples"]=100
+    with pytest.raises(ValueError,match="planner"):completed_case_ids(tmp_path,wrong,cases)
+    (tmp_path/"episodes.jsonl").write_text(json.dumps(row)+"\n"+json.dumps(row)+"\n")
+    with pytest.raises(ValueError,match="Duplicate"):completed_case_ids(tmp_path,manifest,cases)
+    row["ending"]="evaluation_incomplete"
+    (tmp_path/"episodes.jsonl").write_text(json.dumps(row)+"\n")
+    with pytest.raises(ValueError,match="terminated"):completed_case_ids(tmp_path,manifest,cases)

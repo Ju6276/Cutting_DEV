@@ -5,7 +5,7 @@ import numpy as np
 import vtk
 from vtk.util.numpy_support import numpy_to_vtk,vtk_to_numpy
 import render_geometry as r
-from cutting_world_model.render_contract import load_profile,appearance_reference,validate_platform,material_coordinates,_fixed_transform,procedural_colors
+from cutting_world_model.render_contract import load_profile,appearance_reference,validate_platform,material_coordinates,_fixed_transform,procedural_colors,recorded_clip
 
 def color_lookup(reference, target, target_data, target_task):
  """Original approved scan colors in material axes; no PCA/reflected recoloring."""
@@ -31,6 +31,7 @@ def main():
  p=argparse.ArgumentParser(description=__doc__)
  p.add_argument('--evaluation',type=Path,required=True)
  p.add_argument('--group',type=int,required=True)
+ p.add_argument('--allow-partial',action='store_true',help='Export saved prefix without claiming a completed episode')
  p.add_argument('--snapshot',action='store_true',help='Export settled initial geometry without an episode or policy')
  p.add_argument('--source-root',type=Path,action='append',required=True)
  p.add_argument('--output',type=Path,required=True)
@@ -45,8 +46,7 @@ def main():
  if a.snapshot:
   row=dict(case=w,steps=0,scope='Settled initial geometry; no policy or control steps')
  else:
-  rows=[json.loads(x) for x in (a.evaluation/'episodes.jsonl').read_text().splitlines()]
-  row=next(x for x in rows if x['case']==w)
+  row=recorded_clip(a.evaluation,group,a.allow_partial)
  last=int(row['steps'])
  root=gdir/'0000'/group['path']
  d=dict(np.load(root/'episode.npz'))
