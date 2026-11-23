@@ -7,6 +7,45 @@
 详细历史开发过程保留在[原结果记录](https://github.com/Ju6276/Cutting_DEV/blob/7cc9d1d/docs/RESULTS.md)，
 原始日志/数据不随文档合并删除。正文不要求人工回填哈希。
 
+## Five-food visual localization (2026-11-23)
+
+GPU9: /dataHDD/dong/Experiments/Cutting_DEV/runs/visual_center_five_foods_20261123/.
+The user selected a fixed current Nano camera, fixed food heading and +/-15 mm
+translations. Five known settled surfaces: cucumber003, half-potato, peeled
+banana, tofu, luncheon. Dataset: 1500 ideal-depth cases, 1000/250/250
+train/validation/test, grouped by placement ID across foods. Network input is
+512 foreground XYZ points; board pixels support plane estimation but are
+excluded from encoder input. No robot/tool is included in training depth.
+
+DP3 XYZ encoder plus the existing midpoint regression head trained for 120
+epochs on CUDA. Validation selected epoch 11; weights are at train/center.pt.
+Online W&B reports finished and all 120 epoch rows are remotely readable:
+[training run](https://forge.coreweave.com/wandb/ju-dong6276-technical-university-of-munich/Cutting_DEV/runs/j09wwv7c).
+
+On the 250 held-out cases, midpoint-Y MAE / P95 are 0.169 / 0.395 mm.
+Per-food MAE: cucumber 0.122, potato 0.227, banana 0.239, tofu 0.147,
+luncheon 0.111 mm. On exactly these cases, historical frozen DP3 gives
+12.237 / 15.967 mm; visible geometric midpoint gives 0.684 / 2.831 mm.
+The geometric selector is better on banana, tofu and luncheon, while the new
+network improves the aggregate mainly through cucumber and potato.
+These are known-shape, fixed-camera, ideal-depth results, not real-camera,
+novel-shape or cutting-success evidence. No test-driven retuning was performed.
+Reports: train/report.json, comparison.json, train/test_predictions.npz.
+
+The prior frozen old-DP3/current-actor visual execution at
+visual_five_foods_20261122/evaluation_v3 completed cucumber, banana, tofu and
+luncheon with pose success at 125/93/102/96 steps. Half-potato exhausted its
+1200 s wall budget around step 320; that is neither success nor a 500-step
+task timeout. Each completed case still reported one material component.
+New visual weights have started a separate frozen-actor execution in
+visual_center_five_foods_20261123/evaluation; inspect progress before claiming
+it complete. RL weights, task and physical parameters are unchanged.
+
+The data/inference contract changes passed GPU9 root tests (839 passed,
+6 skipped) and backend tests (48 passed). Current execution is native
+BladeMaster only; DiSECt still needs matching pre-cut topology for a newly
+selected plane.
+
 ## UR10e long-run snapshot (2026-11-22)
 
 Read from progress.json on the run hosts; these are fixed records, not live

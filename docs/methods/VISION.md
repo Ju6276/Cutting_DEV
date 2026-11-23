@@ -80,7 +80,7 @@ real-cutting benchmark.
 The current generator takes an explicit scene manifest: a JSON list of
 objects with `name` and `scene` (canonical pre-cut scene.npz) fields.
 It uses the settled cucumber, half-potato, peeled banana, tofu and luncheon surfaces.
-The approved next run fixes the current Nano camera and food heading, with 300
+The completed five-food training run fixes the current Nano camera and food heading, with 300
 translations per food on the same +/-15 mm grid: 1,500 samples, split into
 1,000 training / 250 validation / 250 test cases. Every food/view sharing a
 placement ID belongs to one partition. This tests known shapes, not unseen food.
@@ -250,12 +250,12 @@ CAD 的 -Y 朝向窗外，当前装配将其映射到光学 +Z；
 更早的外壳审计与渲染调试过程保留在 Git 历史，日常使用不需阅读。
 
 
-## 当前 UR10e 五食材视觉接入（2026-11-23，验证中）
+## 当前 UR10e 五食材视觉接入（2026-11-23）
 
 运行顺序保持：将实际机器人模型放到当前工作空间的观察位 → 同一场景渲染 RGB-D → 512点归一化输入冻结DP3 → 生成目标 → IK放置到起刀位 → 冻结策略执行。
 观察位不再写死旧UR5e坐标；移刀后传感器滤波零点与FDCC重力基准一起重置。材料粒子位置保持不变；这里的IK放置仍不是连续避碰接近轨迹。
 
-`evaluate_visual_suite.py` 对配置中的每种食材各运行一次，单独保存感知、目标、控制轨迹、回合结果和错误，并设置单物体与总时长上限。旧DP3权重只训练过三形状；香蕉、豆腐、午餐肉此次属于冻结视觉模型的新形状流程测试。之后再生成五食材数据训练视觉网络，不能把入口接通写成视觉训练已完成。
+`evaluate_visual_suite.py` 对配置中的每种食材各运行一次，单独保存感知、目标、控制轨迹、回合结果和错误，并设置单物体与总时长上限。旧DP3权重只训练过三形状；香蕉、豆腐、午餐肉此次属于冻结视觉模型的新形状流程测试。五食材固定相机数据与 DP3 训练现已完成；新权重执行评估另跑，实测结果统一见 [RESULTS](../RESULTS.md#five-food-visual-localization-2026-11-23)。
 
 相机配置 `configs/vision/mecheye_nano_v4_550_lab_v1.json` 使用ROG记录的 Nano V4内参，0.55 m拟定物距、机器人前方30度俯视。外参仍是仿真设计，不是实测眼在手外标定。理想深度不模拟结构光重建或湿表面缺测。外观继续使用统一Blender场景。
 
